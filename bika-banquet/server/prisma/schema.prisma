@@ -1,0 +1,569 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTH & USER MANAGEMENT
+// ============================================
+
+model User {
+  id                String               @id @default(uuid())
+  email             String               @unique
+  password          String
+  name              String?
+  isVerified        Boolean              @default(false)
+  verificationToken String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  sessions          Session[]
+  userRoles         UserRole[]
+  paymentsReceived  BookingPayments[]    @relation("PaymentReceiver")
+  finalizedQuotations FinalizedQuotation[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  userRoles   UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================
+// CUSTOMER MANAGEMENT
+// ============================================
+
+model Customer {
+  id                String    @id @default(uuid())
+  name              String
+  phone             String    @unique
+  phoneCountryCode  String?
+  phoneVerified     Boolean   @default(false)
+  email             String?   @unique
+  alterPhone        String?
+  alternatePhone    String?
+  alterPhoneCountryCode String?
+  whatsapp          String?
+  address           String?
+  country           String?   @default("India")
+  street1           String?
+  street2           String?
+  city              String?
+  state             String?
+  pincode           String?
+  priority          Int?
+  caste             String?
+  rating            String?   @default("0")
+  visitCount        Int       @default(0)
+  dateOfBirth       DateTime?
+  anniversary       DateTime?
+  occupation        String?
+  companyName       String?
+  gstNumber         String?
+  panNumber         String?
+  aadharNumber      String?
+  whatsappNumber    String?
+  whatsappCountryCode String?
+  instagramHandle   String?
+  twitter           String?
+  linkedin          String?
+  facebookProfile   String?
+  otpCode           String?
+  otpExpiry         DateTime?
+  otpExpiresAt      DateTime?
+  isVerified        Boolean   @default(false)
+  referredById      String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  referredBy        Customer? @relation("CustomerReferral", fields: [referredById], references: [id])
+  referrals         Customer[] @relation("CustomerReferral")
+  enquiries         Enquiry[]
+  bookings          Booking[] @relation("PrimaryCustomer")
+  secondaryBookings Booking[] @relation("SecondaryCustomer")
+
+  @@index([phone])
+  @@index([email])
+  @@index([referredById])
+  @@map("customers")
+}
+
+// ============================================
+// ENQUIRY MANAGEMENT
+// ============================================
+
+model Enquiry {
+  id                  String        @id @default(uuid())
+  customerId          String
+  functionName        String
+  functionType        String
+  functionDate        DateTime
+  functionTime        String?
+  startTime           String?
+  endTime             String?
+  expectedGuests      Int
+  budgetPerPlate      Float?
+  specialRequirements String?
+  quotation           Boolean       @default(false)
+  pencilBooking       Boolean       @default(false)
+  validity            DateTime?
+  note                String?
+  status              String        @default("pending") // pending, quoted, converted, cancelled
+  isPencilBooked      Boolean       @default(false)
+  pencilBookedUntil   DateTime?
+  quotationSent       Boolean       @default(false)
+  quotationValidUntil DateTime?
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  customer            Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  halls               EnquiryHall[]
+  packs               EnquiryPack[]
+
+  @@index([customerId])
+  @@index([functionDate])
+  @@index([status])
+  @@map("enquiries")
+}
+
+model EnquiryHall {
+  id        String   @id @default(uuid())
+  enquiryId String
+  hallId    String
+  createdAt DateTime @default(now())
+  enquiry   Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  hall      Hall     @relation(fields: [hallId], references: [id])
+
+  @@unique([enquiryId, hallId])
+  @@index([enquiryId])
+  @@index([hallId])
+  @@map("enquiry_halls")
+}
+
+model EnquiryPack {
+  id             String        @id @default(uuid())
+  enquiryId      String
+  mealSlotId     String
+  templateMenuId String
+  packCount      Int
+  timeSlot       String?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  enquiry        Enquiry       @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  mealSlot       MealSlot      @relation(fields: [mealSlotId], references: [id])
+  templateMenu   TemplateMenu  @relation(fields: [templateMenuId], references: [id])
+
+  @@index([enquiryId])
+  @@map("enquiry_packs")
+}
+
+// ============================================
+// VENUE MANAGEMENT
+// ============================================
+
+model Banquet {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  location  String
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  phone     String?
+  email     String?
+  facilities String?
+  description String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  halls     Hall[]
+
+  @@map("banquets")
+}
+
+model Hall {
+  id             String        @id @default(uuid())
+  name           String        @unique
+  banquetId      String?
+  location       String?
+  rate           String?
+  capacity       Int
+  floatingCapacity Int?
+  area           Float?
+  photo          String?
+  order          Int?
+  floorNumber    Int?
+  amenities      String?
+  description    String?
+  basePrice      Float?
+  images         String[]
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  banquet        Banquet?      @relation(fields: [banquetId], references: [id])
+  enquiryHalls   EnquiryHall[]
+  bookingHalls   BookingHall[]
+
+  @@index([banquetId])
+  @@map("halls")
+}
+
+// ============================================
+// MENU & CATALOG MANAGEMENT
+// ============================================
+
+model MealSlot {
+  id           String         @id @default(uuid())
+  name         String         @unique
+  description  String?
+  startTime    String
+  endTime      String
+  displayOrder Int            @default(0)
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  enquiryPacks EnquiryPack[]
+  bookingPacks BookingPack[]
+  bookingMenus BookingMenu[]
+
+  @@map("meal_slots")
+}
+
+model ItemType {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  order        Int      @default(0)
+  description  String?
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  items        Item[]
+
+  @@map("item_types")
+}
+
+model Item {
+  id                String              @id @default(uuid())
+  itemTypeId        String
+  name              String
+  description       String?
+  photo             String?
+  setupCost         String?
+  itemCost          String?
+  point             Int?
+  cost              Float               @default(0)
+  points            Int                 @default(0)
+  isVeg             Boolean             @default(true)
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  itemType          ItemType            @relation(fields: [itemTypeId], references: [id])
+  templateMenuItems TemplateMenuItem[]
+  bookingMenuItems  BookingMenuItems[]
+
+  @@index([itemTypeId])
+  @@map("items")
+}
+
+model TemplateMenu {
+  id            String              @id @default(uuid())
+  name          String              @unique
+  description   String?
+  setupCost     Float               @default(0)
+  ratePerPlate  Float               @default(0)
+  category      String?
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  items         TemplateMenuItem[]
+  enquiryPacks  EnquiryPack[]
+
+  @@map("template_menus")
+}
+
+model TemplateMenuItem {
+  id             String       @id @default(uuid())
+  templateMenuId String
+  itemId         String
+  quantity       Int          @default(1)
+  createdAt      DateTime     @default(now())
+  templateMenu   TemplateMenu @relation(fields: [templateMenuId], references: [id], onDelete: Cascade)
+  item           Item         @relation(fields: [itemId], references: [id])
+
+  @@unique([templateMenuId, itemId])
+  @@index([templateMenuId])
+  @@index([itemId])
+  @@map("template_menu_items")
+}
+
+// ============================================
+// BOOKING MANAGEMENT
+// ============================================
+
+model Booking {
+  id                  String                  @id @default(uuid())
+  customerId          String
+  secondCustomerId    String?
+  referredById        String?
+  rating              Int?                    @default(0)
+  secondRating        Int?                    @default(0)
+  priority            Int?
+  secondPriority      Int?
+  functionName        String
+  functionType        String
+  functionDate        DateTime
+  functionTime        String
+  startTime           String?
+  endTime             String?
+  expectedGuests      Int
+  confirmedGuests     Int?
+  totalAmount         Float                   @default(0)
+  totalBillAmount     String?
+  finalAmount         String?
+  discountAmount      Float                   @default(0)
+  discountPercentage  Float                   @default(0)
+  discountAmount2nd   String?
+  discountPercentage2nd String?
+  taxAmount           Float                   @default(0)
+  grandTotal          Float                   @default(0)
+  advanceReceived     Float                   @default(0)
+  advanceRequired     String?
+  paymentReceivedPercent String?
+  paymentReceivedAmount String?
+  dueAmount           String?
+  balanceAmount       Float                   @default(0)
+  status              String                  @default("confirmed") // confirmed, cancelled, completed
+  quotation           Boolean?                @default(false)
+  isQuotation         Boolean                 @default(false)
+  isLatest            Boolean                 @default(true)
+  previousBookingId   String?                 @unique
+  versionNumber       Int                     @default(1)
+  notes               String?
+  internalNotes       String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  customer            Customer                @relation("PrimaryCustomer", fields: [customerId], references: [id])
+  secondCustomer      Customer?               @relation("SecondaryCustomer", fields: [secondCustomerId], references: [id])
+  previousBooking     Booking?                @relation("BookingVersion", fields: [previousBookingId], references: [id])
+  nextVersion         Booking?                @relation("BookingVersion")
+  halls               BookingHall[]
+  packs               BookingPack[]
+  additionalItems     AdditionalBookingItems[]
+  payments            BookingPayments[]
+  finalizedBooking    FinalizedBooking?
+  finalizedQuotations FinalizedQuotation[]
+
+  @@index([customerId])
+  @@index([functionDate])
+  @@index([status])
+  @@index([isLatest])
+  @@map("bookings")
+}
+
+model BookingHall {
+  id        String   @id @default(uuid())
+  bookingId String
+  hallId    String
+  charges   Float    @default(0)
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hall      Hall     @relation(fields: [hallId], references: [id])
+
+  @@unique([bookingId, hallId])
+  @@index([bookingId])
+  @@index([hallId])
+  @@map("booking_halls")
+}
+
+model BookingPack {
+  id              String       @id @default(uuid())
+  bookingId       String
+  mealSlotId      String
+  bookingMenuId   String       @unique
+  noOfPack        Int?
+  packName        String
+  packCount       Int
+  hallIds         Int[]         @default([])
+  hallName        String?
+  ratePerPlate    Float
+  setupCost       Float        @default(0)
+  startTime       String?
+  endTime         String?
+  extraPlate      Int?
+  extraRate       String?
+  extraAmount     String?
+  menuPoint       Int?
+  hallRate        String?
+  boardToRead     String?
+  extraCharges    Float        @default(0)
+  timeSlot        String?
+  tags            String[]     @default([])
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  mealSlot        MealSlot     @relation(fields: [mealSlotId], references: [id])
+  bookingMenu     BookingMenu  @relation(fields: [bookingMenuId], references: [id])
+
+  @@index([bookingId])
+  @@map("booking_packs")
+}
+
+model BookingMenu {
+  id           String              @id @default(uuid())
+  name         String
+  description  String?
+  mealSlotId   String?
+  setupCost    Float               @default(0)
+  ratePerPlate Float               @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  mealSlot     MealSlot?           @relation(fields: [mealSlotId], references: [id])
+  items        BookingMenuItems[]
+  bookingPack  BookingPack?
+
+  @@map("booking_menus")
+}
+
+model BookingMenuItems {
+  id            String      @id @default(uuid())
+  bookingMenuId String
+  itemId        String
+  quantity      Int         @default(1)
+  createdAt     DateTime    @default(now())
+  bookingMenu   BookingMenu @relation(fields: [bookingMenuId], references: [id], onDelete: Cascade)
+  item          Item        @relation(fields: [itemId], references: [id])
+
+  @@unique([bookingMenuId, itemId])
+  @@index([bookingMenuId])
+  @@index([itemId])
+  @@map("booking_menu_items")
+}
+
+model AdditionalBookingItems {
+  id          String   @id @default(uuid())
+  bookingId   String
+  description String
+  charges     Float
+  quantity    Int      @default(1)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("additional_booking_items")
+}
+
+model BookingPayments {
+  id          String   @id @default(uuid())
+  bookingId   String
+  receivedBy  String
+  amount      Float
+  method      String   // cash, card, upi, cheque, bank_transfer
+  paymentMethod String?
+  reference   String?
+  narration   String?
+  paymentDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("PaymentReceiver", fields: [receivedBy], references: [id])
+
+  @@index([bookingId])
+  @@index([paymentDate])
+  @@map("booking_payments")
+}
+
+model FinalizedBooking {
+  id          String   @id @default(uuid())
+  bookingId   String   @unique
+  data        Json
+  finalizedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("finalized_bookings")
+}
+
+model FinalizedQuotation {
+  id             String   @id @default(uuid())
+  bookingId      String
+  quotationData  Json
+  finalizedBy    String
+  finalizedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  finalizedByUser User    @relation(fields: [finalizedBy], references: [id])
+
+  @@index([bookingId])
+  @@index([finalizedAt])
+  @@map("finalized_quotations")
+}

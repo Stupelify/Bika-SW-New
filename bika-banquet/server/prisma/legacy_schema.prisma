@@ -1,0 +1,419 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+model User {
+  id                Int      @id @default(autoincrement())
+  name              String
+  email             String   @unique
+  password          String
+  isVerified        Boolean  @default(false)
+  verificationToken String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  sessions  Session[]
+  userRoles UserRole[]
+  finalizedQuotations FinalizedQuotation[]
+  bookingPayments BookingPayments[] // Add relation for receivedBy
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+model Customer {
+  id            Int       @id @default(autoincrement())
+  phone         String    @unique
+  phoneVerified Boolean   @default(false)
+  otpCode       String? // hashed OTP
+  otpExpiresAt  DateTime?
+
+  // Fields filled *after* verification
+  name                  String?
+  alterPhone            String?
+  whatsapp              String?
+  whatsappCountryCode   String?
+  email                 String?    @unique
+  address               String?
+  country               String?    @default("India")
+  pincode               String?
+  state                 String?
+  city                  String?
+  street1               String?
+  street2               String?
+  priority              Int?
+  caste                 String?
+  facebook              String?
+  instagram             String?
+  twitter               String?
+  linkedin              String?
+  rating                String?    @default("0")
+  visitCount            Int        @default(0)
+  phoneCountryCode      String?
+  alterPhoneCountryCode String?
+  referredById          Int?
+  referredBy            Customer?  @relation("Referral", fields: [referredById], references: [id])
+  referrals             Customer[] @relation("Referral")
+
+  // Opposite relation for BookingReferral
+  bookingReferrals Booking[] @relation("BookingReferral")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Enquiry   Enquiry[]
+  bookings  Booking[]
+   secondCustomerBookings Booking[] @relation("SecondCustomer")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?
+  userRoles   UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?
+  roles       RolePermission[]
+}
+
+model UserRole {
+  id     Int  @id @default(autoincrement())
+  user   User @relation(fields: [userId], references: [id])
+  role   Role @relation(fields: [roleId], references: [id])
+  userId Int
+  roleId Int
+
+  @@unique([userId, roleId])
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  roleId       Int
+  permissionId Int
+
+  @@unique([roleId, permissionId])
+}
+
+//
+// ENQUIRY SYSTEM
+//
+model Enquiry {
+  id            Int       @id @default(autoincrement())
+  customerId    Int
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  functionType  String
+  functionDate  DateTime
+  quotation     Boolean   @default(false)
+  pencilBooking Boolean   @default(false)
+  validity      DateTime?
+  note          String?
+
+  enquiryPacks EnquiryPack[]
+  halls        EnquiryHall[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  startTime String?
+  endTime   String?
+}
+
+model EnquiryPack {
+  id        Int     @id @default(autoincrement())
+  enquiryId Int
+  enquiry   Enquiry @relation(fields: [enquiryId], references: [id])
+
+  mealSlotId Int
+  mealSlot   MealSlot @relation(fields: [mealSlotId], references: [id])
+
+  noOfPack       Int
+  templateMenuId Int
+  templateMenu   TemplateMenu @relation(fields: [templateMenuId], references: [id])
+  timeSlot       String?
+
+  createdAt DateTime @default(now())
+}
+
+model MealSlot {
+  id        Int    @id @default(autoincrement())
+  name      String
+  startTime String
+  endTime   String
+
+  enquiryPacks EnquiryPack[]
+  bookingPacks BookingPack[]
+  bookingMenus BookingMenu[]
+}
+
+model Banquet {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  location String
+
+  halls Hall[] // One-to-many relationship
+}
+
+model Hall {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  location String?
+  rate     String?
+  area     String?
+  photo    String?
+  order    Int?
+
+  banquetId Int?
+  banquet   Banquet? @relation(fields: [banquetId], references: [id])
+
+  enquiryHalls EnquiryHall[]
+  bookingHalls BookingHall[]
+}
+
+//
+// MENU SYSTEM
+//
+
+model ItemType {
+  id    Int    @id @default(autoincrement())
+  name  String
+  order Int
+
+  items Item[]
+}
+
+model Item {
+  id                Int                @id @default(autoincrement())
+  name              String
+  photo             String?
+  description       String
+  itemTypeId        Int
+  itemType          ItemType           @relation(fields: [itemTypeId], references: [id])
+  setupCost         String?
+  itemCost          String?
+  point             Int?               @default(0)
+  templateMenuItems TemplateMenuItem[]
+  bookingItems      BookingMenuItems[]
+}
+
+model TemplateMenu {
+  id           Int    @id @default(autoincrement())
+  name         String
+  setupCost    String
+  ratePerPlate String
+
+  menuItems    TemplateMenuItem[]
+  enquiryPacks EnquiryPack[]
+}
+
+model EnquiryHall {
+  enquiryId Int
+  hallId    Int
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id])
+  hall    Hall    @relation(fields: [hallId], references: [id])
+
+  @@id([enquiryId, hallId])
+}
+
+model TemplateMenuItem {
+  templateMenuId Int
+  itemId         Int
+
+  templateMenu TemplateMenu @relation(fields: [templateMenuId], references: [id])
+  item         Item         @relation(fields: [itemId], references: [id])
+
+  @@id([templateMenuId, itemId])
+}
+
+// BOOKING SYSTEM
+model Booking {
+  id           Int       @id @default(autoincrement())
+  customerId   Int?
+  secondCustomerId Int?
+  rating  Int? @default(0)
+  secondRating  Int? @default(0)
+  priority     Int?
+  secondPriority Int?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+   secondCustomer Customer? @relation("SecondCustomer", fields: [secondCustomerId], references: [id]) // <-- Add this line
+  functionType String?
+  functionDate DateTime?
+  note         String?
+
+  bookingPacks BookingPack[]
+  halls        BookingHall[]
+
+  additionalItems AdditionalBookingItems[]
+
+  payments BookingPayments[]
+
+  discountAmount     String?
+  discountPercentage String?
+  grandTotal         String?
+  totalBillAmount    String?
+  finalAmount        String?
+  discountAmount2nd     String?
+  discountPercentage2nd String?
+  advanceRequired    String?
+  paymentReceivedPercent String?
+  paymentReceivedAmount  String?
+  dueAmount          String?
+  quotation          Boolean? @default(false)
+
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
+
+  startTime String?
+  endTime   String?
+
+  finalizedBooking FinalizedBooking?
+
+  // Reference to the customer who referred
+  referredById     Int?
+  referredBy       Customer? @relation("BookingReferral", fields: [referredById], references: [id])
+  referrals        Booking[] @relation("BookingReferral")
+  referredBookings Booking[] @relation("BookingReferral")
+
+  finalizedQuotations FinalizedQuotation[]
+
+  // Add these fields for versioning
+  isLatest          Boolean? @default(true)
+  previousBookingId Int?     @unique
+  previousBooking   Booking? @relation("BookingHistory", fields: [previousBookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nextBooking       Booking? @relation("BookingHistory")
+
+}
+
+model BookingPack {
+  id            Int          @id @default(autoincrement())
+  bookingId     Int?
+  booking       Booking?     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  mealSlotId    Int?
+  mealSlot      MealSlot?    @relation(fields: [mealSlotId], references: [id])
+  noOfPack      Int?
+  bookingMenuId Int?         @unique
+  bookingMenu   BookingMenu? @relation(fields: [bookingMenuId], references: [id])
+  timeSlot      String?
+  hallIds       Int[]
+  setupCost     String?
+  ratePerPlate  String?
+  startTime     String?
+  endTime       String?
+  // New fields for additional booking parameters
+  extraPlate    Int? // Number of extra plates
+  extraRate     String? // Rate for extra plates
+  extraAmount   String? // Amount for extra plates
+  menuPoint     Int? // Add this line
+  hallRate      String? // Add this line
+  boardToRead   String? // Board to read field
+  tags          String[] @default([]) // Array of tags for meal slot
+
+  createdAt DateTime? @default(now())
+}
+
+model BookingHall {
+  bookingId Int
+  hallId    Int
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hall    Hall    @relation(fields: [hallId], references: [id])
+
+  @@id([bookingId, hallId])
+}
+
+model BookingMenu {
+  id           Int    @id @default(autoincrement())
+  name         String
+  setupCost    String
+  ratePerPlate String
+
+  mealSlotId Int?
+  mealSlot   MealSlot? @relation(fields: [mealSlotId], references: [id])
+
+  menuItems    BookingMenuItems[]
+  bookingPacks BookingPack[]
+
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
+}
+
+model BookingMenuItems {
+  bookingMenuId Int
+  itemId        Int
+  item          Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  bookingMenu   BookingMenu @relation(fields: [bookingMenuId], references: [id], onDelete: Cascade)
+
+  @@id([bookingMenuId, itemId])
+}
+
+model AdditionalBookingItems {
+  id        Int      @id @default(autoincrement())
+  bookingId Int?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  charges     String?
+  description String?
+}
+
+model BookingPayments {
+  id                 Int       @id @default(autoincrement())
+  bookingId          Int?
+  booking            Booking?  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount             String?
+  narration          String?
+  receivedById       Int? // Changed from receivedBy String to receivedById Int
+  receivedBy         User?     @relation(fields: [receivedById], references: [id]) // Add relation to User
+  paymentDate        DateTime? @default(now())
+  paymentMethod      String?
+
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
+}
+
+model FinalizedBooking {
+  id          Int      @id @default(autoincrement())
+  bookingId   Int      @unique
+  data        Json
+  finalizedAt DateTime @default(now())
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+}
+
+model FinalizedQuotation {
+  id                  Int       @id @default(autoincrement())
+  bookingId           Int
+  booking             Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  // Store the complete form data as JSON
+  quotationData       Json
+  
+  // Metadata
+  finalizedAt         DateTime  @default(now())
+  finalizedBy         Int?
+  user                User?     @relation(fields: [finalizedBy], references: [id])
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([bookingId])
+  @@index([finalizedAt])
+}
