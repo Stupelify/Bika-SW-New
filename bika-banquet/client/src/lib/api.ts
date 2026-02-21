@@ -25,7 +25,18 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<any>) => {
-    if (error.response?.status === 401 && typeof window !== 'undefined') {
+    const requestUrl = String(error.config?.url || '');
+    const isLoginRequest =
+      requestUrl.includes('/auth/login') || requestUrl.endsWith('auth/login');
+    const isRegisterRequest =
+      requestUrl.includes('/auth/register') || requestUrl.endsWith('auth/register');
+
+    if (
+      error.response?.status === 401 &&
+      typeof window !== 'undefined' &&
+      !isLoginRequest &&
+      !isRegisterRequest
+    ) {
       localStorage.removeItem('auth_token');
       window.location.href = '/login';
     }
