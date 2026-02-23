@@ -174,7 +174,7 @@ docker-compose logs -f
 docker-compose down
 ```
 
-Access: http://localhost
+Access: http://localhost (https://localhost for TLS)
 
 ## 📚 API Documentation
 
