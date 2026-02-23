@@ -7,6 +7,7 @@ import {
   cancelBooking,
   deleteBooking,
   addPayment,
+  downloadBookingMenuPdf,
   createBookingSchema,
 } from '../controllers/booking.controller';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
@@ -25,6 +26,7 @@ router.post(
 );
 router.get('/', requirePermission('view_booking', 'manage_bookings'), getBookings);
 router.get('/:id', requirePermission('view_booking', 'manage_bookings'), getBookingById);
+router.get('/:id/menu-pdf', requirePermission('view_booking', 'manage_bookings'), downloadBookingMenuPdf);
 router.put('/:id', requirePermission('edit_booking', 'manage_bookings'), updateBooking);
 router.delete('/:id', requirePermission('delete_booking', 'manage_bookings'), deleteBooking);
 router.post('/:id/cancel', requirePermission('cancel_booking', 'edit_booking', 'manage_bookings'), cancelBooking);

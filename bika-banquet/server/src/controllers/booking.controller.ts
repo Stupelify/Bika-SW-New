@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
+import PDFDocument from 'pdfkit';
 import prisma from '../config/database';
 import { sendSuccess, sendError, sendNotFound } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { normalizeCaseFields, normalizeCaseInArrayObjects } from '../utils/textCase';
 import {
   cancelBookingEventInGoogleCalendar,
   syncBookingEventToGoogleCalendar,
@@ -72,6 +74,455 @@ function toSafeNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+const MENU_BACKGROUND_IMAGE_URL =
+  process.env.MENU_PDF_BACKGROUND_URL ||
+  'https://assets.zyrosite.com/MBlLcEqY2yw3y2EF/849w-_8bavztmyj0-removebg-X63LAPdJAg940IXG.png';
+const MENU_LOGO_IMAGE_URL =
+  process.env.MENU_PDF_LOGO_URL ||
+  'https://assets.zyrosite.com/MBlLcEqY2yw3y2EF/1-2-removebg-scaled-e1752152009924-7iV2qZXAcVUCou9o.png';
+
+let cachedMenuBackgroundImage: Buffer | null | undefined;
+let cachedMenuLogoImage: Buffer | null | undefined;
+
+interface PdfMenuPack {
+  id: string;
+  name: string;
+  startTime: string | null;
+  endTime: string | null;
+  items: Array<{
+    itemType: string;
+    itemTypeOrder: number;
+    itemName: string;
+  }>;
+}
+
+async function getMenuBackgroundImage(): Promise<Buffer | null> {
+  if (cachedMenuBackgroundImage !== undefined) {
+    return cachedMenuBackgroundImage;
+  }
+
+  try {
+    const response = await fetch(MENU_BACKGROUND_IMAGE_URL);
+    if (!response.ok) {
+      throw new Error(`Failed to download menu background (${response.status})`);
+    }
+    const imageArrayBuffer = await response.arrayBuffer();
+    cachedMenuBackgroundImage = Buffer.from(imageArrayBuffer);
+  } catch (error) {
+    cachedMenuBackgroundImage = null;
+  }
+
+  return cachedMenuBackgroundImage;
+}
+
+async function getMenuLogoImage(): Promise<Buffer | null> {
+  if (cachedMenuLogoImage !== undefined) {
+    return cachedMenuLogoImage;
+  }
+
+  try {
+    const response = await fetch(MENU_LOGO_IMAGE_URL);
+    if (!response.ok) {
+      throw new Error(`Failed to download menu logo (${response.status})`);
+    }
+    const imageArrayBuffer = await response.arrayBuffer();
+    cachedMenuLogoImage = Buffer.from(imageArrayBuffer);
+  } catch (error) {
+    cachedMenuLogoImage = null;
+  }
+
+  return cachedMenuLogoImage;
+}
+
+function formatDateForPdf(value?: Date | string | null): string {
+  if (!value) return '-';
+  const asDate = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(asDate.getTime())) return '-';
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(asDate);
+}
+
+function normalizeTimeText(value?: string | null): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return trimmed;
+  const hour = Number.parseInt(match[1], 10);
+  const minute = match[2];
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return trimmed;
+  const meridiem = hour >= 12 ? 'PM' : 'AM';
+  const twelveHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(twelveHour).padStart(2, '0')}:${minute} ${meridiem}`;
+}
+
+function resolveTimeRange(
+  bookingTimes: { functionTime?: string | null; startTime?: string | null; endTime?: string | null },
+  packs: PdfMenuPack[]
+): string {
+  if (packs.length === 1) {
+    const from = normalizeTimeText(packs[0].startTime);
+    const to = normalizeTimeText(packs[0].endTime);
+    if (from && to) return `${from} to ${to}`;
+    if (from) return from;
+    if (to) return to;
+  }
+
+  const bookingStart = normalizeTimeText(bookingTimes.startTime);
+  const bookingEnd = normalizeTimeText(bookingTimes.endTime);
+  if (bookingStart && bookingEnd) return `${bookingStart} to ${bookingEnd}`;
+  if (bookingStart) return bookingStart;
+  if (bookingEnd) return bookingEnd;
+
+  const functionTime = normalizeTimeText(bookingTimes.functionTime);
+  return functionTime || '-';
+}
+
+function normalizeFilenameToken(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+  return normalized || 'menu';
+}
+
+function drawPageBackground(doc: PDFKit.PDFDocument, imageBuffer: Buffer | null): void {
+  doc.save();
+  doc.rect(0, 0, doc.page.width, doc.page.height).fill('#fdfcf8');
+  doc.restore();
+  if (!imageBuffer) return;
+  try {
+    doc.image(imageBuffer, 0, 0, {
+      width: doc.page.width,
+      height: doc.page.height,
+    });
+  } catch (error) {
+    // Keep PDF generation resilient if the image cannot be rendered.
+  }
+}
+
+function addDecoratedPage(doc: PDFKit.PDFDocument, imageBuffer: Buffer | null): void {
+  doc.addPage({
+    size: 'A4',
+    margin: 0,
+  });
+  drawPageBackground(doc, imageBuffer);
+}
+
+function groupMenuItemsByType(
+  items: Array<{ itemType: string; itemTypeOrder: number; itemName: string }>
+): Array<{ groupName: string; order: number; itemNames: string[] }> {
+  const groupMap = new Map<
+    string,
+    { groupName: string; order: number; itemNames: Set<string> }
+  >();
+
+  items.forEach((item) => {
+    const groupName = item.itemType || 'Other';
+    const groupOrder = Number.isFinite(item.itemTypeOrder)
+      ? item.itemTypeOrder
+      : 9999;
+    const itemName = item.itemName || 'Unnamed Item';
+    const key = `${groupOrder}::${groupName.toLowerCase()}`;
+    const existing = groupMap.get(key) || {
+      groupName,
+      order: groupOrder,
+      itemNames: new Set<string>(),
+    };
+    existing.itemNames.add(itemName);
+    groupMap.set(key, existing);
+  });
+
+  return Array.from(groupMap.values())
+    .sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      return a.groupName.localeCompare(b.groupName);
+    })
+    .map((group) => ({
+      groupName: group.groupName,
+      order: group.order,
+      itemNames: Array.from(group.itemNames).sort((a, b) => a.localeCompare(b)),
+    }));
+}
+
+function drawCoverPage(
+  doc: PDFKit.PDFDocument,
+  imageBuffer: Buffer | null,
+  logoBuffer: Buffer | null,
+  details: {
+    customerName: string;
+    customerPhone: string;
+    functionType: string;
+    functionDate: string;
+    functionTiming: string;
+    venue: string;
+    menuLabel: string;
+  }
+): void {
+  addDecoratedPage(doc, imageBuffer);
+
+  const textWidth = doc.page.width - 220;
+  const textLeft = 110;
+
+  if (logoBuffer) {
+    try {
+      const logoWidth = 220;
+      const logoHeight = 82;
+      const logoX = (doc.page.width - logoWidth) / 2;
+      doc.image(logoBuffer, logoX, 118, {
+        fit: [logoWidth, logoHeight],
+        align: 'center',
+        valign: 'center',
+      });
+    } catch (error) {
+      // Keep PDF generation resilient if the image cannot be rendered.
+    }
+  }
+
+  doc.font('Times-Italic').fontSize(22).fillColor('#1f2937').text('Booking Details', textLeft, 258, {
+    width: textWidth,
+    align: 'center',
+  });
+  doc
+    .moveTo(doc.page.width / 2 - 82, 293)
+    .lineTo(doc.page.width / 2 + 82, 293)
+    .strokeColor('#9ca3af')
+    .lineWidth(1)
+    .stroke();
+
+  const rows: Array<[string, string]> = [
+    ['Customer', details.customerName],
+    ['Contact Number', details.customerPhone],
+    ['Function Type', details.functionType],
+    ['Date', details.functionDate],
+    ['Timing', details.functionTiming],
+    ['Venue', details.venue],
+    ['Menu Selection', details.menuLabel],
+  ];
+
+  let y = 318;
+  rows.forEach(([label, value]) => {
+    doc.font('Times-Bold').fontSize(10).fillColor('#6b7280').text(label.toUpperCase(), textLeft, y, {
+      width: textWidth,
+      align: 'center',
+      characterSpacing: 1.4,
+    });
+    y += 14;
+    doc.font('Times-Roman').fontSize(16).fillColor('#111827').text(value || '-', textLeft, y, {
+      width: textWidth,
+      align: 'center',
+    });
+    y += 31;
+  });
+}
+
+function drawMenuPages(
+  doc: PDFKit.PDFDocument,
+  imageBuffer: Buffer | null,
+  packs: PdfMenuPack[]
+): void {
+  const contentLeft = 120;
+  const contentWidth = doc.page.width - contentLeft * 2;
+  const contentBottom = doc.page.height - 120;
+  const menuTitleY = 116;
+  const firstMenuStartY = 210;
+  const continuationStartY = 132;
+  const minItemsPerGroupSegment = 2;
+  const groupHeaderBlockHeight = 40;
+  const groupTailGap = 12;
+  let y = continuationStartY;
+
+  const getItemHeight = (itemName: string): number => {
+    doc.font('Times-Italic').fontSize(16);
+    return Math.max(
+      22,
+      doc.heightOfString(itemName, {
+        width: contentWidth,
+        align: 'center',
+        lineGap: 2,
+      }) + 6
+    );
+  };
+
+  const sumHeights = (heights: number[], startIndex = 0, maxCount?: number): number => {
+    const endIndex =
+      maxCount === undefined
+        ? heights.length
+        : Math.min(heights.length, startIndex + Math.max(0, maxCount));
+    let total = 0;
+    for (let index = startIndex; index < endIndex; index += 1) {
+      total += heights[index];
+    }
+    return total;
+  };
+
+  const countFittingItems = (
+    heights: number[],
+    startIndex: number,
+    availableHeight: number
+  ): number => {
+    if (availableHeight <= 0) return 0;
+    let used = 0;
+    let count = 0;
+    for (let index = startIndex; index < heights.length; index += 1) {
+      if (used + heights[index] > availableHeight) break;
+      used += heights[index];
+      count += 1;
+    }
+    return count;
+  };
+
+  const startNewMenuPage = (showMenuHeading: boolean): void => {
+    addDecoratedPage(doc, imageBuffer);
+    if (showMenuHeading) {
+      doc.font('Times-Bold').fontSize(52).fillColor('#111111').text('MENU', contentLeft, menuTitleY, {
+        width: contentWidth,
+        align: 'center',
+        characterSpacing: 3,
+      });
+      y = firstMenuStartY;
+      return;
+    }
+    y = continuationStartY;
+  };
+
+  const drawPackHeading = (packName: string): void => {
+    doc.font('Times-Bold').fontSize(24).fillColor('#111111').text(packName.toUpperCase(), contentLeft, y, {
+      width: contentWidth,
+      align: 'center',
+      characterSpacing: 1.8,
+    });
+    y += 30;
+    doc
+      .moveTo(doc.page.width / 2 - 110, y)
+      .lineTo(doc.page.width / 2 + 110, y)
+      .strokeColor('#9ca3af')
+      .lineWidth(1)
+      .stroke();
+    y += 18;
+  };
+
+  const drawGroupHeading = (groupName: string): void => {
+    doc.font('Times-Bold').fontSize(19).fillColor('#374151').text(groupName.toUpperCase(), contentLeft, y, {
+      width: contentWidth,
+      align: 'center',
+      characterSpacing: 1.4,
+    });
+    y += 25;
+    doc
+      .moveTo(doc.page.width / 2 - 62, y)
+      .lineTo(doc.page.width / 2 + 62, y)
+      .strokeColor('#9ca3af')
+      .lineWidth(1)
+      .stroke();
+    y += 15;
+  };
+
+  const pageCapacityWithoutMenuTitle = contentBottom - continuationStartY;
+
+  startNewMenuPage(true);
+
+  packs.forEach((pack, packIndex) => {
+    const groupedItems = groupMenuItemsByType(pack.items);
+    if (groupedItems.length === 0) return;
+
+    if (packs.length > 1) {
+      const requiredPackHeaderHeight = 52;
+      if (y + requiredPackHeaderHeight > contentBottom) {
+        startNewMenuPage(false);
+      }
+      drawPackHeading(pack.name);
+    }
+
+    groupedItems.forEach((group, groupIndex) => {
+      const itemHeights = group.itemNames.map((itemName) => getItemHeight(itemName));
+      const totalGroupHeight = groupHeaderBlockHeight + sumHeights(itemHeights) + groupTailGap;
+
+      if (totalGroupHeight <= pageCapacityWithoutMenuTitle && y + totalGroupHeight > contentBottom) {
+        startNewMenuPage(false);
+      }
+
+      let itemIndex = 0;
+      let isContinuation = false;
+
+      while (itemIndex < group.itemNames.length) {
+        const remainingItems = group.itemNames.length - itemIndex;
+        const minItemsToKeep = Math.min(minItemsPerGroupSegment, remainingItems);
+        const minRequiredHeight =
+          groupHeaderBlockHeight +
+          sumHeights(itemHeights, itemIndex, minItemsToKeep) +
+          groupTailGap;
+
+        if (y + minRequiredHeight > contentBottom) {
+          startNewMenuPage(false);
+        }
+
+        const heightLeftForItems = contentBottom - y - groupHeaderBlockHeight - groupTailGap;
+        const fitCountHere = countFittingItems(itemHeights, itemIndex, heightLeftForItems);
+        const remainingGroupHeight =
+          groupHeaderBlockHeight + sumHeights(itemHeights, itemIndex) + groupTailGap;
+
+        if (
+          fitCountHere <= 1 &&
+          remainingItems > 1 &&
+          remainingGroupHeight <= pageCapacityWithoutMenuTitle
+        ) {
+          startNewMenuPage(false);
+        }
+
+        const headingLabel = isContinuation
+          ? `${group.groupName} (cont.)`
+          : group.groupName;
+        drawGroupHeading(headingLabel);
+
+        let itemsWrittenOnThisSegment = 0;
+        while (itemIndex < group.itemNames.length) {
+          const itemHeight = itemHeights[itemIndex];
+          if (y + itemHeight + groupTailGap > contentBottom) {
+            break;
+          }
+
+          doc.font('Times-Italic').fontSize(16).fillColor('#111111').text(group.itemNames[itemIndex], contentLeft, y, {
+            width: contentWidth,
+            align: 'center',
+            lineGap: 2,
+          });
+          y += itemHeight;
+          itemIndex += 1;
+          itemsWrittenOnThisSegment += 1;
+        }
+
+        if (itemsWrittenOnThisSegment === 0) {
+          // Fallback to prevent an infinite loop on pathological long text.
+          doc.font('Times-Italic').fontSize(14).fillColor('#111111').text(group.itemNames[itemIndex], contentLeft, y, {
+            width: contentWidth,
+            align: 'center',
+            lineGap: 2,
+          });
+          y += Math.min(contentBottom - y - groupTailGap, getItemHeight(group.itemNames[itemIndex]));
+          itemIndex += 1;
+        }
+
+        y += groupTailGap;
+        if (itemIndex < group.itemNames.length) {
+          isContinuation = true;
+          startNewMenuPage(false);
+        }
+      }
+
+      y += 8;
+      if (groupIndex === groupedItems.length - 1 && packIndex !== packs.length - 1) {
+        y += 8;
+      }
+    });
+  });
+}
+
 async function resolveMealSlotId(
   tx: Prisma.TransactionClient,
   pack: {
@@ -122,7 +573,34 @@ export async function createBooking(
   res: Response
 ): Promise<void> {
   try {
-    const data = req.body;
+    const data: any = normalizeCaseFields({ ...req.body }, [
+      'functionName',
+      'functionType',
+    ]);
+
+    if (Array.isArray(data.additionalItems)) {
+      data.additionalItems = normalizeCaseInArrayObjects(data.additionalItems, [
+        'description',
+      ]);
+    }
+
+    if (Array.isArray(data.packs)) {
+      data.packs = data.packs.map((pack: any) => {
+        const normalizedPack = normalizeCaseFields({ ...pack }, [
+          'packName',
+          'hallName',
+          'boardToRead',
+          'timeSlot',
+        ]);
+        if (normalizedPack.menu && typeof normalizedPack.menu === 'object') {
+          normalizedPack.menu = normalizeCaseFields(
+            { ...normalizedPack.menu },
+            ['name']
+          );
+        }
+        return normalizedPack;
+      });
+    }
 
     // Start transaction
     const booking = await prisma.$transaction(async (tx) => {
@@ -506,6 +984,195 @@ export async function getBookingById(
 }
 
 /**
+ * Download booking menu PDF
+ */
+export async function downloadBookingMenuPdf(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const packId = typeof req.query.packId === 'string' ? req.query.packId : undefined;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+        halls: {
+          include: {
+            hall: {
+              include: {
+                banquet: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        packs: {
+          orderBy: [
+            { startTime: 'asc' },
+            { createdAt: 'asc' },
+          ],
+          include: {
+            mealSlot: {
+              select: {
+                id: true,
+                name: true,
+                startTime: true,
+                endTime: true,
+              },
+            },
+            bookingMenu: {
+              include: {
+                items: {
+                  include: {
+                    item: {
+                      select: {
+                        id: true,
+                        name: true,
+                        itemType: {
+                          select: {
+                            id: true,
+                            name: true,
+                            order: true,
+                            displayOrder: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      sendNotFound(res, 'Booking not found');
+      return;
+    }
+
+    const mappedPacks: PdfMenuPack[] = booking.packs
+      .map((pack) => ({
+        id: pack.id,
+        name:
+          (pack.packName || '').trim() ||
+          (pack.mealSlot?.name || '').trim() ||
+          (pack.bookingMenu?.name || '').trim() ||
+          'Menu',
+        startTime: pack.startTime || pack.mealSlot?.startTime || null,
+        endTime: pack.endTime || pack.mealSlot?.endTime || null,
+        items: (pack.bookingMenu?.items || [])
+          .map((entry) => ({
+            itemType: entry.item?.itemType?.name || 'Other',
+            itemTypeOrder:
+              typeof entry.item?.itemType?.order === 'number'
+                ? entry.item.itemType.order
+                : typeof entry.item?.itemType?.displayOrder === 'number'
+                ? entry.item.itemType.displayOrder
+                : 9999,
+            itemName: entry.item?.name || 'Unnamed Item',
+          }))
+          .filter((entry) => Boolean(entry.itemName)),
+      }))
+      .filter((pack) => pack.items.length > 0);
+
+    if (mappedPacks.length === 0) {
+      sendError(res, 'No menu items available for this booking', 400);
+      return;
+    }
+
+    const selectedPacks = packId
+      ? mappedPacks.filter((pack) => pack.id === packId)
+      : mappedPacks;
+
+    if (selectedPacks.length === 0) {
+      sendNotFound(res, 'Menu pack not found for this booking');
+      return;
+    }
+
+    const venueParts = booking.halls
+      .map((entry) => {
+        if (!entry.hall) return '';
+        if (entry.hall.banquet?.name) {
+          return `${entry.hall.banquet.name} - ${entry.hall.name}`;
+        }
+        return entry.hall.name;
+      })
+      .filter(Boolean);
+    const venueText = venueParts.length > 0 ? venueParts.join(', ') : '-';
+
+    const customerName = booking.customer?.name || '-';
+    const customerPhone = booking.customer?.phone || '-';
+    const functionType = booking.functionType || '-';
+    const functionDate = formatDateForPdf(booking.functionDate);
+    const functionTiming = resolveTimeRange(
+      {
+        functionTime: booking.functionTime,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+      },
+      selectedPacks
+    );
+    const menuLabel =
+      selectedPacks.length === 1
+        ? selectedPacks[0].name
+        : `${selectedPacks.length} Menus`;
+
+    const safeBookingName = normalizeFilenameToken(
+      booking.functionName || booking.functionType || customerName || 'booking'
+    );
+    const safeMenuName = normalizeFilenameToken(
+      selectedPacks.length === 1 ? selectedPacks[0].name : 'all-menus'
+    );
+    const fileName = `${safeBookingName}-${safeMenuName}-menu.pdf`;
+
+    const [imageBuffer, logoBuffer] = await Promise.all([
+      getMenuBackgroundImage(),
+      getMenuLogoImage(),
+    ]);
+    const pdfDoc = new PDFDocument({
+      size: 'A4',
+      margin: 0,
+      autoFirstPage: false,
+      compress: true,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+
+    pdfDoc.pipe(res);
+
+    drawCoverPage(pdfDoc, imageBuffer, logoBuffer, {
+      customerName,
+      customerPhone,
+      functionType,
+      functionDate,
+      functionTiming,
+      venue: venueText,
+      menuLabel,
+    });
+    drawMenuPages(pdfDoc, imageBuffer, selectedPacks);
+
+    pdfDoc.end();
+  } catch (error) {
+    sendError(res, 'Failed to generate booking menu PDF');
+  }
+}
+
+/**
  * Update booking
  */
 export async function updateBooking(
@@ -514,7 +1181,34 @@ export async function updateBooking(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const data = req.body;
+    const data: any = normalizeCaseFields({ ...req.body }, [
+      'functionName',
+      'functionType',
+    ]);
+
+    if (Array.isArray(data.additionalItems)) {
+      data.additionalItems = normalizeCaseInArrayObjects(data.additionalItems, [
+        'description',
+      ]);
+    }
+
+    if (Array.isArray(data.packs)) {
+      data.packs = data.packs.map((pack: any) => {
+        const normalizedPack = normalizeCaseFields({ ...pack }, [
+          'packName',
+          'hallName',
+          'boardToRead',
+          'timeSlot',
+        ]);
+        if (normalizedPack.menu && typeof normalizedPack.menu === 'object') {
+          normalizedPack.menu = normalizeCaseFields(
+            { ...normalizedPack.menu },
+            ['name']
+          );
+        }
+        return normalizedPack;
+      });
+    }
 
     // Check if booking exists
     const existingBooking = await prisma.booking.findUnique({

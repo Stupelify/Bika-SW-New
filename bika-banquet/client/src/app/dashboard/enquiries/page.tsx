@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { CalendarDays, Edit, Plus, Save, Search, Trash2, Users } from 'lucide-react';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
+import TablePagination from '@/components/TablePagination';
 import {
   SortState,
   TableColumnConfig,
@@ -138,6 +139,8 @@ const initialColumnSearch = {
   status: '',
 };
 
+const ENQUIRIES_PAGE_SIZE = 75;
+
 export default function EnquiriesPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -161,6 +164,7 @@ export default function EnquiriesPage() {
     key: 'functionName',
     direction: 'asc',
   });
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<EnquiryFormData>(initialFormData);
 
   const tableColumns = useMemo<TableColumnConfig<Enquiry>[]>(
@@ -198,6 +202,17 @@ export default function EnquiriesPage() {
     [enquiries, tableColumns, globalSearch, columnSearch, sort]
   );
 
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredEnquiries.length / ENQUIRIES_PAGE_SIZE)),
+    [filteredEnquiries.length]
+  );
+
+  const paginatedEnquiries = useMemo(() => {
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const startIndex = (safePage - 1) * ENQUIRIES_PAGE_SIZE;
+    return filteredEnquiries.slice(startIndex, startIndex + ENQUIRIES_PAGE_SIZE);
+  }, [currentPage, filteredEnquiries, totalPages]);
+
   useEffect(() => {
     void loadLookups();
   }, [canAddEnquiry, canEditEnquiry]);
@@ -205,6 +220,15 @@ export default function EnquiriesPage() {
   useEffect(() => {
     void loadEnquiries();
   }, [status, canViewEnquiry]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [globalSearch, columnSearch, sort, status]);
+
+  useEffect(() => {
+    if (currentPage <= totalPages) return;
+    setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const loadLookups = async () => {
     try {
@@ -819,7 +843,7 @@ export default function EnquiriesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredEnquiries.map((enquiry) => (
+                {paginatedEnquiries.map((enquiry) => (
                   <tr key={enquiry.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-4 px-4">
                       <p className="font-medium text-gray-900">{enquiry.functionName}</p>
@@ -884,6 +908,14 @@ export default function EnquiriesPage() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredEnquiries.length}
+              pageSize={ENQUIRIES_PAGE_SIZE}
+              itemLabel="enquiries"
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </div>

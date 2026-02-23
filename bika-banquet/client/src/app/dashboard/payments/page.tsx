@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { CreditCard, Plus, Save, Search } from 'lucide-react';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
+import TablePagination from '@/components/TablePagination';
 import {
   SortState,
   TableColumnConfig,
@@ -49,6 +50,8 @@ const initialColumnSearch = {
   entries: '',
 };
 
+const PAYMENTS_PAGE_SIZE = 100;
+
 export default function PaymentsPage() {
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,7 @@ export default function PaymentsPage() {
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [sort, setSort] = useState<SortState>({ key: 'booking', direction: 'asc' });
+  const [currentPage, setCurrentPage] = useState(1);
   const [paymentForm, setPaymentForm] = useState(initialPaymentForm);
 
   const tableColumns = useMemo<TableColumnConfig<BookingRow>[]>(
@@ -82,9 +86,29 @@ export default function PaymentsPage() {
     [bookings, tableColumns, globalSearch, columnSearch, sort]
   );
 
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredBookings.length / PAYMENTS_PAGE_SIZE)),
+    [filteredBookings.length]
+  );
+
+  const paginatedBookings = useMemo(() => {
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const startIndex = (safePage - 1) * PAYMENTS_PAGE_SIZE;
+    return filteredBookings.slice(startIndex, startIndex + PAYMENTS_PAGE_SIZE);
+  }, [currentPage, filteredBookings, totalPages]);
+
   useEffect(() => {
     void loadBookings();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [globalSearch, columnSearch, sort]);
+
+  useEffect(() => {
+    if (currentPage <= totalPages) return;
+    setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const loadBookings = async () => {
     try {
@@ -392,7 +416,7 @@ export default function PaymentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredBookings.map((booking) => (
+                {paginatedBookings.map((booking) => (
                   <tr key={booking.id} className="border-b border-gray-100">
                     <td className="py-3 px-3">
                       <p className="text-sm text-gray-900">{booking.functionName}</p>
@@ -419,6 +443,14 @@ export default function PaymentsPage() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredBookings.length}
+              pageSize={PAYMENTS_PAGE_SIZE}
+              itemLabel="bookings"
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </div>

@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
+import { getDefaultDashboardRoute } from '@/lib/routeAccess';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading } = useAuthStore();
+  const { login, loadUser, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -15,8 +16,18 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       await login(email, password);
+      await loadUser();
+      const loggedInUser = useAuthStore.getState().user;
+      const nextRoute = getDefaultDashboardRoute(loggedInUser?.permissions);
+
+      if (!nextRoute) {
+        await useAuthStore.getState().logout();
+        toast.error('No module access is assigned to this user. Contact admin.');
+        return;
+      }
+
       toast.success('Login successful!');
-      router.push('/dashboard');
+      router.push(nextRoute);
     } catch (error: any) {
       const message =
         error?.response?.data?.error ||

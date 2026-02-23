@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendSuccess, sendError, sendNotFound } from '../utils/response';
 import { generateOTP } from '../utils/auth';
+import { normalizeCaseFields } from '../utils/textCase';
 import phoneDigitsByCode from '../config/phoneDigitsByCode.json';
 
 const NAME_PATTERN = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
@@ -253,7 +254,18 @@ export async function createCustomer(
   res: Response
 ): Promise<void> {
   try {
-    const data = req.body;
+    const data = normalizeCaseFields({ ...req.body }, [
+      'name',
+      'country',
+      'address',
+      'street1',
+      'street2',
+      'city',
+      'state',
+      'caste',
+      'occupation',
+      'companyName',
+    ]);
 
     // Convert date strings to Date objects
     if (data.dateOfBirth) {
@@ -407,7 +419,18 @@ export async function updateCustomer(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const data = req.body;
+    const data = normalizeCaseFields({ ...req.body }, [
+      'name',
+      'country',
+      'address',
+      'street1',
+      'street2',
+      'city',
+      'state',
+      'caste',
+      'occupation',
+      'companyName',
+    ]);
 
     // Convert date strings
     if (data.dateOfBirth) {

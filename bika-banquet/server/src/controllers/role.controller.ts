@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { normalizeCaseFields } from '../utils/textCase';
 
 export const createRoleSchema = z.object({
   body: z.object({
@@ -19,8 +20,9 @@ export const updateRoleSchema = z.object({
 
 export async function createRole(req: Request, res: Response): Promise<void> {
   try {
+    const payload = normalizeCaseFields({ ...req.body }, ['name']);
     const role = await prisma.role.create({
-      data: req.body,
+      data: payload,
     });
     sendSuccess(res, { role }, 'Role created successfully', 201);
   } catch (error: any) {
@@ -81,9 +83,10 @@ export async function getRoleById(req: Request, res: Response): Promise<void> {
 export async function updateRole(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const payload = normalizeCaseFields({ ...req.body }, ['name']);
     const role = await prisma.role.update({
       where: { id },
-      data: req.body,
+      data: payload,
     });
     sendSuccess(res, { role }, 'Role updated successfully');
   } catch (error: any) {

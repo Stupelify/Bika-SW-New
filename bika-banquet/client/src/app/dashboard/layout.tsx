@@ -1,16 +1,24 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
+import {
+  getDefaultDashboardRoute,
+  hasAccessForRequiredPermissions,
+  isPathAllowedForUser,
+  routeMatches,
+} from '@/lib/routeAccess';
 import {
   BarChart3,
   Building2,
   CalendarCheck,
   CalendarDays,
+  ChevronDown,
   DollarSign,
   LayoutDashboard,
+  LucideIcon,
   LogOut,
   Menu,
   PhoneCall,
@@ -21,7 +29,21 @@ import {
   X,
 } from 'lucide-react';
 
-const navigation = [
+interface NavigationChild {
+  name: string;
+  href: string;
+  permissions: string[];
+}
+
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  permissions: string[];
+  children?: NavigationChild[];
+}
+
+const navigation: NavigationItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
@@ -57,12 +79,41 @@ const navigation = [
     href: '/dashboard/halls',
     icon: Building2,
     permissions: ['view_hall', 'view_banquet', 'manage_halls'],
+    children: [
+      {
+        name: 'Banquet',
+        href: '/dashboard/halls?section=banquet',
+        permissions: ['view_banquet', 'manage_halls'],
+      },
+      {
+        name: 'Hall',
+        href: '/dashboard/halls?section=hall',
+        permissions: ['view_hall', 'manage_halls'],
+      },
+    ],
   },
   {
     name: 'Menu & Items',
     href: '/dashboard/menu',
     icon: UtensilsCrossed,
     permissions: ['view_item', 'view_itemtype', 'view_templatemenu', 'manage_menu'],
+    children: [
+      {
+        name: 'Item Types',
+        href: '/dashboard/menu?section=itemType',
+        permissions: ['view_itemtype', 'manage_menu'],
+      },
+      {
+        name: 'Items',
+        href: '/dashboard/menu?section=item',
+        permissions: ['view_item', 'manage_menu'],
+      },
+      {
+        name: 'Template Menus',
+        href: '/dashboard/menu?section=template',
+        permissions: ['view_templatemenu', 'manage_menu'],
+      },
+    ],
   },
   {
     name: 'Payments',
@@ -95,18 +146,77 @@ const navigation = [
       'manage_roles',
       'manage_users',
     ],
+    children: [
+      {
+        name: 'Access Mapping',
+        href: '/dashboard/settings?section=access',
+        permissions: ['assign_role', 'manage_permission', 'manage_roles'],
+      },
+      {
+        name: 'Users',
+        href: '/dashboard/settings?section=users',
+        permissions: ['view_user', 'add_user', 'delete_user', 'manage_users'],
+      },
+      {
+        name: 'Roles',
+        href: '/dashboard/settings?section=roles',
+        permissions: ['view_role', 'add_role', 'delete_role', 'manage_roles'],
+      },
+      {
+        name: 'Permissions',
+        href: '/dashboard/settings?section=permissions',
+        permissions: [
+          'view_permission',
+          'add_permission',
+          'delete_permission',
+          'manage_permission',
+          'manage_roles',
+        ],
+      },
+    ],
   },
 ];
 
-export default function DashboardLayout({
+function DashboardLayoutContent({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, loadUser, logout, isAuthenticated } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  const sectionParam = searchParams.get('section');
+
+  const isHrefActive = (href: string) => {
+    const [targetPath, queryString] = href.split('?');
+    if (!routeMatches(pathname, targetPath)) {
+      return false;
+    }
+    if (!queryString) {
+      return true;
+    }
+    const expectedParams = new URLSearchParams(queryString);
+    return Array.from(expectedParams.entries()).every(
+      ([key, value]) => searchParams.get(key) === value
+    );
+  };
+
+  const visibleNavigation = useMemo(() => {
+    return navigation
+      .filter((item) =>
+        hasAccessForRequiredPermissions(user?.permissions, item.permissions)
+      )
+      .map((item) => ({
+        ...item,
+        children: (item.children || []).filter((child) =>
+          hasAccessForRequiredPermissions(user?.permissions, child.permissions)
+        ),
+      }));
+  }, [user?.permissions]);
 
   useEffect(() => {
     void loadUser();
@@ -123,6 +233,23 @@ export default function DashboardLayout({
   }, [pathname]);
 
   useEffect(() => {
+    if (!isAuthenticated || !user) {
+      return;
+    }
+
+    const fallbackRoute = getDefaultDashboardRoute(user.permissions);
+    if (!fallbackRoute) {
+      void logout();
+      router.replace('/login');
+      return;
+    }
+
+    if (!isPathAllowedForUser(pathname, user.permissions)) {
+      router.replace(fallbackRoute);
+    }
+  }, [isAuthenticated, user, pathname, router, logout]);
+
+  useEffect(() => {
     if (typeof document === 'undefined') return;
     const previousOverflow = document.body.style.overflow;
     if (sidebarOpen) {
@@ -135,11 +262,19 @@ export default function DashboardLayout({
 
   const activeNav = useMemo(
     () =>
-      navigation.find(
-        (item) => pathname === item.href || pathname.startsWith(`${item.href}/`)
+      visibleNavigation.find(
+        (item) => routeMatches(pathname, item.href)
       ),
-    [pathname]
+    [visibleNavigation, pathname]
   );
+
+  useEffect(() => {
+    if (!activeNav?.children?.length) return;
+    setOpenGroups((prev) => {
+      if (prev[activeNav.name]) return prev;
+      return { ...prev, [activeNav.name]: true };
+    });
+  }, [activeNav?.name, activeNav?.children?.length, sectionParam]);
 
   const handleLogout = async () => {
     await logout();
@@ -162,14 +297,14 @@ export default function DashboardLayout({
       {sidebarOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/45 lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close navigation"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[84vw] max-w-[19rem] sm:w-72 border-r border-gray-200 bg-white/90 backdrop-blur-xl shadow-xl transform transition-transform duration-300 ease-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-[84vw] max-w-[19rem] sm:w-72 border-r border-gray-200 bg-white shadow-lg transform transition-transform duration-200 ease-out lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -192,38 +327,74 @@ export default function DashboardLayout({
           </div>
 
           <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-            {navigation
-              .filter((item) => {
-                if (!item.permissions || item.permissions.length === 0) return true;
-                const userPermissions = user?.permissions || [];
-                return item.permissions.some((permission) =>
-                  userPermissions.includes(permission)
-                );
-              })
-              .map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
+            {visibleNavigation.map((item) => {
+              const isActive = routeMatches(pathname, item.href);
+              const hasChildren = Boolean(item.children && item.children.length > 0);
+              const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
+
               return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-800 shadow-sm border border-primary-100'
-                      : 'text-gray-700 hover:bg-white hover:shadow-sm'
-                  }`}
-                >
-                  <span
-                    className={`w-8 h-8 rounded-lg grid place-items-center ${
+                <div key={item.name} className="space-y-1">
+                  <div
+                    className={`group flex items-center gap-2 rounded-xl px-3 py-2 transition-colors ${
                       isActive
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-500 group-hover:bg-primary-100 group-hover:text-primary-700'
+                        ? 'bg-primary-50 text-primary-800 shadow-sm border border-primary-100'
+                        : 'text-gray-700 hover:bg-white hover:shadow-sm'
                     }`}
                   >
-                    <item.icon className="w-4 h-4" />
-                  </span>
-                  <span className="text-sm font-medium">{item.name}</span>
-                </Link>
+                    <Link href={item.href} className="flex items-center gap-3 flex-1 min-w-0">
+                      <span
+                        className={`w-8 h-8 rounded-lg grid place-items-center ${
+                          isActive
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-gray-100 text-gray-500 group-hover:bg-primary-100 group-hover:text-primary-700'
+                        }`}
+                      >
+                        <item.icon className="w-4 h-4" />
+                      </span>
+                      <span className="text-sm font-medium truncate">{item.name}</span>
+                    </Link>
+                    {hasChildren && (
+                      <button
+                        type="button"
+                        aria-label={`Toggle ${item.name} submenu`}
+                        className="p-1.5 rounded-md text-gray-500 hover:text-primary-700 hover:bg-primary-100"
+                        onClick={() =>
+                          setOpenGroups((prev) => ({
+                            ...prev,
+                            [item.name]: !isOpen,
+                          }))
+                        }
+                      >
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            isOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+                    )}
+                  </div>
+
+                  {hasChildren && isOpen && (
+                    <div className="ml-11 space-y-1">
+                      {item.children?.map((child) => {
+                        const childActive = isHrefActive(child.href);
+                        return (
+                          <Link
+                            key={`${item.name}-${child.name}`}
+                            href={child.href}
+                            className={`block rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                              childActive
+                                ? 'bg-primary-100 text-primary-800'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                            }`}
+                          >
+                            {child.name}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>
@@ -255,7 +426,7 @@ export default function DashboardLayout({
       </aside>
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/75 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-gray-200 bg-white">
           <div className="max-w-[1500px] mx-auto h-16 px-3 sm:px-6 flex items-center gap-3 sm:gap-4">
             <button
               type="button"
@@ -268,7 +439,7 @@ export default function DashboardLayout({
 
             <div className="flex-1 min-w-0">
               <h2 className="text-base sm:text-lg font-display font-semibold text-gray-900 truncate">
-                {activeNav?.name || 'Dashboard'}
+                {activeNav?.name || 'Workspace'}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5 truncate">
                 Manage banquet operations with faster workflows.
@@ -282,5 +453,28 @@ export default function DashboardLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+function DashboardLayoutFallback() {
+  return (
+    <div className="min-h-screen grid place-items-center">
+      <div className="card py-10 px-12 text-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-4"></div>
+        <p className="text-sm text-gray-600">Loading workspace...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={<DashboardLayoutFallback />}>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </Suspense>
   );
 }

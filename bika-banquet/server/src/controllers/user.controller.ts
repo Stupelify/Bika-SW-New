@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { hashPassword } from '../utils/auth';
+import { toEntryCase } from '../utils/textCase';
 
 export const createUserSchema = z.object({
   body: z.object({
@@ -121,6 +122,7 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
 export async function createUser(req: Request, res: Response): Promise<void> {
   try {
     const { name, email, password, roleId } = req.body;
+    const normalizedName = toEntryCase(name);
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -145,7 +147,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
-          name: name.trim(),
+          name: normalizedName,
           email: email.trim().toLowerCase(),
           password: hashedPassword,
           isVerified: true,

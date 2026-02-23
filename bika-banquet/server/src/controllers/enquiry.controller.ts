@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { normalizeCaseFields } from '../utils/textCase';
 import {
   removeEnquiryEventFromGoogleCalendar,
   syncEnquiryEventToGoogleCalendar,
@@ -60,7 +61,11 @@ function toDate(input?: string): Date | undefined {
 
 export async function createEnquiry(req: Request, res: Response): Promise<void> {
   try {
-    const payload = req.body;
+    const payload = normalizeCaseFields({ ...req.body }, [
+      'functionName',
+      'functionType',
+      'specialRequirements',
+    ]);
 
     const enquiry = await prisma.$transaction(async (tx) => {
       const created = await tx.enquiry.create({
@@ -283,7 +288,11 @@ export async function getEnquiryById(
 export async function updateEnquiry(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const payload = req.body;
+    const payload = normalizeCaseFields({ ...req.body }, [
+      'functionName',
+      'functionType',
+      'specialRequirements',
+    ]);
 
     const exists = await prisma.enquiry.findUnique({
       where: { id },

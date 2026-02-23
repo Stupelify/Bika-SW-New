@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { normalizeCaseFields } from '../utils/textCase';
 
 export const createBanquetSchema = z.object({
   body: z.object({
@@ -28,8 +29,16 @@ export const updateBanquetSchema = z.object({
 
 export async function createBanquet(req: Request, res: Response): Promise<void> {
   try {
+    const payload = normalizeCaseFields({ ...req.body }, [
+      'name',
+      'location',
+      'address',
+      'city',
+      'state',
+      'facilities',
+    ]);
     const banquet = await prisma.banquet.create({
-      data: req.body,
+      data: payload,
     });
     sendSuccess(res, { banquet }, 'Banquet created successfully', 201);
   } catch (error: any) {
@@ -116,9 +125,17 @@ export async function getBanquetById(
 export async function updateBanquet(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const payload = normalizeCaseFields({ ...req.body }, [
+      'name',
+      'location',
+      'address',
+      'city',
+      'state',
+      'facilities',
+    ]);
     const banquet = await prisma.banquet.update({
       where: { id },
-      data: req.body,
+      data: payload,
     });
     sendSuccess(res, { banquet }, 'Banquet updated successfully');
   } catch (error: any) {

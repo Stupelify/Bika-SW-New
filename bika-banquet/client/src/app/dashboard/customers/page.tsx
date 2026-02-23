@@ -35,6 +35,7 @@ import {
   NAME_REGEX,
   PRIORITY_OPTIONS,
   digitsOnly,
+  getCountryIsoByCode,
   getDialCodeOption,
   getExpectedPhoneDigits,
   getPhoneCodeByIso,
@@ -117,6 +118,8 @@ const initialColumnSearch = {
   createdAt: '',
 };
 
+const CUSTOMERS_PAGE_SIZE = 100;
+
 export default function CustomersPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -128,7 +131,9 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingFormData, setLoadingFormData] = useState(false);
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [isWhatsappDifferent, setIsWhatsappDifferent] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
@@ -140,6 +145,7 @@ export default function CustomersPage() {
     alterPhone?: string;
     whatsappNumber?: string;
   }>({});
+  const [currentPage, setCurrentPage] = useState(1);
 
   const tableColumns = useMemo<TableColumnConfig<CustomerRow>[]>(
     () => [
@@ -174,6 +180,17 @@ export default function CustomersPage() {
     [customers, tableColumns, globalSearch, columnSearch, sort]
   );
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredCustomers.length / CUSTOMERS_PAGE_SIZE)
+  );
+
+  const paginatedCustomers = useMemo(() => {
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const startIndex = (safePage - 1) * CUSTOMERS_PAGE_SIZE;
+    return filteredCustomers.slice(startIndex, startIndex + CUSTOMERS_PAGE_SIZE);
+  }, [currentPage, filteredCustomers, totalPages]);
+
   const referrerOptions = useMemo(
     () => [...customers].sort((a, b) => a.name.localeCompare(b.name)),
     [customers]
@@ -186,7 +203,18 @@ export default function CustomersPage() {
     void loadCustomers();
   }, [canViewCustomer]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [globalSearch, columnSearch, sort]);
+
+  useEffect(() => {
+    if (currentPage <= totalPages) return;
+    setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const resetCreateForm = () => {
+    setEditingCustomerId(null);
+    setLoadingFormData(false);
     setFormData(initialFormData);
     setIsWhatsappDifferent(false);
     setEmailFieldError('');
@@ -194,11 +222,16 @@ export default function CustomersPage() {
   };
 
   const closeCreatePrompt = () => {
-    if (saving) {
+    if (saving || loadingFormData) {
       return;
     }
     setShowCreatePrompt(false);
     resetCreateForm();
+  };
+
+  const openCreatePrompt = () => {
+    resetCreateForm();
+    setShowCreatePrompt(true);
   };
 
   const loadCustomers = async () => {
@@ -233,6 +266,73 @@ export default function CustomersPage() {
       await loadCustomers();
     } catch (error) {
       toast.error('Failed to delete customer');
+    }
+  };
+
+  const openEditPrompt = async (id: string) => {
+    try {
+      setLoadingFormData(true);
+      setPhoneFieldErrors({});
+      setEmailFieldError('');
+      const response = await api.getCustomer(id);
+      const customer = response?.data?.data?.customer;
+
+      if (!customer) {
+        toast.error('Customer not found');
+        return;
+      }
+
+      const primaryCountryCode =
+        customer.phoneCountryCode || getPhoneCodeByIso(DEFAULT_PHONE_COUNTRY_ISO);
+      const alterPhone = customer.alterPhone || customer.alternatePhone || '';
+      const whatsappNumber = customer.whatsappNumber || customer.whatsapp || '';
+      const whatsappCountryCode =
+        customer.whatsappCountryCode || primaryCountryCode;
+      const isWhatsappDifferentFromPrimary = Boolean(whatsappNumber) &&
+        (whatsappNumber !== (customer.phone || '') ||
+          whatsappCountryCode !== primaryCountryCode);
+
+      setEditingCustomerId(customer.id);
+      setFormData({
+        name: customer.name || '',
+        phoneCountryIso: getCountryIsoByCode(primaryCountryCode),
+        phone: customer.phone || '',
+        alterPhoneCountryIso: getCountryIsoByCode(
+          customer.alterPhoneCountryCode || primaryCountryCode
+        ),
+        alterPhone,
+        whatsappCountryIso: getCountryIsoByCode(whatsappCountryCode),
+        whatsappNumber: isWhatsappDifferentFromPrimary ? whatsappNumber : '',
+        email: customer.email || '',
+        caste: customer.caste || '',
+        country: customer.country || 'India',
+        pincode: customer.pincode || '',
+        city: customer.city || '',
+        state: customer.state || '',
+        street1: customer.street1 || '',
+        street2: customer.street2 || '',
+        facebookProfile: customer.facebookProfile || '',
+        instagramHandle: customer.instagramHandle || '',
+        twitter: customer.twitter || '',
+        linkedin: customer.linkedin || '',
+        referredById: customer.referredById || '',
+        priority:
+          customer.priority !== null && customer.priority !== undefined
+            ? String(customer.priority)
+            : '',
+        rating: customer.rating || '0',
+        notes: customer.notes || '',
+      });
+      setIsWhatsappDifferent(isWhatsappDifferentFromPrimary);
+      setShowCreatePrompt(true);
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          error?.response?.data?.message ||
+          'Failed to load customer details'
+      );
+    } finally {
+      setLoadingFormData(false);
     }
   };
 
@@ -310,7 +410,61 @@ export default function CustomersPage() {
     );
   };
 
-  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+  const buildCustomerPayload = () => {
+    const name = formData.name.trim().replace(/\s+/g, ' ');
+    const phone = digitsOnly(formData.phone);
+    const alterPhone = digitsOnly(formData.alterPhone);
+    const email = formData.email.trim();
+    const whatsappNumber = isWhatsappDifferent
+      ? digitsOnly(formData.whatsappNumber)
+      : phone;
+    const phoneCountryCode = getPhoneCodeByIso(formData.phoneCountryIso);
+    const alterPhoneCountryCode = getPhoneCodeByIso(formData.alterPhoneCountryIso);
+    const whatsappCountryCode = isWhatsappDifferent
+      ? getPhoneCodeByIso(formData.whatsappCountryIso)
+      : phoneCountryCode;
+    const country = formData.country.trim();
+    const city = formData.city.trim();
+    const state = formData.state.trim();
+    const pincode = digitsOnly(formData.pincode);
+    const street1 = formData.street1.trim();
+    const street2 = formData.street2.trim();
+    const addressParts = [street1, street2, city, state, pincode, country].filter(
+      Boolean
+    );
+    const address = addressParts.length > 0 ? addressParts.join(', ') : undefined;
+
+    return {
+      name,
+      phone,
+      phoneCountryCode,
+      email: email || undefined,
+      alterPhone: alterPhone || undefined,
+      alterPhoneCountryCode: alterPhone
+        ? alterPhoneCountryCode
+        : undefined,
+      whatsappNumber: whatsappNumber || undefined,
+      whatsappCountryCode: whatsappNumber ? whatsappCountryCode : undefined,
+      caste: formData.caste || undefined,
+      country: country || undefined,
+      pincode: pincode || undefined,
+      city: city || undefined,
+      state: state || undefined,
+      street1: street1 || undefined,
+      street2: street2 || undefined,
+      address,
+      facebookProfile: formData.facebookProfile.trim() || undefined,
+      instagramHandle: formData.instagramHandle.trim() || undefined,
+      twitter: formData.twitter.trim() || undefined,
+      linkedin: formData.linkedin.trim() || undefined,
+      referredById: formData.referredById || undefined,
+      priority: formData.priority ? Number(formData.priority) : undefined,
+      rating: formData.rating || undefined,
+      notes: formData.notes.trim() || undefined,
+    };
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setEmailFieldError('');
     setPhoneFieldErrors({});
@@ -322,59 +476,17 @@ export default function CustomersPage() {
 
     try {
       setSaving(true);
-
-      const name = formData.name.trim().replace(/\s+/g, ' ');
-      const phone = digitsOnly(formData.phone);
-      const alterPhone = digitsOnly(formData.alterPhone);
-      const email = formData.email.trim();
-      const whatsappNumber = isWhatsappDifferent
-        ? digitsOnly(formData.whatsappNumber)
-        : phone;
-      const phoneCountryCode = getPhoneCodeByIso(formData.phoneCountryIso);
-      const alterPhoneCountryCode = getPhoneCodeByIso(formData.alterPhoneCountryIso);
-      const whatsappCountryCode = isWhatsappDifferent
-        ? getPhoneCodeByIso(formData.whatsappCountryIso)
-        : phoneCountryCode;
-      const country = formData.country.trim();
-      const city = formData.city.trim();
-      const state = formData.state.trim();
-      const pincode = digitsOnly(formData.pincode);
-      const street1 = formData.street1.trim();
-      const street2 = formData.street2.trim();
-      const addressParts = [street1, street2, city, state, pincode, country].filter(
-        Boolean
+      const payload = buildCustomerPayload();
+      if (editingCustomerId) {
+        await api.updateCustomer(editingCustomerId, payload);
+      } else {
+        await api.createCustomer(payload);
+      }
+      toast.success(
+        editingCustomerId
+          ? 'Customer updated successfully'
+          : 'Customer created successfully'
       );
-      const address = addressParts.length > 0 ? addressParts.join(', ') : undefined;
-
-      await api.createCustomer({
-        name,
-        phone,
-        phoneCountryCode,
-        email: email || undefined,
-        alterPhone: alterPhone || undefined,
-        alterPhoneCountryCode: alterPhone
-          ? alterPhoneCountryCode
-          : undefined,
-        whatsappNumber: whatsappNumber || undefined,
-        whatsappCountryCode: whatsappNumber ? whatsappCountryCode : undefined,
-        caste: formData.caste || undefined,
-        country: country || undefined,
-        pincode: pincode || undefined,
-        city: city || undefined,
-        state: state || undefined,
-        street1: street1 || undefined,
-        street2: street2 || undefined,
-        address,
-        facebookProfile: formData.facebookProfile.trim() || undefined,
-        instagramHandle: formData.instagramHandle.trim() || undefined,
-        twitter: formData.twitter.trim() || undefined,
-        linkedin: formData.linkedin.trim() || undefined,
-        referredById: formData.referredById || undefined,
-        priority: formData.priority ? Number(formData.priority) : undefined,
-        rating: formData.rating || undefined,
-        notes: formData.notes.trim() || undefined,
-      });
-      toast.success('Customer created successfully');
       setShowCreatePrompt(false);
       resetCreateForm();
       await loadCustomers();
@@ -411,7 +523,10 @@ export default function CustomersPage() {
         setPhoneFieldErrors(nextErrors);
         setEmailFieldError(nextEmailError);
       }
-      const message = getErrorMessage(error, 'Failed to create customer');
+      const message = getErrorMessage(
+        error,
+        editingCustomerId ? 'Failed to update customer' : 'Failed to create customer'
+      );
       toast.error(message);
     } finally {
       setSaving(false);
@@ -428,10 +543,7 @@ export default function CustomersPage() {
         {canAddCustomer && (
           <button
             type="button"
-            onClick={() => {
-              resetCreateForm();
-              setShowCreatePrompt(true);
-            }}
+            onClick={openCreatePrompt}
             className="btn btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Plus className="w-4 h-4" />
@@ -448,11 +560,16 @@ export default function CustomersPage() {
 
       <FormPromptModal
         open={showCreatePrompt}
-        title="Add Customer"
+        title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}
         onClose={closeCreatePrompt}
         widthClass="max-w-6xl"
       >
-        <form onSubmit={handleCreate} className="space-y-7" noValidate>
+        {loadingFormData ? (
+          <div className="py-14 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
+        ) : (
+        <form onSubmit={handleSubmit} className="space-y-7" noValidate>
           <section className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Personal Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -934,17 +1051,23 @@ export default function CustomersPage() {
               type="button"
               className="btn btn-secondary"
               onClick={closeCreatePrompt}
+              disabled={saving}
             >
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
               <span className="inline-flex items-center gap-2">
                 <Save className="w-4 h-4" />
-                {saving ? 'Saving...' : 'Create Customer'}
+                {saving
+                  ? 'Saving...'
+                  : editingCustomerId
+                    ? 'Update Customer'
+                    : 'Create Customer'}
               </span>
             </button>
           </div>
         </form>
+        )}
       </FormPromptModal>
 
       <div className="card">
@@ -1055,7 +1178,7 @@ export default function CustomersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredCustomers.map((customer) => (
+                {paginatedCustomers.map((customer) => (
                   <tr
                     key={customer.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
@@ -1107,13 +1230,14 @@ export default function CustomersPage() {
                           </Link>
                         )}
                         {canEditCustomer && (
-                          <Link
-                            href={`/dashboard/customers/${customer.id}/edit`}
+                          <button
+                            type="button"
+                            onClick={() => void openEditPrompt(customer.id)}
                             className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                             title="Edit"
                           >
                             <Edit className="w-4 h-4" />
-                          </Link>
+                          </button>
                         )}
                         {canDeleteCustomer && (
                           <button
@@ -1130,6 +1254,38 @@ export default function CustomersPage() {
                 ))}
               </tbody>
             </table>
+            {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-gray-600">
+                  Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
+                  {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
+                  {filteredCustomers.length} customers
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={currentPage >= totalPages}
+                    onClick={() =>
+                      setCurrentPage((page) => Math.min(totalPages, page + 1))
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

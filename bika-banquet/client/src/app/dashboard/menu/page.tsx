@@ -1,11 +1,13 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { Edit, Layers, ListChecks, Save, Search, Soup, Trash2 } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
+import TablePagination from '@/components/TablePagination';
 import {
   SortState,
   TableColumnConfig,
@@ -87,6 +89,7 @@ const initialTemplateForm = {
 
 const initialTypeColumnSearch = {
   name: '',
+  order: '',
   itemCount: '',
 };
 
@@ -103,7 +106,19 @@ const initialTemplateColumnSearch = {
   itemCount: '',
 };
 
-export default function MenuPage() {
+const ITEM_TYPES_PAGE_SIZE = 75;
+const ITEMS_PAGE_SIZE = 75;
+const TEMPLATE_MENUS_PAGE_SIZE = 75;
+type MenuSection = 'itemType' | 'item' | 'template';
+
+function isMenuSection(value: string | null): value is MenuSection {
+  return value === 'itemType' || value === 'item' || value === 'template';
+}
+
+function MenuPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
   const canViewItemType = hasAnyPermission(permissionSet, ['view_itemtype', 'manage_menu']);
@@ -150,7 +165,7 @@ export default function MenuPage() {
   const [templateItemSearch, setTemplateItemSearch] = useState('');
 
   const [itemTypeSort, setItemTypeSort] = useState<SortState>({
-    key: 'name',
+    key: 'order',
     direction: 'asc',
   });
   const [itemSort, setItemSort] = useState<SortState>({ key: 'name', direction: 'asc' });
@@ -158,13 +173,19 @@ export default function MenuPage() {
     key: 'name',
     direction: 'asc',
   });
-  const [activeMenuSection, setActiveMenuSection] = useState<
-    'itemType' | 'item' | 'template'
-  >('itemType');
+  const [itemTypePage, setItemTypePage] = useState(1);
+  const [itemPage, setItemPage] = useState(1);
+  const [templatePage, setTemplatePage] = useState(1);
+  const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>('itemType');
+  const sectionParam = searchParams.get('section');
 
   const itemTypeColumns = useMemo<TableColumnConfig<ItemType>[]>(
     () => [
       { key: 'name', accessor: (itemType) => itemType.name },
+      {
+        key: 'order',
+        accessor: (itemType) => itemType.order ?? itemType.displayOrder ?? 0,
+      },
       { key: 'itemCount', accessor: (itemType) => itemType._count?.items || 0 },
     ],
     []
@@ -240,46 +261,132 @@ export default function MenuPage() {
     ]
   );
 
+  const itemTypeTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredItemTypes.length / ITEM_TYPES_PAGE_SIZE)),
+    [filteredItemTypes.length]
+  );
+
+  const itemTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredItems.length / ITEMS_PAGE_SIZE)),
+    [filteredItems.length]
+  );
+
+  const templateTotalPages = useMemo(
+    () =>
+      Math.max(1, Math.ceil(filteredTemplateMenus.length / TEMPLATE_MENUS_PAGE_SIZE)),
+    [filteredTemplateMenus.length]
+  );
+
+  const paginatedItemTypes = useMemo(() => {
+    const safePage = Math.min(Math.max(itemTypePage, 1), itemTypeTotalPages);
+    const startIndex = (safePage - 1) * ITEM_TYPES_PAGE_SIZE;
+    return filteredItemTypes.slice(startIndex, startIndex + ITEM_TYPES_PAGE_SIZE);
+  }, [filteredItemTypes, itemTypePage, itemTypeTotalPages]);
+
+  const paginatedItems = useMemo(() => {
+    const safePage = Math.min(Math.max(itemPage, 1), itemTotalPages);
+    const startIndex = (safePage - 1) * ITEMS_PAGE_SIZE;
+    return filteredItems.slice(startIndex, startIndex + ITEMS_PAGE_SIZE);
+  }, [filteredItems, itemPage, itemTotalPages]);
+
+  const paginatedTemplateMenus = useMemo(() => {
+    const safePage = Math.min(Math.max(templatePage, 1), templateTotalPages);
+    const startIndex = (safePage - 1) * TEMPLATE_MENUS_PAGE_SIZE;
+    return filteredTemplateMenus.slice(
+      startIndex,
+      startIndex + TEMPLATE_MENUS_PAGE_SIZE
+    );
+  }, [filteredTemplateMenus, templatePage, templateTotalPages]);
+
   useEffect(() => {
     void loadData();
   }, [canViewItemType, canViewItem, canViewTemplate]);
 
+  const firstAllowedMenuSection = useMemo<MenuSection | null>(() => {
+    if (canViewItemType) return 'itemType';
+    if (canViewItem) return 'item';
+    if (canViewTemplate) return 'template';
+    return null;
+  }, [canViewItemType, canViewItem, canViewTemplate]);
+
   useEffect(() => {
-    if (activeMenuSection === 'itemType' && !canViewItemType) {
-      if (canViewItem) {
-        setActiveMenuSection('item');
-        return;
-      }
-      if (canViewTemplate) {
-        setActiveMenuSection('template');
-      }
-      return;
+    if (!firstAllowedMenuSection) return;
+
+    const requestedSection = isMenuSection(sectionParam) ? sectionParam : null;
+    const requestedSectionAllowed =
+      requestedSection === 'itemType'
+        ? canViewItemType
+        : requestedSection === 'item'
+          ? canViewItem
+          : requestedSection === 'template'
+            ? canViewTemplate
+            : false;
+
+    const nextSection =
+      requestedSection && requestedSectionAllowed
+        ? requestedSection
+        : firstAllowedMenuSection;
+
+    if (activeMenuSection !== nextSection) {
+      setActiveMenuSection(nextSection);
     }
-    if (activeMenuSection === 'item' && !canViewItem) {
-      if (canViewItemType) {
-        setActiveMenuSection('itemType');
-        return;
-      }
-      if (canViewTemplate) {
-        setActiveMenuSection('template');
-      }
-      return;
-    }
-    if (activeMenuSection === 'template' && !canViewTemplate) {
-      if (canViewItemType) {
-        setActiveMenuSection('itemType');
-        return;
-      }
-      if (canViewItem) {
-        setActiveMenuSection('item');
-      }
+
+    if (sectionParam !== nextSection) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('section', nextSection);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }
   }, [
     activeMenuSection,
-    canViewItemType,
     canViewItem,
+    canViewItemType,
     canViewTemplate,
+    firstAllowedMenuSection,
+    pathname,
+    router,
+    searchParams,
+    sectionParam,
   ]);
+
+  const navigateToMenuSection = (section: MenuSection) => {
+    const allowed =
+      section === 'itemType'
+        ? canViewItemType
+        : section === 'item'
+          ? canViewItem
+          : canViewTemplate;
+    if (!allowed) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', section);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    setItemTypePage(1);
+  }, [itemTypeGlobalSearch, itemTypeColumnSearch, itemTypeSort]);
+
+  useEffect(() => {
+    setItemPage(1);
+  }, [itemsGlobalSearch, itemsColumnSearch, itemSort]);
+
+  useEffect(() => {
+    setTemplatePage(1);
+  }, [templateGlobalSearch, templateColumnSearch, templateSort]);
+
+  useEffect(() => {
+    if (itemTypePage <= itemTypeTotalPages) return;
+    setItemTypePage(itemTypeTotalPages);
+  }, [itemTypePage, itemTypeTotalPages]);
+
+  useEffect(() => {
+    if (itemPage <= itemTotalPages) return;
+    setItemPage(itemTotalPages);
+  }, [itemPage, itemTotalPages]);
+
+  useEffect(() => {
+    if (templatePage <= templateTotalPages) return;
+    setTemplatePage(templateTotalPages);
+  }, [templatePage, templateTotalPages]);
 
   const loadData = async () => {
     try {
@@ -945,7 +1052,7 @@ export default function MenuPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
               type="button"
-              onClick={() => canViewItemType && setActiveMenuSection('itemType')}
+              onClick={() => navigateToMenuSection('itemType')}
               disabled={!canViewItemType}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeMenuSection === 'itemType' && canViewItemType
@@ -957,7 +1064,7 @@ export default function MenuPage() {
             </button>
             <button
               type="button"
-              onClick={() => canViewItem && setActiveMenuSection('item')}
+              onClick={() => navigateToMenuSection('item')}
               disabled={!canViewItem}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeMenuSection === 'item' && canViewItem
@@ -969,7 +1076,7 @@ export default function MenuPage() {
             </button>
             <button
               type="button"
-              onClick={() => canViewTemplate && setActiveMenuSection('template')}
+              onClick={() => navigateToMenuSection('template')}
               disabled={!canViewTemplate}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeMenuSection === 'template' && canViewTemplate
@@ -1028,6 +1135,13 @@ export default function MenuPage() {
                       className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
+                      label="Order"
+                      sortKey="order"
+                      sort={itemTypeSort}
+                      onSort={(key) => setItemTypeSort((prev) => getNextSort(prev, key))}
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
+                    />
+                    <SortableHeader
                       label="Items"
                       sortKey="itemCount"
                       sort={itemTypeSort}
@@ -1055,6 +1169,19 @@ export default function MenuPage() {
                     <th className="py-2 px-2">
                       <input
                         className="input h-9"
+                        placeholder="Search order"
+                        value={itemTypeColumnSearch.order}
+                        onChange={(e) =>
+                          setItemTypeColumnSearch((prev) => ({
+                            ...prev,
+                            order: e.target.value,
+                          }))
+                        }
+                      />
+                    </th>
+                    <th className="py-2 px-2">
+                      <input
+                        className="input h-9"
                         placeholder="Search item count"
                         value={itemTypeColumnSearch.itemCount}
                         onChange={(e) =>
@@ -1069,10 +1196,13 @@ export default function MenuPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItemTypes.map((itemType) => (
+                  {paginatedItemTypes.map((itemType) => (
                     <tr key={itemType.id} className="border-b border-gray-100">
                       <td className="py-3 px-2">
                         <p className="text-sm text-gray-900">{itemType.name}</p>
+                      </td>
+                      <td className="py-3 px-2 text-sm text-gray-700">
+                        {itemType.order ?? itemType.displayOrder ?? 0}
                       </td>
                       <td className="py-3 px-2 text-sm text-gray-700">{itemType._count?.items || 0}</td>
                       <td className="py-3 px-2 text-right">
@@ -1099,6 +1229,14 @@ export default function MenuPage() {
                   ))}
                 </tbody>
               </table>
+              <TablePagination
+                currentPage={itemTypePage}
+                totalPages={itemTypeTotalPages}
+                totalItems={filteredItemTypes.length}
+                pageSize={ITEM_TYPES_PAGE_SIZE}
+                itemLabel="item types"
+                onPageChange={setItemTypePage}
+              />
             </div>
           )}
         </div>
@@ -1208,7 +1346,7 @@ export default function MenuPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((item) => (
+                  {paginatedItems.map((item) => (
                     <tr key={item.id} className="border-b border-gray-100">
                       <td className="py-3 px-2">
                         <p className="text-sm text-gray-900">{item.name}</p>
@@ -1242,6 +1380,14 @@ export default function MenuPage() {
                   ))}
                 </tbody>
               </table>
+              <TablePagination
+                currentPage={itemPage}
+                totalPages={itemTotalPages}
+                totalItems={filteredItems.length}
+                pageSize={ITEMS_PAGE_SIZE}
+                itemLabel="items"
+                onPageChange={setItemPage}
+              />
             </div>
           )}
         </div>
@@ -1371,7 +1517,7 @@ export default function MenuPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTemplateMenus.map((template) => (
+                  {paginatedTemplateMenus.map((template) => (
                     <tr key={template.id} className="border-b border-gray-100">
                       <td className="py-3 px-2 text-sm text-gray-900">{template.name}</td>
                       <td className="py-3 px-2 text-sm text-gray-700">{template.category || 'General'}</td>
@@ -1403,10 +1549,34 @@ export default function MenuPage() {
                   ))}
                 </tbody>
               </table>
+              <TablePagination
+                currentPage={templatePage}
+                totalPages={templateTotalPages}
+                totalItems={filteredTemplateMenus.length}
+                pageSize={TEMPLATE_MENUS_PAGE_SIZE}
+                itemLabel="template menus"
+                onPageChange={setTemplatePage}
+              />
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function MenuPageFallback() {
+  return (
+    <div className="card py-12 text-center">
+      <p className="text-sm text-gray-600">Loading menu workspace...</p>
+    </div>
+  );
+}
+
+export default function MenuPage() {
+  return (
+    <Suspense fallback={<MenuPageFallback />}>
+      <MenuPageContent />
+    </Suspense>
   );
 }

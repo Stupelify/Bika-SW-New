@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { normalizeCaseFields } from '../utils/textCase';
 
 export const createItemSchema = z.object({
   body: z.object({
@@ -28,8 +29,9 @@ export const updateItemSchema = z.object({
 
 export async function createItem(req: Request, res: Response): Promise<void> {
   try {
+    const payload = normalizeCaseFields({ ...req.body }, ['name']);
     const item = await prisma.item.create({
-      data: req.body,
+      data: payload,
       include: {
         itemType: true,
       },
@@ -113,9 +115,10 @@ export async function getItemById(req: Request, res: Response): Promise<void> {
 export async function updateItem(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const payload = normalizeCaseFields({ ...req.body }, ['name']);
     const item = await prisma.item.update({
       where: { id },
-      data: req.body,
+      data: payload,
       include: {
         itemType: true,
       },

@@ -1,9 +1,10 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { KeyRound, Save, Settings2, Shield, Trash2, Users } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 
 interface UserRow {
@@ -184,8 +185,21 @@ const initialUserForm = {
   password: '',
   roleId: '',
 };
+type SettingsSection = 'access' | 'users' | 'roles' | 'permissions';
 
-export default function SettingsPage() {
+function isSettingsSection(value: string | null): value is SettingsSection {
+  return (
+    value === 'access' ||
+    value === 'users' ||
+    value === 'roles' ||
+    value === 'permissions'
+  );
+}
+
+function SettingsPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
@@ -209,9 +223,9 @@ export default function SettingsPage() {
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
   const [newRolePermissionIds, setNewRolePermissionIds] = useState<string[]>([]);
-  const [activeSettingsSection, setActiveSettingsSection] = useState<
-    'access' | 'users' | 'roles' | 'permissions'
-  >('access');
+  const [activeSettingsSection, setActiveSettingsSection] =
+    useState<SettingsSection>('access');
+  const sectionParam = searchParams.get('section');
 
   useEffect(() => {
     void loadData();
@@ -280,23 +294,53 @@ export default function SettingsPage() {
     canViewPermissions || canAddPermissions || canDeletePermissions;
   const canViewAccessSection = canAssignRoles || canManageRolePermissions;
 
-  useEffect(() => {
-    const availableSections: Array<'access' | 'users' | 'roles' | 'permissions'> = [];
+  const availableSettingsSections = useMemo<SettingsSection[]>(() => {
+    const availableSections: SettingsSection[] = [];
     if (canViewAccessSection) availableSections.push('access');
     if (canAccessUsersSection) availableSections.push('users');
     if (canAccessRolesSection) availableSections.push('roles');
     if (canAccessPermissionsSection) availableSections.push('permissions');
-    if (availableSections.length === 0) return;
-    if (!availableSections.includes(activeSettingsSection)) {
-      setActiveSettingsSection(availableSections[0]);
-    }
+    return availableSections;
   }, [
-    activeSettingsSection,
     canAccessPermissionsSection,
     canAccessRolesSection,
     canAccessUsersSection,
     canViewAccessSection,
   ]);
+
+  useEffect(() => {
+    if (availableSettingsSections.length === 0) return;
+
+    const requestedSection = isSettingsSection(sectionParam) ? sectionParam : null;
+    const nextSection =
+      requestedSection && availableSettingsSections.includes(requestedSection)
+        ? requestedSection
+        : availableSettingsSections[0];
+
+    if (activeSettingsSection !== nextSection) {
+      setActiveSettingsSection(nextSection);
+    }
+
+    if (sectionParam !== nextSection) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('section', nextSection);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  }, [
+    activeSettingsSection,
+    availableSettingsSections,
+    pathname,
+    router,
+    searchParams,
+    sectionParam,
+  ]);
+
+  const navigateToSettingsSection = (section: SettingsSection) => {
+    if (!availableSettingsSections.includes(section)) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', section);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const permissionGroups = useMemo<PermissionGroup[]>(() => {
     const groups = new Map<string, PermissionGroup>();
@@ -850,7 +894,7 @@ export default function SettingsPage() {
           {canViewAccessSection && (
             <button
               type="button"
-              onClick={() => setActiveSettingsSection('access')}
+              onClick={() => navigateToSettingsSection('access')}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'access'
                   ? 'bg-primary-600 text-white shadow'
@@ -863,7 +907,7 @@ export default function SettingsPage() {
           {canAccessUsersSection && (
             <button
               type="button"
-              onClick={() => setActiveSettingsSection('users')}
+              onClick={() => navigateToSettingsSection('users')}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'users'
                   ? 'bg-primary-600 text-white shadow'
@@ -876,7 +920,7 @@ export default function SettingsPage() {
           {canAccessRolesSection && (
             <button
               type="button"
-              onClick={() => setActiveSettingsSection('roles')}
+              onClick={() => navigateToSettingsSection('roles')}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'roles'
                   ? 'bg-primary-600 text-white shadow'
@@ -889,7 +933,7 @@ export default function SettingsPage() {
           {canAccessPermissionsSection && (
             <button
               type="button"
-              onClick={() => setActiveSettingsSection('permissions')}
+              onClick={() => navigateToSettingsSection('permissions')}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'permissions'
                   ? 'bg-primary-600 text-white shadow'
@@ -1225,5 +1269,21 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SettingsPageFallback() {
+  return (
+    <div className="card py-12 text-center">
+      <p className="text-sm text-gray-600">Loading settings workspace...</p>
+    </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<SettingsPageFallback />}>
+      <SettingsPageContent />
+    </Suspense>
   );
 }

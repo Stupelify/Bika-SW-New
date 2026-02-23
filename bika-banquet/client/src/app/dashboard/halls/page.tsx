@@ -1,11 +1,13 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { Building2, Edit, Landmark, Save, Search, Trash2 } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
+import TablePagination from '@/components/TablePagination';
 import {
   SortState,
   TableColumnConfig,
@@ -70,7 +72,18 @@ const initialHallColumnSearch = {
   pricing: '',
 };
 
-export default function HallsPage() {
+const BANQUETS_PAGE_SIZE = 75;
+const HALLS_PAGE_SIZE = 75;
+type VenueSection = 'banquet' | 'hall';
+
+function isVenueSection(value: string | null): value is VenueSection {
+  return value === 'banquet' || value === 'hall';
+}
+
+function HallsPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
   const canViewBanquet = hasAnyPermission(permissionSet, ['view_banquet', 'manage_halls']);
@@ -107,9 +120,10 @@ export default function HallsPage() {
     key: 'name',
     direction: 'asc',
   });
-  const [activeVenueSection, setActiveVenueSection] = useState<'banquet' | 'hall'>(
-    'banquet'
-  );
+  const [banquetPage, setBanquetPage] = useState(1);
+  const [hallPage, setHallPage] = useState(1);
+  const [activeVenueSection, setActiveVenueSection] = useState<VenueSection>('banquet');
+  const sectionParam = searchParams.get('section');
 
   const banquetColumns = useMemo<TableColumnConfig<Banquet>[]>(
     () => [
@@ -167,19 +181,99 @@ export default function HallsPage() {
     [halls, hallColumns, hallGlobalSearch, hallColumnSearch, hallSort]
   );
 
+  const banquetTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredBanquets.length / BANQUETS_PAGE_SIZE)),
+    [filteredBanquets.length]
+  );
+
+  const hallTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredHalls.length / HALLS_PAGE_SIZE)),
+    [filteredHalls.length]
+  );
+
+  const paginatedBanquets = useMemo(() => {
+    const safePage = Math.min(Math.max(banquetPage, 1), banquetTotalPages);
+    const startIndex = (safePage - 1) * BANQUETS_PAGE_SIZE;
+    return filteredBanquets.slice(startIndex, startIndex + BANQUETS_PAGE_SIZE);
+  }, [banquetPage, banquetTotalPages, filteredBanquets]);
+
+  const paginatedHalls = useMemo(() => {
+    const safePage = Math.min(Math.max(hallPage, 1), hallTotalPages);
+    const startIndex = (safePage - 1) * HALLS_PAGE_SIZE;
+    return filteredHalls.slice(startIndex, startIndex + HALLS_PAGE_SIZE);
+  }, [hallPage, hallTotalPages, filteredHalls]);
+
   useEffect(() => {
     void loadData();
   }, [canViewBanquet, canViewHall]);
 
+  const firstAllowedVenueSection = useMemo<VenueSection | null>(() => {
+    if (canViewBanquet) return 'banquet';
+    if (canViewHall) return 'hall';
+    return null;
+  }, [canViewBanquet, canViewHall]);
+
   useEffect(() => {
-    if (activeVenueSection === 'banquet' && !canViewBanquet && canViewHall) {
-      setActiveVenueSection('hall');
-      return;
+    if (!firstAllowedVenueSection) return;
+
+    const requestedSection = isVenueSection(sectionParam) ? sectionParam : null;
+    const requestedSectionAllowed =
+      requestedSection === 'banquet'
+        ? canViewBanquet
+        : requestedSection === 'hall'
+          ? canViewHall
+          : false;
+
+    const nextSection =
+      requestedSection && requestedSectionAllowed
+        ? requestedSection
+        : firstAllowedVenueSection;
+
+    if (activeVenueSection !== nextSection) {
+      setActiveVenueSection(nextSection);
     }
-    if (activeVenueSection === 'hall' && !canViewHall && canViewBanquet) {
-      setActiveVenueSection('banquet');
+
+    if (sectionParam !== nextSection) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('section', nextSection);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }
-  }, [activeVenueSection, canViewBanquet, canViewHall]);
+  }, [
+    activeVenueSection,
+    canViewBanquet,
+    canViewHall,
+    firstAllowedVenueSection,
+    pathname,
+    router,
+    searchParams,
+    sectionParam,
+  ]);
+
+  const navigateToVenueSection = (section: VenueSection) => {
+    const allowed = section === 'banquet' ? canViewBanquet : canViewHall;
+    if (!allowed) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', section);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    setBanquetPage(1);
+  }, [banquetGlobalSearch, banquetColumnSearch, banquetSort]);
+
+  useEffect(() => {
+    setHallPage(1);
+  }, [hallGlobalSearch, hallColumnSearch, hallSort]);
+
+  useEffect(() => {
+    if (banquetPage <= banquetTotalPages) return;
+    setBanquetPage(banquetTotalPages);
+  }, [banquetPage, banquetTotalPages]);
+
+  useEffect(() => {
+    if (hallPage <= hallTotalPages) return;
+    setHallPage(hallTotalPages);
+  }, [hallPage, hallTotalPages]);
 
   const loadData = async () => {
     try {
@@ -560,7 +654,7 @@ export default function HallsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => canViewBanquet && setActiveVenueSection('banquet')}
+              onClick={() => navigateToVenueSection('banquet')}
               disabled={!canViewBanquet}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeVenueSection === 'banquet' && canViewBanquet
@@ -572,7 +666,7 @@ export default function HallsPage() {
             </button>
             <button
               type="button"
-              onClick={() => canViewHall && setActiveVenueSection('hall')}
+              onClick={() => navigateToVenueSection('hall')}
               disabled={!canViewHall}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeVenueSection === 'hall' && canViewHall
@@ -696,7 +790,7 @@ export default function HallsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredBanquets.map((banquet) => (
+                    {paginatedBanquets.map((banquet) => (
                       <tr key={banquet.id} className="border-b border-gray-100">
                         <td className="py-3 px-2 text-sm text-gray-900">{banquet.name}</td>
                         <td className="py-3 px-2 text-sm text-gray-700">
@@ -731,6 +825,14 @@ export default function HallsPage() {
                     ))}
                   </tbody>
                 </table>
+                <TablePagination
+                  currentPage={banquetPage}
+                  totalPages={banquetTotalPages}
+                  totalItems={filteredBanquets.length}
+                  pageSize={BANQUETS_PAGE_SIZE}
+                  itemLabel="banquets"
+                  onPageChange={setBanquetPage}
+                />
               </div>
             )}
           </>
@@ -842,7 +944,7 @@ export default function HallsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredHalls.map((hall) => (
+                    {paginatedHalls.map((hall) => (
                       <tr key={hall.id} className="border-b border-gray-100">
                         <td className="py-3 px-2">
                           <p className="text-sm text-gray-900">{hall.name}</p>
@@ -883,6 +985,14 @@ export default function HallsPage() {
                     ))}
                   </tbody>
                 </table>
+                <TablePagination
+                  currentPage={hallPage}
+                  totalPages={hallTotalPages}
+                  totalItems={filteredHalls.length}
+                  pageSize={HALLS_PAGE_SIZE}
+                  itemLabel="halls"
+                  onPageChange={setHallPage}
+                />
               </div>
             )}
           </>
@@ -890,5 +1000,21 @@ export default function HallsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function HallsPageFallback() {
+  return (
+    <div className="card py-12 text-center">
+      <p className="text-sm text-gray-600">Loading venue workspace...</p>
+    </div>
+  );
+}
+
+export default function HallsPage() {
+  return (
+    <Suspense fallback={<HallsPageFallback />}>
+      <HallsPageContent />
+    </Suspense>
   );
 }

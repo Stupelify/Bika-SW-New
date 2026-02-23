@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { normalizeCaseFields } from '../utils/textCase';
 
 const menuItemSchema = z.object({
   itemId: z.string().uuid('Invalid item ID'),
@@ -33,7 +34,7 @@ export async function createTemplateMenu(
   res: Response
 ): Promise<void> {
   try {
-    const payload = req.body;
+    const payload = normalizeCaseFields({ ...req.body }, ['name', 'category']);
     const menuItems = Array.isArray(payload.menuItems)
       ? payload.menuItems
       : Array.isArray(payload.itemIds)
@@ -180,7 +181,7 @@ export async function updateTemplateMenu(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const payload = req.body;
+    const payload = normalizeCaseFields({ ...req.body }, ['name', 'category']);
     const menuItems = Array.isArray(payload.menuItems)
       ? payload.menuItems
       : Array.isArray(payload.itemIds)

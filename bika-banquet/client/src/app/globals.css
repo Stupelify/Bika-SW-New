@@ -8,11 +8,11 @@
   --ink: #132c28;
   --ink-soft: #4f6762;
   --line: #d6e5e1;
-  --surface: rgba(255, 255, 255, 0.82);
+  --surface: #ffffff;
   --surface-strong: #ffffff;
   --ring: rgba(24, 175, 148, 0.24);
-  --shadow-soft: 0 12px 32px rgba(15, 71, 62, 0.1);
-  --shadow-pop: 0 18px 44px rgba(15, 71, 62, 0.16);
+  --shadow-soft: 0 4px 12px rgba(15, 71, 62, 0.08);
+  --shadow-pop: 0 8px 18px rgba(15, 71, 62, 0.12);
 }
 
 @layer base {
@@ -28,32 +28,12 @@
   body {
     @apply antialiased font-sans;
     color: var(--ink);
-    background:
-      radial-gradient(
-        1100px 560px at -12% -14%,
-        rgba(24, 175, 148, 0.16),
-        transparent 58%
-      ),
-      radial-gradient(
-        920px 520px at 112% 2%,
-        rgba(245, 107, 35, 0.12),
-        transparent 54%
-      ),
-      linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+    background: linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
     position: relative;
   }
 
   body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(rgba(19, 44, 40, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(19, 44, 40, 0.02) 1px, transparent 1px);
-    background-size: 26px 26px;
-    opacity: 0.35;
-    z-index: -1;
+    content: none;
   }
 
   table {
@@ -75,18 +55,17 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-4 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-150 focus:outline-none focus:ring-4 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-primary {
-    @apply text-white shadow-md;
+    @apply text-white;
     background-image: linear-gradient(135deg, #0e8b76, #18af94);
-    box-shadow: 0 8px 24px rgba(14, 139, 118, 0.26);
+    box-shadow: 0 4px 12px rgba(14, 139, 118, 0.22);
   }
 
   .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 28px rgba(14, 139, 118, 0.32);
+    box-shadow: 0 6px 14px rgba(14, 139, 118, 0.24);
   }
 
   .btn-primary:focus {
@@ -95,12 +74,11 @@
 
   .btn-secondary {
     @apply text-gray-700 bg-white border border-gray-200;
-    box-shadow: 0 6px 18px rgba(15, 71, 62, 0.09);
+    box-shadow: 0 2px 8px rgba(15, 71, 62, 0.08);
   }
 
   .btn-secondary:hover {
     @apply bg-gray-50 border-gray-300;
-    transform: translateY(-1px);
   }
 
   .btn-secondary:focus {
@@ -110,25 +88,22 @@
   .btn-danger {
     @apply text-white;
     background-image: linear-gradient(135deg, #dc2626, #ef4444);
-    box-shadow: 0 8px 24px rgba(220, 38, 38, 0.26);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.24);
   }
 
   .btn-danger:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 28px rgba(220, 38, 38, 0.34);
+    box-shadow: 0 6px 14px rgba(220, 38, 38, 0.28);
   }
 
   .card {
     @apply rounded-2xl border p-4 sm:p-5 md:p-6;
     background: var(--surface);
     border-color: var(--line);
-    backdrop-filter: blur(14px);
     box-shadow: var(--shadow-soft);
-    animation: rise-in 280ms ease-out both;
   }
 
   .input {
-    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm transition-all disabled:bg-gray-100 disabled:cursor-not-allowed;
+    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed;
     border-color: #cadfda;
     background: rgba(255, 255, 255, 0.92);
   }
@@ -168,12 +143,31 @@
     @apply w-full min-w-[760px] text-sm;
   }
 
+  .data-table tbody tr:nth-child(odd) {
+    background-color: rgba(255, 255, 255, 0.96);
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    background-color: rgba(148, 163, 184, 0.08);
+  }
+
+  .data-table tbody tr:hover {
+    background-color: rgba(20, 140, 118, 0.18) !important;
+  }
+
   .table-search-row {
     @apply hidden md:table-row;
   }
 
   .form-actions {
     @apply flex flex-col-reverse gap-2 sm:flex-row sm:justify-end;
+  }
+}
+
+@supports (content-visibility: auto) {
+  .table-shell {
+    content-visibility: auto;
+    contain-intrinsic-size: 720px;
   }
 }
 
@@ -186,6 +180,17 @@
 @media (max-width: 640px) {
   .input {
     font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce), (max-width: 1024px) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

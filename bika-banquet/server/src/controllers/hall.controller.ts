@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { normalizeCaseFields } from '../utils/textCase';
 
 export const createHallSchema = z.object({
   body: z.object({
@@ -32,10 +33,15 @@ export const updateHallSchema = z.object({
 
 export async function createHall(req: Request, res: Response): Promise<void> {
   try {
+    const payload = normalizeCaseFields({ ...req.body }, [
+      'name',
+      'location',
+      'amenities',
+    ]);
     const hall = await prisma.hall.create({
       data: {
-        ...req.body,
-        images: req.body.images || [],
+        ...payload,
+        images: payload.images || [],
       },
     });
     sendSuccess(res, { hall }, 'Hall created successfully', 201);
@@ -132,9 +138,14 @@ export async function getHallById(req: Request, res: Response): Promise<void> {
 export async function updateHall(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const payload = normalizeCaseFields({ ...req.body }, [
+      'name',
+      'location',
+      'amenities',
+    ]);
     const hall = await prisma.hall.update({
       where: { id },
-      data: req.body,
+      data: payload,
       include: {
         banquet: true,
       },

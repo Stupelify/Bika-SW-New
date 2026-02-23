@@ -72,6 +72,11 @@ export const api = {
   createBooking: (data: any) => apiClient.post('/bookings', data),
   updateBooking: (id: string, data: any) => apiClient.put(`/bookings/${id}`, data),
   deleteBooking: (id: string) => apiClient.delete(`/bookings/${id}`),
+  getBookingMenuPdf: (id: string, packId?: string) =>
+    apiClient.get(`/bookings/${id}/menu-pdf`, {
+      params: packId ? { packId } : undefined,
+      responseType: 'blob',
+    }),
   cancelBooking: (id: string) => apiClient.post(`/bookings/${id}/cancel`),
   addPayment: (id: string, data: any) => apiClient.post(`/bookings/${id}/payments`, data),
 

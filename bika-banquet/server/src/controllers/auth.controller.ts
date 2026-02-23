@@ -9,6 +9,7 @@ import {
 } from '../utils/auth';
 import { sendSuccess, sendError, sendUnauthorized } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { toEntryCase } from '../utils/textCase';
 
 // Validation schemas
 export const registerSchema = z.object({
@@ -34,6 +35,8 @@ export async function register(req: Request, res: Response): Promise<void> {
     const { email, password, name } = req.body;
     const normalizedEmail =
       typeof email === 'string' ? email.trim().toLowerCase() : email;
+    const normalizedName =
+      typeof name === 'string' ? toEntryCase(name) : name;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -56,7 +59,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       data: {
         email: normalizedEmail,
         password: hashedPassword,
-        name,
+        name: normalizedName,
         verificationToken,
       },
       select: {
@@ -131,6 +134,13 @@ export async function login(req: Request, res: Response): Promise<void> {
 
     // Extract roles
     const roles = user.userRoles.map((ur) => ur.role.name);
+    const permissions = [
+      ...new Set(
+        user.userRoles.flatMap((ur) =>
+          ur.role.permissions.map((rp) => rp.permission.name)
+        )
+      ),
+    ];
 
     // Generate JWT token
     const token = generateToken({
@@ -159,6 +169,7 @@ export async function login(req: Request, res: Response): Promise<void> {
         email: user.email,
         name: user.name,
         roles,
+        permissions,
       },
     });
   } catch (error) {

@@ -24,12 +24,12 @@ export default function FormPromptModal({
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-2 sm:p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-900/45"
         onClick={onClose}
         aria-label="Close form prompt backdrop"
       />
       <div
-        className={`relative w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl animate-[rise-in_220ms_ease-out]`}
+        className={`relative w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-gray-200 bg-white shadow-xl`}
       >
         <div className="sticky top-0 bg-gradient-to-r from-white via-primary-50/70 to-white border-b border-gray-200 px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-display font-semibold text-gray-900">{title}</h2>

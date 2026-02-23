@@ -1,11 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Edit, Plus, Printer, Save, Search, Trash2, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  CalendarCheck,
+  Download,
+  Edit,
+  FileText,
+  Plus,
+  Printer,
+  Save,
+  Search,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
+import TablePagination from '@/components/TablePagination';
 import {
   SortState,
   TableColumnConfig,
@@ -30,6 +42,12 @@ interface Booking {
     name: string;
     phone: string;
   };
+}
+
+interface BookingMenuPackOption {
+  id: string;
+  name: string;
+  itemCount: number;
 }
 
 interface CustomerOption {
@@ -245,6 +263,8 @@ const initialColumnSearch = {
   grandTotal: '',
 };
 
+const BOOKINGS_PAGE_SIZE = 75;
+
 export default function BookingsPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -252,6 +272,7 @@ export default function BookingsPage() {
   const canAddBooking = hasAnyPermission(permissionSet, ['add_booking', 'manage_bookings']);
   const canEditBooking = hasAnyPermission(permissionSet, ['edit_booking', 'manage_bookings']);
   const canDeleteBooking = hasAnyPermission(permissionSet, ['delete_booking', 'manage_bookings']);
+  const canExportMenuPdf = canViewBooking;
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -265,12 +286,20 @@ export default function BookingsPage() {
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [menuEditorPack, setMenuEditorPack] = useState<PackKey | null>(null);
   const [menuItemSearch, setMenuItemSearch] = useState('');
+  const [menuPdfBookingId, setMenuPdfBookingId] = useState<string | null>(null);
+  const [menuPdfBookingName, setMenuPdfBookingName] = useState('');
+  const [menuPdfPackOptions, setMenuPdfPackOptions] = useState<BookingMenuPackOption[]>([]);
+  const [menuPdfPackId, setMenuPdfPackId] = useState('');
+  const [menuPdfLoading, setMenuPdfLoading] = useState(false);
+  const [menuPdfSetupLoading, setMenuPdfSetupLoading] = useState(false);
+  const [menuPdfPreviewUrl, setMenuPdfPreviewUrl] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [sort, setSort] = useState<SortState>({
     key: 'functionDate',
     direction: 'desc',
   });
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
 
   const tableColumns = useMemo<TableColumnConfig<Booking>[]>(
@@ -309,6 +338,17 @@ export default function BookingsPage() {
     () => filterAndSortRows(bookings, tableColumns, globalSearch, columnSearch, sort),
     [bookings, tableColumns, globalSearch, columnSearch, sort]
   );
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredBookings.length / BOOKINGS_PAGE_SIZE)),
+    [filteredBookings.length]
+  );
+
+  const paginatedBookings = useMemo(() => {
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
+    return filteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
+  }, [currentPage, filteredBookings, totalPages]);
 
   const totalPayments = useMemo(
     () =>
@@ -449,8 +489,25 @@ export default function BookingsPage() {
   }, [canViewBooking]);
 
   useEffect(() => {
+    setCurrentPage(1);
+  }, [globalSearch, columnSearch, sort]);
+
+  useEffect(() => {
+    if (currentPage <= totalPages) return;
+    setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
     void loadLookups();
   }, [canAddBooking, canEditBooking]);
+
+  useEffect(() => {
+    return () => {
+      if (menuPdfPreviewUrl) {
+        URL.revokeObjectURL(menuPdfPreviewUrl);
+      }
+    };
+  }, [menuPdfPreviewUrl]);
 
   const loadLookups = async () => {
     try {
@@ -653,6 +710,116 @@ export default function BookingsPage() {
       toast.error(error?.response?.data?.error || 'Failed to delete booking');
     }
   };
+
+  const clearMenuPdfPreview = useCallback(() => {
+    setMenuPdfPreviewUrl((previousUrl) => {
+      if (previousUrl) {
+        URL.revokeObjectURL(previousUrl);
+      }
+      return null;
+    });
+  }, []);
+
+  const closeMenuPdfModal = useCallback(() => {
+    setMenuPdfBookingId(null);
+    setMenuPdfBookingName('');
+    setMenuPdfPackOptions([]);
+    setMenuPdfPackId('');
+    setMenuPdfLoading(false);
+    setMenuPdfSetupLoading(false);
+    clearMenuPdfPreview();
+  }, [clearMenuPdfPreview]);
+
+  const loadMenuPdfPreview = useCallback(async (bookingId: string, packId: string) => {
+    try {
+      setMenuPdfLoading(true);
+      const response = await api.getBookingMenuPdf(bookingId, packId);
+      const blob =
+        response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: 'application/pdf' });
+      const previewUrl = URL.createObjectURL(blob);
+      setMenuPdfPreviewUrl((previousUrl) => {
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl);
+        }
+        return previewUrl;
+      });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to generate menu PDF');
+    } finally {
+      setMenuPdfLoading(false);
+    }
+  }, []);
+
+  const openMenuPdfModal = useCallback(async (booking: Booking) => {
+    try {
+      setMenuPdfBookingId(booking.id);
+      setMenuPdfBookingName(
+        booking.functionName || booking.functionType || booking.customer?.name || 'booking'
+      );
+      setMenuPdfPackOptions([]);
+      setMenuPdfPackId('');
+      clearMenuPdfPreview();
+      setMenuPdfSetupLoading(true);
+
+      const response = await api.getBooking(booking.id);
+      const bookingDetails = response.data?.data?.booking;
+      const packOptions: BookingMenuPackOption[] = (bookingDetails?.packs || [])
+        .map((pack: any) => {
+          const itemCount = (pack?.bookingMenu?.items || []).length;
+          const packName =
+            (pack?.packName || '').trim() ||
+            (pack?.mealSlot?.name || '').trim() ||
+            (pack?.bookingMenu?.name || '').trim() ||
+            'Menu';
+          return {
+            id: pack.id,
+            name: packName,
+            itemCount,
+          };
+        })
+        .filter((pack: BookingMenuPackOption) => pack.itemCount > 0);
+
+      if (packOptions.length === 0) {
+        toast.error('No menu items found for this booking');
+        closeMenuPdfModal();
+        return;
+      }
+
+      setMenuPdfPackOptions(packOptions);
+      setMenuPdfPackId(packOptions[0].id);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to load menu PDF options');
+      closeMenuPdfModal();
+    } finally {
+      setMenuPdfSetupLoading(false);
+    }
+  }, [clearMenuPdfPreview, closeMenuPdfModal]);
+
+  const handleDownloadMenuPdf = () => {
+    if (!menuPdfPreviewUrl) return;
+    const selectedPack = menuPdfPackOptions.find((pack) => pack.id === menuPdfPackId);
+    const normalize = (value: string) =>
+      value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'menu';
+    const bookingToken = normalize(menuPdfBookingName || 'booking');
+    const packToken = normalize(selectedPack?.name || 'menu');
+    const link = document.createElement('a');
+    link.href = menuPdfPreviewUrl;
+    link.download = `${bookingToken}-${packToken}-menu.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  useEffect(() => {
+    if (!menuPdfBookingId || !menuPdfPackId) return;
+    void loadMenuPdfPreview(menuPdfBookingId, menuPdfPackId);
+  }, [loadMenuPdfPreview, menuPdfBookingId, menuPdfPackId]);
 
   const handleSubmitBooking = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1603,6 +1770,79 @@ export default function BookingsPage() {
         ) : null}
       </FormPromptModal>
 
+      <FormPromptModal
+        open={Boolean(menuPdfBookingId)}
+        title="Booking Menu PDF"
+        onClose={closeMenuPdfModal}
+        widthClass="max-w-6xl"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr),auto,auto] gap-3 items-end">
+            <div>
+              <label className="label">Menu Pack</label>
+              <select
+                className="input"
+                value={menuPdfPackId}
+                disabled={menuPdfSetupLoading || menuPdfPackOptions.length === 0}
+                onChange={(e) => setMenuPdfPackId(e.target.value)}
+              >
+                {menuPdfPackOptions.length === 0 ? (
+                  <option value="">No menu available</option>
+                ) : (
+                  menuPdfPackOptions.map((pack) => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.name} ({pack.itemCount} items)
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={menuPdfSetupLoading || menuPdfLoading || !menuPdfBookingId || !menuPdfPackId}
+              onClick={() => {
+                if (!menuPdfBookingId || !menuPdfPackId) return;
+                void loadMenuPdfPreview(menuPdfBookingId, menuPdfPackId);
+              }}
+            >
+              Preview
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary inline-flex items-center gap-2"
+              disabled={!menuPdfPreviewUrl || menuPdfLoading}
+              onClick={handleDownloadMenuPdf}
+            >
+              <Download className="w-4 h-4" />
+              Download PDF
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden min-h-[500px]">
+            {menuPdfSetupLoading ? (
+              <div className="h-[500px] grid place-items-center text-sm text-gray-600">
+                Loading menu options...
+              </div>
+            ) : menuPdfLoading ? (
+              <div className="h-[500px] grid place-items-center">
+                <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-primary-600"></div>
+              </div>
+            ) : menuPdfPreviewUrl ? (
+              <iframe
+                title="Booking menu PDF preview"
+                src={menuPdfPreviewUrl}
+                className="w-full h-[70vh]"
+              />
+            ) : (
+              <div className="h-[500px] grid place-items-center text-sm text-gray-500">
+                Select a menu pack to generate preview.
+              </div>
+            )}
+          </div>
+        </div>
+      </FormPromptModal>
+
       <div className="card">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1670,7 +1910,7 @@ export default function BookingsPage() {
                     onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     className="text-right py-3 px-4 text-sm font-semibold text-gray-700"
                   />
-                  {(canEditBooking || canDeleteBooking) && (
+                  {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                     <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
                       Actions
                     </th>
@@ -1725,11 +1965,13 @@ export default function BookingsPage() {
                       onChange={(e) => handleColumnSearch('grandTotal', e.target.value)}
                     />
                   </th>
-                  {(canEditBooking || canDeleteBooking) && <th className="py-2 px-4" />}
+                  {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
+                    <th className="py-2 px-4" />
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {filteredBookings.map((booking) => (
+                {paginatedBookings.map((booking) => (
                   <tr
                     key={booking.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
@@ -1767,9 +2009,19 @@ export default function BookingsPage() {
                     <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
                       ₹{(booking.grandTotal || 0).toLocaleString()}
                     </td>
-                    {(canEditBooking || canDeleteBooking) && (
+                    {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {canExportMenuPdf && (
+                            <button
+                              type="button"
+                              className="p-2 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
+                              onClick={() => openMenuPdfModal(booking)}
+                              title="Preview menu PDF"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                          )}
                           {canEditBooking && (
                             <button
                               type="button"
@@ -1797,6 +2049,14 @@ export default function BookingsPage() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredBookings.length}
+              pageSize={BOOKINGS_PAGE_SIZE}
+              itemLabel="bookings"
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </div>
