@@ -16,6 +16,14 @@ import analyticsRoutes from './analytics.routes';
 
 const router = Router();
 
+router.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Bika Banquet API',
+    docs: '/api/health',
+  });
+});
+
 // API routes
 router.use('/auth', authRoutes);
 router.use('/customers', customerRoutes);

@@ -52,7 +52,8 @@ interface TemplateMenu {
   category?: string | null;
   setupCost?: number | null;
   ratePerPlate?: number | null;
-  items: Array<{
+  itemCount?: number | null;
+  items?: Array<{
     id: string;
     item: {
       id: string;
@@ -208,7 +209,10 @@ function MenuPageContent() {
       { key: 'name', accessor: (menu) => menu.name },
       { key: 'category', accessor: (menu) => menu.category || 'General' },
       { key: 'ratePerPlate', accessor: (menu) => menu.ratePerPlate ?? 0 },
-      { key: 'itemCount', accessor: (menu) => menu.items?.length || 0 },
+      {
+        key: 'itemCount',
+        accessor: (menu) => (menu.itemCount ?? menu.items?.length) || 0,
+      },
     ],
     []
   );
@@ -395,7 +399,7 @@ function MenuPageContent() {
         canViewItemType ? api.getItemTypes({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canViewItem ? api.getItems({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canViewTemplate
-          ? api.getTemplateMenus({ page: 1, limit: 5000 })
+          ? api.getTemplateMenus({ page: 1, limit: 5000, includeItems: false })
           : Promise.resolve(null),
       ]);
 
@@ -543,22 +547,33 @@ function MenuPageContent() {
     setShowTemplatePrompt(true);
   };
 
-  const openEditTemplate = (template: TemplateMenu) => {
-    setEditingTemplateId(template.id);
-    setTemplateForm({
-      name: template.name || '',
-      setupCost:
-        template.setupCost !== null && template.setupCost !== undefined
-          ? String(template.setupCost)
-          : '',
-      ratePerPlate:
-        template.ratePerPlate !== null && template.ratePerPlate !== undefined
-          ? String(template.ratePerPlate)
-          : '',
-      itemIds: template.items?.map((entry) => entry.item.id) || [],
-    });
-    setTemplateItemSearch('');
-    setShowTemplatePrompt(true);
+  const openEditTemplate = async (template: TemplateMenu) => {
+    try {
+      const response = await api.getTemplateMenu(template.id);
+      const fullTemplate = response.data?.data?.templateMenu;
+      if (!fullTemplate) {
+        toast.error('Template details not found');
+        return;
+      }
+
+      setEditingTemplateId(fullTemplate.id);
+      setTemplateForm({
+        name: fullTemplate.name || '',
+        setupCost:
+          fullTemplate.setupCost !== null && fullTemplate.setupCost !== undefined
+            ? String(fullTemplate.setupCost)
+            : '',
+        ratePerPlate:
+          fullTemplate.ratePerPlate !== null && fullTemplate.ratePerPlate !== undefined
+            ? String(fullTemplate.ratePerPlate)
+            : '',
+        itemIds: fullTemplate.items?.map((entry: any) => entry.item?.id).filter(Boolean) || [],
+      });
+      setTemplateItemSearch('');
+      setShowTemplatePrompt(true);
+    } catch (error) {
+      toast.error('Failed to load template menu details');
+    }
   };
 
   const submitTemplate = async (e: FormEvent<HTMLFormElement>) => {
@@ -1524,13 +1539,17 @@ function MenuPageContent() {
                       <td className="py-3 px-2 text-sm text-gray-700">
                         INR {(template.ratePerPlate || 0).toLocaleString()}
                       </td>
-                      <td className="py-3 px-2 text-sm text-gray-700">{template.items?.length || 0}</td>
+                      <td className="py-3 px-2 text-sm text-gray-700">
+                        {(template.itemCount ?? template.items?.length) || 0}
+                      </td>
                       <td className="py-3 px-2 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {canEditTemplate && (
                             <button
                               className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                              onClick={() => openEditTemplate(template)}
+                              onClick={() => {
+                                void openEditTemplate(template);
+                              }}
                             >
                               <Edit className="w-4 h-4" />
                             </button>

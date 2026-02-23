@@ -3,9 +3,10 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
+import { idSchema } from '../utils/validation';
 
 const menuItemSchema = z.object({
-  itemId: z.string().uuid('Invalid item ID'),
+  itemId: idSchema('item ID'),
   quantity: z.number().int().min(1).optional(),
 });
 
@@ -18,13 +19,13 @@ export const createTemplateMenuSchema = z.object({
     category: z.string().optional(),
     isActive: z.boolean().optional(),
     menuItems: z.array(menuItemSchema).optional(),
-    itemIds: z.array(z.string().uuid()).optional(),
+    itemIds: z.array(idSchema('item ID')).optional(),
   }),
 });
 
 export const updateTemplateMenuSchema = z.object({
   params: z.object({
-    id: z.string().uuid('Invalid template menu ID'),
+    id: idSchema('template menu ID'),
   }),
   body: createTemplateMenuSchema.shape.body.partial(),
 });
@@ -103,6 +104,7 @@ export async function getTemplateMenus(
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
     const search = (req.query.search as string) || '';
+    const includeItems = String(req.query.includeItems || '').toLowerCase() === 'true';
 
     const where = search
       ? {
@@ -110,29 +112,59 @@ export async function getTemplateMenus(
         }
       : undefined;
 
-    const [templateMenus, total] = await Promise.all([
-      prisma.templateMenu.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          items: {
+    const [total, templateMenus] = await Promise.all([
+      prisma.templateMenu.count({ where }),
+      includeItems
+        ? prisma.templateMenu.findMany({
+            where,
+            skip: (page - 1) * limit,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
             include: {
-              item: {
+              items: {
                 include: {
-                  itemType: true,
+                  item: {
+                    include: {
+                      itemType: true,
+                    },
+                  },
                 },
               },
             },
-          },
-        },
-      }),
-      prisma.templateMenu.count({ where }),
+          })
+        : prisma.templateMenu.findMany({
+            where,
+            skip: (page - 1) * limit,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              _count: {
+                select: {
+                  items: true,
+                },
+              },
+            },
+          }),
     ]);
 
+    const rows = includeItems
+      ? templateMenus
+      : templateMenus.map((menu: any) => ({
+          id: menu.id,
+          name: menu.name,
+          description: menu.description,
+          setupCost: menu.setupCost,
+          ratePerPlate: menu.ratePerPlate,
+          category: menu.category,
+          isActive: menu.isActive,
+          createdAt: menu.createdAt,
+          updatedAt: menu.updatedAt,
+          items: [],
+          itemCount: menu._count?.items ?? 0,
+        }));
+
     sendSuccess(res, {
-      templateMenus,
+      templateMenus: rows,
       pagination: {
         page,
         limit,

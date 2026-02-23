@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
+import { idSchema } from '../utils/validation';
 import {
   removeEnquiryEventFromGoogleCalendar,
   syncEnquiryEventToGoogleCalendar,
@@ -10,7 +11,7 @@ import {
 
 export const createEnquirySchema = z.object({
   body: z.object({
-    customerId: z.string().uuid('Invalid customer ID'),
+    customerId: idSchema('customer ID'),
     functionName: z.string().min(2, 'Function name is required'),
     functionType: z.string().min(2, 'Function type is required'),
     functionDate: z.string().min(1, 'Function date is required'),
@@ -29,12 +30,12 @@ export const createEnquirySchema = z.object({
     pencilBookedUntil: z.string().optional(),
     note: z.string().optional(),
     notes: z.string().optional(),
-    hallIds: z.array(z.string().uuid()).optional(),
+    hallIds: z.array(idSchema('hall ID')).optional(),
     packs: z
       .array(
         z.object({
-          mealSlotId: z.string().uuid(),
-          templateMenuId: z.string().uuid(),
+          mealSlotId: idSchema('meal slot ID'),
+          templateMenuId: idSchema('template menu ID'),
           packCount: z.number().int().min(1).optional(),
           noOfPack: z.number().int().min(1).optional(),
           timeSlot: z.string().optional(),
@@ -47,7 +48,7 @@ export const createEnquirySchema = z.object({
 
 export const updateEnquirySchema = z.object({
   params: z.object({
-    id: z.string().uuid('Invalid enquiry ID'),
+    id: idSchema('enquiry ID'),
   }),
   body: createEnquirySchema.shape.body.partial(),
 });
@@ -120,7 +121,6 @@ export async function createEnquiry(req: Request, res: Response): Promise<void> 
               mealSlotId: pack.mealSlotId,
               templateMenuId: pack.templateMenuId,
               packCount: pack.packCount ?? pack.noOfPack ?? 1,
-              noOfPack: pack.noOfPack ?? pack.packCount ?? 1,
               timeSlot: pack.timeSlot,
               notes: pack.notes,
             })
@@ -366,7 +366,6 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
                 mealSlotId: pack.mealSlotId,
                 templateMenuId: pack.templateMenuId,
                 packCount: pack.packCount ?? pack.noOfPack ?? 1,
-                noOfPack: pack.noOfPack ?? pack.packCount ?? 1,
                 timeSlot: pack.timeSlot,
                 notes: pack.notes,
               })

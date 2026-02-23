@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
+import { idSchema } from '../utils/validation';
 
 export const createBanquetSchema = z.object({
   body: z.object({
@@ -22,7 +23,7 @@ export const createBanquetSchema = z.object({
 
 export const updateBanquetSchema = z.object({
   params: z.object({
-    id: z.string().uuid('Invalid banquet ID'),
+    id: idSchema('banquet ID'),
   }),
   body: createBanquetSchema.shape.body.partial(),
 });

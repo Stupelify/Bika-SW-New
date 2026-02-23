@@ -3,10 +3,11 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
+import { idSchema } from '../utils/validation';
 
 export const createItemSchema = z.object({
   body: z.object({
-    itemTypeId: z.string().uuid('Invalid item type ID'),
+    itemTypeId: idSchema('item type ID'),
     name: z.string().min(2, 'Name is required'),
     description: z.string().optional(),
     photo: z.string().optional(),
@@ -22,7 +23,7 @@ export const createItemSchema = z.object({
 
 export const updateItemSchema = z.object({
   params: z.object({
-    id: z.string().uuid('Invalid item ID'),
+    id: idSchema('item ID'),
   }),
   body: createItemSchema.shape.body.partial(),
 });

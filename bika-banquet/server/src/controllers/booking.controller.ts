@@ -6,6 +6,7 @@ import prisma from '../config/database';
 import { sendSuccess, sendError, sendNotFound } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { normalizeCaseFields, normalizeCaseInArrayObjects } from '../utils/textCase';
+import { idSchema } from '../utils/validation';
 import {
   cancelBookingEventInGoogleCalendar,
   syncBookingEventToGoogleCalendar,
@@ -14,9 +15,9 @@ import {
 // Validation schemas
 export const createBookingSchema = z.object({
   body: z.object({
-    customerId: z.string().uuid('Invalid customer ID'),
-    secondCustomerId: z.string().uuid().optional(),
-    referredById: z.string().uuid().optional(),
+    customerId: idSchema('customer ID'),
+    secondCustomerId: idSchema('second customer ID').optional(),
+    referredById: idSchema('referred by customer ID').optional(),
     functionName: z.string().min(2, 'Function name is required'),
     functionType: z.string().min(2, 'Function type is required'),
     functionDate: z.string(),
@@ -25,11 +26,11 @@ export const createBookingSchema = z.object({
     confirmedGuests: z.number().optional(),
     isQuotation: z.boolean().optional(),
     halls: z.array(z.object({
-      hallId: z.string().uuid(),
+      hallId: idSchema('hall ID'),
       charges: z.number().min(0),
     })).optional(),
     packs: z.array(z.object({
-      mealSlotId: z.string().uuid().optional(),
+      mealSlotId: idSchema('meal slot ID').optional(),
       packName: z.string(),
       noOfPack: z.number().min(1).optional(),
       packCount: z.number().min(1).optional(),
@@ -50,9 +51,9 @@ export const createBookingSchema = z.object({
       tags: z.array(z.string()).optional(),
       menu: z.object({
         name: z.string(),
-        templateMenuId: z.string().uuid().optional(),
+        templateMenuId: idSchema('template menu ID').optional(),
         items: z.array(z.object({
-          itemId: z.string().uuid(),
+          itemId: idSchema('item ID'),
           quantity: z.number().min(1),
         })),
       }),

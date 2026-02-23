@@ -3,11 +3,12 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
+import { idSchema } from '../utils/validation';
 
 export const createHallSchema = z.object({
   body: z.object({
     name: z.string().min(2, 'Name is required'),
-    banquetId: z.string().uuid().optional(),
+    banquetId: idSchema('banquet ID').optional(),
     location: z.string().optional(),
     rate: z.string().optional(),
     capacity: z.number().int().min(1, 'Capacity is required'),
@@ -26,7 +27,7 @@ export const createHallSchema = z.object({
 
 export const updateHallSchema = z.object({
   params: z.object({
-    id: z.string().uuid('Invalid hall ID'),
+    id: idSchema('hall ID'),
   }),
   body: createHallSchema.shape.body.partial(),
 });

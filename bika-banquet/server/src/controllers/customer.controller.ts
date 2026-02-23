@@ -5,6 +5,7 @@ import { sendSuccess, sendError, sendNotFound } from '../utils/response';
 import { generateOTP } from '../utils/auth';
 import { normalizeCaseFields } from '../utils/textCase';
 import phoneDigitsByCode from '../config/phoneDigitsByCode.json';
+import { idSchema } from '../utils/validation';
 
 const NAME_PATTERN = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
 const PHONE_PATTERN = /^\d+$/;
@@ -149,7 +150,7 @@ const customerBaseSchema = z.object({
   facebookProfile: optionalTextSchema,
   referredById: z.preprocess(
     emptyStringToUndefined,
-    z.string().uuid().optional()
+    idSchema('referred by customer ID').optional()
   ),
   notes: optionalTextSchema,
 });

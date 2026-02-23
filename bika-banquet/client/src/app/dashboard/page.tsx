@@ -467,16 +467,16 @@ export default function DashboardPage() {
       <div className="card bg-gradient-to-r from-primary-700 to-primary-500 text-white">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-display font-semibold">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-display font-semibold leading-tight">
               Key Metrics & Hall Performance
             </h1>
-            <p className="text-primary-100 mt-1">
+            <p className="text-sm text-primary-100 mt-1">
               Revenue view from{' '}
               {formatDateDDMMYYYY(analytics.range.startDate)} to{' '}
               {formatDateDDMMYYYY(analytics.range.endDate)}
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full lg:w-auto">
             <select
               className="input bg-white/95 text-gray-800"
               value={range}
@@ -503,7 +503,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => void loadDashboardData()}
-              className="btn bg-white text-primary-700 hover:bg-primary-50"
+              className="btn bg-white text-primary-700 hover:bg-primary-50 justify-center"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
@@ -567,13 +567,15 @@ export default function DashboardPage() {
                   key={hall.hallId}
                   className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-gray-900">{hall.hallName}</p>
-                    <p className="text-sm font-semibold text-emerald-800">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
+                    <p className="text-sm font-semibold text-gray-900 break-words sm:pr-2">
+                      {hall.hallName}
+                    </p>
+                    <p className="text-sm font-semibold text-emerald-800 sm:text-right">
                       {formatCurrency(hall.revenue)}
                     </p>
                   </div>
-                  <p className="text-xs text-emerald-700 mt-1">
+                  <p className="text-xs text-emerald-700 mt-1 break-words">
                     {hall.bookings} bookings • {hall.share.toFixed(1)}% revenue share
                   </p>
                 </div>
@@ -595,13 +597,15 @@ export default function DashboardPage() {
                   key={hall.hallId}
                   className="rounded-xl border border-rose-100 bg-rose-50/60 px-3 py-2"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-gray-900">{hall.hallName}</p>
-                    <p className="text-sm font-semibold text-rose-700">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
+                    <p className="text-sm font-semibold text-gray-900 break-words sm:pr-2">
+                      {hall.hallName}
+                    </p>
+                    <p className="text-sm font-semibold text-rose-700 sm:text-right">
                       {formatCurrency(hall.revenue)}
                     </p>
                   </div>
-                  <p className="text-xs text-rose-700 mt-1">
+                  <p className="text-xs text-rose-700 mt-1 break-words">
                     {hall.bookings} bookings • {hall.share.toFixed(1)}% revenue share
                   </p>
                 </div>
@@ -628,9 +632,9 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {data.topFunctions.map((entry) => (
               <div key={`${entry.name}-bar`}>
-                <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                  <span>{entry.name}</span>
-                  <span>{entry.count} bookings</span>
+                <div className="flex items-start justify-between gap-3 text-xs text-gray-600 mb-1">
+                  <span className="min-w-0 break-words">{entry.name}</span>
+                  <span className="shrink-0 text-right">{entry.count} bookings</span>
                 </div>
                 <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                   <div
@@ -651,9 +655,11 @@ export default function DashboardPage() {
             <div className="space-y-3">
               {analytics.trends.monthly.map((entry) => (
                 <div key={entry.month}>
-                  <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                    <span>{formatMonthLabel(entry.month)}</span>
-                    <span>{formatCurrency(entry.revenue)}</span>
+                  <div className="flex items-start justify-between gap-3 text-xs text-gray-600 mb-1">
+                    <span className="min-w-0 break-words">{formatMonthLabel(entry.month)}</span>
+                    <span className="shrink-0 text-right">
+                      {formatCurrency(entry.revenue)}
+                    </span>
                   </div>
                   <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
                     <div
@@ -800,8 +806,10 @@ export default function DashboardPage() {
                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-gray-100 last:border-0"
               >
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{booking.functionName}</p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-sm font-semibold text-gray-900 break-words">
+                    {booking.functionName}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 break-words">
                     {booking.customer?.name || 'Unknown customer'} •{' '}
                     {booking.customer?.phone || 'N/A'}
                   </p>
