@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  Building2,
   CalendarCheck,
   CalendarDays,
   ChevronLeft,
@@ -13,6 +14,7 @@ import {
   RefreshCw,
   Search,
   Users,
+  X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDateDDMMYYYY } from '@/lib/date';
@@ -23,10 +25,19 @@ interface BookingCalendarRow {
   functionType: string;
   functionDate: string;
   functionTime: string;
+  startTime?: string | null;
+  endTime?: string | null;
   expectedGuests: number;
   grandTotal: number;
   status: string;
   isQuotation: boolean;
+  halls?: Array<{
+    hallId?: string;
+    hall?: {
+      id: string;
+      name: string;
+    } | null;
+  }>;
   customer?: {
     name: string;
     phone: string;
@@ -60,6 +71,109 @@ interface AgendaEntry {
 }
 
 type CalendarViewMode = 'month' | 'week' | 'day';
+type CalendarDisplayMode = 'calendar' | 'hallBoard';
+
+interface HallCalendarOption {
+  id: string;
+  name: string;
+  banquetName?: string;
+}
+
+interface HallScheduleParty {
+  id: string;
+  title: string;
+  date: string;
+  timeLabel: string;
+  status: string;
+  customerName: string;
+  customerPhone: string;
+  guests: number;
+  sortMinutes: number;
+}
+
+interface HallScheduleGroup {
+  hallName: string;
+  parties: HallScheduleParty[];
+}
+
+interface BookingDetail {
+  id: string;
+  functionName: string;
+  functionType?: string | null;
+  functionDate: string;
+  functionTime?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  expectedGuests?: number | null;
+  grandTotal?: number | null;
+  status?: string | null;
+  isQuotation?: boolean;
+  notes?: string | null;
+  customer?: {
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
+  halls?: Array<{
+    hall?: {
+      id?: string | null;
+      name?: string | null;
+    } | null;
+  }>;
+  packs?: Array<{
+    id: string;
+    packName?: string | null;
+    mealSlot?: {
+      name?: string | null;
+    } | null;
+    startTime?: string | null;
+    endTime?: string | null;
+    packCount?: number | null;
+    noOfPack?: number | null;
+  }>;
+  additionalItems?: Array<{
+    description?: string | null;
+  }>;
+  payments?: Array<{
+    id: string;
+    amount?: number | null;
+    paymentDate?: string | null;
+    method?: string | null;
+    narration?: string | null;
+    receiver?: {
+      name?: string | null;
+    } | null;
+  }>;
+}
+
+interface DayEvent {
+  id: string;
+  kind: 'booking' | 'enquiry';
+  title: string;
+  time: string;
+  subtitle: string;
+  status: string;
+  amount?: number;
+  sortMinutes: number;
+  bookingId?: string;
+}
+
+interface HallBoardSlot {
+  bookingId: string;
+  date: string;
+  timeLabel: string;
+  functionName: string;
+  customerName: string;
+  status: string;
+  sortKey: number;
+}
+
+interface HallBoardRow {
+  hallId?: string;
+  hallName: string;
+  banquetName?: string;
+  slots: HallBoardSlot[];
+}
 
 function toSafeNumber(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -71,6 +185,92 @@ function formatDateKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function parseClockToMinutes(value: string): number {
+  const raw = value.trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match) {
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return hour * 60 + minute;
+    }
+  }
+
+  const normalized = raw.toUpperCase().replace(/\s+/g, ' ').trim();
+  const meridianMatch = normalized.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
+  if (!meridianMatch) return Number.POSITIVE_INFINITY;
+
+  const hourPart = Number(meridianMatch[1]);
+  const minutePart = Number(meridianMatch[2]);
+  if (hourPart < 1 || hourPart > 12 || minutePart < 0 || minutePart > 59) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  let hour = hourPart % 12;
+  if (meridianMatch[3] === 'PM') hour += 12;
+  return hour * 60 + minutePart;
+}
+
+function formatClockDisplay(value?: string | null): string {
+  if (!value) return '';
+  const raw = value.trim();
+  if (!raw) return '';
+
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return raw;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return raw;
+
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${String(displayHour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
+
+function bookingTimeLabel(entry: {
+  startTime?: string | null;
+  endTime?: string | null;
+  functionTime?: string | null;
+}): string {
+  const start = formatClockDisplay(entry.startTime);
+  const end = formatClockDisplay(entry.endTime);
+  if (start && end) return `${start} - ${end}`;
+  if (start) return start;
+  if (end) return end;
+
+  const fallback = formatClockDisplay(entry.functionTime);
+  return fallback || '--:--';
+}
+
+function bookingSortMinutes(entry: BookingCalendarRow): number {
+  if (entry.startTime) {
+    const start = parseClockToMinutes(entry.startTime);
+    if (Number.isFinite(start)) return start;
+  }
+  if (entry.functionTime) {
+    const fnTime = parseClockToMinutes(entry.functionTime);
+    if (Number.isFinite(fnTime)) return fnTime;
+  }
+  if (entry.endTime) {
+    const end = parseClockToMinutes(entry.endTime);
+    if (Number.isFinite(end)) return end;
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+function getBookingHallNames(entry: BookingCalendarRow): string[] {
+  const names = (entry.halls || [])
+    .map((hallRow) => hallRow.hall?.name?.trim() || '')
+    .filter(Boolean);
+  return Array.from(new Set(names));
+}
+
+function getPrimaryHallName(entry: BookingCalendarRow): string {
+  const hallNames = getBookingHallNames(entry);
+  return hallNames[0] || 'Unassigned Hall';
 }
 
 function parseDateKey(key: string): Date {
@@ -182,14 +382,64 @@ async function fetchEnquiries(start: Date, end: Date): Promise<EnquiryCalendarRo
   return rows;
 }
 
+async function fetchHalls(): Promise<HallCalendarOption[]> {
+  const response = await api.getHalls({ page: 1, limit: 5000 });
+  const rows = response.data?.data?.halls || [];
+  return (
+    rows as Array<{
+      id: string;
+      name: string;
+      banquet?: {
+        name?: string;
+      } | null;
+    }>
+  )
+    .map((entry) => ({
+      id: entry.id,
+      name: (entry.name || '').trim(),
+      banquetName: (entry.banquet?.name || '').trim(),
+    }))
+    .filter((entry) => entry.name.length > 0);
+}
+
 export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+  const [displayMode, setDisplayMode] = useState<CalendarDisplayMode>('calendar');
   const [viewDate, setViewDate] = useState(() => startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => formatDateKey(new Date()));
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [bookings, setBookings] = useState<BookingCalendarRow[]>([]);
   const [enquiries, setEnquiries] = useState<EnquiryCalendarRow[]>([]);
+  const [halls, setHalls] = useState<HallCalendarOption[]>([]);
+  const [isBookingDetailsOpen, setIsBookingDetailsOpen] = useState(false);
+  const [bookingDetailsLoading, setBookingDetailsLoading] = useState(false);
+  const [bookingDetails, setBookingDetails] = useState<BookingDetail | null>(null);
+
+  const closeBookingDetails = useCallback(() => {
+    setIsBookingDetailsOpen(false);
+  }, []);
+
+  const openBookingDetails = useCallback(async (bookingId: string) => {
+    try {
+      setIsBookingDetailsOpen(true);
+      setBookingDetailsLoading(true);
+      setBookingDetails(null);
+      const response = await api.getBooking(bookingId);
+      const booking = response.data?.data?.booking as BookingDetail | undefined;
+      if (!booking) {
+        toast.error('Booking not found');
+        setIsBookingDetailsOpen(false);
+        return;
+      }
+      setBookingDetails(booking);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to load booking details');
+      setIsBookingDetailsOpen(false);
+    } finally {
+      setBookingDetailsLoading(false);
+    }
+  }, []);
 
   const loadCalendarData = useCallback(async () => {
     try {
@@ -244,6 +494,19 @@ export default function CalendarPage() {
     void loadCalendarData();
   }, [loadCalendarData]);
 
+  useEffect(() => {
+    const loadHalls = async () => {
+      try {
+        const rows = await fetchHalls();
+        setHalls(rows);
+      } catch (error) {
+        setHalls([]);
+      }
+    };
+
+    void loadHalls();
+  }, []);
+
   const searchQuery = search.trim().toLowerCase();
 
   const filteredBookings = useMemo(() => {
@@ -255,6 +518,7 @@ export default function CalendarPage() {
         entry.status,
         entry.customer?.name || '',
         entry.customer?.phone || '',
+        getBookingHallNames(entry).join(' '),
       ]
         .join(' ')
         .toLowerCase()
@@ -289,9 +553,13 @@ export default function CalendarPage() {
     });
 
     map.forEach((rows) =>
-      rows.sort(
-        (a, b) => new Date(a.functionDate).getTime() - new Date(b.functionDate).getTime()
-      )
+      rows.sort((a, b) => {
+        const dateDiff = new Date(a.functionDate).getTime() - new Date(b.functionDate).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        const timeDiff = bookingSortMinutes(a) - bookingSortMinutes(b);
+        if (timeDiff !== 0) return timeDiff;
+        return a.functionName.localeCompare(b.functionName);
+      })
     );
     return map;
   }, [filteredBookings]);
@@ -349,6 +617,7 @@ export default function CalendarPage() {
           month: 'long',
           year: 'numeric',
         });
+  const hallBoardRangeLabel = viewMode === 'day' ? selectedDateLabel : viewLabel;
   const todayKey = formatDateKey(new Date());
   const calendarDays = useMemo(
     () => buildCalendarDays(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)),
@@ -402,18 +671,20 @@ export default function CalendarPage() {
   }, [filteredBookings, filteredEnquiries]);
 
   const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayEvents = useMemo(() => {
-    const bookingItems = selectedBookings.map((booking) => ({
+  const dayEvents = useMemo<DayEvent[]>(() => {
+    const bookingItems: DayEvent[] = selectedBookings.map((booking) => ({
       id: `booking-${booking.id}`,
       kind: 'booking' as const,
       title: booking.functionName,
-      time: booking.functionTime || '--:--',
-      subtitle: `${booking.customer?.name || 'Customer'} • ${booking.expectedGuests} guests`,
+      time: bookingTimeLabel(booking),
+      subtitle: `${booking.customer?.name || 'Customer'} • ${booking.expectedGuests} guests • ${getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}`,
       status: booking.isQuotation ? 'quotation' : booking.status,
       amount: toSafeNumber(booking.grandTotal),
+      sortMinutes: bookingSortMinutes(booking),
+      bookingId: booking.id,
     }));
 
-    const enquiryItems = selectedEnquiries.map((enquiry) => ({
+    const enquiryItems: DayEvent[] = selectedEnquiries.map((enquiry) => ({
       id: `enquiry-${enquiry.id}`,
       kind: 'enquiry' as const,
       title: enquiry.functionName,
@@ -421,12 +692,160 @@ export default function CalendarPage() {
       subtitle: `${enquiry.customer?.name || 'Lead'} • ${enquiry.expectedGuests} guests`,
       status: enquiry.isPencilBooked ? 'pencil' : enquiry.status,
       amount: undefined,
+      sortMinutes: parseClockToMinutes(enquiry.functionTime || ''),
     }));
 
-    return [...bookingItems, ...enquiryItems].sort((a, b) =>
-      a.time.localeCompare(b.time)
-    );
+    return [...bookingItems, ...enquiryItems].sort((a, b) => {
+      if (a.sortMinutes !== b.sortMinutes) return a.sortMinutes - b.sortMinutes;
+      return a.title.localeCompare(b.title);
+    });
   }, [selectedBookings, selectedEnquiries]);
+
+  const hallWiseSchedule = useMemo<HallScheduleGroup[]>(() => {
+    const grouped = new Map<string, HallScheduleParty[]>();
+
+    selectedBookings.forEach((booking) => {
+      const hallNames = getBookingHallNames(booking);
+      const effectiveHallNames = hallNames.length > 0 ? hallNames : ['Unassigned Hall'];
+
+      effectiveHallNames.forEach((hallName) => {
+        const bucket = grouped.get(hallName) || [];
+        bucket.push({
+          id: booking.id,
+          title: booking.functionName,
+          date: booking.functionDate,
+          timeLabel: bookingTimeLabel(booking),
+          status: booking.isQuotation ? 'quotation' : booking.status,
+          customerName: booking.customer?.name || 'Customer',
+          customerPhone: booking.customer?.phone || '--',
+          guests: toSafeNumber(booking.expectedGuests),
+          sortMinutes: bookingSortMinutes(booking),
+        });
+        grouped.set(hallName, bucket);
+      });
+    });
+
+    return Array.from(grouped.entries())
+      .map(([hallName, parties]) => ({
+        hallName,
+        parties: [...parties].sort((a, b) => {
+          if (a.sortMinutes !== b.sortMinutes) return a.sortMinutes - b.sortMinutes;
+          return a.title.localeCompare(b.title);
+        }),
+      }))
+      .sort((a, b) => a.hallName.localeCompare(b.hallName));
+  }, [selectedBookings]);
+
+  const hallMetaById = useMemo(() => {
+    const map = new Map<string, HallCalendarOption>();
+    halls.forEach((hall) => map.set(hall.id, hall));
+    return map;
+  }, [halls]);
+
+  const hallMetaByName = useMemo(() => {
+    const map = new Map<string, HallCalendarOption>();
+    halls.forEach((hall) => map.set(hall.name.toLowerCase(), hall));
+    return map;
+  }, [halls]);
+
+  const hallBoardRows = useMemo<HallBoardRow[]>(() => {
+    const blockedBookings = filteredBookings.filter((entry) => entry.status !== 'cancelled');
+    const map = new Map<string, HallBoardRow>();
+
+    halls.forEach((hall) => {
+      map.set(`hall:${hall.id}`, {
+        hallId: hall.id,
+        hallName: hall.name,
+        banquetName: hall.banquetName || '',
+        slots: [],
+      });
+    });
+
+    blockedBookings.forEach((entry) => {
+      const bookingDate = new Date(entry.functionDate).getTime();
+      const bookingMinutes = bookingSortMinutes(entry);
+      const timeLabel = bookingTimeLabel(entry);
+      const hallRows = entry.halls || [];
+      const effectiveHallRows =
+        hallRows.length > 0
+          ? hallRows
+          : [
+              {
+                hallId: '',
+                hall: {
+                  id: '',
+                  name: 'Unassigned Hall',
+                },
+              },
+            ];
+
+      effectiveHallRows.forEach((hallRow) => {
+        const hallId = hallRow.hall?.id || hallRow.hallId || '';
+        const hallName = (hallRow.hall?.name || 'Unassigned Hall').trim() || 'Unassigned Hall';
+        const fromId = hallId ? hallMetaById.get(hallId) : undefined;
+        const fromName = hallMetaByName.get(hallName.toLowerCase());
+        const meta = fromId || fromName;
+        const resolvedHallId = meta?.id || hallId || '';
+        const key = resolvedHallId ? `hall:${resolvedHallId}` : `other:${hallName.toLowerCase()}`;
+        const row = map.get(key) || {
+          hallId: resolvedHallId || undefined,
+          hallName: meta?.name || hallName,
+          banquetName: meta?.banquetName || '',
+          slots: [],
+        };
+
+        row.slots.push({
+          bookingId: entry.id,
+          date: entry.functionDate,
+          timeLabel,
+          functionName: entry.functionName,
+          customerName: entry.customer?.name || 'Customer',
+          status: entry.isQuotation ? 'quotation' : entry.status,
+          sortKey:
+            bookingDate + (Number.isFinite(bookingMinutes) ? bookingMinutes * 60 * 1000 : 0),
+        });
+
+        map.set(key, row);
+      });
+    });
+
+    return Array.from(map.values())
+      .map((row) => ({
+        ...row,
+        slots: [...row.slots].sort((a, b) => a.sortKey - b.sortKey),
+      }))
+      .sort((a, b) => a.hallName.localeCompare(b.hallName));
+  }, [filteredBookings, hallMetaById, hallMetaByName, halls]);
+
+  const bookingDetailsHallBanquetLines = useMemo(() => {
+    const hallRows = bookingDetails?.halls || [];
+    const lines = hallRows
+      .map((row) => {
+        const hallId = row.hall?.id || '';
+        const hallName = row.hall?.name?.trim() || '';
+        if (!hallName) return '';
+        const hallMeta = hallId ? hallMetaById.get(hallId) : hallMetaByName.get(hallName.toLowerCase());
+        const banquetName = hallMeta?.banquetName?.trim() || '';
+        return banquetName ? `${hallName} (${banquetName})` : hallName;
+      })
+      .filter(Boolean);
+
+    if (lines.length === 0) return ['Unassigned Hall'];
+    return Array.from(new Set(lines));
+  }, [bookingDetails, hallMetaById, hallMetaByName]);
+
+  const bookingDetailsPacks = useMemo(() => bookingDetails?.packs || [], [bookingDetails]);
+  const bookingDetailsPayments = useMemo(
+    () => bookingDetails?.payments || [],
+    [bookingDetails]
+  );
+  const bookingDetailsAdditionalItems = useMemo(
+    () =>
+      (bookingDetails?.additionalItems || [])
+        .map((row) => row.description?.trim() || '')
+        .filter(Boolean),
+    [bookingDetails]
+  );
 
   return (
     <div className="space-y-6">
@@ -512,6 +931,27 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
+            <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden">
+              {(
+                [
+                  ['calendar', 'Calendar'],
+                  ['hallBoard', 'Hall Board'],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setDisplayMode(mode)}
+                  className={`px-3 py-2 text-sm font-semibold transition ${
+                    displayMode === mode
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -521,7 +961,7 @@ export default function CalendarPage() {
                 className="input pl-9"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search function, customer, status..."
+                placeholder="Search function, hall, customer, status..."
               />
             </div>
             <button
@@ -575,7 +1015,9 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      {displayMode === 'calendar' && (
+        <>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="card xl:col-span-2">
           {loading ? (
             <div className="py-20 flex items-center justify-center">
@@ -700,12 +1142,18 @@ export default function CalendarPage() {
                           </p>
                           <div className="mt-3 space-y-2">
                             {dayBookings.slice(0, 4).map((booking) => (
-                              <div
+                              <button
                                 key={booking.id}
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void openBookingDetails(booking.id);
+                                }}
                                 className="rounded-md bg-emerald-100 text-emerald-900 px-2 py-1 text-xs truncate"
                               >
-                                {booking.functionTime || '--:--'} {booking.functionName}
-                              </div>
+                                {bookingTimeLabel(booking)} {getPrimaryHallName(booking)} •{' '}
+                                {booking.functionName}
+                              </button>
                             ))}
                             {dayEnquiries.slice(0, 4).map((enquiry) => (
                               <div
@@ -733,13 +1181,19 @@ export default function CalendarPage() {
                     <p className="text-sm text-gray-500">No bookings or enquiries for this day.</p>
                   ) : (
                     dayEvents.map((entry) => (
-                      <div
+                      <button
                         key={entry.id}
+                        type="button"
+                        onClick={() => {
+                          if (entry.kind === 'booking' && entry.bookingId) {
+                            void openBookingDetails(entry.bookingId);
+                          }
+                        }}
                         className={`rounded-xl border px-3 py-2 ${
                           entry.kind === 'booking'
-                            ? 'border-emerald-200 bg-emerald-50/70'
+                            ? 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70'
                             : 'border-amber-200 bg-amber-50/70'
-                        }`}
+                        } ${entry.kind === 'booking' ? 'cursor-pointer transition text-left' : 'text-left'}`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold text-gray-900">{entry.title}</p>
@@ -752,7 +1206,7 @@ export default function CalendarPage() {
                             <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
                           )}
                         </p>
-                      </div>
+                      </button>
                     ))
                   )}
                 </div>
@@ -780,7 +1234,12 @@ export default function CalendarPage() {
                   <p className="text-xs text-gray-500">No bookings for this day.</p>
                 ) : (
                   selectedBookings.map((booking) => (
-                    <div key={booking.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                    <button
+                      key={booking.id}
+                      type="button"
+                      onClick={() => void openBookingDetails(booking.id)}
+                      className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50/40 transition"
+                    >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-gray-900 truncate">{booking.functionName}</p>
                         <span
@@ -796,12 +1255,66 @@ export default function CalendarPage() {
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 mt-1">
-                        {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests
+                        {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
+                        {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
                       </p>
                       <p className="text-xs text-gray-600 mt-0.5">
-                        {booking.functionTime || '--:--'} • ₹
+                        {bookingTimeLabel(booking)} • ₹
                         {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
                       </p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-gray-900">Hall-wise Party Schedule</p>
+                <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                  {hallWiseSchedule.length}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {hallWiseSchedule.length === 0 ? (
+                  <p className="text-xs text-gray-500">No hall bookings for this day.</p>
+                ) : (
+                  hallWiseSchedule.map((group) => (
+                    <div
+                      key={group.hallName}
+                      className="rounded-lg border border-gray-200 bg-white p-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-900 inline-flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-sky-700" />
+                          {group.hallName}
+                        </p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                          {group.parties.length} part
+                          {group.parties.length > 1 ? 'ies' : 'y'}
+                        </span>
+                      </div>
+                      <div className="mt-2 space-y-1.5">
+                        {group.parties.map((party) => (
+                          <button
+                            key={`${group.hallName}-${party.id}`}
+                            type="button"
+                            onClick={() => void openBookingDetails(party.id)}
+                            className="w-full rounded-md bg-gray-50 px-2 py-1.5 text-left hover:bg-sky-50 transition"
+                          >
+                            <p className="text-xs font-semibold text-gray-900">{party.title}</p>
+                            <p className="text-[11px] text-gray-600 mt-0.5">
+                              {formatDateDDMMYYYY(party.date)} • {party.timeLabel}
+                            </p>
+                            <p className="text-[11px] text-gray-600 mt-0.5">
+                              {party.customerName} • {party.customerPhone} • {party.guests} guests
+                            </p>
+                            <p className="text-[11px] text-gray-600 mt-0.5 capitalize">
+                              {party.status}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ))
                 )}
@@ -857,9 +1370,22 @@ export default function CalendarPage() {
             <p className="text-sm text-gray-500">No events found for the selected month.</p>
           ) : (
             agenda.map((entry) => (
-              <div
+              <button
                 key={entry.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5"
+                type="button"
+                onClick={() => {
+                  if (entry.kind === 'booking') {
+                    const bookingId = entry.id.replace('booking-', '');
+                    if (bookingId) {
+                      void openBookingDetails(bookingId);
+                    }
+                  }
+                }}
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left ${
+                  entry.kind === 'booking'
+                    ? 'hover:border-primary-300 hover:bg-primary-50/40 transition'
+                    : 'cursor-default'
+                }`}
               >
                 <div>
                   <p className="text-sm font-medium text-gray-900">{entry.title}</p>
@@ -877,11 +1403,265 @@ export default function CalendarPage() {
                     )}
                   </p>
                 </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  )}
+
+  {displayMode === 'hallBoard' && (
+    <div className="card">
+      <div className="panel-header">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Hall Booking Board</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Halls are listed on the left. Blocked booking date/time slots are shown on the right for{' '}
+            <span className="font-medium">{hallBoardRangeLabel}</span>.
+          </p>
+        </div>
+      </div>
+
+        <div className="overflow-x-auto">
+          <div className="min-w-[920px] rounded-xl border border-gray-200 overflow-hidden">
+            <div className="grid grid-cols-[220px_1fr] bg-gray-100 text-xs uppercase tracking-wide text-gray-600 font-semibold">
+              <div className="px-4 py-3 border-r border-gray-200">Hall / Banquet</div>
+              <div className="px-4 py-3">Blocked Time and Date</div>
+            </div>
+
+          {hallBoardRows.length === 0 ? (
+            <div className="px-4 py-8 text-sm text-gray-500">No halls or bookings found.</div>
+          ) : (
+            hallBoardRows.map((row, index) => (
+              <div
+                key={row.hallName}
+                className={`grid grid-cols-[220px_1fr] border-t border-gray-100 ${
+                  index % 2 === 0 ? 'bg-white' : 'bg-gray-50/70'
+                }`}
+              >
+                <div className="px-4 py-4 border-r border-gray-100 text-sm font-semibold text-gray-900">
+                  {row.hallName}
+                  <p className="text-xs font-normal text-gray-500 mt-1">
+                    {row.banquetName ? `Banquet: ${row.banquetName}` : 'Banquet: Unassigned'}
+                  </p>
+                </div>
+                <div className="px-3 py-3">
+                  {row.slots.length === 0 ? (
+                    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                      Available
+                    </span>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {row.slots.map((slot) => (
+                        <button
+                          key={`${row.hallName}-${slot.bookingId}-${slot.sortKey}`}
+                          type="button"
+                          onClick={() => void openBookingDetails(slot.bookingId)}
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-left hover:border-rose-300 hover:bg-rose-100 transition"
+                        >
+                          <p className="text-xs font-semibold text-rose-900">
+                            {formatDateDDMMYYYY(slot.date)} • {slot.timeLabel}
+                          </p>
+                          <p className="text-xs text-rose-800 mt-0.5">
+                            {slot.functionName} • {slot.customerName}
+                          </p>
+                          <p className="text-[11px] text-rose-700 mt-0.5 capitalize">
+                            {slot.status}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ))
           )}
         </div>
       </div>
+    </div>
+  )}
+
+      {isBookingDetailsOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/45 p-4 sm:p-6"
+          onClick={closeBookingDetails}
+        >
+          <div
+            className="mx-auto h-full w-full max-w-3xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-5">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Booking Details</p>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                  {bookingDetails?.functionName || 'Loading...'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeBookingDetails}
+                className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="h-[calc(100%-69px)] overflow-y-auto px-4 py-4 sm:px-5">
+              {bookingDetailsLoading ? (
+                <div className="py-16 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-primary-600"></div>
+                </div>
+              ) : !bookingDetails ? (
+                <p className="text-sm text-gray-500">Unable to load booking details.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Function</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                        {bookingDetails.functionType || '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Date</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                        {formatDateDDMMYYYY(bookingDetails.functionDate)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Time</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                        {bookingTimeLabel(bookingDetails)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Status</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1 capitalize">
+                        {bookingDetails.isQuotation
+                          ? 'Quotation'
+                          : bookingDetails.status || 'Pending'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Customer</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                        {bookingDetails.customer?.name || '-'}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {bookingDetails.customer?.phone || '-'}
+                      </p>
+                      {bookingDetails.customer?.email && (
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {bookingDetails.customer.email}
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Halls</p>
+                      <div className="mt-1 space-y-1">
+                        {bookingDetailsHallBanquetLines.map((line) => (
+                          <p key={line} className="text-sm font-semibold text-gray-900">
+                            {line}
+                          </p>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {toSafeNumber(bookingDetails.expectedGuests)} guests • ₹
+                        {toSafeNumber(bookingDetails.grandTotal).toLocaleString('en-IN')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 bg-white p-3">
+                    <p className="text-sm font-semibold text-gray-900">Menu/Pack Details</p>
+                    {bookingDetailsPacks.length === 0 ? (
+                      <p className="text-xs text-gray-500 mt-2">No packs added.</p>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {bookingDetailsPacks.map((pack) => (
+                          <div key={pack.id} className="rounded-lg bg-gray-50 px-2.5 py-2">
+                            <p className="text-xs font-semibold text-gray-900">
+                              {pack.mealSlot?.name || pack.packName || 'Pack'}
+                            </p>
+                            <p className="text-[11px] text-gray-600 mt-0.5">
+                              {bookingTimeLabel(pack)} •{' '}
+                              {toSafeNumber(pack.packCount ?? pack.noOfPack)} pax
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 bg-white p-3">
+                    <p className="text-sm font-semibold text-gray-900">Payments</p>
+                    {bookingDetailsPayments.length === 0 ? (
+                      <p className="text-xs text-gray-500 mt-2">No payments recorded.</p>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {bookingDetailsPayments.map((payment) => (
+                          <div key={payment.id} className="rounded-lg bg-gray-50 px-2.5 py-2">
+                            <p className="text-xs font-semibold text-gray-900">
+                              {payment.method || 'Payment'} • ₹
+                              {toSafeNumber(payment.amount).toLocaleString('en-IN')}
+                            </p>
+                            <p className="text-[11px] text-gray-600 mt-0.5">
+                              {payment.paymentDate
+                                ? formatDateDDMMYYYY(payment.paymentDate)
+                                : 'No date'}{' '}
+                              • {payment.receiver?.name || 'Receiver not set'}
+                            </p>
+                            {payment.narration && (
+                              <p className="text-[11px] text-gray-600 mt-0.5">
+                                {payment.narration}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {(bookingDetailsAdditionalItems.length > 0 || bookingDetails.notes) && (
+                    <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
+                      {bookingDetailsAdditionalItems.length > 0 && (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            Additional Requirements
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {bookingDetailsAdditionalItems.map((item, index) => (
+                              <span
+                                key={`${item}-${index}`}
+                                className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] text-sky-800"
+                              >
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {bookingDetails.notes && (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">Notes</p>
+                          <p className="text-xs text-gray-600 mt-1">{bookingDetails.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Link href="/dashboard/bookings" className="btn btn-secondary">
+                      Open Booking Module
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
