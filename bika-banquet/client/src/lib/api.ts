@@ -139,6 +139,10 @@ export const api = {
 
   // Analytics
   getDashboardSummary: (params?: any) => apiClient.get('/analytics/dashboard', { params }),
+
+  // Calendar
+  getGoogleCalendarEvents: (params?: any) =>
+    apiClient.get('/calendar/google-events', { params }),
 };
 
 export default apiClient;

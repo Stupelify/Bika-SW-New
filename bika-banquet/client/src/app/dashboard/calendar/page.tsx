@@ -9,6 +9,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Globe2,
   IndianRupee,
   PhoneCall,
   RefreshCw,
@@ -62,12 +63,13 @@ interface EnquiryCalendarRow {
 
 interface AgendaEntry {
   id: string;
-  kind: 'booking' | 'enquiry';
+  kind: 'booking' | 'enquiry' | 'google';
   date: string;
   title: string;
   subtitle: string;
   status: string;
   amount?: number;
+  source: 'software' | 'google';
 }
 
 type CalendarViewMode = 'month' | 'week' | 'day';
@@ -148,7 +150,7 @@ interface BookingDetail {
 
 interface DayEvent {
   id: string;
-  kind: 'booking' | 'enquiry';
+  kind: 'booking' | 'enquiry' | 'google';
   title: string;
   time: string;
   subtitle: string;
@@ -156,22 +158,52 @@ interface DayEvent {
   amount?: number;
   sortMinutes: number;
   bookingId?: string;
+  source: 'software' | 'google';
 }
 
+interface GoogleCalendarEventRow {
+  id: string;
+  googleEventId: string;
+  calendarId: string;
+  venueName: string;
+  title: string;
+  description?: string;
+  location?: string;
+  status: string;
+  start: string;
+  end: string;
+  isAllDay: boolean;
+  htmlLink?: string;
+  origin: 'software' | 'google';
+}
+
+interface GoogleCalendarFetchResult {
+  enabled: boolean;
+  configured: boolean;
+  sourceCount: number;
+  events: GoogleCalendarEventRow[];
+}
+
+type EventSourceFilter = 'all' | 'software' | 'google';
+
 interface HallBoardSlot {
-  bookingId: string;
+  bookingId?: string;
   date: string;
   timeLabel: string;
   functionName: string;
-  customerName: string;
+  customerName?: string;
+  location?: string;
   status: string;
   sortKey: number;
+  source: 'software' | 'google';
+  htmlLink?: string;
 }
 
 interface HallBoardRow {
   hallId?: string;
   hallName: string;
   banquetName?: string;
+  rowType?: 'hall' | 'googleVenue';
   slots: HallBoardSlot[];
 }
 
@@ -271,6 +303,40 @@ function getBookingHallNames(entry: BookingCalendarRow): string[] {
 function getPrimaryHallName(entry: BookingCalendarRow): string {
   const hallNames = getBookingHallNames(entry);
   return hallNames[0] || 'Unassigned Hall';
+}
+
+function eventDateKey(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatDateKey(date);
+}
+
+function formatEventClock(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--:--';
+  return date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function googleEventTimeLabel(entry: GoogleCalendarEventRow): string {
+  if (entry.isAllDay) return 'All Day';
+  if (!entry.start) return '--:--';
+
+  const startLabel = formatEventClock(entry.start);
+  if (!entry.end || entry.end === entry.start) return startLabel;
+
+  const endLabel = formatEventClock(entry.end);
+  return `${startLabel} - ${endLabel}`;
+}
+
+function googleEventSortMinutes(entry: GoogleCalendarEventRow): number {
+  if (entry.isAllDay) return 0;
+  const date = new Date(entry.start);
+  if (Number.isNaN(date.getTime())) return Number.POSITIVE_INFINITY;
+  return date.getHours() * 60 + date.getMinutes();
 }
 
 function parseDateKey(key: string): Date {
@@ -402,6 +468,40 @@ async function fetchHalls(): Promise<HallCalendarOption[]> {
     .filter((entry) => entry.name.length > 0);
 }
 
+async function fetchGoogleCalendarEvents(
+  start: Date,
+  end: Date
+): Promise<GoogleCalendarFetchResult> {
+  try {
+    const response = await api.getGoogleCalendarEvents({
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+    });
+    const payload = response.data?.data as
+      | {
+          enabled?: boolean;
+          configured?: boolean;
+          sourceCount?: number;
+          events?: GoogleCalendarEventRow[];
+        }
+      | undefined;
+
+    return {
+      enabled: Boolean(payload?.enabled),
+      configured: Boolean(payload?.configured),
+      sourceCount: Number(payload?.sourceCount || 0),
+      events: Array.isArray(payload?.events) ? payload!.events : [],
+    };
+  } catch (error) {
+    return {
+      enabled: false,
+      configured: false,
+      sourceCount: 0,
+      events: [],
+    };
+  }
+}
+
 export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
   const [displayMode, setDisplayMode] = useState<CalendarDisplayMode>('calendar');
@@ -409,8 +509,13 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(() => formatDateKey(new Date()));
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<EventSourceFilter>('all');
   const [bookings, setBookings] = useState<BookingCalendarRow[]>([]);
   const [enquiries, setEnquiries] = useState<EnquiryCalendarRow[]>([]);
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEventRow[]>([]);
+  const [googleImportEnabled, setGoogleImportEnabled] = useState(false);
+  const [googleImportConfigured, setGoogleImportConfigured] = useState(false);
+  const [googleSourceCount, setGoogleSourceCount] = useState(0);
   const [halls, setHalls] = useState<HallCalendarOption[]>([]);
   const [isBookingDetailsOpen, setIsBookingDetailsOpen] = useState(false);
   const [bookingDetailsLoading, setBookingDetailsLoading] = useState(false);
@@ -459,12 +564,17 @@ export default function CalendarPage() {
         end = endOfDay(viewDate);
       }
 
-      const [bookingRows, enquiryRows] = await Promise.all([
+      const [bookingRows, enquiryRows, googleRows] = await Promise.all([
         fetchBookings(start, end),
         fetchEnquiries(start, end),
+        fetchGoogleCalendarEvents(start, end),
       ]);
       setBookings(bookingRows);
       setEnquiries(enquiryRows);
+      setGoogleEvents(googleRows.events);
+      setGoogleImportEnabled(googleRows.enabled);
+      setGoogleImportConfigured(googleRows.configured);
+      setGoogleSourceCount(googleRows.sourceCount);
 
       setSelectedDate((prev) => {
         if (viewMode === 'month') {
@@ -510,6 +620,7 @@ export default function CalendarPage() {
   const searchQuery = search.trim().toLowerCase();
 
   const filteredBookings = useMemo(() => {
+    if (sourceFilter === 'google') return [];
     if (!searchQuery) return bookings;
     return bookings.filter((entry) =>
       [
@@ -524,9 +635,10 @@ export default function CalendarPage() {
         .toLowerCase()
         .includes(searchQuery)
     );
-  }, [bookings, searchQuery]);
+  }, [bookings, searchQuery, sourceFilter]);
 
   const filteredEnquiries = useMemo(() => {
+    if (sourceFilter === 'google') return [];
     if (!searchQuery) return enquiries;
     return enquiries.filter((entry) =>
       [
@@ -540,7 +652,25 @@ export default function CalendarPage() {
         .toLowerCase()
         .includes(searchQuery)
     );
-  }, [enquiries, searchQuery]);
+  }, [enquiries, searchQuery, sourceFilter]);
+
+  const filteredGoogleEvents = useMemo(() => {
+    if (sourceFilter === 'software') return [];
+    if (!searchQuery) return googleEvents;
+    return googleEvents.filter((entry) =>
+      [
+        entry.title,
+        entry.venueName,
+        entry.status,
+        entry.location || '',
+        entry.description || '',
+        entry.origin,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(searchQuery)
+    );
+  }, [googleEvents, searchQuery, sourceFilter]);
 
   const bookingsByDate = useMemo(() => {
     const map = new Map<string, BookingCalendarRow[]>();
@@ -582,8 +712,32 @@ export default function CalendarPage() {
     return map;
   }, [filteredEnquiries]);
 
+  const googleEventsByDate = useMemo(() => {
+    const map = new Map<string, GoogleCalendarEventRow[]>();
+    filteredGoogleEvents.forEach((entry) => {
+      const key = eventDateKey(entry.start);
+      if (!key) return;
+      const bucket = map.get(key) || [];
+      bucket.push(entry);
+      map.set(key, bucket);
+    });
+
+    map.forEach((rows) =>
+      rows.sort((a, b) => {
+        const dateDiff = new Date(a.start).getTime() - new Date(b.start).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        const timeDiff = googleEventSortMinutes(a) - googleEventSortMinutes(b);
+        if (timeDiff !== 0) return timeDiff;
+        return a.title.localeCompare(b.title);
+      })
+    );
+
+    return map;
+  }, [filteredGoogleEvents]);
+
   const selectedBookings = bookingsByDate.get(selectedDate) || [];
   const selectedEnquiries = enquiriesByDate.get(selectedDate) || [];
+  const selectedGoogleEvents = googleEventsByDate.get(selectedDate) || [];
   const selectedDateLabel = parseDateKey(selectedDate).toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -639,11 +793,12 @@ export default function CalendarPage() {
     return {
       bookings: filteredBookings.length,
       enquiries: filteredEnquiries.length,
+      googleEvents: filteredGoogleEvents.length,
       confirmedBookings,
       monthlyRevenue,
       guestVolume,
     };
-  }, [filteredBookings, filteredEnquiries]);
+  }, [filteredBookings, filteredEnquiries, filteredGoogleEvents]);
 
   const agenda = useMemo<AgendaEntry[]>(() => {
     const bookingItems: AgendaEntry[] = filteredBookings.map((entry) => ({
@@ -654,6 +809,7 @@ export default function CalendarPage() {
       subtitle: `${entry.customer?.name || 'Customer'} • ${entry.expectedGuests} guests`,
       status: entry.isQuotation ? 'quotation' : entry.status,
       amount: toSafeNumber(entry.grandTotal),
+      source: 'software',
     }));
 
     const enquiryItems: AgendaEntry[] = filteredEnquiries.map((entry) => ({
@@ -663,12 +819,23 @@ export default function CalendarPage() {
       title: entry.functionName,
       subtitle: `${entry.customer?.name || 'Lead'} • ${entry.expectedGuests} guests`,
       status: entry.isPencilBooked ? 'pencil' : entry.status,
+      source: 'software',
     }));
 
-    return [...bookingItems, ...enquiryItems]
+    const googleItems: AgendaEntry[] = filteredGoogleEvents.map((entry) => ({
+      id: `google-${entry.id}`,
+      kind: 'google',
+      date: entry.start,
+      title: entry.title,
+      subtitle: `${entry.venueName}${entry.location ? ` • ${entry.location}` : ''}`,
+      status: entry.status,
+      source: entry.origin === 'software' ? 'software' : 'google',
+    }));
+
+    return [...bookingItems, ...enquiryItems, ...googleItems]
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 12);
-  }, [filteredBookings, filteredEnquiries]);
+  }, [filteredBookings, filteredEnquiries, filteredGoogleEvents]);
 
   const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const dayEvents = useMemo<DayEvent[]>(() => {
@@ -682,6 +849,7 @@ export default function CalendarPage() {
       amount: toSafeNumber(booking.grandTotal),
       sortMinutes: bookingSortMinutes(booking),
       bookingId: booking.id,
+      source: 'software',
     }));
 
     const enquiryItems: DayEvent[] = selectedEnquiries.map((enquiry) => ({
@@ -693,13 +861,26 @@ export default function CalendarPage() {
       status: enquiry.isPencilBooked ? 'pencil' : enquiry.status,
       amount: undefined,
       sortMinutes: parseClockToMinutes(enquiry.functionTime || ''),
+      source: 'software',
     }));
 
-    return [...bookingItems, ...enquiryItems].sort((a, b) => {
+    const googleItems: DayEvent[] = selectedGoogleEvents.map((event) => ({
+      id: `google-${event.id}`,
+      kind: 'google' as const,
+      title: event.title,
+      time: googleEventTimeLabel(event),
+      subtitle: `${event.venueName}${event.location ? ` • ${event.location}` : ''}`,
+      status: event.status,
+      amount: undefined,
+      sortMinutes: googleEventSortMinutes(event),
+      source: event.origin === 'software' ? 'software' : 'google',
+    }));
+
+    return [...bookingItems, ...enquiryItems, ...googleItems].sort((a, b) => {
       if (a.sortMinutes !== b.sortMinutes) return a.sortMinutes - b.sortMinutes;
       return a.title.localeCompare(b.title);
     });
-  }, [selectedBookings, selectedEnquiries]);
+  }, [selectedBookings, selectedEnquiries, selectedGoogleEvents]);
 
   const hallWiseSchedule = useMemo<HallScheduleGroup[]>(() => {
     const grouped = new Map<string, HallScheduleParty[]>();
@@ -803,10 +984,41 @@ export default function CalendarPage() {
           status: entry.isQuotation ? 'quotation' : entry.status,
           sortKey:
             bookingDate + (Number.isFinite(bookingMinutes) ? bookingMinutes * 60 * 1000 : 0),
+          source: 'software',
         });
 
         map.set(key, row);
       });
+    });
+
+    filteredGoogleEvents.forEach((entry) => {
+      if ((entry.status || '').toLowerCase() === 'cancelled') {
+        return;
+      }
+
+      const rowKey = `venue:${entry.venueName.toLowerCase()}`;
+      const row = map.get(rowKey) || {
+        hallName: entry.venueName,
+        banquetName: 'Google Calendar Venue',
+        rowType: 'googleVenue' as const,
+        slots: [],
+      };
+
+      const startMs = new Date(entry.start).getTime();
+      const sortMinutes = googleEventSortMinutes(entry);
+
+      row.slots.push({
+        date: eventDateKey(entry.start),
+        timeLabel: googleEventTimeLabel(entry),
+        functionName: entry.title,
+        location: entry.location,
+        status: entry.status,
+        sortKey: startMs + (Number.isFinite(sortMinutes) ? sortMinutes * 60 * 1000 : 0),
+        source: 'google',
+        htmlLink: entry.htmlLink,
+      });
+
+      map.set(rowKey, row);
     });
 
     return Array.from(map.values())
@@ -815,7 +1027,7 @@ export default function CalendarPage() {
         slots: [...row.slots].sort((a, b) => a.sortKey - b.sortKey),
       }))
       .sort((a, b) => a.hallName.localeCompare(b.hallName));
-  }, [filteredBookings, hallMetaById, hallMetaByName, halls]);
+  }, [filteredBookings, filteredGoogleEvents, hallMetaById, hallMetaByName, halls]);
 
   const bookingDetailsHallBanquetLines = useMemo(() => {
     const hallRows = bookingDetails?.halls || [];
@@ -852,7 +1064,7 @@ export default function CalendarPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
         <p className="text-gray-600 mt-1">
-          Track bookings and enquiries by date with month, week, and day views.
+          Track software events and imported Google venue events with clear source tags.
         </p>
       </div>
 
@@ -952,6 +1164,28 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
+            <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden">
+              {(
+                [
+                  ['all', 'All'],
+                  ['software', 'Software'],
+                  ['google', 'Google'],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSourceFilter(mode)}
+                  className={`px-3 py-2 text-sm font-semibold transition ${
+                    sourceFilter === mode
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -975,9 +1209,24 @@ export default function CalendarPage() {
             </button>
           </div>
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
+            Software
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+            Google
+          </span>
+          <span className="text-gray-600">
+            {googleImportEnabled
+              ? googleImportConfigured
+                ? `Google import active for ${googleSourceCount} venue calendars (read-only).`
+                : 'Google import enabled, but configuration is incomplete.'
+              : 'Google import is currently disabled.'}
+          </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         <div className="card">
           <p className="text-xs uppercase tracking-wide text-gray-500">Bookings</p>
           <p className="text-2xl font-semibold text-gray-900 mt-1">
@@ -998,6 +1247,13 @@ export default function CalendarPage() {
             {summary.enquiries.toLocaleString()}
           </p>
           <PhoneCall className="w-4 h-4 text-amber-700 mt-3" />
+        </div>
+        <div className="card">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Google Events</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-1">
+            {summary.googleEvents.toLocaleString()}
+          </p>
+          <Globe2 className="w-4 h-4 text-sky-700 mt-3" />
         </div>
         <div className="card">
           <p className="text-xs uppercase tracking-wide text-gray-500">Guest Volume</p>
@@ -1043,6 +1299,7 @@ export default function CalendarPage() {
                         const dayKey = formatDateKey(day);
                         const dayBookings = bookingsByDate.get(dayKey) || [];
                         const dayEnquiries = enquiriesByDate.get(dayKey) || [];
+                        const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
                         const isCurrentMonth = day.getMonth() === viewDate.getMonth();
                         const isToday = dayKey === todayKey;
                         const isSelected = dayKey === selectedDate;
@@ -1086,6 +1343,11 @@ export default function CalendarPage() {
                                   {dayEnquiries.length > 1 ? 'ies' : 'y'}
                                 </p>
                               )}
+                              {dayGoogleEvents.length > 0 && (
+                                <p className="text-[11px] inline-flex rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                                  {dayGoogleEvents.length} google
+                                </p>
+                              )}
                               {dayBookings[0] && (
                                 <p className="text-xs text-gray-700 truncate">
                                   {dayBookings[0].functionName}
@@ -1094,6 +1356,11 @@ export default function CalendarPage() {
                               {!dayBookings[0] && dayEnquiries[0] && (
                                 <p className="text-xs text-gray-700 truncate">
                                   {dayEnquiries[0].functionName}
+                                </p>
+                              )}
+                              {!dayBookings[0] && !dayEnquiries[0] && dayGoogleEvents[0] && (
+                                <p className="text-xs text-gray-700 truncate">
+                                  {dayGoogleEvents[0].title}
                                 </p>
                               )}
                             </div>
@@ -1112,6 +1379,7 @@ export default function CalendarPage() {
                       const dayKey = formatDateKey(day);
                       const dayBookings = bookingsByDate.get(dayKey) || [];
                       const dayEnquiries = enquiriesByDate.get(dayKey) || [];
+                      const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
                       const isSelected = dayKey === selectedDate;
                       const isToday = dayKey === todayKey;
 
@@ -1163,7 +1431,15 @@ export default function CalendarPage() {
                                 {enquiry.functionTime || '--:--'} {enquiry.functionName}
                               </div>
                             ))}
-                            {dayBookings.length + dayEnquiries.length === 0 && (
+                            {dayGoogleEvents.slice(0, 4).map((event) => (
+                              <div
+                                key={event.id}
+                                className="rounded-md bg-sky-100 text-sky-900 px-2 py-1 text-xs truncate"
+                              >
+                                {googleEventTimeLabel(event)} {event.venueName} • {event.title}
+                              </div>
+                            ))}
+                            {dayBookings.length + dayEnquiries.length + dayGoogleEvents.length === 0 && (
                               <p className="text-xs text-gray-400">No events</p>
                             )}
                           </div>
@@ -1178,7 +1454,7 @@ export default function CalendarPage() {
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-gray-900">{selectedDateLabel}</p>
                   {dayEvents.length === 0 ? (
-                    <p className="text-sm text-gray-500">No bookings or enquiries for this day.</p>
+                    <p className="text-sm text-gray-500">No software or Google events for this day.</p>
                   ) : (
                     dayEvents.map((entry) => (
                       <button
@@ -1192,12 +1468,25 @@ export default function CalendarPage() {
                         className={`rounded-xl border px-3 py-2 ${
                           entry.kind === 'booking'
                             ? 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70'
-                            : 'border-amber-200 bg-amber-50/70'
+                            : entry.kind === 'enquiry'
+                            ? 'border-amber-200 bg-amber-50/70'
+                            : 'border-sky-200 bg-sky-50/70'
                         } ${entry.kind === 'booking' ? 'cursor-pointer transition text-left' : 'text-left'}`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold text-gray-900">{entry.title}</p>
-                          <span className="text-xs text-gray-700">{entry.time}</span>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                entry.source === 'google'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {entry.source === 'google' ? 'Google' : 'Software'}
+                            </span>
+                            <span className="text-xs text-gray-700">{entry.time}</span>
+                          </div>
                         </div>
                         <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
                         <p className="text-xs text-gray-600 mt-1 capitalize">
@@ -1349,6 +1638,38 @@ export default function CalendarPage() {
               </div>
             </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-gray-900">Google Venue Events</p>
+                <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                  {selectedGoogleEvents.length}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {selectedGoogleEvents.length === 0 ? (
+                  <p className="text-xs text-gray-500">No Google events for this day.</p>
+                ) : (
+                  selectedGoogleEvents.map((event) => (
+                    <div key={event.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                          {event.origin === 'software' ? 'software mirror' : 'google'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {event.venueName}
+                        {event.location ? ` • ${event.location}` : ''}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {googleEventTimeLabel(event)} • <span className="capitalize">{event.status}</span>
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="pt-2 border-t border-gray-100 flex gap-2">
               <Link href="/dashboard/bookings" className="btn btn-secondary flex-1 justify-center">
                 Bookings
@@ -1388,13 +1709,26 @@ export default function CalendarPage() {
                 }`}
               >
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{entry.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-900">{entry.title}</p>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                        entry.source === 'google'
+                          ? 'bg-sky-100 text-sky-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}
+                    >
+                      {entry.source === 'google' ? 'Google' : 'Software'}
+                    </span>
+                  </div>
                   <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
                 </div>
                 <div className="text-left sm:text-right">
                   <p className="text-xs text-gray-600">
                     {formatDateDDMMYYYY(entry.date)} •{' '}
-                    <span className="capitalize">{entry.kind}</span>
+                    <span className="capitalize">
+                      {entry.kind === 'google' ? 'venue' : entry.kind}
+                    </span>
                   </p>
                   <p className="text-xs text-gray-700 mt-1">
                     <span className="capitalize">{entry.status}</span>
@@ -1455,19 +1789,49 @@ export default function CalendarPage() {
                     <div className="flex flex-wrap gap-2">
                       {row.slots.map((slot) => (
                         <button
-                          key={`${row.hallName}-${slot.bookingId}-${slot.sortKey}`}
+                          key={`${row.hallName}-${slot.source}-${slot.bookingId || slot.functionName}-${slot.sortKey}`}
                           type="button"
-                          onClick={() => void openBookingDetails(slot.bookingId)}
-                          className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-left hover:border-rose-300 hover:bg-rose-100 transition"
+                          onClick={() => {
+                            if (slot.source === 'software' && slot.bookingId) {
+                              void openBookingDetails(slot.bookingId);
+                              return;
+                            }
+                            if (slot.htmlLink) {
+                              window.open(slot.htmlLink, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
+                          className={`rounded-lg border px-2.5 py-1.5 text-left transition ${
+                            slot.source === 'google'
+                              ? 'border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100'
+                              : 'border-rose-200 bg-rose-50 hover:border-rose-300 hover:bg-rose-100'
+                          }`}
                         >
-                          <p className="text-xs font-semibold text-rose-900">
+                          <p
+                            className={`text-xs font-semibold ${
+                              slot.source === 'google' ? 'text-sky-900' : 'text-rose-900'
+                            }`}
+                          >
                             {formatDateDDMMYYYY(slot.date)} • {slot.timeLabel}
                           </p>
-                          <p className="text-xs text-rose-800 mt-0.5">
-                            {slot.functionName} • {slot.customerName}
+                          <p
+                            className={`text-xs mt-0.5 ${
+                              slot.source === 'google' ? 'text-sky-800' : 'text-rose-800'
+                            }`}
+                          >
+                            {slot.functionName}
+                            {slot.source === 'software' && slot.customerName
+                              ? ` • ${slot.customerName}`
+                              : ''}
+                            {slot.source === 'google' && slot.location
+                              ? ` • ${slot.location}`
+                              : ''}
                           </p>
-                          <p className="text-[11px] text-rose-700 mt-0.5 capitalize">
-                            {slot.status}
+                          <p
+                            className={`text-[11px] mt-0.5 capitalize ${
+                              slot.source === 'google' ? 'text-sky-700' : 'text-rose-700'
+                            }`}
+                          >
+                            {slot.status} • {slot.source === 'google' ? 'Google' : 'Software'}
                           </p>
                         </button>
                       ))}

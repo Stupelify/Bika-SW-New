@@ -18,6 +18,47 @@ interface GoogleCalendarConfig {
   clientUrl?: string;
 }
 
+interface GoogleCalendarImportSource {
+  venueName: string;
+  calendarId: string;
+}
+
+interface GoogleCalendarImportConfig {
+  enabled: boolean;
+  timezone: string;
+  serviceAccountEmail: string;
+  serviceAccountPrivateKey: string;
+  pastYears: number;
+  futureYears: number;
+  sources: GoogleCalendarImportSource[];
+}
+
+export interface ImportedGoogleCalendarEvent {
+  id: string;
+  googleEventId: string;
+  calendarId: string;
+  venueName: string;
+  title: string;
+  description?: string;
+  location?: string;
+  status: string;
+  start: string;
+  end: string;
+  isAllDay: boolean;
+  htmlLink?: string;
+  origin: 'software' | 'google';
+}
+
+export interface ImportedGoogleCalendarFetchResult {
+  enabled: boolean;
+  configured: boolean;
+  timezone: string;
+  startDate: string;
+  endDate: string;
+  sourceCount: number;
+  events: ImportedGoogleCalendarEvent[];
+}
+
 interface BookingCalendarPayload {
   id: string;
   functionName: string;
@@ -78,6 +119,40 @@ function parseBoolean(value: NullableString): boolean {
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
 
+function parseInteger(
+  value: NullableString,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const rounded = Math.round(parsed);
+  if (rounded < min) return min;
+  if (rounded > max) return max;
+  return rounded;
+}
+
+function parseImportSources(value: NullableString): GoogleCalendarImportSource[] {
+  if (!value) return [];
+
+  return value
+    .split(';')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => {
+      const separatorIndex = segment.indexOf('|');
+      if (separatorIndex < 1) return null;
+
+      const venueName = segment.slice(0, separatorIndex).trim();
+      const calendarId = segment.slice(separatorIndex + 1).trim();
+      if (!venueName || !calendarId) return null;
+
+      return { venueName, calendarId };
+    })
+    .filter((entry): entry is GoogleCalendarImportSource => Boolean(entry));
+}
+
 function readGoogleCalendarConfig(): GoogleCalendarConfig {
   return {
     enabled: parseBoolean(process.env.GOOGLE_CALENDAR_SYNC_ENABLED),
@@ -91,6 +166,35 @@ function readGoogleCalendarConfig(): GoogleCalendarConfig {
     timezone:
       (process.env.GOOGLE_CALENDAR_TIMEZONE || '').trim() || 'Asia/Kolkata',
     clientUrl: (process.env.CLIENT_URL || '').trim() || undefined,
+  };
+}
+
+function readGoogleCalendarImportConfig(): GoogleCalendarImportConfig {
+  return {
+    enabled: parseBoolean(process.env.GOOGLE_CALENDAR_IMPORT_ENABLED),
+    timezone:
+      (process.env.GOOGLE_CALENDAR_IMPORT_TIMEZONE || '').trim() ||
+      (process.env.GOOGLE_CALENDAR_TIMEZONE || '').trim() ||
+      'Asia/Kolkata',
+    serviceAccountEmail: (
+      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || ''
+    ).trim(),
+    serviceAccountPrivateKey: (
+      process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || ''
+    ).replace(/\\n/g, '\n'),
+    pastYears: parseInteger(
+      process.env.GOOGLE_CALENDAR_IMPORT_PAST_YEARS,
+      50,
+      1,
+      120
+    ),
+    futureYears: parseInteger(
+      process.env.GOOGLE_CALENDAR_IMPORT_FUTURE_YEARS,
+      5,
+      1,
+      25
+    ),
+    sources: parseImportSources(process.env.GOOGLE_CALENDAR_IMPORT_SOURCES),
   };
 }
 
@@ -127,6 +231,39 @@ async function getGoogleCalendarClient(): Promise<{
   };
 }
 
+async function getGoogleCalendarImportClient(): Promise<{
+  calendar: calendar_v3.Calendar;
+  config: GoogleCalendarImportConfig;
+} | null> {
+  const config = readGoogleCalendarImportConfig();
+
+  if (!config.enabled) {
+    return null;
+  }
+
+  if (
+    !config.serviceAccountEmail ||
+    !config.serviceAccountPrivateKey ||
+    config.sources.length === 0
+  ) {
+    logger.warn(
+      'Google Calendar import is enabled but missing required configuration'
+    );
+    return null;
+  }
+
+  const auth = new google.auth.JWT({
+    email: config.serviceAccountEmail,
+    key: config.serviceAccountPrivateKey,
+    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+  });
+
+  return {
+    calendar: google.calendar({ version: 'v3', auth }),
+    config,
+  };
+}
+
 function toGoogleEventId(prefix: string, entityId: string): string {
   const normalized = `${prefix}${entityId}`
     .toLowerCase()
@@ -150,6 +287,74 @@ function getHttpStatus(error: unknown): number | undefined {
     return candidate.response.status;
   }
   return undefined;
+}
+
+function toIsoString(input: Date | string | undefined): string | null {
+  if (!input) return null;
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function buildImportRange(
+  inputStartDate: Date | string | undefined,
+  inputEndDate: Date | string | undefined,
+  config: GoogleCalendarImportConfig
+): { startDate: string; endDate: string } {
+  const now = new Date();
+  const defaultStart = new Date(
+    now.getFullYear() - config.pastYears,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0
+  );
+  const defaultEnd = new Date(
+    now.getFullYear() + config.futureYears,
+    11,
+    31,
+    23,
+    59,
+    59,
+    999
+  );
+
+  const startDate = toIsoString(inputStartDate) || defaultStart.toISOString();
+  const endDate = toIsoString(inputEndDate) || defaultEnd.toISOString();
+
+  if (new Date(startDate) > new Date(endDate)) {
+    return {
+      startDate: endDate,
+      endDate: startDate,
+    };
+  }
+
+  return { startDate, endDate };
+}
+
+function resolveGoogleEventOrigin(
+  event: calendar_v3.Schema$Event
+): 'software' | 'google' {
+  const privateOrigin = (
+    event.extendedProperties?.private?.origin || ''
+  ).trim().toLowerCase();
+  if (privateOrigin === 'software') {
+    return 'software';
+  }
+
+  const eventId = (event.id || '').toLowerCase();
+  if (eventId.startsWith(BOOKING_EVENT_PREFIX) || eventId.startsWith(ENQUIRY_EVENT_PREFIX)) {
+    return 'software';
+  }
+
+  const summary = (event.summary || '').toLowerCase();
+  if (summary.startsWith('booking:') || summary.startsWith('enquiry:')) {
+    return 'software';
+  }
+
+  return 'google';
 }
 
 function toDatePart(input: Date | string | null | undefined): string | null {
@@ -529,4 +734,141 @@ export async function removeEnquiryEventFromGoogleCalendar(
       error,
     });
   }
+}
+
+async function listEventsForCalendarSource(params: {
+  calendar: calendar_v3.Calendar;
+  source: GoogleCalendarImportSource;
+  startDate: string;
+  endDate: string;
+  timezone: string;
+}): Promise<ImportedGoogleCalendarEvent[]> {
+  const rows: ImportedGoogleCalendarEvent[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const response = await params.calendar.events.list({
+      calendarId: params.source.calendarId,
+      timeMin: params.startDate,
+      timeMax: params.endDate,
+      singleEvents: true,
+      orderBy: 'startTime',
+      showDeleted: false,
+      maxResults: 2500,
+      pageToken,
+      timeZone: params.timezone,
+    });
+
+    const items = response.data.items || [];
+    items.forEach((item) => {
+      const start = item.start?.dateTime || item.start?.date;
+      const end = item.end?.dateTime || item.end?.date || start;
+      const googleEventId = (item.id || '').trim();
+
+      if (!start || !googleEventId) {
+        return;
+      }
+      const resolvedEnd = end || start;
+
+      rows.push({
+        id: `${params.source.calendarId}:${googleEventId}`,
+        googleEventId,
+        calendarId: params.source.calendarId,
+        venueName: params.source.venueName,
+        title: (item.summary || 'Untitled Event').trim() || 'Untitled Event',
+        description: item.description || undefined,
+        location: item.location || undefined,
+        status: (item.status || 'confirmed').toLowerCase(),
+        start,
+        end: resolvedEnd,
+        isAllDay: Boolean(item.start?.date && !item.start?.dateTime),
+        htmlLink: item.htmlLink || undefined,
+        origin: resolveGoogleEventOrigin(item),
+      });
+    });
+
+    pageToken = response.data.nextPageToken || undefined;
+  } while (pageToken);
+
+  return rows;
+}
+
+export async function importGoogleCalendarEvents(params?: {
+  startDate?: Date | string;
+  endDate?: Date | string;
+}): Promise<ImportedGoogleCalendarFetchResult> {
+  const importConfig = readGoogleCalendarImportConfig();
+  const range = buildImportRange(
+    params?.startDate,
+    params?.endDate,
+    importConfig
+  );
+
+  if (!importConfig.enabled) {
+    return {
+      enabled: false,
+      configured: false,
+      timezone: importConfig.timezone,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      sourceCount: 0,
+      events: [],
+    };
+  }
+
+  const client = await getGoogleCalendarImportClient();
+  if (!client) {
+    return {
+      enabled: true,
+      configured: false,
+      timezone: importConfig.timezone,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      sourceCount: importConfig.sources.length,
+      events: [],
+    };
+  }
+
+  const settled = await Promise.allSettled(
+    client.config.sources.map((source) =>
+      listEventsForCalendarSource({
+        calendar: client.calendar,
+        source,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        timezone: client.config.timezone,
+      })
+    )
+  );
+
+  const events: ImportedGoogleCalendarEvent[] = [];
+  settled.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      events.push(...result.value);
+      return;
+    }
+    logger.warn('Failed to import events from Google Calendar source', {
+      venueName: client.config.sources[index]?.venueName,
+      calendarId: client.config.sources[index]?.calendarId,
+      error: result.reason,
+    });
+  });
+
+  events.sort((a, b) => {
+    const dateDiff = new Date(a.start).getTime() - new Date(b.start).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    const venueDiff = a.venueName.localeCompare(b.venueName);
+    if (venueDiff !== 0) return venueDiff;
+    return a.title.localeCompare(b.title);
+  });
+
+  return {
+    enabled: true,
+    configured: true,
+    timezone: client.config.timezone,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    sourceCount: client.config.sources.length,
+    events,
+  };
 }

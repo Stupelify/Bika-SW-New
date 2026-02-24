@@ -13,6 +13,7 @@ import roleRoutes from './role.routes';
 import permissionRoutes from './permission.routes';
 import rbacRoutes from './rbac.routes';
 import analyticsRoutes from './analytics.routes';
+import calendarRoutes from './calendar.routes';
 
 const router = Router();
 
@@ -39,6 +40,7 @@ router.use('/roles', roleRoutes);
 router.use('/permissions', permissionRoutes);
 router.use('/rbac', rbacRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/calendar', calendarRoutes);
 
 // Legacy-style aliases for easier migration from older project paths
 router.use('/customer', customerRoutes);

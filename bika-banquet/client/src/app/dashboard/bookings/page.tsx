@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarCheck,
   Download,
@@ -56,6 +56,14 @@ interface CustomerOption {
   phone: string;
 }
 
+type CustomerSearchField = 'primary' | 'second' | 'referred';
+
+interface CustomerSearchInputState {
+  primary: string;
+  second: string;
+  referred: string;
+}
+
 interface BanquetOption {
   id: string;
   name: string;
@@ -99,10 +107,9 @@ type PackKey = 'breakfast' | 'lunch' | 'hiTea' | 'dinner';
 
 interface BookingPackRow {
   enabled: boolean;
-  withHalls: boolean;
   withCatering: boolean;
   banquetId: string;
-  hallId: string;
+  hallIds: string[];
   templateMenuId: string;
   menuItemIds: string[];
   startTime: string;
@@ -165,10 +172,9 @@ const initialFormData: BookingFormData = {
   packs: {
     breakfast: {
       enabled: false,
-      withHalls: true,
       withCatering: true,
       banquetId: '',
-      hallId: '',
+      hallIds: [],
       templateMenuId: '',
       menuItemIds: [],
       startTime: '08:00',
@@ -181,10 +187,9 @@ const initialFormData: BookingFormData = {
     },
     lunch: {
       enabled: false,
-      withHalls: true,
       withCatering: true,
       banquetId: '',
-      hallId: '',
+      hallIds: [],
       templateMenuId: '',
       menuItemIds: [],
       startTime: '12:00',
@@ -197,10 +202,9 @@ const initialFormData: BookingFormData = {
     },
     hiTea: {
       enabled: false,
-      withHalls: false,
       withCatering: false,
       banquetId: '',
-      hallId: '',
+      hallIds: [],
       templateMenuId: '',
       menuItemIds: [],
       startTime: '16:00',
@@ -213,10 +217,9 @@ const initialFormData: BookingFormData = {
     },
     dinner: {
       enabled: false,
-      withHalls: false,
       withCatering: false,
       banquetId: '',
-      hallId: '',
+      hallIds: [],
       templateMenuId: '',
       menuItemIds: [],
       startTime: '19:00',
@@ -265,6 +268,19 @@ const initialColumnSearch = {
 
 const BOOKINGS_PAGE_SIZE = 75;
 
+function formatCustomerLabel(customer?: {
+  name?: string | null;
+  phone?: string | null;
+} | null): string {
+  if (!customer) return '';
+  const name = (customer.name || '').trim();
+  const phone = (customer.phone || '').trim();
+  if (!name && !phone) return '';
+  if (!phone) return name;
+  if (!name) return phone;
+  return `${name} (${phone})`;
+}
+
 export default function BookingsPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -293,6 +309,16 @@ export default function BookingsPage() {
   const [menuPdfLoading, setMenuPdfLoading] = useState(false);
   const [menuPdfSetupLoading, setMenuPdfSetupLoading] = useState(false);
   const [menuPdfPreviewUrl, setMenuPdfPreviewUrl] = useState<string | null>(null);
+  const [openHallPickerPack, setOpenHallPickerPack] = useState<PackKey | null>(null);
+  const [customerSearchInputs, setCustomerSearchInputs] =
+    useState<CustomerSearchInputState>({
+      primary: '',
+      second: '',
+      referred: '',
+    });
+  const [activeCustomerSearchField, setActiveCustomerSearchField] =
+    useState<CustomerSearchField | null>(null);
+  const hallPickerContainerRef = useRef<HTMLDivElement | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [sort, setSort] = useState<SortState>({
@@ -389,6 +415,175 @@ export default function BookingsPage() {
       );
     });
   }, [items, menuItemSearch]);
+
+  const setCustomerIdForField = useCallback(
+    (field: CustomerSearchField, customerId: string) => {
+      setFormData((prev) => {
+        if (field === 'primary') {
+          return { ...prev, customerId };
+        }
+        if (field === 'second') {
+          return { ...prev, secondCustomerId: customerId };
+        }
+        return { ...prev, referredById: customerId };
+      });
+    },
+    []
+  );
+
+  const getSelectedCustomerId = useCallback(
+    (field: CustomerSearchField): string => {
+      if (field === 'primary') return formData.customerId;
+      if (field === 'second') return formData.secondCustomerId;
+      return formData.referredById;
+    },
+    [formData.customerId, formData.secondCustomerId, formData.referredById]
+  );
+
+  const getCustomerSuggestions = useCallback(
+    (field: CustomerSearchField): CustomerOption[] => {
+      const query = (customerSearchInputs[field] || '').trim().toLowerCase();
+      let filtered = customers;
+      if (query) {
+        filtered = customers.filter((customer) => {
+          const name = (customer.name || '').toLowerCase();
+          const phone = (customer.phone || '').toLowerCase();
+          const label = formatCustomerLabel(customer).toLowerCase();
+          return (
+            name.includes(query) ||
+            phone.includes(query) ||
+            label.includes(query)
+          );
+        });
+      }
+
+      const selectedCustomerId = getSelectedCustomerId(field);
+      if (
+        selectedCustomerId &&
+        !filtered.some((customer) => customer.id === selectedCustomerId)
+      ) {
+        const selectedCustomer = customers.find(
+          (customer) => customer.id === selectedCustomerId
+        );
+        if (selectedCustomer) {
+          filtered = [selectedCustomer, ...filtered];
+        }
+      }
+
+      return filtered.slice(0, 80);
+    },
+    [customerSearchInputs, customers, getSelectedCustomerId]
+  );
+
+  const handleCustomerInputChange = useCallback(
+    (field: CustomerSearchField, rawValue: string) => {
+      setCustomerSearchInputs((prev) => ({ ...prev, [field]: rawValue }));
+      setActiveCustomerSearchField(field);
+
+      const query = rawValue.trim().toLowerCase();
+      if (!query) {
+        setCustomerIdForField(field, '');
+        return;
+      }
+
+      const exactMatch = customers.find((customer) => {
+        const name = (customer.name || '').toLowerCase();
+        const phone = (customer.phone || '').toLowerCase();
+        const label = formatCustomerLabel(customer).toLowerCase();
+        return name === query || phone === query || label === query;
+      });
+
+      setCustomerIdForField(field, exactMatch?.id || '');
+    },
+    [customers, setCustomerIdForField]
+  );
+
+  const selectCustomerSuggestion = useCallback(
+    (field: CustomerSearchField, customer: CustomerOption) => {
+      setCustomerIdForField(field, customer.id);
+      setCustomerSearchInputs((prev) => ({
+        ...prev,
+        [field]: formatCustomerLabel(customer),
+      }));
+      setActiveCustomerSearchField(null);
+    },
+    [setCustomerIdForField]
+  );
+
+  useEffect(() => {
+    if (!showCreateForm) return;
+    if (activeCustomerSearchField) return;
+
+    setCustomerSearchInputs((prev) => {
+      const primaryCustomer = customers.find(
+        (customer) => customer.id === formData.customerId
+      );
+      const secondCustomer = customers.find(
+        (customer) => customer.id === formData.secondCustomerId
+      );
+      const referredCustomer = customers.find(
+        (customer) => customer.id === formData.referredById
+      );
+
+      const nextPrimary = formData.customerId
+        ? primaryCustomer
+          ? formatCustomerLabel(primaryCustomer)
+          : prev.primary
+        : '';
+      const nextSecond = formData.secondCustomerId
+        ? secondCustomer
+          ? formatCustomerLabel(secondCustomer)
+          : prev.second
+        : '';
+      const nextReferred = formData.referredById
+        ? referredCustomer
+          ? formatCustomerLabel(referredCustomer)
+          : prev.referred
+        : '';
+
+      if (
+        nextPrimary === prev.primary &&
+        nextSecond === prev.second &&
+        nextReferred === prev.referred
+      ) {
+        return prev;
+      }
+
+      return {
+        primary: nextPrimary,
+        second: nextSecond,
+        referred: nextReferred,
+      };
+    });
+  }, [
+    activeCustomerSearchField,
+    customers,
+    formData.customerId,
+    formData.secondCustomerId,
+    formData.referredById,
+    showCreateForm,
+  ]);
+
+  useEffect(() => {
+    if (!openHallPickerPack) {
+      return;
+    }
+
+    const handleOutsidePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        hallPickerContainerRef.current &&
+        !hallPickerContainerRef.current.contains(target)
+      ) {
+        setOpenHallPickerPack(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsidePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsidePointerDown);
+    };
+  }, [openHallPickerPack]);
 
   const groupedMenuItems = useMemo(() => {
     const map = new Map<string, ItemOption[]>();
@@ -568,14 +763,28 @@ export default function BookingsPage() {
     setShowCreateForm(false);
     setEditingBookingId(null);
     setMenuEditorPack(null);
+    setOpenHallPickerPack(null);
     setMenuItemSearch('');
+    setCustomerSearchInputs({
+      primary: '',
+      second: '',
+      referred: '',
+    });
+    setActiveCustomerSearchField(null);
     setFormData(initialFormData);
   };
 
   const openCreateBooking = () => {
     setEditingBookingId(null);
     setMenuEditorPack(null);
+    setOpenHallPickerPack(null);
     setMenuItemSearch('');
+    setCustomerSearchInputs({
+      primary: '',
+      second: '',
+      referred: '',
+    });
+    setActiveCustomerSearchField(null);
     setFormData(initialFormData);
     setShowCreateForm(true);
   };
@@ -601,8 +810,15 @@ export default function BookingsPage() {
         return;
       }
 
-      const primaryHallId =
-        booking.halls?.[0]?.hallId || booking.halls?.[0]?.hall?.id || '';
+      const hallIdSet = new Set(halls.map((hall) => hall.id));
+      const bookingHallIds = Array.from(
+        new Set(
+          (booking.halls || [])
+            .map((row: any) => row?.hallId || row?.hall?.id || '')
+            .filter((value: string) => value && hallIdSet.has(value))
+        )
+      );
+      const primaryHallId = bookingHallIds[0] || '';
       const primaryHall = halls.find((hall) => hall.id === primaryHallId);
       const menuRows = booking.packs || [];
       const nextPacks = { ...initialFormData.packs };
@@ -619,13 +835,20 @@ export default function BookingsPage() {
           const set = new Set(templateIds);
           return rowMenuItemIds.every((id: string) => set.has(id));
         });
+        const packHallIds = Array.isArray(pack?.hallIds)
+          ? pack.hallIds
+              .map((value: unknown) => `${value ?? ''}`.trim())
+              .filter((value: string) => value.length > 0 && hallIdSet.has(value))
+          : [];
+        const resolvedPackHallIds =
+          packHallIds.length > 0 ? packHallIds : bookingHallIds;
+        const firstPackHall = halls.find((hall) => hall.id === resolvedPackHallIds[0]);
 
         nextPacks[packKey] = {
           enabled: true,
-          withHalls: Boolean(primaryHallId),
           withCatering: true,
-          banquetId: primaryHall?.banquet?.id || '',
-          hallId: primaryHallId,
+          banquetId: firstPackHall?.banquet?.id || primaryHall?.banquet?.id || '',
+          hallIds: resolvedPackHallIds,
           templateMenuId: matchingTemplate?.id || '',
           menuItemIds: rowMenuItemIds,
           startTime: pack.startTime || nextPacks[packKey].startTime,
@@ -692,6 +915,24 @@ export default function BookingsPage() {
         })),
         packs: nextPacks,
       });
+      setCustomerSearchInputs({
+        primary:
+          formatCustomerLabel(
+            customers.find(
+              (customer) => customer.id === (booking.customerId || booking.customer?.id || '')
+            )
+          ) || formatCustomerLabel(booking.customer),
+        second:
+          formatCustomerLabel(
+            customers.find((customer) => customer.id === (booking.secondCustomerId || ''))
+          ) || formatCustomerLabel(booking.secondCustomer),
+        referred:
+          formatCustomerLabel(
+            customers.find((customer) => customer.id === (booking.referredById || ''))
+          ) || formatCustomerLabel(booking.referredBy),
+      });
+      setActiveCustomerSearchField(null);
+      setOpenHallPickerPack(null);
       setShowCreateForm(true);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to load booking');
@@ -838,6 +1079,32 @@ export default function BookingsPage() {
       const enabledPackEntries = (Object.keys(formData.packs) as PackKey[])
         .map((key) => ({ key, row: formData.packs[key] }))
         .filter((entry) => entry.row.enabled);
+      const missingBanquetSelection = enabledPackEntries.find(
+        (entry) => !entry.row.banquetId
+      );
+      if (missingBanquetSelection) {
+        toast.error(
+          `Select banquet before halls for ${PACK_LABELS[missingBanquetSelection.key]}`
+        );
+        return;
+      }
+      const getValidHallIdsForPack = (row: BookingPackRow): string[] =>
+        row.hallIds.filter((hallId) =>
+          halls.some(
+            (hall) =>
+              hall.id === hallId &&
+              (!row.banquetId || hall.banquet?.id === row.banquetId)
+          )
+        );
+      const missingHallSelection = enabledPackEntries.find(
+        (entry) => getValidHallIdsForPack(entry.row).length === 0
+      );
+      if (missingHallSelection) {
+        toast.error(
+          `Select at least one hall for ${PACK_LABELS[missingHallSelection.key]}`
+        );
+        return;
+      }
       const expectedGuests = Math.max(
         1,
         ...enabledPackEntries
@@ -849,11 +1116,14 @@ export default function BookingsPage() {
 
       const hallChargeMap = new Map<string, number>();
       enabledPackEntries.forEach((entry) => {
-        if (!entry.row.withHalls || !entry.row.hallId) return;
+        const validHallIds = getValidHallIdsForPack(entry.row);
+        if (validHallIds.length === 0) return;
         const parsedCharge = Number(entry.row.hallRate || entry.row.amount || 0);
         const charge = Number.isFinite(parsedCharge) ? parsedCharge : 0;
-        const current = hallChargeMap.get(entry.row.hallId) || 0;
-        hallChargeMap.set(entry.row.hallId, Math.max(current, charge));
+        validHallIds.forEach((hallId) => {
+          const current = hallChargeMap.get(hallId) || 0;
+          hallChargeMap.set(hallId, Math.max(current, charge));
+        });
       });
       const hallsPayload = Array.from(hallChargeMap.entries()).map(([hallId, charges]) => ({
         hallId,
@@ -873,6 +1143,10 @@ export default function BookingsPage() {
         const matchingTemplate = templateMenus.find(
           (template) => template.id === row.templateMenuId
         );
+        const validHallIds = getValidHallIdsForPack(row);
+        const selectedHallNames = halls
+          .filter((hall) => validHallIds.includes(hall.id))
+          .map((hall) => hall.name);
         return {
           packName: PACK_LABELS[key],
           packCount: Math.max(1, toNumber(row.pax || '1')),
@@ -884,7 +1158,7 @@ export default function BookingsPage() {
           endTime: row.endTime || undefined,
           hallRate: row.hallRate || undefined,
           menuPoint: row.menuPoints ? toNumber(row.menuPoints) : undefined,
-          hallName: halls.find((hall) => hall.id === row.hallId)?.name || undefined,
+          hallName: selectedHallNames.join(', ') || undefined,
           menu: {
             name: matchingTemplate?.name || `${PACK_LABELS[key]} Menu`,
             templateMenuId: row.templateMenuId || undefined,
@@ -916,7 +1190,11 @@ export default function BookingsPage() {
         );
 
       const packSummary = enabledPackEntries.map(({ key, row }) => {
-        const hallName = halls.find((hall) => hall.id === row.hallId)?.name || 'No hall';
+        const validHallIds = getValidHallIdsForPack(row);
+        const hallName = halls
+          .filter((hall) => validHallIds.includes(hall.id))
+          .map((hall) => hall.name)
+          .join(', ') || 'No hall';
         const templateName =
           templateMenus.find((template) => template.id === row.templateMenuId)?.name ||
           'Custom menu';
@@ -994,6 +1272,72 @@ export default function BookingsPage() {
     }
   };
 
+  const renderCustomerTypeahead = ({
+    field,
+    label,
+    required = false,
+    placeholder,
+  }: {
+    field: CustomerSearchField;
+    label: string;
+    required?: boolean;
+    placeholder: string;
+  }) => {
+    const suggestions = getCustomerSuggestions(field);
+    const isActive = activeCustomerSearchField === field;
+
+    return (
+      <div className="relative">
+        <label className="label">
+          {label}
+          {required && <span className="text-red-500"> *</span>}
+        </label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            className="input pl-10"
+            placeholder={placeholder}
+            value={customerSearchInputs[field]}
+            required={required}
+            autoComplete="off"
+            onFocus={() => setActiveCustomerSearchField(field)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                setActiveCustomerSearchField((current) =>
+                  current === field ? null : current
+                );
+              }, 120);
+            }}
+            onChange={(e) => handleCustomerInputChange(field, e.target.value)}
+          />
+        </div>
+
+        {isActive && (
+          <div className="absolute z-40 mt-1 w-full max-h-60 overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+            {suggestions.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-gray-500">
+                No customer found for this search.
+              </p>
+            ) : (
+              suggestions.map((customer) => (
+                <button
+                  key={`${field}-${customer.id}`}
+                  type="button"
+                  className="w-full border-b border-gray-100 px-3 py-2 text-left hover:bg-primary-50 last:border-b-0"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectCustomerSuggestion(field, customer)}
+                >
+                  <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+                  <p className="text-xs text-gray-600">{customer.phone}</p>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-head gap-4">
@@ -1059,26 +1403,12 @@ export default function BookingsPage() {
             <div className="space-y-3">
               <h3 className="text-2xl font-semibold text-gray-900">Booking Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-[1fr,100px] gap-3">
-                <div>
-                  <label className="label">
-                    Primary Customer <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="input"
-                    value={formData.customerId}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, customerId: e.target.value }))
-                    }
-                    required
-                  >
-                    <option value="">Select primary customer</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name} ({customer.phone})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {renderCustomerTypeahead({
+                  field: 'primary',
+                  label: 'Primary Customer',
+                  required: true,
+                  placeholder: 'Type customer name or number',
+                })}
                 <div>
                   <label className="label">Priority</label>
                   <input
@@ -1097,54 +1427,40 @@ export default function BookingsPage() {
                 <input
                   type="checkbox"
                   checked={formData.includeSecondCustomer}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const checked = e.target.checked;
                     setFormData((prev) => ({
                       ...prev,
-                      includeSecondCustomer: e.target.checked,
-                      secondCustomerId: e.target.checked ? prev.secondCustomerId : '',
-                    }))
-                  }
+                      includeSecondCustomer: checked,
+                      secondCustomerId: checked ? prev.secondCustomerId : '',
+                    }));
+                    if (!checked) {
+                      setCustomerSearchInputs((prev) => ({
+                        ...prev,
+                        second: '',
+                      }));
+                      setActiveCustomerSearchField((field) =>
+                        field === 'second' ? null : field
+                      );
+                    }
+                  }}
                 />
                 Add Second Customer
               </label>
 
               {formData.includeSecondCustomer && (
-                <div>
-                  <label className="label">Second Customer</label>
-                  <select
-                    className="input"
-                    value={formData.secondCustomerId}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, secondCustomerId: e.target.value }))
-                    }
-                  >
-                    <option value="">Select second customer</option>
-                    {customers.map((customer) => (
-                      <option key={`second-${customer.id}`} value={customer.id}>
-                        {customer.name} ({customer.phone})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                renderCustomerTypeahead({
+                  field: 'second',
+                  label: 'Second Customer',
+                  placeholder: 'Type customer name or number',
+                })
               )}
 
-              <div>
-                <label className="label">Referred By</label>
-                <select
-                  className="input"
-                  value={formData.referredById}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, referredById: e.target.value }))
-                  }
-                >
-                  <option value="">Select referrer</option>
-                  {customers.map((customer) => (
-                    <option key={`ref-${customer.id}`} value={customer.id}>
-                      {customer.name} ({customer.phone})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {renderCustomerTypeahead({
+                field: 'referred',
+                label: 'Referred By',
+                placeholder: 'Type customer name or number',
+              })}
 
               <div>
                 <label className="label">
@@ -1369,13 +1685,19 @@ export default function BookingsPage() {
               const filteredHalls = halls.filter(
                 (hall) => !row.banquetId || hall.banquet?.id === row.banquetId
               );
+              const validSelectedHallIds = row.hallIds.filter((hallId) =>
+                filteredHalls.some((hall) => hall.id === hallId)
+              );
+              const selectedHallNames = filteredHalls
+                .filter((hall) => validSelectedHallIds.includes(hall.id))
+                .map((hall) => hall.name);
 
               return (
                 <div
                   key={packKey}
                   className={`rounded-2xl border p-3 space-y-3 ${PACK_ROW_STYLES[packKey]}`}
                 >
-                  <div className="grid grid-cols-1 xl:grid-cols-[120px,100px,120px,1fr,1fr] gap-3 items-center">
+                  <div className="grid grid-cols-1 xl:grid-cols-[120px,120px,1fr,1fr] gap-3 items-center">
                     <label className="inline-flex items-center gap-2 text-lg font-semibold text-gray-900">
                       <input
                         type="checkbox"
@@ -1383,16 +1705,6 @@ export default function BookingsPage() {
                         onChange={(e) => updatePackRow(packKey, { enabled: e.target.checked })}
                       />
                       {PACK_LABELS[packKey]}
-                    </label>
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={row.withHalls}
-                        onChange={(e) =>
-                          updatePackRow(packKey, { withHalls: e.target.checked })
-                        }
-                      />
-                      Halls
                     </label>
                     <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                       <input
@@ -1408,12 +1720,15 @@ export default function BookingsPage() {
                       className="input"
                       value={row.banquetId}
                       disabled={!row.enabled}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        setOpenHallPickerPack((current) =>
+                          current === packKey ? null : current
+                        );
                         updatePackRow(packKey, {
                           banquetId: e.target.value,
-                          hallId: '',
-                        })
-                      }
+                          hallIds: [],
+                        });
+                      }}
                     >
                       <option value="">Select Banquet</option>
                       {banquets.map((banquet) => (
@@ -1422,19 +1737,69 @@ export default function BookingsPage() {
                         </option>
                       ))}
                     </select>
-                    <select
-                      className="input"
-                      value={row.hallId}
-                      disabled={!row.enabled}
-                      onChange={(e) => updatePackRow(packKey, { hallId: e.target.value })}
+                    <div
+                      className="relative space-y-1"
+                      ref={openHallPickerPack === packKey ? hallPickerContainerRef : undefined}
                     >
-                      <option value="">Select Halls *</option>
-                      {filteredHalls.map((hall) => (
-                        <option key={hall.id} value={hall.id}>
-                          {hall.name}
-                        </option>
-                      ))}
-                    </select>
+                      <button
+                        type="button"
+                        className="input flex w-full items-center justify-between text-left"
+                        disabled={!row.enabled || !row.banquetId}
+                        onClick={() =>
+                          setOpenHallPickerPack((current) =>
+                            current === packKey ? null : packKey
+                          )
+                        }
+                      >
+                        <span className="truncate">
+                          {!row.banquetId
+                            ? 'Select Banquet First'
+                            : selectedHallNames.length > 0
+                            ? selectedHallNames.join(', ')
+                            : 'Select Halls *'}
+                        </span>
+                        <span className="text-gray-500 text-xs">
+                          {openHallPickerPack === packKey ? 'Close' : 'Select'}
+                        </span>
+                      </button>
+
+                      {openHallPickerPack === packKey && (
+                        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                          {filteredHalls.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-gray-500">
+                              No halls available for this banquet.
+                            </p>
+                          ) : (
+                            filteredHalls.map((hall) => {
+                              const checked = row.hallIds.includes(hall.id);
+                              return (
+                                <label
+                                  key={hall.id}
+                                  className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-2 text-sm text-gray-800 last:border-b-0 hover:bg-gray-50"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      const nextHallIds = checked
+                                        ? row.hallIds.filter((id) => id !== hall.id)
+                                        : [...row.hallIds, hall.id];
+                                      updatePackRow(packKey, { hallIds: nextHallIds });
+                                    }}
+                                  />
+                                  <span>{hall.name}</span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-gray-600">
+                        {validSelectedHallIds.length} hall
+                        {validSelectedHallIds.length === 1 ? '' : 's'} selected
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 xl:grid-cols-[120px,120px,1fr,110px,1fr,1fr,1fr,1fr] gap-3">

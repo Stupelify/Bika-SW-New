@@ -75,6 +75,72 @@ function toSafeNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+type BookingHallInputRow = {
+  hallId: string;
+  charges: number;
+};
+
+function normalizeBookingHallRows(value: unknown): BookingHallInputRow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const rows = new Map<string, BookingHallInputRow>();
+  value.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+    const hallIdRaw = (entry as { hallId?: unknown }).hallId;
+    const hallId = typeof hallIdRaw === 'string' ? hallIdRaw.trim() : '';
+    if (!hallId) {
+      return;
+    }
+
+    const charges = toSafeNumber((entry as { charges?: unknown }).charges);
+    const current = rows.get(hallId);
+    if (!current) {
+      rows.set(hallId, { hallId, charges });
+      return;
+    }
+
+    // Keep the maximum charge for duplicate hall selections in payload.
+    rows.set(hallId, { hallId, charges: Math.max(current.charges, charges) });
+  });
+
+  return Array.from(rows.values());
+}
+
+async function assertSingleBanquetHallSelection(
+  tx: Prisma.TransactionClient,
+  hallRows: BookingHallInputRow[]
+): Promise<void> {
+  if (hallRows.length === 0) {
+    return;
+  }
+
+  const hallIds = hallRows.map((row) => row.hallId);
+  const halls = await tx.hall.findMany({
+    where: {
+      id: {
+        in: hallIds,
+      },
+    },
+    select: {
+      id: true,
+      banquetId: true,
+    },
+  });
+
+  if (halls.length !== hallIds.length) {
+    throw new Error('One or more selected halls are invalid');
+  }
+
+  const banquetIds = new Set(halls.map((hall) => hall.banquetId));
+  if (banquetIds.size > 1) {
+    throw new Error('Selected halls must belong to the same banquet');
+  }
+}
+
 const MENU_BACKGROUND_IMAGE_URL =
   process.env.MENU_PDF_BACKGROUND_URL ||
   'https://assets.zyrosite.com/MBlLcEqY2yw3y2EF/849w-_8bavztmyj0-removebg-X63LAPdJAg940IXG.png';
@@ -603,8 +669,12 @@ export async function createBooking(
       });
     }
 
+    const hallRowsInput = normalizeBookingHallRows(data.halls);
+
     // Start transaction
     const booking = await prisma.$transaction(async (tx) => {
+      await assertSingleBanquetHallSelection(tx, hallRowsInput);
+
       // Create booking
       const newBooking = await tx.booking.create({
         data: {
@@ -634,9 +704,9 @@ export async function createBooking(
       });
 
       // Create hall associations
-      if (data.halls && data.halls.length > 0) {
+      if (hallRowsInput.length > 0) {
         await tx.bookingHall.createMany({
-          data: data.halls.map((hall: any) => ({
+          data: hallRowsInput.map((hall) => ({
             bookingId: newBooking.id,
             hallId: hall.hallId,
             charges: hall.charges,
@@ -719,8 +789,8 @@ export async function createBooking(
       let totalAmount = 0;
 
       // Add hall charges
-      if (data.halls) {
-        totalAmount += data.halls.reduce((sum: number, h: any) => sum + h.charges, 0);
+      if (hallRowsInput.length > 0) {
+        totalAmount += hallRowsInput.reduce((sum: number, h) => sum + h.charges, 0);
       }
 
       // Add pack charges
@@ -820,6 +890,15 @@ export async function createBooking(
     sendSuccess(res, { booking }, 'Booking created successfully', 201);
   } catch (error: any) {
     console.error('Booking creation error:', error);
+    if (error instanceof Error) {
+      if (
+        error.message === 'Selected halls must belong to the same banquet' ||
+        error.message === 'One or more selected halls are invalid'
+      ) {
+        sendError(res, error.message, 400);
+        return;
+      }
+    }
     sendError(res, 'Failed to create booking');
   }
 }
@@ -1211,6 +1290,10 @@ export async function updateBooking(
       });
     }
 
+    const hallRowsInput = Array.isArray(data.halls)
+      ? normalizeBookingHallRows(data.halls)
+      : null;
+
     // Check if booking exists
     const existingBooking = await prisma.booking.findUnique({
       where: { id },
@@ -1249,6 +1332,10 @@ export async function updateBooking(
     }
 
     const booking = await prisma.$transaction(async (tx) => {
+      if (hallRowsInput) {
+        await assertSingleBanquetHallSelection(tx, hallRowsInput);
+      }
+
       await tx.booking.update({
         where: { id },
         data: {
@@ -1290,11 +1377,11 @@ export async function updateBooking(
         },
       });
 
-      if (Array.isArray(data.halls)) {
+      if (hallRowsInput) {
         await tx.bookingHall.deleteMany({ where: { bookingId: id } });
-        if (data.halls.length > 0) {
+        if (hallRowsInput.length > 0) {
           await tx.bookingHall.createMany({
-            data: data.halls.map((hall: { hallId: string; charges?: number }) => ({
+            data: hallRowsInput.map((hall) => ({
               bookingId: id,
               hallId: hall.hallId,
               charges: toSafeNumber(hall.charges),
@@ -1393,8 +1480,8 @@ export async function updateBooking(
         }
       }
 
-      const hallRows = Array.isArray(data.halls)
-        ? data.halls
+      const hallRows = hallRowsInput
+        ? hallRowsInput
         : await tx.bookingHall.findMany({
             where: { bookingId: id },
             select: {
@@ -1507,6 +1594,15 @@ export async function updateBooking(
 
     sendSuccess(res, { booking }, 'Booking updated successfully');
   } catch (error) {
+    if (error instanceof Error) {
+      if (
+        error.message === 'Selected halls must belong to the same banquet' ||
+        error.message === 'One or more selected halls are invalid'
+      ) {
+        sendError(res, error.message, 400);
+        return;
+      }
+    }
     sendError(res, 'Failed to update booking');
   }
 }
