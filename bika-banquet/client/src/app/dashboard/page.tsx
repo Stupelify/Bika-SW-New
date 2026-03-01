@@ -8,7 +8,9 @@ import { useAuthStore } from '@/store/authStore';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import {
   AlertTriangle,
+  ArrowDownRight,
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
   Building2,
   CalendarCheck,
@@ -226,6 +228,56 @@ async function fetchAllBookings(params: { fromDate?: string; toDate?: string }) 
   }
 
   return rows;
+}
+
+function getDeltaPercent(current: number, previous: number): number {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
+    return 0;
+  }
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function formatMonthShort(monthKey: string): string {
+  const date = new Date(`${monthKey}-01T00:00:00`);
+  if (Number.isNaN(date.getTime())) return monthKey;
+  return new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date);
+}
+
+function Sparkline({
+  values,
+  color = '#14b8a6',
+}: {
+  values: number[];
+  color?: string;
+}) {
+  const width = 64;
+  const height = 24;
+  const safeValues = values.length >= 2 ? values : [0, ...(values.length ? values : [0])];
+  const min = Math.min(...safeValues);
+  const max = Math.max(...safeValues);
+  const range = Math.max(max - min, 1);
+  const step = safeValues.length > 1 ? width / (safeValues.length - 1) : width;
+
+  const points = safeValues
+    .map((value, index) => {
+      const x = Number((index * step).toFixed(2));
+      const y = Number((height - ((value - min) / range) * height).toFixed(2));
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  return (
+    <svg className="sparkline num" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export default function DashboardPage() {
@@ -456,29 +508,69 @@ export default function DashboardPage() {
   }
 
   const { analytics, resourceCounts } = data;
-  const maxMonthlyRevenue = Math.max(
-    1,
-    ...analytics.trends.monthly.map((row) => toSafeNumber(row.revenue))
-  );
-  const maxFunctionCount = Math.max(1, ...data.topFunctions.map((row) => row.count));
+  const monthlyTrend = analytics.trends.monthly.slice(-8);
+  const monthlyRevenueSeries = monthlyTrend.map((row) => toSafeNumber(row.revenue));
+  const monthlyBookingSeries = monthlyTrend.map((row) => toSafeNumber(row.bookings));
+  const monthlyAverageSeries = monthlyTrend.map((row) => {
+    const bookingCount = toSafeNumber(row.bookings);
+    const revenueValue = toSafeNumber(row.revenue);
+    return bookingCount > 0 ? revenueValue / bookingCount : 0;
+  });
+
+  const latestRevenue = monthlyRevenueSeries.at(-1) || 0;
+  const previousRevenue = monthlyRevenueSeries.at(-2) || latestRevenue;
+  const latestBookings = monthlyBookingSeries.at(-1) || 0;
+  const previousBookings = monthlyBookingSeries.at(-2) || latestBookings;
+  const latestAverage = monthlyAverageSeries.at(-1) || 0;
+  const previousAverage = monthlyAverageSeries.at(-2) || latestAverage;
+
+  const revenueDelta = getDeltaPercent(latestRevenue, previousRevenue);
+  const bookingsDelta = getDeltaPercent(latestBookings, previousBookings);
+  const averageDelta = getDeltaPercent(latestAverage, previousAverage);
+  const pencilDelta =
+    data.pencilBookings > 0
+      ? -Math.min(
+          99,
+          (data.pencilBookings / Math.max(1, analytics.summary.bookingsInRange)) * 100
+        )
+      : 0;
+
+  const maxHallRevenue = Math.max(1, ...hallSections.top.map((row) => row.revenue));
+  const maxMonthlyRevenue = Math.max(1, ...monthlyRevenueSeries);
+
+  const renderDelta = (value: number) => {
+    const positive = value > 0;
+    const negative = value < 0;
+    const cls = positive ? 'delta-up' : negative ? 'delta-down' : 'delta-neutral';
+    return (
+      <span className={`kpi-delta num ${cls}`}>
+        {positive ? (
+          <ArrowUpRight className="w-3 h-3" />
+        ) : negative ? (
+          <ArrowDownRight className="w-3 h-3" />
+        ) : null}
+        {`${Math.abs(value).toFixed(1)}%`}
+      </span>
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="card bg-gradient-to-r from-primary-700 to-primary-500 text-white">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <div className="space-y-5">
+      <div className="card-padded">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-display font-semibold leading-tight">
-              Key Metrics & Hall Performance
+            <h1 className="page-title">
+              Key Metrics & Performance
             </h1>
-            <p className="text-sm text-primary-100 mt-1">
+            <p className="page-subtitle">
               Revenue view from{' '}
               {formatDateDDMMYYYY(analytics.range.startDate)} to{' '}
               {formatDateDDMMYYYY(analytics.range.endDate)}
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full lg:w-auto">
+          <div className="filter-bar xl:justify-end">
             <select
-              className="input bg-white/95 text-gray-800"
+              className="input sm:w-[138px]"
               value={range}
               onChange={(e) => setRange(e.target.value)}
             >
@@ -490,20 +582,20 @@ export default function DashboardPage() {
             </select>
             <input
               type="date"
-              className="input bg-white/95 text-gray-800"
+              className="input sm:w-[150px] num"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
             />
             <input
               type="date"
-              className="input bg-white/95 text-gray-800"
+              className="input sm:w-[150px] num"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
             />
             <button
               type="button"
               onClick={() => void loadDashboardData()}
-              className="btn bg-white text-primary-700 hover:bg-primary-50 justify-center"
+              className="btn btn-primary justify-center sm:min-w-[112px]"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
@@ -512,272 +604,255 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Total Revenue</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {formatCurrency(analytics.summary.totalRevenue)}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="kpi-card">
+          <div className="kpi-label">
+            <span>Total Revenue</span>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
+              <IndianRupee className="w-4 h-4" />
+            </span>
+          </div>
+          <p className="kpi-value num">
+            {formatCurrency(analytics.summary.totalRevenue).replace('.00', '')}
           </p>
-          <div className="mt-3 inline-flex items-center gap-2 text-xs text-primary-700 bg-primary-50 rounded-full px-2.5 py-1">
-            <IndianRupee className="w-3.5 h-3.5" />
-            Selected period
+          <div className="mt-2 flex items-center justify-between gap-3">
+            {renderDelta(revenueDelta)}
+            <Sparkline values={monthlyRevenueSeries} color="#34d399" />
           </div>
         </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Total Bookings</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {analytics.summary.bookingsInRange.toLocaleString()}
-          </p>
-          <div className="mt-3 inline-flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-1">
-            <CalendarCheck className="w-3.5 h-3.5" />
-            In selected period
+        <div className="kpi-card">
+          <div className="kpi-label">
+            <span>Total Bookings</span>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+              <CalendarCheck className="w-4 h-4" />
+            </span>
+          </div>
+          <p className="kpi-value num">{analytics.summary.bookingsInRange.toLocaleString()}</p>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            {renderDelta(bookingsDelta)}
+            <Sparkline values={monthlyBookingSeries} color="#86efac" />
           </div>
         </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Pencil Booking</p>
-          <p className="text-2xl font-bold text-gray-900">{data.pencilBookings}</p>
-          <div className="mt-3 inline-flex items-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-full px-2.5 py-1">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Needs follow-up
+        <div className="kpi-card">
+          <div className="kpi-label">
+            <span>Pencil Bookings</span>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+              <AlertTriangle className="w-4 h-4" />
+            </span>
+          </div>
+          <p className="kpi-value num">{data.pencilBookings}</p>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            {renderDelta(pencilDelta)}
+            <Sparkline
+              values={[...monthlyBookingSeries.slice(-6), Math.max(1, data.pencilBookings)]}
+              color="#f59e0b"
+            />
           </div>
         </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">
-            Average Booking Value
+        <div className="kpi-card">
+          <div className="kpi-label">
+            <span>Avg. Booking Value</span>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-500">
+              <DollarSign className="w-4 h-4" />
+            </span>
+          </div>
+          <p className="kpi-value num">
+            {formatCurrency(data.averageBookingValue).replace('.00', '')}
           </p>
-          <p className="text-2xl font-bold text-gray-900">
-            {formatCurrency(data.averageBookingValue)}
-          </p>
-          <div className="mt-3 inline-flex items-center gap-2 text-xs text-sky-700 bg-sky-50 rounded-full px-2.5 py-1">
-            <DollarSign className="w-3.5 h-3.5" />
-            Avg. in selected period
+          <div className="mt-2 flex items-center justify-between gap-3">
+            {renderDelta(averageDelta)}
+            <Sparkline values={monthlyAverageSeries} color="#60a5fa" />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Performing Halls</h2>
-          <div className="space-y-3">
+          <div className="panel-header">
+            <div>
+              <p className="panel-title">Top Performing Halls</p>
+              <p className="panel-subtitle">By revenue in selected period</p>
+            </div>
+            <Link href="/dashboard/reports" className="view-all">
+              View all
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="panel-body space-y-0">
             {hallSections.top.length === 0 ? (
               <p className="text-sm text-gray-500">No hall performance data available.</p>
             ) : (
-              hallSections.top.map((hall) => (
+              hallSections.top.map((hall, index) => (
                 <div
                   key={hall.hallId}
-                  className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2"
+                  className="grid grid-cols-[24px_minmax(0,1fr)_minmax(120px,160px)_auto] items-center gap-3 border-b border-[var(--border)] py-3 last:border-0"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
-                    <p className="text-sm font-semibold text-gray-900 break-words sm:pr-2">
-                      {hall.hallName}
-                    </p>
-                    <p className="text-sm font-semibold text-emerald-800 sm:text-right">
-                      {formatCurrency(hall.revenue)}
-                    </p>
-                  </div>
-                  <p className="text-xs text-emerald-700 mt-1 break-words">
-                    {hall.bookings} bookings • {hall.share.toFixed(1)}% revenue share
+                  <p className="text-[13px] font-semibold text-[var(--text-4)] num">{index + 1}</p>
+                  <p className="text-[15px] font-semibold text-[var(--text-1)] truncate">
+                    {hall.hallName}
                   </p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Lowest Performing Halls
-          </h2>
-          <div className="space-y-3">
-            {hallSections.low.length === 0 ? (
-              <p className="text-sm text-gray-500">No hall performance data available.</p>
-            ) : (
-              hallSections.low.map((hall) => (
-                <div
-                  key={hall.hallId}
-                  className="rounded-xl border border-rose-100 bg-rose-50/60 px-3 py-2"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
-                    <p className="text-sm font-semibold text-gray-900 break-words sm:pr-2">
-                      {hall.hallName}
-                    </p>
-                    <p className="text-sm font-semibold text-rose-700 sm:text-right">
-                      {formatCurrency(hall.revenue)}
-                    </p>
-                  </div>
-                  <p className="text-xs text-rose-700 mt-1 break-words">
-                    {hall.bookings} bookings • {hall.share.toFixed(1)}% revenue share
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Most Frequent Functions</h2>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {data.topFunctions.map((entry) => (
-              <span
-                key={entry.name}
-                className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 text-primary-800 px-3 py-1 text-xs font-medium"
-              >
-                {entry.name}
-                <span className="rounded-full bg-white px-2 py-0.5">{entry.count}</span>
-              </span>
-            ))}
-          </div>
-          <div className="space-y-3">
-            {data.topFunctions.map((entry) => (
-              <div key={`${entry.name}-bar`}>
-                <div className="flex items-start justify-between gap-3 text-xs text-gray-600 mb-1">
-                  <span className="min-w-0 break-words">{entry.name}</span>
-                  <span className="shrink-0 text-right">{entry.count} bookings</span>
-                </div>
-                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary-500 to-accent-500"
-                    style={{ width: `${Math.max((entry.count / maxFunctionCount) * 100, 6)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Monthly Revenue</h2>
-          {analytics.trends.monthly.length === 0 ? (
-            <p className="text-sm text-gray-500">No monthly trend data for this range.</p>
-          ) : (
-            <div className="space-y-3">
-              {analytics.trends.monthly.map((entry) => (
-                <div key={entry.month}>
-                  <div className="flex items-start justify-between gap-3 text-xs text-gray-600 mb-1">
-                    <span className="min-w-0 break-words">{formatMonthLabel(entry.month)}</span>
-                    <span className="shrink-0 text-right">
-                      {formatCurrency(entry.revenue)}
-                    </span>
-                  </div>
-                  <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-2 rounded-full bg-[var(--surface-2)] overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-primary-500"
-                      style={{
-                        width: `${Math.max(
-                          (toSafeNumber(entry.revenue) / maxMonthlyRevenue) * 100,
-                          4
-                        )}%`,
-                      }}
+                      className="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-500"
+                      style={{ width: `${Math.max((hall.revenue / maxHallRevenue) * 100, 12)}%` }}
                     />
                   </div>
+                  <p className="text-[15px] font-semibold text-[var(--text-1)] num">
+                    {formatCurrency(hall.revenue).replace('.00', '')}
+                  </p>
                 </div>
-              ))}
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="panel-header">
+            <div>
+              <p className="panel-title">Monthly Revenue</p>
+              <p className="panel-subtitle">Last 8 months trend</p>
             </div>
-          )}
+            <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-[12px] font-semibold text-teal-700">
+              ₹ In Lakhs
+            </span>
+          </div>
+          <div className="panel-body">
+            {monthlyTrend.length === 0 ? (
+              <p className="text-sm text-gray-500">No monthly trend data for this range.</p>
+            ) : (
+              <div className="h-[240px]">
+                <div className="h-[205px] flex items-end gap-1.5 sm:gap-2">
+                  {monthlyTrend.map((entry) => {
+                    const value = toSafeNumber(entry.revenue);
+                    const pct = Math.max((value / maxMonthlyRevenue) * 100, 9);
+                    return (
+                      <div key={entry.month} className="flex-1 min-w-0">
+                        <div
+                          className="rounded-t-md bg-gradient-to-b from-teal-400 to-teal-600 transition-opacity hover:opacity-85"
+                          style={{ height: `${pct}%` }}
+                          title={`${formatMonthLabel(entry.month)} - ${formatCurrency(value)}`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 grid grid-cols-8 gap-1.5 sm:gap-2 text-center">
+                  {monthlyTrend.map((entry) => (
+                    <span key={`${entry.month}-label`} className="text-[11px] text-[var(--text-4)]">
+                      {formatMonthShort(entry.month)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="card">
-        <div className="page-head mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Business Insights</h2>
-          <span className="inline-flex items-center gap-2 text-xs rounded-full bg-primary-50 text-primary-700 px-3 py-1 self-start sm:self-auto">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Business Insights</h2>
+            <p className="panel-subtitle">Actionable metrics for the selected period</p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-semibold text-amber-700">
             <Sparkles className="w-3.5 h-3.5" />
             Actionable
           </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="panel-body grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           {data.insights.map((insight) => (
             <div
               key={insight.title}
-              className={`rounded-xl border px-4 py-3 ${
+              className={`insight-card ${
                 insight.tone === 'good'
-                  ? 'border-emerald-200 bg-emerald-50/60'
+                  ? 'good'
                   : insight.tone === 'warn'
-                  ? 'border-amber-200 bg-amber-50/70'
-                  : 'border-gray-200 bg-white'
+                  ? 'warn'
+                  : 'neutral'
               }`}
             >
-              <p className="text-xs uppercase tracking-wide text-gray-500">{insight.title}</p>
-              <p className="text-xl font-semibold text-gray-900 mt-1">{insight.value}</p>
-              <p className="text-sm text-gray-600 mt-1">{insight.detail}</p>
+              <p className="insight-label">{insight.title}</p>
+              <p className="insight-value num">{insight.value}</p>
+              <p className="insight-detail">{insight.detail}</p>
             </div>
           ))}
         </div>
       </div>
 
       <div className="card">
-        <div className="panel-header mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Resource Counts</h2>
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Resource Counts</h2>
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-          <Link href="/dashboard/menu" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+        <div className="panel-body grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          <Link href="/dashboard/menu" className="resource-tile">
             <p className="text-xs text-gray-500">Item Types</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.itemTypes.toLocaleString()}
             </p>
             <Layers className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/menu" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/menu" className="resource-tile">
             <p className="text-xs text-gray-500">Items</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.items.toLocaleString()}
             </p>
             <UtensilsCrossed className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/menu" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/menu" className="resource-tile">
             <p className="text-xs text-gray-500">Template Menu</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.templateMenus.toLocaleString()}
             </p>
             <ListChecks className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/enquiries" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/enquiries" className="resource-tile">
             <p className="text-xs text-gray-500">Enquiry</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.enquiries.toLocaleString()}
             </p>
             <PhoneCall className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/halls" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/halls" className="resource-tile">
             <p className="text-xs text-gray-500">Hall</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.halls.toLocaleString()}
             </p>
             <Building2 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/customers" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/customers" className="resource-tile">
             <p className="text-xs text-gray-500">Manage Customers</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.customers.toLocaleString()}
             </p>
             <Users className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/halls" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/halls" className="resource-tile">
             <p className="text-xs text-gray-500">Banquet</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.banquets.toLocaleString()}
             </p>
             <Landmark className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/settings" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/settings" className="resource-tile">
             <p className="text-xs text-gray-500">Manage Users</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.users.toLocaleString()}
             </p>
             <UserCircle2 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/bookings" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/bookings" className="resource-tile">
             <p className="text-xs text-gray-500">Booking</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.bookings.toLocaleString()}
             </p>
             <CalendarCheck className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
-          <Link href="/dashboard/settings" className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-primary-200 hover:bg-primary-50/50 transition">
+          <Link href="/dashboard/settings" className="resource-tile">
             <p className="text-xs text-gray-500">Manage Roles</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-xl font-semibold text-gray-900 mt-1 num">
               {resourceCounts.roles.toLocaleString()}
             </p>
             <BarChart3 className="w-4 h-4 text-primary-600 mt-2" />
@@ -787,16 +862,16 @@ export default function DashboardPage() {
 
       <div className="card">
         <div className="panel-header">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Bookings</h2>
+          <h2 className="panel-title">Recent Bookings</h2>
           <Link
             href="/dashboard/bookings"
-            className="inline-flex items-center gap-1 text-sm text-primary-700 hover:text-primary-800"
+            className="view-all"
           >
             View all
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
-        <div className="space-y-3">
+        <div className="panel-body space-y-3">
           {data.recentBookings.length === 0 ? (
             <p className="text-sm text-gray-500">No bookings in selected range.</p>
           ) : (

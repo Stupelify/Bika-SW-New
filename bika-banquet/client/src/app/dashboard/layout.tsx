@@ -16,14 +16,16 @@ import {
   CalendarCheck,
   CalendarDays,
   ChevronDown,
+  ChevronRight,
   DollarSign,
+  HelpCircle,
   LayoutDashboard,
   LucideIcon,
   LogOut,
   Menu,
   PhoneCall,
+  Search,
   Settings,
-  UserCircle2,
   Users,
   UtensilsCrossed,
   X,
@@ -177,6 +179,74 @@ const navigation: NavigationItem[] = [
   },
 ];
 
+const ROUTE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  customers: 'Customers',
+  enquiries: 'Enquiries',
+  bookings: 'Bookings',
+  calendar: 'Calendar',
+  halls: 'Venues',
+  menu: 'Menu & Items',
+  payments: 'Payments',
+  reports: 'Reports',
+  settings: 'Settings',
+  create: 'Create',
+  edit: 'Edit',
+};
+
+function Breadcrumb({ pathname }: { pathname: string }) {
+  const segments = pathname.split('/').filter(Boolean);
+
+  return (
+    <nav aria-label="breadcrumb" className="breadcrumb">
+      <ol
+        style={{
+          listStyle: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          margin: 0,
+          padding: 0,
+        }}
+      >
+        {segments.map((seg, index) => {
+          const isLast = index === segments.length - 1;
+          return (
+            <li
+              key={`${seg}-${index}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              {index > 0 && (
+                <ChevronRight
+                  aria-hidden="true"
+                  style={{ width: 12, height: 12, color: 'var(--text-4)' }}
+                />
+              )}
+              {isLast ? (
+                <span className="breadcrumb-current">{ROUTE_LABELS[seg] ?? seg}</span>
+              ) : (
+                <span className="breadcrumb-seg">{ROUTE_LABELS[seg] ?? seg}</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+function SearchShortcut() {
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const platform = (navigator as any).userAgentData?.platform || (navigator.platform ?? '');
+    setIsMac(/mac/i.test(platform));
+  }, []);
+
+  return <span className="kbd">{isMac ? '⌘K' : 'Ctrl K'}</span>;
+}
+
 function DashboardLayoutContent({
   children,
 }: {
@@ -281,174 +351,478 @@ function DashboardLayoutContent({
     router.push('/login');
   };
 
+  const renderSidebarContent = (isMobile: boolean) => (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      <div
+        style={{
+          padding: '18px 16px 14px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            background: 'linear-gradient(135deg, var(--teal-600), var(--teal-500))',
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: 15,
+            fontWeight: 700,
+            flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(13,148,136,0.28)',
+          }}
+        >
+          B
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p
+            style={{
+              fontSize: 14,
+              fontWeight: 650,
+              color: 'var(--text-1)',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.2,
+            }}
+          >
+            Bika Banquet
+          </p>
+          <p style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>Operations Suite</p>
+        </div>
+        {isMobile && (
+          <button
+            type="button"
+            className="lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close navigation"
+            style={{
+              border: 'none',
+              background: 'none',
+              color: 'var(--text-4)',
+              cursor: 'pointer',
+              padding: 6,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 8,
+            }}
+          >
+            <X style={{ width: 16, height: 16 }} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      <nav aria-label="Main navigation" style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
+        {visibleNavigation.map((item) => {
+          const isActive = routeMatches(pathname, item.href);
+          const hasChildren = Boolean(item.children && item.children.length > 0);
+          const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
+
+          return (
+            <div key={item.name} style={{ marginBottom: 2 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0,
+                  borderRadius: 10,
+                  marginBottom: 1,
+                  background: isActive ? 'var(--teal-50)' : 'transparent',
+                  position: 'relative',
+                }}
+              >
+                {isActive && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: '22%',
+                      bottom: '22%',
+                      width: 3,
+                      background: 'var(--teal-500)',
+                      borderRadius: '0 3px 3px 0',
+                    }}
+                  />
+                )}
+                <Link
+                  href={item.href}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    padding: '7px 10px',
+                    fontSize: 13.5,
+                    fontWeight: isActive ? 600 : 450,
+                    color: isActive ? 'var(--teal-700)' : 'var(--text-3)',
+                    textDecoration: 'none',
+                    borderRadius: 10,
+                    minWidth: 0,
+                    transition: 'color 0.15s',
+                  }}
+                >
+                  <item.icon
+                    style={{
+                      width: 16,
+                      height: 16,
+                      opacity: isActive ? 1 : 0.65,
+                      flexShrink: 0,
+                      color: isActive ? 'var(--teal-600)' : 'currentColor',
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {item.name}
+                  </span>
+                </Link>
+                {hasChildren && (
+                  <button
+                    type="button"
+                    aria-label={`Toggle ${item.name} submenu`}
+                    aria-expanded={isOpen}
+                    onClick={() =>
+                      setOpenGroups((prev) => ({
+                        ...prev,
+                        [item.name]: !isOpen,
+                      }))
+                    }
+                    style={{
+                      padding: '7px 8px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: isActive ? 'var(--teal-600)' : 'var(--text-4)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    <ChevronDown
+                      aria-hidden="true"
+                      style={{
+                        width: 14,
+                        height: 14,
+                        transition: 'transform 0.2s',
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      }}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {hasChildren && isOpen && (
+                <div style={{ marginLeft: 35, marginBottom: 4 }}>
+                  {item.children?.map((child) => {
+                    const childActive = isHrefActive(child.href);
+                    return (
+                      <Link
+                        key={`${item.name}-${child.name}`}
+                        href={child.href}
+                        style={{
+                          display: 'block',
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          fontSize: 12.5,
+                          fontWeight: childActive ? 600 : 450,
+                          color: childActive ? 'var(--teal-700)' : 'var(--text-3)',
+                          background: childActive ? 'var(--teal-100)' : 'transparent',
+                          textDecoration: 'none',
+                          marginBottom: 1,
+                          transition: 'background 0.15s, color 0.15s',
+                        }}
+                      >
+                        {child.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+
+      <div style={{ padding: '10px 8px', borderTop: '1px solid var(--border)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            padding: '8px 10px',
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--teal-600), var(--teal-400))',
+              color: 'white',
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+            aria-hidden="true"
+          >
+            {user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: 'var(--text-1)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {user?.name || 'User'}
+            </p>
+            <p
+              style={{
+                fontSize: 11,
+                color: 'var(--text-4)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {user?.email}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            aria-label="Log out"
+            style={{
+              border: 'none',
+              background: 'none',
+              color: 'var(--text-4)',
+              cursor: 'pointer',
+              borderRadius: 8,
+              width: 28,
+              height: 28,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseOver={(event) => {
+              event.currentTarget.style.color = '#ef4444';
+              event.currentTarget.style.background = '#fef2f2';
+            }}
+            onMouseOut={(event) => {
+              event.currentTarget.style.color = 'var(--text-4)';
+              event.currentTarget.style.background = 'none';
+            }}
+          >
+            <LogOut style={{ width: 15, height: 15 }} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen grid place-items-center">
-        <div className="card py-10 px-12 text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-sm text-gray-600">Loading workspace...</p>
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--bg)',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+          <p style={{ fontSize: 13, color: 'var(--text-4)' }}>Loading workspace…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {sidebarOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-slate-900/45 lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close navigation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 40,
+            background: 'rgba(15,23,42,0.4)',
+            border: 'none',
+            cursor: 'pointer',
+          }}
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[84vw] max-w-[19rem] sm:w-72 border-r border-gray-200 bg-white shadow-lg transform transition-transform duration-200 ease-out lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className="hidden lg:block"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: 'var(--sidebar-w)',
+          background: 'var(--surface)',
+          borderRight: '1px solid var(--border)',
+          zIndex: 50,
+          overflowY: 'auto',
+        }}
       >
-        <div className="h-full flex flex-col">
-          <div className="p-5 border-b border-gray-200">
-            <div className="rounded-2xl bg-gradient-to-br from-primary-700 via-primary-600 to-primary-500 p-4 text-white shadow-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-display text-lg tracking-tight">Bika Banquet</p>
-                  <p className="text-xs text-primary-100 mt-1">Operations Console</p>
-                </div>
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="lg:hidden text-white/90 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-            {visibleNavigation.map((item) => {
-              const isActive = routeMatches(pathname, item.href);
-              const hasChildren = Boolean(item.children && item.children.length > 0);
-              const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
-
-              return (
-                <div key={item.name} className="space-y-1">
-                  <div
-                    className={`group flex items-center gap-2 rounded-xl px-3 py-2 transition-colors ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-800 shadow-sm border border-primary-100'
-                        : 'text-gray-700 hover:bg-white hover:shadow-sm'
-                    }`}
-                  >
-                    <Link href={item.href} className="flex items-center gap-3 flex-1 min-w-0">
-                      <span
-                        className={`w-8 h-8 rounded-lg grid place-items-center ${
-                          isActive
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-gray-100 text-gray-500 group-hover:bg-primary-100 group-hover:text-primary-700'
-                        }`}
-                      >
-                        <item.icon className="w-4 h-4" />
-                      </span>
-                      <span className="text-sm font-medium truncate">{item.name}</span>
-                    </Link>
-                    {hasChildren && (
-                      <button
-                        type="button"
-                        aria-label={`Toggle ${item.name} submenu`}
-                        className="p-1.5 rounded-md text-gray-500 hover:text-primary-700 hover:bg-primary-100"
-                        onClick={() =>
-                          setOpenGroups((prev) => ({
-                            ...prev,
-                            [item.name]: !isOpen,
-                          }))
-                        }
-                      >
-                        <ChevronDown
-                          className={`w-4 h-4 transition-transform ${
-                            isOpen ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                    )}
-                  </div>
-
-                  {hasChildren && isOpen && (
-                    <div className="ml-11 space-y-1">
-                      {item.children?.map((child) => {
-                        const childActive = isHrefActive(child.href);
-                        return (
-                          <Link
-                            key={`${item.name}-${child.name}`}
-                            href={child.href}
-                            className={`block rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                              childActive
-                                ? 'bg-primary-100 text-primary-800'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
-                            }`}
-                          >
-                            {child.name}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </nav>
-
-          <div className="p-4 border-t border-gray-200">
-            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 grid place-items-center">
-                  <UserCircle2 className="w-6 h-6" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">
-                    {user?.name || 'User'}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="btn btn-secondary w-full justify-center text-red-600 border-red-200 hover:bg-red-50"
-              >
-                <LogOut className="w-4 h-4" />
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
+        {renderSidebarContent(false)}
       </aside>
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-gray-200 bg-white">
-          <div className="max-w-[1500px] mx-auto h-16 px-3 sm:px-6 flex items-center gap-3 sm:gap-4">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
-              aria-label="Open navigation"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+      <aside
+        className="lg:hidden"
+        aria-hidden={!sidebarOpen}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: 'min(84vw, 232px)',
+          background: 'var(--surface)',
+          borderRight: '1px solid var(--border)',
+          zIndex: 50,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.2s ease-out',
+          overflowY: 'auto',
+        }}
+      >
+        {renderSidebarContent(true)}
+      </aside>
 
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base sm:text-lg font-display font-semibold text-gray-900 truncate">
-                {activeNav?.name || 'Workspace'}
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5 truncate">
-                Manage banquet operations with faster workflows.
-              </p>
-            </div>
+      <div className="ml-0 lg:ml-[var(--sidebar-w)]">
+        <header
+          style={{
+            height: 52,
+            background: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 20px',
+            gap: 12,
+            position: 'sticky',
+            top: 0,
+            zIndex: 30,
+          }}
+        >
+          <button
+            type="button"
+            className="lg:hidden"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-3)',
+              borderRadius: 8,
+              width: 30,
+              height: 30,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            onMouseOver={(event) => {
+              event.currentTarget.style.background = 'var(--surface-2)';
+              event.currentTarget.style.color = 'var(--text-1)';
+            }}
+            onMouseOut={(event) => {
+              event.currentTarget.style.background = 'transparent';
+              event.currentTarget.style.color = 'var(--text-3)';
+            }}
+          >
+            <Menu style={{ width: 18, height: 18 }} aria-hidden="true" />
+          </button>
+
+          <Breadcrumb pathname={pathname} />
+
+          <div style={{ flex: 1 }} />
+
+          <button className="header-search hidden md:flex" aria-label="Quick search" type="button">
+            <Search style={{ width: 13, height: 13 }} aria-hidden="true" />
+            <span>Quick search…</span>
+            <SearchShortcut />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Help"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-3)',
+              borderRadius: 8,
+              width: 30,
+              height: 30,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            onMouseOver={(event) => {
+              event.currentTarget.style.background = 'var(--surface-2)';
+              event.currentTarget.style.color = 'var(--text-1)';
+            }}
+            onMouseOut={(event) => {
+              event.currentTarget.style.background = 'transparent';
+              event.currentTarget.style.color = 'var(--text-3)';
+            }}
+          >
+            <HelpCircle style={{ width: 16, height: 16 }} aria-hidden="true" />
+          </button>
+
+          <div
+            className="hidden md:flex"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--teal-600), var(--teal-400))',
+              color: 'white',
+              fontSize: 11,
+              fontWeight: 600,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              cursor: 'default',
+            }}
+            title={user?.name ?? 'User'}
+            aria-label={user?.name ?? 'User'}
+          >
+            {user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
           </div>
         </header>
 
-        <main className="max-w-[1500px] mx-auto px-3 sm:px-6 py-5 sm:py-6 md:py-8">
+        <main
+          style={{
+            maxWidth: 1400,
+            margin: '0 auto',
+            padding: 'clamp(16px, 2.5vw, 28px)',
+          }}
+          data-active-nav={activeNav?.name || ''}
+        >
           {children}
         </main>
       </div>
@@ -458,10 +832,17 @@ function DashboardLayoutContent({
 
 function DashboardLayoutFallback() {
   return (
-    <div className="min-h-screen grid place-items-center">
-      <div className="card py-10 px-12 text-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-4"></div>
-        <p className="text-sm text-gray-600">Loading workspace...</p>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg)',
+        display: 'grid',
+        placeItems: 'center',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        <p style={{ fontSize: 13, color: 'var(--text-4)' }}>Loading workspace…</p>
       </div>
     </div>
   );
