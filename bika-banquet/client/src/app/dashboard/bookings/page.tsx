@@ -106,6 +106,7 @@ interface TemplateMenuOption {
 }
 
 type PackKey = 'breakfast' | 'lunch' | 'hiTea' | 'dinner';
+type AmountSyncMode = 'discountPercent' | 'discountAmount' | 'finalAmount';
 
 interface BookingPackRow {
   enabled: boolean;
@@ -339,7 +340,14 @@ export default function BookingsPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
-  const [finalAmountDirty, setFinalAmountDirty] = useState(false);
+  const [amountSyncMode, setAmountSyncMode] = useState<AmountSyncMode>('discountPercent');
+  const todayIsoDate = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
 
   const tableColumns = useMemo<TableColumnConfig<Booking>[]>(
     () => [
@@ -461,20 +469,49 @@ export default function BookingsPage() {
     [calculatePackAmount, formData.packs]
   );
 
-  const finalAmountNumber = useMemo(
-    () => toNonNegativeNumber(formData.finalAmount),
-    [formData.finalAmount, toNonNegativeNumber]
-  );
+  const normalizeAmountSnapshot = useCallback(
+    (
+      mode: AmountSyncMode,
+      sourceValue: string,
+      totalAmount: number
+    ): Pick<BookingFormData, 'finalDiscountAmount' | 'finalDiscountPercent' | 'finalAmount'> => {
+      const total = Math.max(0, totalAmount);
+      const clamp = (value: number, min: number, max: number) =>
+        Math.min(max, Math.max(min, value));
 
-  const computedDiscountAmount = useMemo(
-    () => Math.max(0, totalBillAmount - finalAmountNumber),
-    [finalAmountNumber, totalBillAmount]
-  );
+      if (mode === 'discountPercent') {
+        const discountPercent = clamp(toNonNegativeNumber(sourceValue), 0, 100);
+        const discountAmount = (total * discountPercent) / 100;
+        const finalAmount = Math.max(0, total - discountAmount);
+        return {
+          finalDiscountPercent: formatComputedAmount(discountPercent),
+          finalDiscountAmount: formatComputedAmount(discountAmount),
+          finalAmount: formatComputedAmount(finalAmount),
+        };
+      }
 
-  const computedDiscountPercent = useMemo(() => {
-    if (totalBillAmount <= 0) return 0;
-    return (computedDiscountAmount / totalBillAmount) * 100;
-  }, [computedDiscountAmount, totalBillAmount]);
+      if (mode === 'discountAmount') {
+        const discountAmount = clamp(toNonNegativeNumber(sourceValue), 0, total);
+        const discountPercent = total > 0 ? (discountAmount / total) * 100 : 0;
+        const finalAmount = Math.max(0, total - discountAmount);
+        return {
+          finalDiscountPercent: formatComputedAmount(discountPercent),
+          finalDiscountAmount: formatComputedAmount(discountAmount),
+          finalAmount: formatComputedAmount(finalAmount),
+        };
+      }
+
+      const finalAmount = clamp(toNonNegativeNumber(sourceValue), 0, total);
+      const discountAmount = Math.max(0, total - finalAmount);
+      const discountPercent = total > 0 ? (discountAmount / total) * 100 : 0;
+      return {
+        finalDiscountPercent: formatComputedAmount(discountPercent),
+        finalDiscountAmount: formatComputedAmount(discountAmount),
+        finalAmount: formatComputedAmount(finalAmount),
+      };
+    },
+    [formatComputedAmount, toNonNegativeNumber]
+  );
 
   const activeMenuPackRow = menuEditorPack ? formData.packs[menuEditorPack] : null;
 
@@ -773,42 +810,27 @@ export default function BookingsPage() {
 
   useEffect(() => {
     if (!showCreateForm) return;
-    if (finalAmountDirty) return;
-    const computedFinalAmount = formatComputedAmount(totalBillAmount);
     setFormData((prev) => {
-      if (prev.finalAmount === computedFinalAmount) {
-        return prev;
-      }
-      return {
-        ...prev,
-        finalAmount: computedFinalAmount,
-      };
-    });
-  }, [finalAmountDirty, formatComputedAmount, showCreateForm, totalBillAmount]);
-
-  useEffect(() => {
-    if (!showCreateForm) return;
-    const nextDiscountAmount = formatComputedAmount(computedDiscountAmount);
-    const nextDiscountPercent = formatComputedAmount(computedDiscountPercent);
-    setFormData((prev) => {
+      const sourceValue =
+        amountSyncMode === 'discountPercent'
+          ? prev.finalDiscountPercent
+          : amountSyncMode === 'discountAmount'
+          ? prev.finalDiscountAmount
+          : prev.finalAmount;
+      const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, totalBillAmount);
       if (
-        prev.finalDiscountAmount === nextDiscountAmount &&
-        prev.finalDiscountPercent === nextDiscountPercent
+        prev.finalDiscountAmount === nextValues.finalDiscountAmount &&
+        prev.finalDiscountPercent === nextValues.finalDiscountPercent &&
+        prev.finalAmount === nextValues.finalAmount
       ) {
         return prev;
       }
       return {
         ...prev,
-        finalDiscountAmount: nextDiscountAmount,
-        finalDiscountPercent: nextDiscountPercent,
+        ...nextValues,
       };
     });
-  }, [
-    computedDiscountAmount,
-    computedDiscountPercent,
-    formatComputedAmount,
-    showCreateForm,
-  ]);
+  }, [amountSyncMode, normalizeAmountSnapshot, showCreateForm, totalBillAmount]);
 
   const addPaymentRow = () => {
     setFormData((prev) => ({
@@ -931,7 +953,7 @@ export default function BookingsPage() {
       referred: '',
     });
     setActiveCustomerSearchField(null);
-    setFinalAmountDirty(false);
+    setAmountSyncMode('discountPercent');
     setFormData(initialFormData);
   };
 
@@ -946,7 +968,7 @@ export default function BookingsPage() {
       referred: '',
     });
     setActiveCustomerSearchField(null);
-    setFinalAmountDirty(false);
+    setAmountSyncMode('discountPercent');
     setFormData(initialFormData);
     setShowCreateForm(true);
   };
@@ -1102,7 +1124,7 @@ export default function BookingsPage() {
       });
       setActiveCustomerSearchField(null);
       setOpenHallPickerPack(null);
-      setFinalAmountDirty(true);
+      setAmountSyncMode('finalAmount');
       setShowCreateForm(true);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to load booking');
@@ -1238,6 +1260,12 @@ export default function BookingsPage() {
       toast.error('Primary customer, function type and date are required');
       return;
     }
+    if (!editingBookingId && formData.functionDate < todayIsoDate) {
+      toast.error(
+        `Function date cannot be before ${formatDateDDMMYYYY(todayIsoDate)} for new bookings`
+      );
+      return;
+    }
 
     try {
       setSaving(true);
@@ -1281,8 +1309,18 @@ export default function BookingsPage() {
           .map((entry) => Number(entry.row.pax || 0))
           .filter((value) => value > 0)
       );
-      const normalizedDiscountAmount = Number(computedDiscountAmount.toFixed(2));
-      const normalizedDiscountPercent = Number(computedDiscountPercent.toFixed(2));
+      const normalizedDiscountAmount = Math.min(
+        totalBillAmount,
+        Math.max(0, toNumber(formData.finalDiscountAmount || '0'))
+      );
+      const normalizedDiscountPercent = Math.min(
+        100,
+        Math.max(0, toNumber(formData.finalDiscountPercent || '0'))
+      );
+      const normalizedFinalAmount = Math.min(
+        totalBillAmount,
+        Math.max(0, toNumber(formData.finalAmount || '0'))
+      );
       const functionTime = enabledPackEntries[0]?.row.startTime || '12:00';
       const functionName = formData.functionType.trim();
 
@@ -1393,7 +1431,7 @@ export default function BookingsPage() {
         }`,
         `Final Calc: discountAmount=${normalizedDiscountAmount}, discountPercent=${
           normalizedDiscountPercent
-        }, finalAmount=${formData.finalAmount || 0}, totalBill=${totalBillAmount.toFixed(
+        }, finalAmount=${normalizedFinalAmount}, totalBill=${totalBillAmount.toFixed(
           2
         )}, totalPayments=${totalPayments.toFixed(2)}`,
       ].filter(Boolean);
@@ -1669,6 +1707,7 @@ export default function BookingsPage() {
                   className="input"
                   type="date"
                   value={formData.functionDate}
+                  min={!editingBookingId ? todayIsoDate : undefined}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, functionDate: e.target.value }))
                   }
@@ -2252,49 +2291,77 @@ export default function BookingsPage() {
                 </div>
               ))}
 
-              <div className="grid grid-cols-1 items-end gap-2 border-t border-gray-200 pt-2 md:grid-cols-[1fr,190px]">
-                <label className="label font-semibold text-gray-900">Total Amount</label>
-                <input
-                  className="input bg-gray-50 text-right font-semibold text-primary-700"
-                  type="number"
-                  min={0}
-                  value={formatComputedAmount(totalBillAmount)}
-                  readOnly
-                />
+              <div className="grid grid-cols-1 items-end gap-2 border-t border-gray-200 pt-2 md:grid-cols-3">
+                <div>
+                  <label className="label">Discount %</label>
+                  <input
+                    className="input text-right"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={formData.finalDiscountPercent}
+                    onChange={(e) => {
+                      setAmountSyncMode('discountPercent');
+                      setFormData((prev) => ({
+                        ...prev,
+                        ...normalizeAmountSnapshot(
+                          'discountPercent',
+                          e.target.value,
+                          totalBillAmount
+                        ),
+                      }));
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="label">Discount Amount</label>
+                  <input
+                    className="input text-right"
+                    type="number"
+                    min={0}
+                    value={formData.finalDiscountAmount}
+                    onChange={(e) => {
+                      setAmountSyncMode('discountAmount');
+                      setFormData((prev) => ({
+                        ...prev,
+                        ...normalizeAmountSnapshot(
+                          'discountAmount',
+                          e.target.value,
+                          totalBillAmount
+                        ),
+                      }));
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="label">Final Amount</label>
+                  <input
+                    className="input text-right"
+                    type="number"
+                    min={0}
+                    value={formData.finalAmount}
+                    onChange={(e) => {
+                      setAmountSyncMode('finalAmount');
+                      setFormData((prev) => ({
+                        ...prev,
+                        ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillAmount),
+                      }));
+                    }}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px]">
-                <label className="label">Final Amount</label>
-                <input
-                  className="input text-right"
-                  type="number"
-                  min={0}
-                  value={formData.finalAmount}
-                  onChange={(e) => {
-                    setFinalAmountDirty(true);
-                    setFormData((prev) => ({ ...prev, finalAmount: e.target.value }));
-                  }}
-                />
-              </div>
-              <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px]">
-                <label className="label">Discount Amount</label>
-                <input
-                  className="input bg-gray-50 text-right"
-                  type="number"
-                  min={0}
-                  value={formData.finalDiscountAmount}
-                  readOnly
-                />
-              </div>
-              <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px]">
-                <label className="label">Discount %</label>
-                <input
-                  className="input bg-gray-50 text-right"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={formData.finalDiscountPercent}
-                  readOnly
-                />
+
+              <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-3">
+                <div className="md:col-start-3">
+                  <label className="label font-semibold text-gray-900">Total Amount</label>
+                  <input
+                    className="input bg-gray-50 text-right font-semibold text-primary-700"
+                    type="number"
+                    min={0}
+                    value={formatComputedAmount(totalBillAmount)}
+                    readOnly
+                  />
+                </div>
               </div>
             </div>
           </section>
