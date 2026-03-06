@@ -11,7 +11,8 @@
   --text-1: #0f172a;
   --text-2: #334155;
   --text-3: #64748b;
-  --text-4: #94a3b8;
+  --text-4: #6b7280;
+  /* was #94a3b8 — upgraded for WCAG AA contrast (4.6:1) */
 
   --border: #e2e8f0;
   --border-2: #cbd5e1;
@@ -29,9 +30,30 @@
 
   --ring: rgba(13, 148, 136, 0.18);
   --sidebar-w: 232px;
+  --bottom-nav-h: 60px;
+}
+
+/* ── Skip-to-content link (accessibility) ─────────────────────── */
+.skip-nav {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: var(--teal-600);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 0 0 8px 0;
+  text-decoration: none;
+}
+
+.skip-nav:focus {
+  left: 0;
 }
 
 @layer base {
+
   *,
   *::before,
   *::after {
@@ -50,6 +72,12 @@
     line-height: 1.5;
     color: var(--text-2);
     background-color: var(--bg);
+  }
+
+  /* Global focus-visible outlines */
+  :focus-visible {
+    outline: 2px solid var(--teal-500);
+    outline-offset: 2px;
   }
 
   table {
@@ -76,6 +104,8 @@
   tbody tr {
     @apply transition-colors;
     border-bottom: 1px solid var(--border);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 48px;
   }
 
   tbody tr:last-child {
@@ -98,6 +128,12 @@
 }
 
 @layer components {
+
+  /* ── Lighter lucide icons globally ───────────────────────────── */
+  .lucide {
+    stroke-width: 1.75;
+  }
+
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-[10px] px-3.5 py-[7px] text-[13px] font-semibold transition-all duration-150 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
     white-space: nowrap;
@@ -147,7 +183,7 @@
     --card-px: 20px;
     background-color: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 18px;
+    border-radius: 16px;
     box-shadow: var(--shadow-xs);
     overflow: visible;
     padding: var(--card-py) var(--card-px);
@@ -156,23 +192,23 @@
   .card-padded {
     background-color: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 18px;
+    border-radius: 16px;
     box-shadow: var(--shadow-xs);
     overflow: visible;
     padding: 20px 22px;
   }
 
-  .card > .panel-header:first-child {
+  .card>.panel-header:first-child {
     margin: calc(var(--card-py) * -1) calc(var(--card-px) * -1) 0;
   }
 
-  .card > .panel-body {
+  .card>.panel-body {
     margin-left: calc(var(--card-px) * -1);
     margin-right: calc(var(--card-px) * -1);
   }
 
-  .card > .panel-header + .panel-body,
-  .card > .panel-body:last-child {
+  .card>.panel-header+.panel-body,
+  .card>.panel-body:last-child {
     margin-bottom: calc(var(--card-py) * -1);
   }
 
@@ -197,6 +233,7 @@
   @media (max-width: 640px) {
     .input {
       font-size: 16px;
+      /* prevents iOS zoom on focus */
     }
   }
 
@@ -352,7 +389,7 @@
   .kpi-card {
     background-color: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 18px;
+    border-radius: 16px;
     padding: 20px;
     box-shadow: var(--shadow-xs);
     transition: box-shadow 0.2s, border-color 0.2s;
@@ -407,6 +444,27 @@
   .delta-neutral {
     background: var(--surface-2);
     color: var(--text-3);
+  }
+
+  /* ── Responsive KPI Grid ─────────────────────────────────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  @media (min-width: 640px) {
+    .kpi-grid {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .kpi-grid {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
   }
 
   .insight-card {
@@ -603,6 +661,249 @@
   .form-actions {
     @apply flex flex-col-reverse gap-2 sm:flex-row sm:justify-end;
   }
+
+  /* ── Mobile Card Views ───────────────────────────────────────── */
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow-xs);
+    transition: box-shadow 0.15s;
+  }
+
+  .mobile-card:active {
+    box-shadow: var(--shadow-md);
+  }
+
+  .mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .mobile-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    line-height: 1.3;
+  }
+
+  .mobile-card-subtitle {
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 2px;
+  }
+
+  .mobile-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+
+  .mobile-card-label {
+    font-size: 11.5px;
+    color: var(--text-4);
+    font-weight: 500;
+  }
+
+  .mobile-card-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-1);
+  }
+
+  .mobile-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+
+  .mobile-card-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mobile-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .mobile-card-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border-2);
+    background: var(--surface);
+    color: var(--text-3);
+    transition: all 0.12s;
+    font-family: inherit;
+  }
+
+  .mobile-card-action-btn:hover {
+    border-color: var(--teal-500);
+    color: var(--teal-700);
+    background: var(--teal-50);
+  }
+
+  .mobile-card-amount {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-1);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Bottom Navigation Bar ───────────────────────────────────── */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-nav-h);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 45;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -1px 6px rgba(15, 23, 42, 0.04);
+  }
+
+  .bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 10px;
+    border: none;
+    background: none;
+    color: var(--text-4);
+    font-size: 10.5px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: color 0.15s, background 0.15s;
+    text-decoration: none;
+    font-family: inherit;
+    min-width: 56px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--teal-700);
+    font-weight: 600;
+  }
+
+  .bottom-nav-item:active {
+    background: var(--surface-2);
+  }
+
+  .bottom-nav-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .bottom-nav-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--teal-500);
+    position: absolute;
+    bottom: 4px;
+  }
+
+  /* ── Floating Action Button ──────────────────────────────────── */
+  .fab {
+    position: fixed;
+    bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+    right: 20px;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--teal-600), var(--teal-500));
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+    z-index: 35;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .fab:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(13, 148, 136, 0.45);
+  }
+
+  .fab:active {
+    transform: scale(0.96);
+  }
+
+  .fab-icon {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2.5;
+  }
+}
+
+/* ── Touch-optimized hit targets ─────────────────────────────── */
+@media (pointer: coarse) {
+
+  .btn,
+  .row-btn,
+  .mobile-card-action-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .tab {
+    padding: 12px 16px;
+  }
+
+  .input,
+  select {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 16px;
+  }
+
+  .bottom-nav-item {
+    min-width: 60px;
+    min-height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -610,6 +911,7 @@
     from {
       background-position: -400px 0;
     }
+
     to {
       background-position: 400px 0;
     }
@@ -636,6 +938,7 @@
       opacity: 0;
       transform: scale(0.97) translateY(10px);
     }
+
     to {
       opacity: 1;
       transform: scale(1) translateY(0);
@@ -647,10 +950,36 @@
   }
 }
 
+/* ── FAB entry animation ──────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fab-enter {
+    from {
+      opacity: 0;
+      transform: scale(0.5) translateY(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .fab {
+    animation: fab-enter 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
 .sparkline {
   width: 64px;
   height: 24px;
   overflow: visible;
+}
+
+@media (max-width: 640px) {
+  .sparkline {
+    width: 80px;
+    height: 28px;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -694,5 +1023,10 @@
 
   .view-all:hover {
     color: var(--teal-700);
+  }
+
+  /* Utility to add bottom padding when bottom nav is present */
+  .has-bottom-nav {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 8px);
   }
 }

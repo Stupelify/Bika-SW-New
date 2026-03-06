@@ -339,10 +339,10 @@ export default function DashboardPage() {
       const hasCustomRange = Boolean(fromDate && toDate);
       const analyticsParams = hasCustomRange
         ? {
-            range: 'all',
-            startDate: fromDate,
-            endDate: toDate,
-          }
+          range: 'all',
+          startDate: fromDate,
+          endDate: toDate,
+        }
         : { range };
 
       const analyticsRes = await api.getDashboardSummary(analyticsParams);
@@ -429,7 +429,7 @@ export default function DashboardPage() {
       const cancellationRate =
         analytics.summary.bookingsInRange > 0
           ? (analytics.summary.cancelledBookings / analytics.summary.bookingsInRange) *
-            100
+          100
           : 0;
       const collectionRate =
         totalBookedValue > 0 ? (totalCollected / totalBookedValue) * 100 : 0;
@@ -573,9 +573,9 @@ export default function DashboardPage() {
   const pencilDelta =
     data.pencilBookings > 0
       ? -Math.min(
-          99,
-          (data.pencilBookings / Math.max(1, analytics.summary.bookingsInRange)) * 100
-        )
+        99,
+        (data.pencilBookings / Math.max(1, analytics.summary.bookingsInRange)) * 100
+      )
       : 0;
 
   const maxHallRevenue = Math.max(1, ...hallSections.top.map((row) => row.revenue));
@@ -647,7 +647,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="kpi-grid">
         <div className="kpi-card">
           <div className="kpi-label">
             <span>Total Revenue</span>
@@ -810,13 +810,12 @@ export default function DashboardPage() {
           {data.insights.map((insight) => (
             <div
               key={insight.title}
-              className={`insight-card ${
-                insight.tone === 'good'
+              className={`insight-card ${insight.tone === 'good'
                   ? 'good'
                   : insight.tone === 'warn'
-                  ? 'warn'
-                  : 'neutral'
-              }`}
+                    ? 'warn'
+                    : 'neutral'
+                }`}
             >
               <p className="insight-label">{insight.title}</p>
               <p className="insight-value num">{insight.value}</p>

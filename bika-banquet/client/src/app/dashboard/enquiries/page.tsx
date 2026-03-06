@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { CalendarDays, Edit, Plus, Save, Search, Trash2, Users } from 'lucide-react';
+import FloatingActionButton from '@/components/FloatingActionButton';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
@@ -189,8 +190,7 @@ export default function EnquiriesPage() {
       {
         key: 'status',
         accessor: (enquiry) =>
-          `${enquiry.status} ${enquiry.quotationSent ? 'Quotation' : ''} ${
-            enquiry.isPencilBooked ? 'Pencil' : ''
+          `${enquiry.status} ${enquiry.quotationSent ? 'Quotation' : ''} ${enquiry.isPencilBooked ? 'Pencil' : ''
           }`,
       },
     ],
@@ -406,7 +406,7 @@ export default function EnquiriesPage() {
     } catch (error: any) {
       toast.error(
         error?.response?.data?.error ||
-          (editingEnquiryId ? 'Failed to update enquiry' : 'Failed to create enquiry')
+        (editingEnquiryId ? 'Failed to update enquiry' : 'Failed to create enquiry')
       );
     } finally {
       setSaving(false);
@@ -760,165 +760,255 @@ export default function EnquiriesPage() {
         ) : filteredEnquiries.length === 0 ? (
           <div className="text-center py-12 text-gray-500">No enquiries found.</div>
         ) : (
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <SortableHeader
-                    label="Function"
-                    sortKey="functionName"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Customer"
-                    sortKey="customer"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Date"
-                    sortKey="functionDate"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Guests"
-                    sortKey="expectedGuests"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Status"
-                    sortKey="status"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
-                    Actions
-                  </th>
-                </tr>
-                <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search function"
-                      value={columnSearch.functionName}
-                      onChange={(e) => handleColumnSearch('functionName', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search customer"
-                      value={columnSearch.customer}
-                      onChange={(e) => handleColumnSearch('customer', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search date"
-                      value={columnSearch.functionDate}
-                      onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search guests"
-                      value={columnSearch.expectedGuests}
-                      onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search status"
-                      value={columnSearch.status}
-                      onChange={(e) => handleColumnSearch('status', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4" />
-                </tr>
-              </thead>
-              <tbody>
+          <>
+            {/* Mobile card view */}
+            <div className="md:hidden">
+              <div className="mobile-card-list">
                 {paginatedEnquiries.map((enquiry) => (
-                  <tr key={enquiry.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4 px-4">
-                      <p className="font-medium text-gray-900">{enquiry.functionName}</p>
-                      <p className="text-xs text-gray-500 mt-1">{enquiry.functionType}</p>
-                    </td>
-                    <td className="py-4 px-4">
-                      <p className="text-sm text-gray-900">{enquiry.customer?.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">{enquiry.customer?.phone}</p>
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-700">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarDays className="w-4 h-4 text-gray-400" />
-                        {formatDateDDMMYYYY(enquiry.functionDate)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-700">
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="w-4 h-4 text-gray-400" />
-                        {enquiry.expectedGuests}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex flex-wrap gap-2">
+                  <div key={enquiry.id} className="mobile-card">
+                    <div className="mobile-card-header">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="mobile-card-title">{enquiry.functionName}</div>
+                        <div className="mobile-card-subtitle">{enquiry.functionType}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
                         <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
                           {enquiry.status}
                         </span>
                         {enquiry.quotationSent && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
-                            Quotation
-                          </span>
+                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">Quotation</span>
                         )}
                         {enquiry.isPencilBooked && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">
-                            Pencil
-                          </span>
+                          <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">Pencil</span>
                         )}
                       </div>
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    </div>
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Customer</span>
+                      <span className="mobile-card-value">{enquiry.customer?.name || '—'}</span>
+                    </div>
+                    {enquiry.customer?.phone && (
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Phone</span>
+                        <span className="mobile-card-value">{enquiry.customer.phone}</span>
+                      </div>
+                    )}
+                    <div className="mobile-card-meta" style={{ marginTop: 8 }}>
+                      <span className="mobile-card-meta-item">
+                        <CalendarDays style={{ width: 14, height: 14 }} aria-hidden="true" />
+                        {formatDateDDMMYYYY(enquiry.functionDate)}
+                      </span>
+                      <span className="mobile-card-meta-item">
+                        <Users style={{ width: 14, height: 14 }} aria-hidden="true" />
+                        {enquiry.expectedGuests} guests
+                      </span>
+                    </div>
+                    {(canEditEnquiry || canDeleteEnquiry) && (
+                      <div className="mobile-card-actions">
                         {canEditEnquiry && (
                           <button
+                            type="button"
+                            className="mobile-card-action-btn"
                             onClick={() => openEditPrompt(enquiry)}
-                            className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                            title="Edit enquiry"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                            Edit
                           </button>
                         )}
                         {canDeleteEnquiry && (
                           <button
+                            type="button"
+                            className="mobile-card-action-btn"
                             onClick={() => handleDelete(enquiry.id)}
-                            className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                            title="Delete enquiry"
+                            style={{ color: '#dc2626' }}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                            Delete
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    )}
+                  </div>
                 ))}
-              </tbody>
-            </table>
-            <TablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredEnquiries.length}
-              pageSize={ENQUIRIES_PAGE_SIZE}
-              itemLabel="enquiries"
-              onPageChange={setCurrentPage}
-            />
-          </div>
+              </div>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredEnquiries.length}
+                pageSize={ENQUIRIES_PAGE_SIZE}
+                itemLabel="enquiries"
+                onPageChange={setCurrentPage}
+              />
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden md:block table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <SortableHeader
+                      label="Function"
+                      sortKey="functionName"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Customer"
+                      sortKey="customer"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Date"
+                      sortKey="functionDate"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Guests"
+                      sortKey="expectedGuests"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Status"
+                      sortKey="status"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
+                      Actions
+                    </th>
+                  </tr>
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search function"
+                        value={columnSearch.functionName}
+                        onChange={(e) => handleColumnSearch('functionName', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search customer"
+                        value={columnSearch.customer}
+                        onChange={(e) => handleColumnSearch('customer', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search date"
+                        value={columnSearch.functionDate}
+                        onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search guests"
+                        value={columnSearch.expectedGuests}
+                        onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search status"
+                        value={columnSearch.status}
+                        onChange={(e) => handleColumnSearch('status', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedEnquiries.map((enquiry) => (
+                    <tr key={enquiry.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-4 px-4">
+                        <p className="font-medium text-gray-900">{enquiry.functionName}</p>
+                        <p className="text-xs text-gray-500 mt-1">{enquiry.functionType}</p>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="text-sm text-gray-900">{enquiry.customer?.name}</p>
+                        <p className="text-xs text-gray-500 mt-1">{enquiry.customer?.phone}</p>
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="w-4 h-4 text-gray-400" />
+                          {formatDateDDMMYYYY(enquiry.functionDate)}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="w-4 h-4 text-gray-400" />
+                          {enquiry.expectedGuests}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
+                            {enquiry.status}
+                          </span>
+                          {enquiry.quotationSent && (
+                            <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                              Quotation
+                            </span>
+                          )}
+                          {enquiry.isPencilBooked && (
+                            <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">
+                              Pencil
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {canEditEnquiry && (
+                            <button
+                              onClick={() => openEditPrompt(enquiry)}
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              title="Edit enquiry"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canDeleteEnquiry && (
+                            <button
+                              onClick={() => handleDelete(enquiry.id)}
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              title="Delete enquiry"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredEnquiries.length}
+                pageSize={ENQUIRIES_PAGE_SIZE}
+                itemLabel="enquiries"
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          </>
         )}
       </div>
+
+      {canAddEnquiry && (
+        <FloatingActionButton
+          onClick={openCreatePrompt}
+          label="New Enquiry"
+        />
+      )}
     </div>
   );
 }

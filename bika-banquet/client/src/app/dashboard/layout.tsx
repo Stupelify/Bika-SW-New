@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
+import BottomNav from '@/components/BottomNav';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -451,6 +452,7 @@ function DashboardLayoutContent({
                 )}
                 <Link
                   href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
                   style={{
                     flex: 1,
                     display: 'flex',
@@ -659,6 +661,7 @@ function DashboardLayoutContent({
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      <a href="#main-content" className="skip-nav">Skip to main content</a>
       {sidebarOpen && (
         <button
           type="button"
@@ -816,6 +819,8 @@ function DashboardLayoutContent({
         </header>
 
         <main
+          id="main-content"
+          className="has-bottom-nav lg:!pb-0"
           style={{
             maxWidth: 1400,
             margin: '0 auto',
@@ -826,6 +831,11 @@ function DashboardLayoutContent({
           {children}
         </main>
       </div>
+
+      <BottomNav
+        permissions={user?.permissions || []}
+        onMoreClick={() => setSidebarOpen(true)}
+      />
     </div>
   );
 }

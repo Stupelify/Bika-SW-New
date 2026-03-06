@@ -27,6 +27,8 @@ import {
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import MobileBookingCard from '@/components/MobileBookingCard';
+import FloatingActionButton from '@/components/FloatingActionButton';
 
 interface Booking {
   id: string;
@@ -815,8 +817,8 @@ export default function BookingsPage() {
         amountSyncMode === 'discountPercent'
           ? prev.finalDiscountPercent
           : amountSyncMode === 'discountAmount'
-          ? prev.finalDiscountAmount
-          : prev.finalAmount;
+            ? prev.finalDiscountAmount
+            : prev.finalAmount;
       const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, totalBillAmount);
       if (
         prev.finalDiscountAmount === nextValues.finalDiscountAmount &&
@@ -1021,8 +1023,8 @@ export default function BookingsPage() {
         });
         const packHallIds = Array.isArray(pack?.hallIds)
           ? pack.hallIds
-              .map((value: unknown) => `${value ?? ''}`.trim())
-              .filter((value: string) => value.length > 0 && hallIdSet.has(value))
+            .map((value: unknown) => `${value ?? ''}`.trim())
+            .filter((value: string) => value.length > 0 && hallIdSet.has(value))
           : [];
         const resolvedPackHallIds =
           packHallIds.length > 0 ? packHallIds : bookingHallIds;
@@ -1407,18 +1409,16 @@ export default function BookingsPage() {
         const validHallIds = row.withHall ? getValidHallIdsForPack(row) : [];
         const hallName = row.withHall
           ? halls
-              .filter((hall) => validHallIds.includes(hall.id))
-              .map((hall) => hall.name)
-              .join(', ') || 'No hall'
+            .filter((hall) => validHallIds.includes(hall.id))
+            .map((hall) => hall.name)
+            .join(', ') || 'No hall'
           : 'No hall';
         const templateName =
           templateMenus.find((template) => template.id === row.templateMenuId)?.name ||
           'Custom menu';
-        return `${PACK_LABELS[key]}: ${row.pax || 0} pax, ${hallName}, hallRate=${
-          row.hallRate || 0
-        }, ratePerPlate=${row.ratePerPlate || 0}, menuTemplate=${templateName}, menuItems=${
-          row.menuItemIds.length
-        }, menuPoints=${row.menuPoints || 0}`;
+        return `${PACK_LABELS[key]}: ${row.pax || 0} pax, ${hallName}, hallRate=${row.hallRate || 0
+          }, ratePerPlate=${row.ratePerPlate || 0}, menuTemplate=${templateName}, menuItems=${row.menuItemIds.length
+          }, menuPoints=${row.menuPoints || 0}`;
       });
 
       const notes = [formData.notes.trim(), packSummary.length ? `Pack Summary - ${packSummary.join(' ; ')}` : '']
@@ -1426,11 +1426,9 @@ export default function BookingsPage() {
         .join('\n');
       const internalNotesParts = [
         paymentSummary.length ? `Payment Entries - ${paymentSummary.join(' ; ')}` : '',
-        `Settlement: discount=${formData.settlementDiscountAmount || 0}, amount=${
-          formData.settlementAmount || 0
+        `Settlement: discount=${formData.settlementDiscountAmount || 0}, amount=${formData.settlementAmount || 0
         }`,
-        `Final Calc: discountAmount=${normalizedDiscountAmount}, discountPercent=${
-          normalizedDiscountPercent
+        `Final Calc: discountAmount=${normalizedDiscountAmount}, discountPercent=${normalizedDiscountPercent
         }, finalAmount=${normalizedFinalAmount}, totalBill=${totalBillAmount.toFixed(
           2
         )}, totalPayments=${totalPayments.toFixed(2)}`,
@@ -1481,7 +1479,7 @@ export default function BookingsPage() {
     } catch (error: any) {
       toast.error(
         error?.response?.data?.error ||
-          (editingBookingId ? 'Failed to update booking' : 'Failed to create booking')
+        (editingBookingId ? 'Failed to update booking' : 'Failed to create booking')
       );
     } finally {
       setSaving(false);
@@ -1915,13 +1913,12 @@ export default function BookingsPage() {
                   className={`rounded-2xl border p-3 space-y-3 ${PACK_ROW_STYLES[packKey]}`}
                 >
                   <div
-                    className={`grid gap-3 items-center ${
-                      row.enabled && row.withHall
+                    className={`grid gap-3 items-center ${row.enabled && row.withHall
                         ? 'grid-cols-1 xl:grid-cols-[220px,170px,170px,1fr,1fr]'
                         : row.enabled
-                        ? 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
-                        : 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
-                    }`}
+                          ? 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
+                          : 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
+                      }`}
                   >
                     <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white/70 px-3 py-2">
                       <div className="inline-flex items-center gap-2">
@@ -1947,11 +1944,10 @@ export default function BookingsPage() {
                     </div>
 
                     <div
-                      className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
-                        row.enabled
+                      className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
                           ? 'border-gray-200 bg-white/70'
                           : 'border-gray-200/80 bg-white/50 opacity-80'
-                      }`}
+                        }`}
                     >
                       <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
                         <input
@@ -1972,11 +1968,10 @@ export default function BookingsPage() {
                     </div>
 
                     <div
-                      className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
-                        row.enabled
+                      className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
                           ? 'border-gray-200 bg-white/70'
                           : 'border-gray-200/80 bg-white/50 opacity-80'
-                      }`}
+                        }`}
                     >
                       <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
                         <input
@@ -2044,8 +2039,8 @@ export default function BookingsPage() {
                             {!row.banquetId
                               ? 'Select Banquet First'
                               : selectedHallNames.length > 0
-                              ? selectedHallNames.join(', ')
-                              : 'Select Halls *'}
+                                ? selectedHallNames.join(', ')
+                                : 'Select Halls *'}
                           </span>
                           <span className="text-gray-500 text-xs">
                             {openHallPickerPack === packKey ? 'Close' : 'Select'}
@@ -2109,15 +2104,15 @@ export default function BookingsPage() {
                       </div>
                       <div>
                         <label className="label mb-1 text-xs">Hall Rate</label>
-                          <input
-                            className="input"
-                            type="number"
-                            min={0}
-                            value={row.hallRate}
-                            disabled={!row.withHall}
-                            onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
-                          />
-                        </div>
+                        <input
+                          className="input"
+                          type="number"
+                          min={0}
+                          value={row.hallRate}
+                          disabled={!row.withHall}
+                          onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
+                        />
+                      </div>
                       <div>
                         <label className="label mb-1 text-xs">Menu</label>
                         <button
@@ -2206,7 +2201,7 @@ export default function BookingsPage() {
             </div>
 
             {enabledPackAmountRows.length === 0 &&
-            formData.additionalRequirements.length === 0 ? (
+              formData.additionalRequirements.length === 0 ? (
               <p className="text-sm text-gray-500">
                 Enable a pack to view its amount rows.
               </p>
@@ -2628,197 +2623,232 @@ export default function BookingsPage() {
             <p className="text-gray-500">No bookings found</p>
           </div>
         ) : (
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <SortableHeader
-                    label="Function"
-                    sortKey="functionName"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Customer"
-                    sortKey="customer"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Date"
-                    sortKey="functionDate"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Guests"
-                    sortKey="expectedGuests"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Status"
-                    sortKey="status"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Amount"
-                    sortKey="grandTotal"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    className="text-right py-3 px-4 text-sm font-semibold text-gray-700"
-                  />
-                  {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
-                      Actions
-                    </th>
-                  )}
-                </tr>
-                <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search function"
-                      value={columnSearch.functionName}
-                      onChange={(e) => handleColumnSearch('functionName', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search customer"
-                      value={columnSearch.customer}
-                      onChange={(e) => handleColumnSearch('customer', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search date"
-                      value={columnSearch.functionDate}
-                      onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search guests"
-                      value={columnSearch.expectedGuests}
-                      onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search status"
-                      value={columnSearch.status}
-                      onChange={(e) => handleColumnSearch('status', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9 text-right"
-                      placeholder="Search amount"
-                      value={columnSearch.grandTotal}
-                      onChange={(e) => handleColumnSearch('grandTotal', e.target.value)}
-                    />
-                  </th>
-                  {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                    <th className="py-2 px-4" />
-                  )}
-                </tr>
-              </thead>
-              <tbody>
+          <>
+            {/* Mobile card view */}
+            <div className="md:hidden">
+              <div className="mobile-card-list">
                 {paginatedBookings.map((booking) => (
-                  <tr
+                  <MobileBookingCard
                     key={booking.id}
-                    className="border-b border-gray-100 hover:bg-gray-50"
-                  >
-                    <td className="py-4 px-4">
-                      <p className="font-medium text-gray-900">{booking.functionName}</p>
-                      <p className="text-xs text-gray-500 mt-1">{booking.functionType}</p>
-                    </td>
-                    <td className="py-4 px-4">
-                      <p className="text-sm text-gray-900">{booking.customer?.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">{booking.customer?.phone}</p>
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-700">
-                      {formatDateDDMMYYYY(booking.functionDate)}
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-700">
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="w-4 h-4 text-gray-500" />
-                        {booking.expectedGuests}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          booking.isQuotation
-                            ? 'bg-amber-100 text-amber-800'
-                            : booking.status === 'cancelled'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}
-                      >
-                        {booking.isQuotation ? 'Quotation' : booking.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
-                      ₹{(booking.grandTotal || 0).toLocaleString()}
-                    </td>
+                    booking={booking}
+                    canExportMenuPdf={canExportMenuPdf}
+                    canEditBooking={canEditBooking}
+                    canDeleteBooking={canDeleteBooking}
+                    onExportPdf={(b) => openMenuPdfModal(b)}
+                    onEdit={(id) => openEditBooking(id)}
+                    onDelete={(id) => handleDeleteBooking(id)}
+                  />
+                ))}
+              </div>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredBookings.length}
+                pageSize={BOOKINGS_PAGE_SIZE}
+                itemLabel="bookings"
+                onPageChange={setCurrentPage}
+              />
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden md:block table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <SortableHeader
+                      label="Function"
+                      sortKey="functionName"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Customer"
+                      sortKey="customer"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Date"
+                      sortKey="functionDate"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Guests"
+                      sortKey="expectedGuests"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Status"
+                      sortKey="status"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Amount"
+                      sortKey="grandTotal"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-4 text-sm font-semibold text-gray-700"
+                    />
                     {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {canExportMenuPdf && (
-                            <button
-                              type="button"
-                              className="p-2 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
-                              onClick={() => openMenuPdfModal(booking)}
-                              title="Preview menu PDF"
-                            >
-                              <FileText className="w-4 h-4" />
-                            </button>
-                          )}
-                          {canEditBooking && (
-                            <button
-                              type="button"
-                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                              onClick={() => openEditBooking(booking.id)}
-                              title="Edit booking"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          )}
-                          {canDeleteBooking && (
-                            <button
-                              type="button"
-                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                              onClick={() => handleDeleteBooking(booking.id)}
-                              title="Delete booking"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
+                        Actions
+                      </th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <TablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredBookings.length}
-              pageSize={BOOKINGS_PAGE_SIZE}
-              itemLabel="bookings"
-              onPageChange={setCurrentPage}
-            />
-          </div>
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search function"
+                        value={columnSearch.functionName}
+                        onChange={(e) => handleColumnSearch('functionName', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search customer"
+                        value={columnSearch.customer}
+                        onChange={(e) => handleColumnSearch('customer', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search date"
+                        value={columnSearch.functionDate}
+                        onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search guests"
+                        value={columnSearch.expectedGuests}
+                        onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search status"
+                        value={columnSearch.status}
+                        onChange={(e) => handleColumnSearch('status', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9 text-right"
+                        placeholder="Search amount"
+                        value={columnSearch.grandTotal}
+                        onChange={(e) => handleColumnSearch('grandTotal', e.target.value)}
+                      />
+                    </th>
+                    {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
+                      <th className="py-2 px-4" />
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedBookings.map((booking) => (
+                    <tr
+                      key={booking.id}
+                      className="border-b border-gray-100 hover:bg-gray-50"
+                    >
+                      <td className="py-4 px-4">
+                        <p className="font-medium text-gray-900">{booking.functionName}</p>
+                        <p className="text-xs text-gray-500 mt-1">{booking.functionType}</p>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="text-sm text-gray-900">{booking.customer?.name}</p>
+                        <p className="text-xs text-gray-500 mt-1">{booking.customer?.phone}</p>
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700">
+                        {formatDateDDMMYYYY(booking.functionDate)}
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="w-4 h-4 text-gray-500" />
+                          {booking.expectedGuests}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${booking.isQuotation
+                              ? 'bg-amber-100 text-amber-800'
+                              : booking.status === 'cancelled'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-green-100 text-green-700'
+                            }`}
+                        >
+                          {booking.isQuotation ? 'Quotation' : booking.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
+                        ₹{(booking.grandTotal || 0).toLocaleString()}
+                      </td>
+                      {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
+                        <td className="py-4 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {canExportMenuPdf && (
+                              <button
+                                type="button"
+                                className="p-2 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
+                                onClick={() => openMenuPdfModal(booking)}
+                                title="Preview menu PDF"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canEditBooking && (
+                              <button
+                                type="button"
+                                className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                onClick={() => openEditBooking(booking.id)}
+                                title="Edit booking"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canDeleteBooking && (
+                              <button
+                                type="button"
+                                className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                onClick={() => handleDeleteBooking(booking.id)}
+                                title="Delete booking"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredBookings.length}
+                pageSize={BOOKINGS_PAGE_SIZE}
+                itemLabel="bookings"
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          </>
         )}
       </div>
+
+      {canAddBooking && (
+        <FloatingActionButton
+          onClick={() => setShowCreateForm(true)}
+          label="New Booking"
+        />
+      )}
     </div>
   );
 }
