@@ -117,17 +117,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              Default credentials
-            </p>
-            <p className="font-mono text-sm text-gray-900 mt-2">
-              admin@bikabanquet.com / admin123
-            </p>
-            <p className="text-xs text-gray-500 mt-2">
-              If using an older migrated DB, legacy admin credentials may differ.
-            </p>
-          </div>
         </div>
       </div>
     </div>

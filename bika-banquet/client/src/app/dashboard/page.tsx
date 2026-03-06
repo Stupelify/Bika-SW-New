@@ -243,6 +243,44 @@ function formatMonthShort(monthKey: string): string {
   return new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date);
 }
 
+function toMonthKey(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function buildContinuousMonthlyTrend(
+  monthlyRows: Array<{ month: string; bookings: number; revenue: number }>,
+  startDate: string,
+  endDate: string,
+  maxMonths: number = 8
+) {
+  const map = new Map(
+    monthlyRows.map((row) => [
+      row.month,
+      { month: row.month, bookings: toSafeNumber(row.bookings), revenue: toSafeNumber(row.revenue) },
+    ])
+  );
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return monthlyRows.slice(-maxMonths);
+  }
+
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const endMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  const rows: Array<{ month: string; bookings: number; revenue: number }> = [];
+
+  while (cursor <= endMonth) {
+    const key = toMonthKey(cursor);
+    rows.push(map.get(key) || { month: key, bookings: 0, revenue: 0 });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return rows.slice(-maxMonths);
+}
+
 function Sparkline({
   values,
   color = '#14b8a6',
@@ -508,7 +546,12 @@ export default function DashboardPage() {
   }
 
   const { analytics, resourceCounts } = data;
-  const monthlyTrend = analytics.trends.monthly.slice(-8);
+  const monthlyTrend = buildContinuousMonthlyTrend(
+    analytics.trends.monthly,
+    analytics.range.startDate,
+    analytics.range.endDate,
+    8
+  );
   const monthlyRevenueSeries = monthlyTrend.map((row) => toSafeNumber(row.revenue));
   const monthlyBookingSeries = monthlyTrend.map((row) => toSafeNumber(row.bookings));
   const monthlyAverageSeries = monthlyTrend.map((row) => {
@@ -736,7 +779,10 @@ export default function DashboardPage() {
                     );
                   })}
                 </div>
-                <div className="mt-3 grid grid-cols-8 gap-1.5 sm:gap-2 text-center">
+                <div
+                  className="mt-3 grid gap-1.5 sm:gap-2 text-center"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(monthlyTrend.length, 1)}, minmax(0, 1fr))` }}
+                >
                   {monthlyTrend.map((entry) => (
                     <span key={`${entry.month}-label`} className="text-[11px] text-[var(--text-4)]">
                       {formatMonthShort(entry.month)}
