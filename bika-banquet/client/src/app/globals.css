@@ -144,14 +144,15 @@
   }
 
   .btn-primary {
-    background-color: var(--teal-600);
+    background: linear-gradient(135deg, var(--teal-500), var(--teal-600));
     color: white;
-    box-shadow: 0 1px 3px rgba(13, 148, 136, 0.28);
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+    border: none;
   }
 
   .btn-primary:hover:not(:disabled) {
-    background-color: var(--teal-700);
-    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35);
+    background: linear-gradient(135deg, var(--teal-600), var(--teal-700));
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35);
   }
 
   .btn-secondary {

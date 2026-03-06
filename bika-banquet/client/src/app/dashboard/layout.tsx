@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import BottomNav from '@/components/BottomNav';
+import Avatar from '@/components/Avatar';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -363,24 +364,7 @@ function DashboardLayoutContent({
           gap: 10,
         }}
       >
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            background: 'linear-gradient(135deg, var(--teal-600), var(--teal-500))',
-            borderRadius: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: 15,
-            fontWeight: 700,
-            flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(13,148,136,0.28)',
-          }}
-        >
-          B
-        </div>
+        <Avatar name="Bika Banquet" size="sm" />
         <div style={{ minWidth: 0, flex: 1 }}>
           <p
             style={{
@@ -566,24 +550,7 @@ function DashboardLayoutContent({
             borderRadius: 10,
           }}
         >
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--teal-600), var(--teal-400))',
-              color: 'white',
-              fontSize: 12,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-            aria-hidden="true"
-          >
-            {user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
-          </div>
+          <Avatar name={user?.name} size="sm" />
           <div style={{ flex: 1, minWidth: 0 }}>
             <p
               style={{
@@ -686,8 +653,10 @@ function DashboardLayoutContent({
           left: 0,
           bottom: 0,
           width: 'var(--sidebar-w)',
-          background: 'var(--surface)',
-          borderRight: '1px solid var(--border)',
+          background: 'rgba(255, 255, 255, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderRight: '1px solid rgba(226, 232, 240, 0.6)',
           zIndex: 50,
           overflowY: 'auto',
         }}
@@ -704,8 +673,10 @@ function DashboardLayoutContent({
           left: 0,
           bottom: 0,
           width: 'min(84vw, 232px)',
-          background: 'var(--surface)',
-          borderRight: '1px solid var(--border)',
+          background: 'rgba(255, 255, 255, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderRight: '1px solid rgba(226, 232, 240, 0.6)',
           zIndex: 50,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform 0.2s ease-out',
@@ -719,8 +690,10 @@ function DashboardLayoutContent({
         <header
           style={{
             height: 52,
-            background: 'var(--surface)',
-            borderBottom: '1px solid var(--border)',
+            background: 'rgba(255, 255, 255, 0.85)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            borderBottom: '1px solid rgba(226, 232, 240, 0.6)',
             display: 'flex',
             alignItems: 'center',
             padding: '0 20px',
@@ -796,25 +769,8 @@ function DashboardLayoutContent({
             <HelpCircle style={{ width: 16, height: 16 }} aria-hidden="true" />
           </button>
 
-          <div
-            className="hidden md:flex"
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--teal-600), var(--teal-400))',
-              color: 'white',
-              fontSize: 11,
-              fontWeight: 600,
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              cursor: 'default',
-            }}
-            title={user?.name ?? 'User'}
-            aria-label={user?.name ?? 'User'}
-          >
-            {user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
+          <div className="hidden md:flex">
+            <Avatar name={user?.name} size="md" />
           </div>
         </header>
 

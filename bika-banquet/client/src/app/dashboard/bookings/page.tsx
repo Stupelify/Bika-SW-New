@@ -296,6 +296,24 @@ function formatCustomerLabel(customer?: {
   return `${name} (${phone})`;
 }
 
+function compareCustomersByName(a: CustomerOption, b: CustomerOption): number {
+  const aName = (a.name || '').trim();
+  const bName = (b.name || '').trim();
+  const nameCompare = aName.localeCompare(bName, undefined, {
+    sensitivity: 'base',
+    numeric: true,
+  });
+  if (nameCompare !== 0) return nameCompare;
+
+  const phoneCompare = (a.phone || '').localeCompare(b.phone || '', undefined, {
+    sensitivity: 'base',
+    numeric: true,
+  });
+  if (phoneCompare !== 0) return phoneCompare;
+
+  return a.id.localeCompare(b.id);
+}
+
 export default function BookingsPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -555,9 +573,9 @@ export default function BookingsPage() {
   const getCustomerSuggestions = useCallback(
     (field: CustomerSearchField): CustomerOption[] => {
       const query = (customerSearchInputs[field] || '').trim().toLowerCase();
-      let filtered = customers;
+      let filtered = [...customers].sort(compareCustomersByName);
       if (query) {
-        filtered = customers.filter((customer) => {
+        filtered = filtered.filter((customer) => {
           const name = (customer.name || '').toLowerCase();
           const phone = (customer.phone || '').toLowerCase();
           const label = formatCustomerLabel(customer).toLowerCase();
@@ -910,7 +928,7 @@ export default function BookingsPage() {
       const hallRows = hallRes.data?.data?.halls || [];
       const itemRows = itemRes.data?.data?.items || [];
       const templateRows = templateRes.data?.data?.templateMenus || [];
-      setCustomers(customerRows);
+      setCustomers([...customerRows].sort(compareCustomersByName));
       setBanquets(banquetRows);
       setHalls(hallRows);
       setItems(itemRows);

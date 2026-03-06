@@ -479,11 +479,11 @@ async function fetchGoogleCalendarEvents(
     });
     const payload = response.data?.data as
       | {
-          enabled?: boolean;
-          configured?: boolean;
-          sourceCount?: number;
-          events?: GoogleCalendarEventRow[];
-        }
+        enabled?: boolean;
+        configured?: boolean;
+        sourceCount?: number;
+        events?: GoogleCalendarEventRow[];
+      }
       | undefined;
 
     return {
@@ -764,8 +764,8 @@ export default function CalendarPage() {
     viewMode === 'month'
       ? monthLabel
       : viewMode === 'week'
-      ? weekLabel
-      : viewDate.toLocaleDateString('en-IN', {
+        ? weekLabel
+        : viewDate.toLocaleDateString('en-IN', {
           weekday: 'long',
           day: 'numeric',
           month: 'long',
@@ -776,6 +776,10 @@ export default function CalendarPage() {
   const calendarDays = useMemo(
     () => buildCalendarDays(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)),
     [viewDate]
+  );
+  const mobileWeekDays = useMemo(
+    () => buildWeekDays(parseDateKey(selectedDate)),
+    [selectedDate]
   );
 
   const summary = useMemo(() => {
@@ -951,14 +955,14 @@ export default function CalendarPage() {
         hallRows.length > 0
           ? hallRows
           : [
-              {
-                hallId: '',
-                hall: {
-                  id: '',
-                  name: 'Unassigned Hall',
-                },
+            {
+              hallId: '',
+              hall: {
+                id: '',
+                name: 'Unassigned Hall',
               },
-            ];
+            },
+          ];
 
       effectiveHallRows.forEach((hallRow) => {
         const hallId = hallRow.hall?.id || hallRow.hallId || '';
@@ -1133,11 +1137,10 @@ export default function CalendarPage() {
                   key={mode}
                   type="button"
                   onClick={() => setViewMode(mode)}
-                  className={`px-3 py-2 text-sm font-semibold capitalize transition ${
-                    viewMode === mode
+                  className={`px-3 py-2 text-sm font-semibold capitalize transition ${viewMode === mode
                       ? 'bg-primary-600 text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   {mode}
                 </button>
@@ -1154,11 +1157,10 @@ export default function CalendarPage() {
                   key={mode}
                   type="button"
                   onClick={() => setDisplayMode(mode)}
-                  className={`px-3 py-2 text-sm font-semibold transition ${
-                    displayMode === mode
+                  className={`px-3 py-2 text-sm font-semibold transition ${displayMode === mode
                       ? 'bg-slate-800 text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   {label}
                 </button>
@@ -1176,11 +1178,10 @@ export default function CalendarPage() {
                   key={mode}
                   type="button"
                   onClick={() => setSourceFilter(mode)}
-                  className={`px-3 py-2 text-sm font-semibold transition ${
-                    sourceFilter === mode
+                  className={`px-3 py-2 text-sm font-semibold transition ${sourceFilter === mode
                       ? 'bg-primary-600 text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   {label}
                 </button>
@@ -1274,577 +1275,611 @@ export default function CalendarPage() {
       {displayMode === 'calendar' && (
         <>
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="card xl:col-span-2">
-          {loading ? (
-            <div className="py-20 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
-            </div>
-          ) : (
-            <>
-              {viewMode === 'month' && (
-                <div className="overflow-x-auto">
-                  <div className="min-w-[680px] space-y-2">
-                    <div className="grid grid-cols-7 gap-2">
-                      {weekdayLabels.map((label) => (
-                        <div
-                          key={label}
-                          className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500 py-2"
-                        >
-                          {label}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-2">
-                      {calendarDays.map((day) => {
-                        const dayKey = formatDateKey(day);
-                        const dayBookings = bookingsByDate.get(dayKey) || [];
-                        const dayEnquiries = enquiriesByDate.get(dayKey) || [];
-                        const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
-                        const isCurrentMonth = day.getMonth() === viewDate.getMonth();
-                        const isToday = dayKey === todayKey;
-                        const isSelected = dayKey === selectedDate;
-
-                        return (
-                          <button
-                            key={dayKey}
-                            type="button"
-                            onClick={() => setSelectedDate(dayKey)}
-                            className={`rounded-xl border p-2 text-left min-h-[96px] sm:min-h-[126px] transition ${
-                              isSelected
-                                ? 'border-primary-400 bg-primary-50 shadow-sm'
-                                : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50/40'
-                            } ${isCurrentMonth ? '' : 'bg-gray-50/70 opacity-75'}`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`text-sm font-semibold ${
-                                  isCurrentMonth ? 'text-gray-900' : 'text-gray-500'
-                                }`}
+            <div className="card xl:col-span-2">
+              {loading ? (
+                <div className="py-20 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+                </div>
+              ) : (
+                <>
+                  {viewMode === 'month' && (
+                    <>
+                      <div className="hidden md:block overflow-x-auto">
+                        <div className="min-w-[680px] space-y-2">
+                          <div className="grid grid-cols-7 gap-2">
+                            {weekdayLabels.map((label) => (
+                              <div
+                                key={label}
+                                className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500 py-2"
                               >
-                                {day.getDate()}
-                              </span>
-                              {isToday && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">
-                                  Today
-                                </span>
-                              )}
-                            </div>
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-7 gap-2">
+                            {calendarDays.map((day) => {
+                              const dayKey = formatDateKey(day);
+                              const dayBookings = bookingsByDate.get(dayKey) || [];
+                              const dayEnquiries = enquiriesByDate.get(dayKey) || [];
+                              const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
+                              const isCurrentMonth = day.getMonth() === viewDate.getMonth();
+                              const isToday = dayKey === todayKey;
+                              const isSelected = dayKey === selectedDate;
 
-                            <div className="mt-2 space-y-1.5">
-                              {dayBookings.length > 0 && (
-                                <p className="text-[11px] inline-flex rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
-                                  {dayBookings.length} booking
-                                  {dayBookings.length > 1 ? 's' : ''}
-                                </p>
-                              )}
-                              {dayEnquiries.length > 0 && (
-                                <p className="text-[11px] inline-flex rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                                  {dayEnquiries.length} enquir
-                                  {dayEnquiries.length > 1 ? 'ies' : 'y'}
-                                </p>
-                              )}
-                              {dayGoogleEvents.length > 0 && (
-                                <p className="text-[11px] inline-flex rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
-                                  {dayGoogleEvents.length} google
-                                </p>
-                              )}
-                              {dayBookings[0] && (
-                                <p className="text-xs text-gray-700 truncate">
-                                  {dayBookings[0].functionName}
-                                </p>
-                              )}
-                              {!dayBookings[0] && dayEnquiries[0] && (
-                                <p className="text-xs text-gray-700 truncate">
-                                  {dayEnquiries[0].functionName}
-                                </p>
-                              )}
-                              {!dayBookings[0] && !dayEnquiries[0] && dayGoogleEvents[0] && (
-                                <p className="text-xs text-gray-700 truncate">
-                                  {dayGoogleEvents[0].title}
-                                </p>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
+                              return (
+                                <button
+                                  key={dayKey}
+                                  type="button"
+                                  onClick={() => setSelectedDate(dayKey)}
+                                  className={`rounded-xl border p-2 text-left min-h-[96px] sm:min-h-[126px] transition relative overflow-hidden ${isSelected
+                                      ? 'border-primary-400 bg-primary-50 shadow-sm'
+                                      : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50/40'
+                                    } ${isCurrentMonth ? '' : 'bg-gray-50/70 opacity-75'}`}
+                                >
+                                  <div className="flex items-center justify-between relative z-10">
+                                    <span
+                                      className={`text-sm font-semibold ${isCurrentMonth ? 'text-gray-900' : 'text-gray-500'
+                                        }`}
+                                    >
+                                      {day.getDate()}
+                                    </span>
+                                    {isToday && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">
+                                        Today
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="mt-2 space-y-1.5 relative z-10">
+                                    {dayBookings.length > 0 && (
+                                      <p className="text-[11px] inline-flex rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
+                                        {dayBookings.length} booking
+                                        {dayBookings.length > 1 ? 's' : ''}
+                                      </p>
+                                    )}
+                                    {dayEnquiries.length > 0 && (
+                                      <p className="text-[11px] inline-flex rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
+                                        {dayEnquiries.length} enquir
+                                        {dayEnquiries.length > 1 ? 'ies' : 'y'}
+                                      </p>
+                                    )}
+                                    {dayGoogleEvents.length > 0 && (
+                                      <p className="text-[11px] inline-flex rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                                        {dayGoogleEvents.length} google
+                                      </p>
+                                    )}
+                                    {dayBookings[0] && (
+                                      <p className="text-xs text-gray-700 truncate">
+                                        {dayBookings[0].functionName}
+                                      </p>
+                                    )}
+                                    {!dayBookings[0] && dayEnquiries[0] && (
+                                      <p className="text-xs text-gray-700 truncate">
+                                        {dayEnquiries[0].functionName}
+                                      </p>
+                                    )}
+                                    {!dayBookings[0] && !dayEnquiries[0] && dayGoogleEvents[0] && (
+                                      <p className="text-xs text-gray-700 truncate">
+                                        {dayGoogleEvents[0].title}
+                                      </p>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mobile Agenda Weekly Strip */}
+                      <div className="md:hidden">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 px-1">Selected Week</p>
+                        <div className="flex items-center gap-3 overflow-x-auto pb-4 snap-x snap-mandatory mx-[-16px] px-4" style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+                          {mobileWeekDays.map((day) => {
+                            const dayKey = formatDateKey(day);
+                            const isSelected = dayKey === selectedDate;
+                            const isToday = dayKey === todayKey;
+                            const hasBookings = (bookingsByDate.get(dayKey)?.length || 0) > 0;
+                            const hasEnquiries = (enquiriesByDate.get(dayKey)?.length || 0) > 0;
+
+                            return (
+                              <button
+                                key={dayKey}
+                                type="button"
+                                onClick={() => setSelectedDate(dayKey)}
+                                className={`flex flex-col items-center justify-center min-w-[64px] h-[76px] rounded-2xl border transition-all snap-start ${isSelected
+                                    ? 'border-primary-500 bg-primary-600 text-white shadow-md'
+                                    : isToday
+                                      ? 'border-primary-200 bg-primary-50 text-gray-900'
+                                      : 'border-gray-200 bg-white text-gray-600'
+                                  }`}
+                              >
+                                <span className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${isSelected ? 'text-primary-100' : 'text-gray-500'}`}>
+                                  {day.toLocaleDateString('en-IN', { weekday: 'short' })}
+                                </span>
+                                <span className="text-lg font-bold">
+                                  {day.getDate()}
+                                </span>
+                                <div className="flex gap-1 mt-1.5 h-1.5">
+                                  {hasBookings && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'}`} />}
+                                  {hasEnquiries && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : 'bg-amber-400'}`} />}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 p-4 rounded-xl bg-primary-50/50 border border-primary-100 flex items-center justify-between">
+                          <p className="text-xs text-primary-800 font-medium">Viewing agenda for selected day below</p>
+                          <svg className="w-5 h-5 text-primary-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {viewMode === 'week' && (
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[920px] grid grid-cols-7 gap-3">
+                        {weekDays.map((day) => {
+                          const dayKey = formatDateKey(day);
+                          const dayBookings = bookingsByDate.get(dayKey) || [];
+                          const dayEnquiries = enquiriesByDate.get(dayKey) || [];
+                          const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
+                          const isSelected = dayKey === selectedDate;
+                          const isToday = dayKey === todayKey;
+
+                          return (
+                            <button
+                              key={dayKey}
+                              type="button"
+                              onClick={() => setSelectedDate(dayKey)}
+                              className={`rounded-xl border p-3 text-left align-top min-h-[280px] ${isSelected
+                                  ? 'border-primary-400 bg-primary-50'
+                                  : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50/30'
+                                }`}
+                            >
+                              <p className="text-xs uppercase tracking-wide text-gray-500">
+                                {day.toLocaleDateString('en-IN', { weekday: 'short' })}
+                              </p>
+                              <p className="text-base font-semibold text-gray-900 mt-0.5">
+                                {day.toLocaleDateString('en-IN', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                })}
+                                {isToday && (
+                                  <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">
+                                    Today
+                                  </span>
+                                )}
+                              </p>
+                              <div className="mt-3 space-y-2">
+                                {dayBookings.slice(0, 4).map((booking) => (
+                                  <button
+                                    key={booking.id}
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void openBookingDetails(booking.id);
+                                    }}
+                                    className="rounded-md bg-emerald-100 text-emerald-900 px-2 py-1 text-xs truncate"
+                                  >
+                                    {bookingTimeLabel(booking)} {getPrimaryHallName(booking)} •{' '}
+                                    {booking.functionName}
+                                  </button>
+                                ))}
+                                {dayEnquiries.slice(0, 4).map((enquiry) => (
+                                  <div
+                                    key={enquiry.id}
+                                    className="rounded-md bg-amber-100 text-amber-900 px-2 py-1 text-xs truncate"
+                                  >
+                                    {enquiry.functionTime || '--:--'} {enquiry.functionName}
+                                  </div>
+                                ))}
+                                {dayGoogleEvents.slice(0, 4).map((event) => (
+                                  <div
+                                    key={event.id}
+                                    className="rounded-md bg-sky-100 text-sky-900 px-2 py-1 text-xs truncate"
+                                  >
+                                    {googleEventTimeLabel(event)} {event.venueName} • {event.title}
+                                  </div>
+                                ))}
+                                {dayBookings.length + dayEnquiries.length + dayGoogleEvents.length === 0 && (
+                                  <p className="text-xs text-gray-400">No events</p>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
+                  )}
+
+                  {viewMode === 'day' && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-gray-900">{selectedDateLabel}</p>
+                      {dayEvents.length === 0 ? (
+                        <p className="text-sm text-gray-500">No software or Google events for this day.</p>
+                      ) : (
+                        dayEvents.map((entry) => (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => {
+                              if (entry.kind === 'booking' && entry.bookingId) {
+                                void openBookingDetails(entry.bookingId);
+                              }
+                            }}
+                            className={`rounded-xl border px-3 py-2 ${entry.kind === 'booking'
+                                ? 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70'
+                                : entry.kind === 'enquiry'
+                                  ? 'border-amber-200 bg-amber-50/70'
+                                  : 'border-sky-200 bg-sky-50/70'
+                              } ${entry.kind === 'booking' ? 'cursor-pointer transition text-left' : 'text-left'}`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-gray-900">{entry.title}</p>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-full ${entry.source === 'google'
+                                      ? 'bg-sky-100 text-sky-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                    }`}
+                                >
+                                  {entry.source === 'google' ? 'Google' : 'Software'}
+                                </span>
+                                <span className="text-xs text-gray-700">{entry.time}</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
+                            <p className="text-xs text-gray-600 mt-1 capitalize">
+                              {entry.status}
+                              {entry.kind === 'booking' && typeof entry.amount === 'number' && (
+                                <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
+                              )}
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="card xl:sticky xl:top-24 h-fit">
+              <div className="mb-4">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Selected Day</p>
+                <h2 className="text-lg font-semibold text-gray-900 mt-1">{selectedDateLabel}</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-900">Bookings</p>
+                    <span className="text-xs rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
+                      {selectedBookings.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedBookings.length === 0 ? (
+                      <p className="text-xs text-gray-500">No bookings for this day.</p>
+                    ) : (
+                      selectedBookings.map((booking) => (
+                        <button
+                          key={booking.id}
+                          type="button"
+                          onClick={() => void openBookingDetails(booking.id)}
+                          className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50/40 transition"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 truncate">{booking.functionName}</p>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${booking.isQuotation
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : booking.status === 'cancelled'
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-emerald-100 text-emerald-700'
+                                }`}
+                            >
+                              {booking.isQuotation ? 'quotation' : booking.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
+                            {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {bookingTimeLabel(booking)} • ₹
+                            {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
+                          </p>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
-              )}
 
-              {viewMode === 'week' && (
-                <div className="overflow-x-auto">
-                  <div className="min-w-[920px] grid grid-cols-7 gap-3">
-                    {weekDays.map((day) => {
-                      const dayKey = formatDateKey(day);
-                      const dayBookings = bookingsByDate.get(dayKey) || [];
-                      const dayEnquiries = enquiriesByDate.get(dayKey) || [];
-                      const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
-                      const isSelected = dayKey === selectedDate;
-                      const isToday = dayKey === todayKey;
-
-                      return (
-                        <button
-                          key={dayKey}
-                          type="button"
-                          onClick={() => setSelectedDate(dayKey)}
-                          className={`rounded-xl border p-3 text-left align-top min-h-[280px] ${
-                            isSelected
-                              ? 'border-primary-400 bg-primary-50'
-                              : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50/30'
-                          }`}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-900">Hall-wise Party Schedule</p>
+                    <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                      {hallWiseSchedule.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {hallWiseSchedule.length === 0 ? (
+                      <p className="text-xs text-gray-500">No hall bookings for this day.</p>
+                    ) : (
+                      hallWiseSchedule.map((group) => (
+                        <div
+                          key={group.hallName}
+                          className="rounded-lg border border-gray-200 bg-white p-2.5"
                         >
-                          <p className="text-xs uppercase tracking-wide text-gray-500">
-                            {day.toLocaleDateString('en-IN', { weekday: 'short' })}
-                          </p>
-                          <p className="text-base font-semibold text-gray-900 mt-0.5">
-                            {day.toLocaleDateString('en-IN', {
-                              day: 'numeric',
-                              month: 'short',
-                            })}
-                            {isToday && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">
-                                Today
-                              </span>
-                            )}
-                          </p>
-                          <div className="mt-3 space-y-2">
-                            {dayBookings.slice(0, 4).map((booking) => (
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 inline-flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-sky-700" />
+                              {group.hallName}
+                            </p>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                              {group.parties.length} part
+                              {group.parties.length > 1 ? 'ies' : 'y'}
+                            </span>
+                          </div>
+                          <div className="mt-2 space-y-1.5">
+                            {group.parties.map((party) => (
                               <button
-                                key={booking.id}
+                                key={`${group.hallName}-${party.id}`}
                                 type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void openBookingDetails(booking.id);
-                                }}
-                                className="rounded-md bg-emerald-100 text-emerald-900 px-2 py-1 text-xs truncate"
+                                onClick={() => void openBookingDetails(party.id)}
+                                className="w-full rounded-md bg-gray-50 px-2 py-1.5 text-left hover:bg-sky-50 transition"
                               >
-                                {bookingTimeLabel(booking)} {getPrimaryHallName(booking)} •{' '}
-                                {booking.functionName}
+                                <p className="text-xs font-semibold text-gray-900">{party.title}</p>
+                                <p className="text-[11px] text-gray-600 mt-0.5">
+                                  {formatDateDDMMYYYY(party.date)} • {party.timeLabel}
+                                </p>
+                                <p className="text-[11px] text-gray-600 mt-0.5">
+                                  {party.customerName} • {party.customerPhone} • {party.guests} guests
+                                </p>
+                                <p className="text-[11px] text-gray-600 mt-0.5 capitalize">
+                                  {party.status}
+                                </p>
                               </button>
                             ))}
-                            {dayEnquiries.slice(0, 4).map((enquiry) => (
-                              <div
-                                key={enquiry.id}
-                                className="rounded-md bg-amber-100 text-amber-900 px-2 py-1 text-xs truncate"
-                              >
-                                {enquiry.functionTime || '--:--'} {enquiry.functionName}
-                              </div>
-                            ))}
-                            {dayGoogleEvents.slice(0, 4).map((event) => (
-                              <div
-                                key={event.id}
-                                className="rounded-md bg-sky-100 text-sky-900 px-2 py-1 text-xs truncate"
-                              >
-                                {googleEventTimeLabel(event)} {event.venueName} • {event.title}
-                              </div>
-                            ))}
-                            {dayBookings.length + dayEnquiries.length + dayGoogleEvents.length === 0 && (
-                              <p className="text-xs text-gray-400">No events</p>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {viewMode === 'day' && (
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold text-gray-900">{selectedDateLabel}</p>
-                  {dayEvents.length === 0 ? (
-                    <p className="text-sm text-gray-500">No software or Google events for this day.</p>
-                  ) : (
-                    dayEvents.map((entry) => (
-                      <button
-                        key={entry.id}
-                        type="button"
-                        onClick={() => {
-                          if (entry.kind === 'booking' && entry.bookingId) {
-                            void openBookingDetails(entry.bookingId);
-                          }
-                        }}
-                        className={`rounded-xl border px-3 py-2 ${
-                          entry.kind === 'booking'
-                            ? 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70'
-                            : entry.kind === 'enquiry'
-                            ? 'border-amber-200 bg-amber-50/70'
-                            : 'border-sky-200 bg-sky-50/70'
-                        } ${entry.kind === 'booking' ? 'cursor-pointer transition text-left' : 'text-left'}`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-gray-900">{entry.title}</p>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                                entry.source === 'google'
-                                  ? 'bg-sky-100 text-sky-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                              }`}
-                            >
-                              {entry.source === 'google' ? 'Google' : 'Software'}
-                            </span>
-                            <span className="text-xs text-gray-700">{entry.time}</span>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
-                        <p className="text-xs text-gray-600 mt-1 capitalize">
-                          {entry.status}
-                          {entry.kind === 'booking' && typeof entry.amount === 'number' && (
-                            <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
-                          )}
-                        </p>
-                      </button>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              )}
-            </>
-          )}
-        </div>
 
-        <div className="card xl:sticky xl:top-24 h-fit">
-          <div className="mb-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Selected Day</p>
-            <h2 className="text-lg font-semibold text-gray-900 mt-1">{selectedDateLabel}</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-900">Bookings</p>
-                <span className="text-xs rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
-                  {selectedBookings.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {selectedBookings.length === 0 ? (
-                  <p className="text-xs text-gray-500">No bookings for this day.</p>
-                ) : (
-                  selectedBookings.map((booking) => (
-                    <button
-                      key={booking.id}
-                      type="button"
-                      onClick={() => void openBookingDetails(booking.id)}
-                      className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50/40 transition"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-900 truncate">{booking.functionName}</p>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                            booking.isQuotation
-                              ? 'bg-amber-100 text-amber-800'
-                              : booking.status === 'cancelled'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-emerald-100 text-emerald-700'
-                          }`}
-                        >
-                          {booking.isQuotation ? 'quotation' : booking.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
-                        {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {bookingTimeLabel(booking)} • ₹
-                        {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
-                      </p>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-900">Hall-wise Party Schedule</p>
-                <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
-                  {hallWiseSchedule.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {hallWiseSchedule.length === 0 ? (
-                  <p className="text-xs text-gray-500">No hall bookings for this day.</p>
-                ) : (
-                  hallWiseSchedule.map((group) => (
-                    <div
-                      key={group.hallName}
-                      className="rounded-lg border border-gray-200 bg-white p-2.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-900 inline-flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-sky-700" />
-                          {group.hallName}
-                        </p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
-                          {group.parties.length} part
-                          {group.parties.length > 1 ? 'ies' : 'y'}
-                        </span>
-                      </div>
-                      <div className="mt-2 space-y-1.5">
-                        {group.parties.map((party) => (
-                          <button
-                            key={`${group.hallName}-${party.id}`}
-                            type="button"
-                            onClick={() => void openBookingDetails(party.id)}
-                            className="w-full rounded-md bg-gray-50 px-2 py-1.5 text-left hover:bg-sky-50 transition"
-                          >
-                            <p className="text-xs font-semibold text-gray-900">{party.title}</p>
-                            <p className="text-[11px] text-gray-600 mt-0.5">
-                              {formatDateDDMMYYYY(party.date)} • {party.timeLabel}
-                            </p>
-                            <p className="text-[11px] text-gray-600 mt-0.5">
-                              {party.customerName} • {party.customerPhone} • {party.guests} guests
-                            </p>
-                            <p className="text-[11px] text-gray-600 mt-0.5 capitalize">
-                              {party.status}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-900">Enquiries</p>
-                <span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                  {selectedEnquiries.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {selectedEnquiries.length === 0 ? (
-                  <p className="text-xs text-gray-500">No enquiries for this day.</p>
-                ) : (
-                  selectedEnquiries.map((enquiry) => (
-                    <div key={enquiry.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-900 truncate">{enquiry.functionName}</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
-                          {enquiry.isPencilBooked ? 'pencil' : enquiry.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {enquiry.customer?.name || 'Lead'} • {enquiry.expectedGuests} guests
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-900">Google Venue Events</p>
-                <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
-                  {selectedGoogleEvents.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {selectedGoogleEvents.length === 0 ? (
-                  <p className="text-xs text-gray-500">No Google events for this day.</p>
-                ) : (
-                  selectedGoogleEvents.map((event) => (
-                    <div key={event.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
-                          {event.origin === 'software' ? 'software mirror' : 'google'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {event.venueName}
-                        {event.location ? ` • ${event.location}` : ''}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {googleEventTimeLabel(event)} • <span className="capitalize">{event.status}</span>
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-gray-100 flex gap-2">
-              <Link href="/dashboard/bookings" className="btn btn-secondary flex-1 justify-center">
-                Bookings
-              </Link>
-              <Link href="/dashboard/enquiries" className="btn btn-secondary flex-1 justify-center">
-                Enquiries
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="panel-header">
-          <h2 className="text-lg font-semibold text-gray-900">Upcoming This Month</h2>
-        </div>
-        <div className="space-y-2">
-          {agenda.length === 0 ? (
-            <p className="text-sm text-gray-500">No events found for the selected month.</p>
-          ) : (
-            agenda.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => {
-                  if (entry.kind === 'booking') {
-                    const bookingId = entry.id.replace('booking-', '');
-                    if (bookingId) {
-                      void openBookingDetails(bookingId);
-                    }
-                  }
-                }}
-                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left ${
-                  entry.kind === 'booking'
-                    ? 'hover:border-primary-300 hover:bg-primary-50/40 transition'
-                    : 'cursor-default'
-                }`}
-              >
                 <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-900">{entry.title}</p>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                        entry.source === 'google'
-                          ? 'bg-sky-100 text-sky-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {entry.source === 'google' ? 'Google' : 'Software'}
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-900">Enquiries</p>
+                    <span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
+                      {selectedEnquiries.length}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-xs text-gray-600">
-                    {formatDateDDMMYYYY(entry.date)} •{' '}
-                    <span className="capitalize">
-                      {entry.kind === 'google' ? 'venue' : entry.kind}
-                    </span>
-                  </p>
-                  <p className="text-xs text-gray-700 mt-1">
-                    <span className="capitalize">{entry.status}</span>
-                    {entry.kind === 'booking' && typeof entry.amount === 'number' && (
-                      <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
+                  <div className="space-y-2">
+                    {selectedEnquiries.length === 0 ? (
+                      <p className="text-xs text-gray-500">No enquiries for this day.</p>
+                    ) : (
+                      selectedEnquiries.map((enquiry) => (
+                        <div key={enquiry.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 truncate">{enquiry.functionName}</p>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                              {enquiry.isPencilBooked ? 'pencil' : enquiry.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {enquiry.customer?.name || 'Lead'} • {enquiry.expectedGuests} guests
+                          </p>
+                        </div>
+                      ))
                     )}
-                  </p>
+                  </div>
                 </div>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-    </>
-  )}
 
-  {displayMode === 'hallBoard' && (
-    <div className="card">
-      <div className="panel-header">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Hall Booking Board</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Halls are listed on the left. Blocked booking date/time slots are shown on the right for{' '}
-            <span className="font-medium">{hallBoardRangeLabel}</span>.
-          </p>
-        </div>
-      </div>
-
-        <div className="overflow-x-auto">
-          <div className="min-w-[920px] rounded-xl border border-gray-200 overflow-hidden">
-            <div className="grid grid-cols-[220px_1fr] bg-gray-100 text-xs uppercase tracking-wide text-gray-600 font-semibold">
-              <div className="px-4 py-3 border-r border-gray-200">Hall / Banquet</div>
-              <div className="px-4 py-3">Blocked Time and Date</div>
-            </div>
-
-          {hallBoardRows.length === 0 ? (
-            <div className="px-4 py-8 text-sm text-gray-500">No halls or bookings found.</div>
-          ) : (
-            hallBoardRows.map((row, index) => (
-              <div
-                key={row.hallName}
-                className={`grid grid-cols-[220px_1fr] border-t border-gray-100 ${
-                  index % 2 === 0 ? 'bg-white' : 'bg-gray-50/70'
-                }`}
-              >
-                <div className="px-4 py-4 border-r border-gray-100 text-sm font-semibold text-gray-900">
-                  {row.hallName}
-                  <p className="text-xs font-normal text-gray-500 mt-1">
-                    {row.banquetName ? `Banquet: ${row.banquetName}` : 'Banquet: Unassigned'}
-                  </p>
-                </div>
-                <div className="px-3 py-3">
-                  {row.slots.length === 0 ? (
-                    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                      Available
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-900">Google Venue Events</p>
+                    <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                      {selectedGoogleEvents.length}
                     </span>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {row.slots.map((slot) => (
-                        <button
-                          key={`${row.hallName}-${slot.source}-${slot.bookingId || slot.functionName}-${slot.sortKey}`}
-                          type="button"
-                          onClick={() => {
-                            if (slot.source === 'software' && slot.bookingId) {
-                              void openBookingDetails(slot.bookingId);
-                              return;
-                            }
-                            if (slot.htmlLink) {
-                              window.open(slot.htmlLink, '_blank', 'noopener,noreferrer');
-                            }
-                          }}
-                          className={`rounded-lg border px-2.5 py-1.5 text-left transition ${
-                            slot.source === 'google'
-                              ? 'border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100'
-                              : 'border-rose-200 bg-rose-50 hover:border-rose-300 hover:bg-rose-100'
-                          }`}
-                        >
-                          <p
-                            className={`text-xs font-semibold ${
-                              slot.source === 'google' ? 'text-sky-900' : 'text-rose-900'
-                            }`}
-                          >
-                            {formatDateDDMMYYYY(slot.date)} • {slot.timeLabel}
+                  </div>
+                  <div className="space-y-2">
+                    {selectedGoogleEvents.length === 0 ? (
+                      <p className="text-xs text-gray-500">No Google events for this day.</p>
+                    ) : (
+                      selectedGoogleEvents.map((event) => (
+                        <div key={event.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                              {event.origin === 'software' ? 'software mirror' : 'google'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {event.venueName}
+                            {event.location ? ` • ${event.location}` : ''}
                           </p>
-                          <p
-                            className={`text-xs mt-0.5 ${
-                              slot.source === 'google' ? 'text-sky-800' : 'text-rose-800'
-                            }`}
-                          >
-                            {slot.functionName}
-                            {slot.source === 'software' && slot.customerName
-                              ? ` • ${slot.customerName}`
-                              : ''}
-                            {slot.source === 'google' && slot.location
-                              ? ` • ${slot.location}`
-                              : ''}
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {googleEventTimeLabel(event)} • <span className="capitalize">{event.status}</span>
                           </p>
-                          <p
-                            className={`text-[11px] mt-0.5 capitalize ${
-                              slot.source === 'google' ? 'text-sky-700' : 'text-rose-700'
-                            }`}
-                          >
-                            {slot.status} • {slot.source === 'google' ? 'Google' : 'Software'}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-gray-100 flex gap-2">
+                  <Link href="/dashboard/bookings" className="btn btn-secondary flex-1 justify-center">
+                    Bookings
+                  </Link>
+                  <Link href="/dashboard/enquiries" className="btn btn-secondary flex-1 justify-center">
+                    Enquiries
+                  </Link>
                 </div>
               </div>
-            ))
-          )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="panel-header">
+              <h2 className="text-lg font-semibold text-gray-900">Upcoming This Month</h2>
+            </div>
+            <div className="space-y-2">
+              {agenda.length === 0 ? (
+                <p className="text-sm text-gray-500">No events found for the selected month.</p>
+              ) : (
+                agenda.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => {
+                      if (entry.kind === 'booking') {
+                        const bookingId = entry.id.replace('booking-', '');
+                        if (bookingId) {
+                          void openBookingDetails(bookingId);
+                        }
+                      }
+                    }}
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left ${entry.kind === 'booking'
+                        ? 'hover:border-primary-300 hover:bg-primary-50/40 transition'
+                        : 'cursor-default'
+                      }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">{entry.title}</p>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full ${entry.source === 'google'
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                        >
+                          {entry.source === 'google' ? 'Google' : 'Software'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-xs text-gray-600">
+                        {formatDateDDMMYYYY(entry.date)} •{' '}
+                        <span className="capitalize">
+                          {entry.kind === 'google' ? 'venue' : entry.kind}
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-700 mt-1">
+                        <span className="capitalize">{entry.status}</span>
+                        {entry.kind === 'booking' && typeof entry.amount === 'number' && (
+                          <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
+                        )}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {displayMode === 'hallBoard' && (
+        <div className="card">
+          <div className="panel-header">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Hall Booking Board</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Halls are listed on the left. Blocked booking date/time slots are shown on the right for{' '}
+                <span className="font-medium">{hallBoardRangeLabel}</span>.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="min-w-[920px] rounded-xl border border-gray-200 overflow-hidden">
+              <div className="grid grid-cols-[220px_1fr] bg-gray-100 text-xs uppercase tracking-wide text-gray-600 font-semibold">
+                <div className="px-4 py-3 border-r border-gray-200">Hall / Banquet</div>
+                <div className="px-4 py-3">Blocked Time and Date</div>
+              </div>
+
+              {hallBoardRows.length === 0 ? (
+                <div className="px-4 py-8 text-sm text-gray-500">No halls or bookings found.</div>
+              ) : (
+                hallBoardRows.map((row, index) => (
+                  <div
+                    key={row.hallName}
+                    className={`grid grid-cols-[220px_1fr] border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/70'
+                      }`}
+                  >
+                    <div className="px-4 py-4 border-r border-gray-100 text-sm font-semibold text-gray-900">
+                      {row.hallName}
+                      <p className="text-xs font-normal text-gray-500 mt-1">
+                        {row.banquetName ? `Banquet: ${row.banquetName}` : 'Banquet: Unassigned'}
+                      </p>
+                    </div>
+                    <div className="px-3 py-3">
+                      {row.slots.length === 0 ? (
+                        <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                          Available
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {row.slots.map((slot) => (
+                            <button
+                              key={`${row.hallName}-${slot.source}-${slot.bookingId || slot.functionName}-${slot.sortKey}`}
+                              type="button"
+                              onClick={() => {
+                                if (slot.source === 'software' && slot.bookingId) {
+                                  void openBookingDetails(slot.bookingId);
+                                  return;
+                                }
+                                if (slot.htmlLink) {
+                                  window.open(slot.htmlLink, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              className={`rounded-lg border px-2.5 py-1.5 text-left transition ${slot.source === 'google'
+                                  ? 'border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100'
+                                  : 'border-rose-200 bg-rose-50 hover:border-rose-300 hover:bg-rose-100'
+                                }`}
+                            >
+                              <p
+                                className={`text-xs font-semibold ${slot.source === 'google' ? 'text-sky-900' : 'text-rose-900'
+                                  }`}
+                              >
+                                {formatDateDDMMYYYY(slot.date)} • {slot.timeLabel}
+                              </p>
+                              <p
+                                className={`text-xs mt-0.5 ${slot.source === 'google' ? 'text-sky-800' : 'text-rose-800'
+                                  }`}
+                              >
+                                {slot.functionName}
+                                {slot.source === 'software' && slot.customerName
+                                  ? ` • ${slot.customerName}`
+                                  : ''}
+                                {slot.source === 'google' && slot.location
+                                  ? ` • ${slot.location}`
+                                  : ''}
+                              </p>
+                              <p
+                                className={`text-[11px] mt-0.5 capitalize ${slot.source === 'google' ? 'text-sky-700' : 'text-rose-700'
+                                  }`}
+                              >
+                                {slot.status} • {slot.source === 'google' ? 'Google' : 'Software'}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  )}
+      )}
 
       {isBookingDetailsOpen && (
         <div
