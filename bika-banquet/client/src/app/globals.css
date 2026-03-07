@@ -31,6 +31,10 @@
   --ring: rgba(13, 148, 136, 0.18);
   --sidebar-w: 232px;
   --bottom-nav-h: 60px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 /* ── Skip-to-content link (accessibility) ─────────────────────── */
@@ -72,6 +76,9 @@
     line-height: 1.5;
     color: var(--text-2);
     background-color: var(--bg);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+    box-sizing: border-box;
   }
 
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
@@ -524,7 +531,7 @@
     border-radius: 16px;
     padding: 14px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s, color 0.15s;
     box-shadow: var(--shadow-xs);
     text-decoration: none;
     display: block;
@@ -669,6 +676,7 @@
     @apply flex flex-col-reverse gap-2 sm:flex-row sm:justify-end;
   }
 
+
   /* ── Mobile Card Views ───────────────────────────────────────── */
   .mobile-card-list {
     display: flex;
@@ -794,14 +802,14 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: var(--bottom-nav-h);
+    height: calc(var(--bottom-nav-h) + var(--safe-bottom));
     background: var(--surface);
     border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-around;
     z-index: 45;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--safe-bottom);
     box-shadow: 0 -1px 6px rgba(15, 23, 42, 0.04);
   }
 
@@ -852,7 +860,7 @@
   /* ── Floating Action Button ──────────────────────────────────── */
   .fab {
     position: fixed;
-    bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 16px);
     right: 20px;
     width: 52px;
     height: 52px;
@@ -1032,8 +1040,9 @@
     color: var(--teal-700);
   }
 
+
   /* Utility to add bottom padding when bottom nav is present */
   .has-bottom-nav {
-    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 8px);
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 8px);
   }
 }

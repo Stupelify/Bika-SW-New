@@ -326,10 +326,10 @@ const PACK_LABELS: Record<PackKey, string> = {
 };
 
 const PACK_ROW_STYLES: Record<PackKey, string> = {
-  breakfast: 'border-orange-200 bg-orange-50/70',
-  lunch: 'border-green-200 bg-green-50/70',
-  hiTea: 'border-slate-200 bg-slate-50/80',
-  dinner: 'border-slate-300 bg-slate-100/80',
+  breakfast: 'border-orange-200 bg-orange-50',
+  lunch: 'border-green-200 bg-green-50',
+  hiTea: 'border-slate-200 bg-slate-50',
+  dinner: 'border-slate-300 bg-slate-100',
 };
 
 const FUNCTION_TYPE_OPTIONS = [
@@ -2281,7 +2281,7 @@ export default function BookingsPage() {
                           : 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
                       }`}
                   >
-                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white/70 px-3 py-2">
+                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2">
                       <div className="inline-flex items-center gap-2">
                         <label className="relative inline-flex cursor-pointer items-center">
                           <input
@@ -2306,8 +2306,8 @@ export default function BookingsPage() {
 
                     <div
                       className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-gray-200 bg-white/70'
-                          : 'border-gray-200/80 bg-white/50 opacity-80'
+                          ? 'border-gray-200 bg-white'
+                          : 'border-gray-200 bg-white opacity-80'
                         }`}
                     >
                       <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
@@ -2330,8 +2330,8 @@ export default function BookingsPage() {
 
                     <div
                       className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-gray-200 bg-white/70'
-                          : 'border-gray-200/80 bg-white/50 opacity-80'
+                          ? 'border-gray-200 bg-white'
+                          : 'border-gray-200 bg-white opacity-80'
                         }`}
                     >
                       <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
@@ -2540,7 +2540,7 @@ export default function BookingsPage() {
             })}
           </section>
 
-          <section className="space-y-2 rounded-2xl border border-gray-200 bg-white/80 p-4">
+          <section className="space-y-2 rounded-2xl border border-gray-200 bg-white p-4">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-base font-semibold text-gray-900">Amount Summary</h3>
               <button
@@ -3306,7 +3306,10 @@ export default function BookingsPage() {
                   value={menuItemSearch}
                   onChange={(e) => setMenuItemSearch(e.target.value)}
                 />
-                <div className="max-h-[360px] overflow-y-auto rounded-lg border border-gray-200">
+                <div
+                  className="max-h-[360px] overflow-y-auto rounded-lg border border-gray-200"
+                  style={{ contain: 'content', overscrollBehavior: 'contain' }}
+                >
                   {groupedMenuItems.length === 0 ? (
                     <div className="p-3 text-sm text-gray-500">No matching items</div>
                   ) : (
@@ -3318,7 +3321,7 @@ export default function BookingsPage() {
                         {grouped.map((item) => (
                           <label
                             key={`${menuEditorPack}-${item.id}`}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 border-b border-gray-100 last:border-b-0"
+                            className="cv-auto flex items-center gap-2 px-3 py-2 text-sm text-gray-700 border-b border-gray-100 last:border-b-0"
                           >
                             <input
                               type="checkbox"
@@ -3339,7 +3342,10 @@ export default function BookingsPage() {
                 {activeMenuPackRow.menuItemIds.length === 0 ? (
                   <p className="text-sm text-gray-500">No items selected.</p>
                 ) : (
-                  <div className="max-h-[360px] overflow-y-auto space-y-3">
+                  <div
+                    className="max-h-[360px] overflow-y-auto space-y-3"
+                    style={{ contain: 'content', overscrollBehavior: 'contain' }}
+                  >
                     {selectedMenuItemsByGroup.map(([group, grouped]) => (
                       <div key={`selected-group-${group}`} className="space-y-2">
                         <p className="text-sm font-semibold text-gray-800">{group}</p>
@@ -3557,7 +3563,7 @@ export default function BookingsPage() {
                       </th>
                     )}
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                     <th className="py-2 px-4">
                       <input
                         className="input h-9"
@@ -3615,7 +3621,7 @@ export default function BookingsPage() {
                   {paginatedBookings.map((booking) => (
                     <tr
                       key={booking.id}
-                      className="border-b border-gray-100 hover:bg-gray-50"
+                      className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
                     >
                       <td className="py-4 px-4">
                         <p className="font-medium text-gray-900">{booking.functionName}</p>

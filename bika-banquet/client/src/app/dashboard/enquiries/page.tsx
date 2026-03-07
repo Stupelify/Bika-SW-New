@@ -880,7 +880,7 @@ export default function EnquiriesPage() {
                       Actions
                     </th>
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                     <th className="py-2 px-4">
                       <input
                         className="input h-9"
