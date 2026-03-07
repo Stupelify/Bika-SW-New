@@ -275,6 +275,9 @@ export async function createCustomer(
     if (data.anniversary) {
       data.anniversary = new Date(data.anniversary);
     }
+    if (data.priority === undefined || data.priority === null) {
+      data.priority = 3;
+    }
 
     const customer = await prisma.customer.create({
       data,

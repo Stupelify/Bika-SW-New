@@ -106,7 +106,7 @@ const initialFormData: CustomerFormData = {
   twitter: '',
   linkedin: '',
   referredById: '',
-  priority: '',
+  priority: '3',
   rating: '0',
   notes: '',
 };
@@ -320,7 +320,7 @@ export default function CustomersPage() {
         priority:
           customer.priority !== null && customer.priority !== undefined
             ? String(customer.priority)
-            : '',
+            : '3',
         rating: customer.rating || '0',
         notes: customer.notes || '',
       });
@@ -981,19 +981,18 @@ export default function CustomersPage() {
                 </div>
                 <div className="md:col-span-4">
                   <label className="label">Priority</label>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, priority: e.target.value }))
-                    }
-                    className="input"
-                  >
-                    <option value="">Select priority</option>
-                    {PRIORITY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
+                <select
+                  value={formData.priority}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, priority: e.target.value }))
+                  }
+                  className="input"
+                >
+                  {PRIORITY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                   </select>
                 </div>
                 <div className="md:col-span-4">

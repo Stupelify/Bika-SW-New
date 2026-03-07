@@ -117,7 +117,7 @@ model Customer {
   city              String?
   state             String?
   pincode           String?
-  priority          Int?
+  priority          Int?      @default(3)
   caste             String?
   rating            String?   @default("0")
   visitCount        Int       @default(0)

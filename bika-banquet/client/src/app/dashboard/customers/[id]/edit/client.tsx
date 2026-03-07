@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { ArrowLeft, Save } from 'lucide-react';
@@ -13,6 +13,7 @@ import {
   NAME_REGEX,
   PRIORITY_OPTIONS,
   digitsOnly,
+  getCountryIsoByCode,
   getDialCodeOption,
   getPhoneCodeByIso,
   getExpectedPhoneDigits,
@@ -44,13 +45,47 @@ const initialFormData: CustomerFormData = {
   notes: '',
 };
 
-export default function CreateCustomerPage() {
+export default function EditCustomerPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
   const phoneDigits = getExpectedPhoneDigits(formData.phoneCountryIso);
+
+  useEffect(() => {
+    void loadCustomer();
+  }, [params.id]);
+
+  const loadCustomer = async () => {
+    try {
+      setLoading(true);
+      const response = await api.getCustomer(params.id);
+      const customer = response.data.data.customer;
+      setFormData({
+        name: customer.name || '',
+        phoneCountryIso: getCountryIsoByCode(customer.phoneCountryCode),
+        phone: customer.phone || '',
+        email: customer.email || '',
+        priority:
+          customer.priority !== null && customer.priority !== undefined
+            ? String(customer.priority)
+            : '3',
+        city: customer.city || '',
+        state: customer.state || '',
+        address: customer.address || '',
+        notes: customer.notes || '',
+      });
+    } catch (error: any) {
+      const message = error?.response?.data?.message || 'Failed to load customer';
+      toast.error(message);
+      router.push('/dashboard/customers');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const setField = (field: keyof CustomerFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -92,7 +127,7 @@ export default function CreateCustomerPage() {
 
     try {
       setSaving(true);
-      const response = await api.createCustomer({
+      await api.updateCustomer(params.id, {
         name,
         phone,
         phoneCountryCode: getPhoneCodeByIso(formData.phoneCountryIso),
@@ -104,9 +139,8 @@ export default function CreateCustomerPage() {
         notes: formData.notes.trim() || undefined,
       });
 
-      const customerId = response.data.data.customer.id as string;
-      toast.success('Customer created successfully');
-      router.push(`/dashboard/customers/${customerId}`);
+      toast.success('Customer updated successfully');
+      router.push(`/dashboard/customers/${params.id}`);
     } catch (error: any) {
       const serverPhoneError = error?.response?.data?.errors?.find((entry: any) =>
         String(entry?.field || '').endsWith('phone')
@@ -124,23 +158,31 @@ export default function CreateCustomerPage() {
         error?.response?.data?.error ||
         error?.response?.data?.message ||
         error?.response?.data?.errors?.[0]?.message ||
-        'Failed to create customer';
+        'Failed to update customer';
       toast.error(message);
     } finally {
       setSaving(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3">
-        <Link href="/dashboard/customers" className="btn btn-secondary">
+        <Link href={`/dashboard/customers/${params.id}`} className="btn btn-secondary">
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Add Customer</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Edit Customer</h1>
           <p className="text-gray-600 mt-1">
-            Create a new customer record with contact details.
+            Update contact details and notes.
           </p>
         </div>
       </div>
@@ -153,7 +195,6 @@ export default function CreateCustomerPage() {
               value={formData.name}
               onChange={(e) => setField('name', sanitizeNameInput(e.target.value))}
               className="input"
-              placeholder="Customer name"
               required
             />
           </div>
@@ -187,7 +228,6 @@ export default function CreateCustomerPage() {
                   setField('phone', digitsOnly(e.target.value).slice(0, phoneDigits));
                 }}
                 className="input"
-                placeholder={`${phoneDigits}-digit number`}
                 inputMode="numeric"
                 minLength={phoneDigits}
                 maxLength={phoneDigits}
@@ -210,7 +250,6 @@ export default function CreateCustomerPage() {
                 setField('email', e.target.value);
               }}
               className="input"
-              placeholder="Email address"
             />
             {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
           </div>
@@ -234,7 +273,6 @@ export default function CreateCustomerPage() {
               value={formData.city}
               onChange={(e) => setField('city', e.target.value)}
               className="input"
-              placeholder="City"
             />
           </div>
           <div>
@@ -243,7 +281,6 @@ export default function CreateCustomerPage() {
               value={formData.state}
               onChange={(e) => setField('state', e.target.value)}
               className="input"
-              placeholder="State"
             />
           </div>
         </div>
@@ -254,7 +291,6 @@ export default function CreateCustomerPage() {
             value={formData.address}
             onChange={(e) => setField('address', e.target.value)}
             className="input min-h-[96px]"
-            placeholder="Address"
           />
         </div>
 
@@ -264,18 +300,17 @@ export default function CreateCustomerPage() {
             value={formData.notes}
             onChange={(e) => setField('notes', e.target.value)}
             className="input min-h-[96px]"
-            placeholder="Internal notes"
           />
         </div>
 
         <div className="form-actions pt-2">
-          <Link href="/dashboard/customers" className="btn btn-secondary">
+          <Link href={`/dashboard/customers/${params.id}`} className="btn btn-secondary">
             Cancel
           </Link>
           <button type="submit" className="btn btn-primary" disabled={saving}>
             <span className="inline-flex items-center gap-2">
               <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : 'Save Customer'}
+              {saving ? 'Saving...' : 'Update Customer'}
             </span>
           </button>
         </div>

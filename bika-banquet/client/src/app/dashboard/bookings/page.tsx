@@ -10,6 +10,7 @@ import {
   Printer,
   Save,
   Search,
+  Star,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -27,6 +28,21 @@ import {
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import {
+  CASTE_OPTIONS,
+  COUNTRY_DIAL_CODE_OPTIONS,
+  COUNTRY_OPTIONS,
+  DEFAULT_PHONE_COUNTRY_ISO,
+  EMAIL_REGEX,
+  NAME_REGEX,
+  PRIORITY_OPTIONS,
+  digitsOnly,
+  getDialCodeOption,
+  getExpectedPhoneDigits,
+  getPhoneCodeByIso,
+  sanitizeNameInput,
+  validatePhoneNumberForCountry,
+} from '@/lib/customerFormOptions';
 import MobileBookingCard from '@/components/MobileBookingCard';
 import FloatingActionButton from '@/components/FloatingActionButton';
 
@@ -56,6 +72,7 @@ interface CustomerOption {
   id: string;
   name: string;
   phone: string;
+  priority?: number | null;
 }
 
 type CustomerSearchField = 'primary' | 'second' | 'referred';
@@ -138,6 +155,32 @@ interface PaymentRow {
 interface AdditionalRequirementRow {
   description: string;
   amount: string;
+}
+
+interface InlineCustomerFormData {
+  name: string;
+  phoneCountryIso: string;
+  phone: string;
+  alterPhoneCountryIso: string;
+  alterPhone: string;
+  whatsappCountryIso: string;
+  whatsappNumber: string;
+  email: string;
+  caste: string;
+  country: string;
+  pincode: string;
+  city: string;
+  state: string;
+  street1: string;
+  street2: string;
+  facebookProfile: string;
+  instagramHandle: string;
+  twitter: string;
+  linkedin: string;
+  referredById: string;
+  priority: string;
+  rating: string;
+  notes: string;
 }
 
 interface BookingFormData {
@@ -249,6 +292,32 @@ const initialFormData: BookingFormData = {
   payments: [],
 };
 
+const initialInlineCustomerFormData: InlineCustomerFormData = {
+  name: '',
+  phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
+  phone: '',
+  alterPhoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
+  alterPhone: '',
+  whatsappCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
+  whatsappNumber: '',
+  email: '',
+  caste: '',
+  country: 'India',
+  pincode: '',
+  city: '',
+  state: '',
+  street1: '',
+  street2: '',
+  facebookProfile: '',
+  instagramHandle: '',
+  twitter: '',
+  linkedin: '',
+  referredById: '',
+  priority: '3',
+  rating: '0',
+  notes: '',
+};
+
 const PACK_LABELS: Record<PackKey, string> = {
   breakfast: 'Breakfast',
   lunch: 'Lunch',
@@ -321,6 +390,7 @@ export default function BookingsPage() {
   const canAddBooking = hasAnyPermission(permissionSet, ['add_booking', 'manage_bookings']);
   const canEditBooking = hasAnyPermission(permissionSet, ['edit_booking', 'manage_bookings']);
   const canDeleteBooking = hasAnyPermission(permissionSet, ['delete_booking', 'manage_bookings']);
+  const canAddCustomer = hasAnyPermission(permissionSet, ['add_customer', 'manage_customers']);
   const canExportMenuPdf = canViewBooking;
 
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -332,6 +402,7 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [menuEditorPack, setMenuEditorPack] = useState<PackKey | null>(null);
   const [menuItemSearch, setMenuItemSearch] = useState('');
@@ -360,6 +431,17 @@ export default function BookingsPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
+  const [inlineCustomerFormData, setInlineCustomerFormData] = useState<InlineCustomerFormData>(
+    initialInlineCustomerFormData
+  );
+  const [inlineCustomerSaving, setInlineCustomerSaving] = useState(false);
+  const [isInlineWhatsappDifferent, setIsInlineWhatsappDifferent] = useState(false);
+  const [inlineCustomerEmailError, setInlineCustomerEmailError] = useState('');
+  const [inlineCustomerPhoneErrors, setInlineCustomerPhoneErrors] = useState<{
+    phone?: string;
+    alterPhone?: string;
+    whatsappNumber?: string;
+  }>({});
   const [amountSyncMode, setAmountSyncMode] = useState<AmountSyncMode>('discountPercent');
   const todayIsoDate = useMemo(() => {
     const now = new Date();
@@ -368,6 +450,15 @@ export default function BookingsPage() {
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }, []);
+  const inlinePrimaryPhoneDigits = getExpectedPhoneDigits(
+    inlineCustomerFormData.phoneCountryIso
+  );
+  const inlineSecondaryPhoneDigits = getExpectedPhoneDigits(
+    inlineCustomerFormData.alterPhoneCountryIso
+  );
+  const inlineWhatsappPhoneDigits = getExpectedPhoneDigits(
+    inlineCustomerFormData.whatsappCountryIso
+  );
 
   const tableColumns = useMemo<TableColumnConfig<Booking>[]>(
     () => [
@@ -416,6 +507,11 @@ export default function BookingsPage() {
     const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
     return filteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
   }, [currentPage, filteredBookings, totalPages]);
+
+  const customerReferrerOptions = useMemo(
+    () => [...customers].sort(compareCustomersByName),
+    [customers]
+  );
 
   const totalPayments = useMemo(
     () =>
@@ -550,7 +646,12 @@ export default function BookingsPage() {
     (field: CustomerSearchField, customerId: string) => {
       setFormData((prev) => {
         if (field === 'primary') {
-          return { ...prev, customerId };
+          const selectedCustomer = customers.find((customer) => customer.id === customerId);
+          const selectedPriority =
+            selectedCustomer?.priority !== null && selectedCustomer?.priority !== undefined
+              ? String(selectedCustomer.priority)
+              : prev.priority || '3';
+          return { ...prev, customerId, priority: selectedPriority };
         }
         if (field === 'second') {
           return { ...prev, secondCustomerId: customerId };
@@ -558,7 +659,7 @@ export default function BookingsPage() {
         return { ...prev, referredById: customerId };
       });
     },
-    []
+    [customers]
   );
 
   const getSelectedCustomerId = useCallback(
@@ -906,6 +1007,227 @@ export default function BookingsPage() {
     };
   }, [menuPdfPreviewUrl]);
 
+  const resetInlineCustomerForm = () => {
+    setInlineCustomerFormData(initialInlineCustomerFormData);
+    setIsInlineWhatsappDifferent(false);
+    setInlineCustomerEmailError('');
+    setInlineCustomerPhoneErrors({});
+  };
+
+  const loadCustomerOptions = async (): Promise<CustomerOption[]> => {
+    const customerRes = await api.getCustomers({ page: 1, limit: 5000 });
+    const customerRows = customerRes.data?.data?.customers || [];
+    const sortedCustomers = [...customerRows].sort(compareCustomersByName);
+    setCustomers(sortedCustomers);
+    return sortedCustomers;
+  };
+
+  const openQuickCustomerForm = () => {
+    resetInlineCustomerForm();
+    setShowAddCustomerForm(true);
+  };
+
+  const closeQuickCustomerForm = () => {
+    if (inlineCustomerSaving) return;
+    setShowAddCustomerForm(false);
+    resetInlineCustomerForm();
+  };
+
+  const handleQuickCustomerSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canAddCustomer) {
+      toast.error('You do not have permission to add customers.');
+      return;
+    }
+
+    const name = inlineCustomerFormData.name.trim().replace(/\s+/g, ' ');
+    const phone = digitsOnly(inlineCustomerFormData.phone);
+    const secondPhone = digitsOnly(inlineCustomerFormData.alterPhone);
+    const whatsappNumber = digitsOnly(inlineCustomerFormData.whatsappNumber);
+    const email = inlineCustomerFormData.email.trim();
+    const pincode = digitsOnly(inlineCustomerFormData.pincode);
+
+    setInlineCustomerEmailError('');
+    setInlineCustomerPhoneErrors({});
+
+    if (!name) {
+      toast.error('Full name is required');
+      return;
+    }
+    if (!NAME_REGEX.test(name)) {
+      toast.error('Name can contain only letters and spaces');
+      return;
+    }
+    if (!phone) {
+      const message = 'Phone number is required';
+      setInlineCustomerPhoneErrors({ phone: message });
+      toast.error(message);
+      return;
+    }
+
+    const phoneValidationMessage = validatePhoneNumberForCountry(
+      phone,
+      inlineCustomerFormData.phoneCountryIso,
+      'Phone number'
+    );
+    if (phoneValidationMessage) {
+      setInlineCustomerPhoneErrors({ phone: phoneValidationMessage });
+      toast.error(phoneValidationMessage);
+      return;
+    }
+
+    if (secondPhone) {
+      const secondPhoneMessage = validatePhoneNumberForCountry(
+        secondPhone,
+        inlineCustomerFormData.alterPhoneCountryIso,
+        '2nd phone number'
+      );
+      if (secondPhoneMessage) {
+        setInlineCustomerPhoneErrors({ alterPhone: secondPhoneMessage });
+        toast.error(secondPhoneMessage);
+        return;
+      }
+    }
+
+    if (isInlineWhatsappDifferent) {
+      if (!whatsappNumber) {
+        toast.error('WhatsApp number is required when different from phone');
+        return;
+      }
+      const whatsappMessage = validatePhoneNumberForCountry(
+        whatsappNumber,
+        inlineCustomerFormData.whatsappCountryIso,
+        'WhatsApp number'
+      );
+      if (whatsappMessage) {
+        setInlineCustomerPhoneErrors({ whatsappNumber: whatsappMessage });
+        toast.error(whatsappMessage);
+        return;
+      }
+    }
+
+    if (email && !EMAIL_REGEX.test(email)) {
+      const message = 'Email must contain @ and .';
+      setInlineCustomerEmailError(message);
+      toast.error(message);
+      return;
+    }
+
+    if (pincode && (pincode.length < 4 || pincode.length > 10)) {
+      toast.error('PIN code must contain 4 to 10 digits');
+      return;
+    }
+
+    const phoneCountryCode = getPhoneCodeByIso(inlineCustomerFormData.phoneCountryIso);
+    const alterPhoneCountryCode = getPhoneCodeByIso(inlineCustomerFormData.alterPhoneCountryIso);
+    const effectiveWhatsappNumber = isInlineWhatsappDifferent ? whatsappNumber : phone;
+    const whatsappCountryCode = isInlineWhatsappDifferent
+      ? getPhoneCodeByIso(inlineCustomerFormData.whatsappCountryIso)
+      : phoneCountryCode;
+    const country = inlineCustomerFormData.country.trim();
+    const city = inlineCustomerFormData.city.trim();
+    const state = inlineCustomerFormData.state.trim();
+    const street1 = inlineCustomerFormData.street1.trim();
+    const street2 = inlineCustomerFormData.street2.trim();
+    const addressParts = [street1, street2, city, state, pincode, country].filter(Boolean);
+
+    try {
+      setInlineCustomerSaving(true);
+      const response = await api.createCustomer({
+        name,
+        phone,
+        phoneCountryCode,
+        email: email || undefined,
+        alterPhone: secondPhone || undefined,
+        alterPhoneCountryCode: secondPhone ? alterPhoneCountryCode : undefined,
+        whatsappNumber: effectiveWhatsappNumber || undefined,
+        whatsappCountryCode: effectiveWhatsappNumber ? whatsappCountryCode : undefined,
+        caste: inlineCustomerFormData.caste || undefined,
+        country: country || undefined,
+        pincode: pincode || undefined,
+        city: city || undefined,
+        state: state || undefined,
+        street1: street1 || undefined,
+        street2: street2 || undefined,
+        address: addressParts.length > 0 ? addressParts.join(', ') : undefined,
+        facebookProfile: inlineCustomerFormData.facebookProfile.trim() || undefined,
+        instagramHandle: inlineCustomerFormData.instagramHandle.trim() || undefined,
+        twitter: inlineCustomerFormData.twitter.trim() || undefined,
+        linkedin: inlineCustomerFormData.linkedin.trim() || undefined,
+        referredById: inlineCustomerFormData.referredById || undefined,
+        priority: inlineCustomerFormData.priority
+          ? Number(inlineCustomerFormData.priority)
+          : undefined,
+        rating: inlineCustomerFormData.rating || undefined,
+        notes: inlineCustomerFormData.notes.trim() || undefined,
+      });
+      const createdCustomerId = response?.data?.data?.customer?.id as string | undefined;
+
+      const updatedCustomers = await loadCustomerOptions();
+      const createdCustomer = createdCustomerId
+        ? updatedCustomers.find((customer) => customer.id === createdCustomerId)
+        : updatedCustomers.find(
+          (customer) =>
+            customer.name === name &&
+            (customer.phone || '') === phone
+        );
+
+      if (createdCustomer) {
+        setCustomerIdForField('primary', createdCustomer.id);
+        setCustomerSearchInputs((prev) => ({
+          ...prev,
+          primary: formatCustomerLabel(createdCustomer),
+        }));
+        setActiveCustomerSearchField(null);
+      }
+
+      toast.success('Customer added successfully');
+      setShowAddCustomerForm(false);
+      resetInlineCustomerForm();
+    } catch (error: any) {
+      const serverValidationErrors = error?.response?.data?.errors;
+      if (Array.isArray(serverValidationErrors)) {
+        const nextErrors: {
+          phone?: string;
+          alterPhone?: string;
+          whatsappNumber?: string;
+        } = {};
+        let nextEmailError = '';
+        serverValidationErrors.forEach((entry: any) => {
+          const field = String(entry?.field || '');
+          if (field.endsWith('phone') && !nextErrors.phone) {
+            nextErrors.phone = entry?.message;
+          }
+          if (
+            (field.endsWith('alterPhone') || field.endsWith('alternatePhone')) &&
+            !nextErrors.alterPhone
+          ) {
+            nextErrors.alterPhone = entry?.message;
+          }
+          if (
+            (field.endsWith('whatsappNumber') || field.endsWith('whatsapp')) &&
+            !nextErrors.whatsappNumber
+          ) {
+            nextErrors.whatsappNumber = entry?.message;
+          }
+          if (field.endsWith('email') && !nextEmailError) {
+            nextEmailError = entry?.message || '';
+          }
+        });
+        setInlineCustomerPhoneErrors(nextErrors);
+        setInlineCustomerEmailError(nextEmailError);
+      }
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.response?.data?.errors?.[0]?.message ||
+        'Failed to create customer';
+      toast.error(message);
+    } finally {
+      setInlineCustomerSaving(false);
+    }
+  };
+
   const loadLookups = async () => {
     try {
       if (!canAddBooking && !canEditBooking) {
@@ -916,19 +1238,18 @@ export default function BookingsPage() {
         setTemplateMenus([]);
         return;
       }
-      const [customerRes, banquetRes, hallRes, itemRes, templateRes] = await Promise.all([
-        api.getCustomers({ page: 1, limit: 5000 }),
+      const [customerRows, banquetRes, hallRes, itemRes, templateRes] = await Promise.all([
+        loadCustomerOptions(),
         api.getBanquets({ page: 1, limit: 5000 }),
         api.getHalls({ page: 1, limit: 5000 }),
         api.getItems({ page: 1, limit: 5000 }),
         api.getTemplateMenus({ page: 1, limit: 5000, includeItems: true }),
       ]);
-      const customerRows = customerRes.data?.data?.customers || [];
       const banquetRows = banquetRes.data?.data?.banquets || [];
       const hallRows = hallRes.data?.data?.halls || [];
       const itemRows = itemRes.data?.data?.items || [];
       const templateRows = templateRes.data?.data?.templateMenus || [];
-      setCustomers([...customerRows].sort(compareCustomersByName));
+      setCustomers(customerRows);
       setBanquets(banquetRows);
       setHalls(hallRows);
       setItems(itemRows);
@@ -1511,7 +1832,7 @@ export default function BookingsPage() {
     placeholder,
   }: {
     field: CustomerSearchField;
-    label: string;
+    label?: string;
     required?: boolean;
     placeholder: string;
   }) => {
@@ -1520,10 +1841,12 @@ export default function BookingsPage() {
 
     return (
       <div className="relative">
-        <label className="label">
-          {label}
-          {required && <span className="text-red-500"> *</span>}
-        </label>
+        {label ? (
+          <label className="label">
+            {label}
+            {required && <span className="text-red-500"> *</span>}
+          </label>
+        ) : null}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -1583,7 +1906,6 @@ export default function BookingsPage() {
           <button
             onClick={openCreateBooking}
             className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-            disabled={customers.length === 0}
           >
             <Plus className="w-4 h-4" />
             Add Booking
@@ -1598,10 +1920,16 @@ export default function BookingsPage() {
       )}
 
       {canAddBooking && customers.length === 0 && (
-        <div className="card border-amber-200 bg-amber-50">
+        <div className="card border-amber-200 bg-amber-50 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-amber-800">
-            Add at least one customer before creating bookings.
+            No customers found. Add a customer first, then create booking.
           </p>
+          {canAddCustomer && (
+            <button type="button" className="btn btn-secondary" onClick={openQuickCustomerForm}>
+              <Plus className="w-4 h-4" />
+              Add Customer
+            </button>
+          )}
         </div>
       )}
 
@@ -1635,12 +1963,27 @@ export default function BookingsPage() {
             <div className="space-y-3">
               <h3 className="text-2xl font-semibold text-gray-900">Booking Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-[1fr,100px] gap-3">
-                {renderCustomerTypeahead({
-                  field: 'primary',
-                  label: 'Primary Customer',
-                  required: true,
-                  placeholder: 'Type customer name or number',
-                })}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="label m-0">Primary Customer <span className="text-red-500">*</span></span>
+                    {canAddCustomer && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary text-xs px-2.5 py-1.5"
+                        onClick={openQuickCustomerForm}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Customer
+                      </button>
+                    )}
+                  </div>
+                  {renderCustomerTypeahead({
+                    field: 'primary',
+                    label: '',
+                    required: true,
+                    placeholder: 'Type customer name or number',
+                  })}
+                </div>
                 <div>
                   <label className="label">Priority</label>
                   <input
@@ -2417,6 +2760,504 @@ export default function BookingsPage() {
               <span className="inline-flex items-center gap-2">
                 <Save className="w-4 h-4" />
                 {saving ? 'Saving...' : 'Finalize'}
+              </span>
+            </button>
+          </div>
+        </form>
+      </FormPromptModal>
+
+      <FormPromptModal
+        open={showAddCustomerForm}
+        title="Add Customer"
+        onClose={closeQuickCustomerForm}
+        widthClass="max-w-6xl"
+      >
+        <form onSubmit={handleQuickCustomerSubmit} className="space-y-7" noValidate>
+          <section className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Personal Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <div className="md:col-span-4">
+                <label className="label">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={inlineCustomerFormData.name}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({
+                      ...prev,
+                      name: sanitizeNameInput(e.target.value),
+                    }))
+                  }
+                  className="input"
+                  placeholder="Full name"
+                  required
+                />
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-[180px,1fr] gap-2">
+                  <select
+                    value={inlineCustomerFormData.phoneCountryIso}
+                    onChange={(e) => {
+                      const nextIso = e.target.value;
+                      const digits = getExpectedPhoneDigits(nextIso);
+                      setInlineCustomerPhoneErrors((prev) => ({ ...prev, phone: undefined }));
+                      setInlineCustomerFormData((prev) => ({
+                        ...prev,
+                        phoneCountryIso: nextIso,
+                        phone: prev.phone.slice(0, digits),
+                        whatsappCountryIso: isInlineWhatsappDifferent
+                          ? prev.whatsappCountryIso
+                          : nextIso,
+                      }));
+                    }}
+                    className="input"
+                  >
+                    {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                      <option key={option.iso2} value={option.iso2}>
+                        {option.flag} {option.country} ({option.code})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={inlineCustomerFormData.phone}
+                    onChange={(e) => {
+                      setInlineCustomerPhoneErrors((prev) => ({ ...prev, phone: undefined }));
+                      setInlineCustomerFormData((prev) => ({
+                        ...prev,
+                        phone: digitsOnly(e.target.value).slice(0, inlinePrimaryPhoneDigits),
+                      }));
+                    }}
+                    className="input"
+                    placeholder={`${inlinePrimaryPhoneDigits}-digit number`}
+                    inputMode="numeric"
+                    minLength={inlinePrimaryPhoneDigits}
+                    maxLength={inlinePrimaryPhoneDigits}
+                    required
+                  />
+                </div>
+                {inlineCustomerPhoneErrors.phone && (
+                  <p className="mt-1 text-xs text-red-600">{inlineCustomerPhoneErrors.phone}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  {getDialCodeOption(inlineCustomerFormData.phoneCountryIso).country} numbers must be{' '}
+                  {inlinePrimaryPhoneDigits} digits.
+                </p>
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">2nd Phone No.</label>
+                <div className="grid grid-cols-[180px,1fr] gap-2">
+                  <select
+                    value={inlineCustomerFormData.alterPhoneCountryIso}
+                    onChange={(e) => {
+                      const nextIso = e.target.value;
+                      const digits = getExpectedPhoneDigits(nextIso);
+                      setInlineCustomerPhoneErrors((prev) => ({ ...prev, alterPhone: undefined }));
+                      setInlineCustomerFormData((prev) => ({
+                        ...prev,
+                        alterPhoneCountryIso: nextIso,
+                        alterPhone: prev.alterPhone.slice(0, digits),
+                      }));
+                    }}
+                    className="input"
+                  >
+                    {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                      <option key={`inline-alt-${option.iso2}`} value={option.iso2}>
+                        {option.flag} {option.country} ({option.code})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={inlineCustomerFormData.alterPhone}
+                    onChange={(e) => {
+                      setInlineCustomerPhoneErrors((prev) => ({ ...prev, alterPhone: undefined }));
+                      setInlineCustomerFormData((prev) => ({
+                        ...prev,
+                        alterPhone: digitsOnly(e.target.value).slice(0, inlineSecondaryPhoneDigits),
+                      }));
+                    }}
+                    className="input"
+                    placeholder={`${inlineSecondaryPhoneDigits}-digit number`}
+                    inputMode="numeric"
+                    maxLength={inlineSecondaryPhoneDigits}
+                  />
+                </div>
+                {inlineCustomerPhoneErrors.alterPhone && (
+                  <p className="mt-1 text-xs text-red-600">{inlineCustomerPhoneErrors.alterPhone}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Optional. If entered, it must be exactly {inlineSecondaryPhoneDigits} digits.
+                </p>
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">Caste</label>
+                <select
+                  value={inlineCustomerFormData.caste}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, caste: e.target.value }))
+                  }
+                  className="input"
+                >
+                  <option value="">Select caste</option>
+                  {CASTE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">Email</label>
+                <input
+                  type="email"
+                  value={inlineCustomerFormData.email}
+                  onChange={(e) => {
+                    setInlineCustomerEmailError('');
+                    setInlineCustomerFormData((prev) => ({ ...prev, email: e.target.value }));
+                  }}
+                  className="input"
+                  placeholder="name@example.com"
+                />
+                {inlineCustomerEmailError && (
+                  <p className="mt-1 text-xs text-red-600">{inlineCustomerEmailError}</p>
+                )}
+              </div>
+              <div className="md:col-span-4 flex items-end">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700 pb-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    checked={isInlineWhatsappDifferent}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsInlineWhatsappDifferent(checked);
+                      if (!checked) {
+                        setInlineCustomerPhoneErrors((prev) => ({
+                          ...prev,
+                          whatsappNumber: undefined,
+                        }));
+                        setInlineCustomerFormData((prev) => ({
+                          ...prev,
+                          whatsappNumber: '',
+                          whatsappCountryIso: prev.phoneCountryIso,
+                        }));
+                      }
+                    }}
+                  />
+                  Is WhatsApp different from phone?
+                </label>
+              </div>
+              {isInlineWhatsappDifferent && (
+                <div className="md:col-span-4">
+                  <label className="label">
+                    WhatsApp Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-[180px,1fr] gap-2">
+                    <select
+                      value={inlineCustomerFormData.whatsappCountryIso}
+                      onChange={(e) => {
+                        const nextIso = e.target.value;
+                        const digits = getExpectedPhoneDigits(nextIso);
+                        setInlineCustomerPhoneErrors((prev) => ({
+                          ...prev,
+                          whatsappNumber: undefined,
+                        }));
+                        setInlineCustomerFormData((prev) => ({
+                          ...prev,
+                          whatsappCountryIso: nextIso,
+                          whatsappNumber: prev.whatsappNumber.slice(0, digits),
+                        }));
+                      }}
+                      className="input"
+                    >
+                      {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                        <option key={`inline-wa-${option.iso2}`} value={option.iso2}>
+                          {option.flag} {option.country} ({option.code})
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={inlineCustomerFormData.whatsappNumber}
+                      onChange={(e) => {
+                        setInlineCustomerPhoneErrors((prev) => ({
+                          ...prev,
+                          whatsappNumber: undefined,
+                        }));
+                        setInlineCustomerFormData((prev) => ({
+                          ...prev,
+                          whatsappNumber: digitsOnly(e.target.value).slice(
+                            0,
+                            inlineWhatsappPhoneDigits
+                          ),
+                        }));
+                      }}
+                      className="input"
+                      placeholder={`${inlineWhatsappPhoneDigits}-digit number`}
+                      inputMode="numeric"
+                      minLength={inlineWhatsappPhoneDigits}
+                      maxLength={inlineWhatsappPhoneDigits}
+                      required
+                    />
+                  </div>
+                  {inlineCustomerPhoneErrors.whatsappNumber && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {inlineCustomerPhoneErrors.whatsappNumber}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Must be exactly {inlineWhatsappPhoneDigits} digits.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Address</h3>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <div className="md:col-span-4">
+                <label className="label">Country</label>
+                <select
+                  value={inlineCustomerFormData.country}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, country: e.target.value }))
+                  }
+                  className="input"
+                >
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">PIN Code</label>
+                <input
+                  value={inlineCustomerFormData.pincode}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({
+                      ...prev,
+                      pincode: digitsOnly(e.target.value),
+                    }))
+                  }
+                  className="input"
+                  placeholder="PIN code"
+                  inputMode="numeric"
+                  maxLength={10}
+                />
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">State</label>
+                <input
+                  value={inlineCustomerFormData.state}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, state: e.target.value }))
+                  }
+                  className="input"
+                  placeholder="State"
+                />
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">City</label>
+                <input
+                  value={inlineCustomerFormData.city}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, city: e.target.value }))
+                  }
+                  className="input"
+                  placeholder="City"
+                />
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">Street One</label>
+                <input
+                  value={inlineCustomerFormData.street1}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, street1: e.target.value }))
+                  }
+                  className="input"
+                  placeholder="Street one"
+                />
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">Street Two</label>
+                <input
+                  value={inlineCustomerFormData.street2}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, street2: e.target.value }))
+                  }
+                  className="input"
+                  placeholder="Street two"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Social Links</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div>
+                <label className="label">Facebook</label>
+                <input
+                  value={inlineCustomerFormData.facebookProfile}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({
+                      ...prev,
+                      facebookProfile: e.target.value,
+                    }))
+                  }
+                  className="input"
+                  placeholder="Facebook profile"
+                />
+              </div>
+              <div>
+                <label className="label">Instagram</label>
+                <input
+                  value={inlineCustomerFormData.instagramHandle}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({
+                      ...prev,
+                      instagramHandle: e.target.value,
+                    }))
+                  }
+                  className="input"
+                  placeholder="Instagram handle"
+                />
+              </div>
+              <div>
+                <label className="label">Twitter</label>
+                <input
+                  value={inlineCustomerFormData.twitter}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, twitter: e.target.value }))
+                  }
+                  className="input"
+                  placeholder="Twitter"
+                />
+              </div>
+              <div>
+                <label className="label">LinkedIn</label>
+                <input
+                  value={inlineCustomerFormData.linkedin}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, linkedin: e.target.value }))
+                  }
+                  className="input"
+                  placeholder="LinkedIn"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Other Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <div className="md:col-span-4">
+                <label className="label">Referred By</label>
+                <select
+                  value={inlineCustomerFormData.referredById}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({
+                      ...prev,
+                      referredById: e.target.value,
+                    }))
+                  }
+                  className="input"
+                >
+                  <option value="">Select customer</option>
+                  {customerReferrerOptions.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name} ({customer.phone})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">Priority</label>
+                <select
+                  value={inlineCustomerFormData.priority}
+                  onChange={(e) =>
+                    setInlineCustomerFormData((prev) => ({ ...prev, priority: e.target.value }))
+                  }
+                  className="input"
+                >
+                  {PRIORITY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-4">
+                <label className="label">Rating</label>
+                <div className="h-11 flex items-center gap-1 rounded-xl border border-gray-200 px-3">
+                  {[1, 2, 3, 4, 5].map((value) => {
+                    const current = Number(inlineCustomerFormData.rating || '0');
+                    const active = value <= current;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() =>
+                          setInlineCustomerFormData((prev) => ({
+                            ...prev,
+                            rating:
+                              prev.rating === String(value) ? '0' : String(value),
+                          }))
+                        }
+                        className="p-0.5"
+                        aria-label={`Set rating ${value}`}
+                      >
+                        <Star
+                          className={`w-5 h-5 ${
+                            active ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInlineCustomerFormData((prev) => ({ ...prev, rating: '0' }))
+                    }
+                    className="ml-2 text-xs font-medium text-gray-500 hover:text-gray-700"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Notes</label>
+              <textarea
+                value={inlineCustomerFormData.notes}
+                onChange={(e) =>
+                  setInlineCustomerFormData((prev) => ({ ...prev, notes: e.target.value }))
+                }
+                className="input min-h-[96px]"
+                placeholder="Internal notes"
+              />
+            </div>
+          </section>
+
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={closeQuickCustomerForm}
+              disabled={inlineCustomerSaving}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={inlineCustomerSaving}>
+              <span className="inline-flex items-center gap-2">
+                <Save className="w-4 h-4" />
+                {inlineCustomerSaving ? 'Saving...' : 'Create Customer'}
               </span>
             </button>
           </div>

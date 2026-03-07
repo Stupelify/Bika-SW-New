@@ -525,6 +525,12 @@ export default function CalendarPage() {
     setIsBookingDetailsOpen(false);
   }, []);
 
+  useEffect(() => {
+    const now = new Date();
+    setViewDate(startOfDay(now));
+    setSelectedDate(formatDateKey(now));
+  }, []);
+
   const openBookingDetails = useCallback(async (bookingId: string) => {
     try {
       setIsBookingDetailsOpen(true);
@@ -599,6 +605,14 @@ export default function CalendarPage() {
       setLoading(false);
     }
   }, [viewDate, viewMode]);
+
+  const handleJumpToDate = useCallback((dateKey: string) => {
+    if (!dateKey) return;
+    const parsedDate = parseDateKey(dateKey);
+    if (Number.isNaN(parsedDate.getTime())) return;
+    setSelectedDate(dateKey);
+    setViewDate(startOfDay(parsedDate));
+  }, []);
 
   useEffect(() => {
     void loadCalendarData();
@@ -1131,12 +1145,25 @@ export default function CalendarPage() {
             >
               Today
             </button>
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
+              <span className="text-xs font-semibold text-gray-600 whitespace-nowrap">Go to</span>
+              <input
+                type="date"
+                className="input h-8 min-h-0 border-0 p-0 text-sm shadow-none focus:shadow-none"
+                value={selectedDate}
+                onChange={(event) => handleJumpToDate(event.target.value)}
+                aria-label="Jump to date"
+              />
+            </div>
             <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden">
               {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
-                  onClick={() => setViewMode(mode)}
+                  onClick={() => {
+                    setViewMode(mode);
+                    setViewDate(startOfDay(parseDateKey(selectedDate)));
+                  }}
                   className={`px-3 py-2 text-sm font-semibold capitalize transition ${viewMode === mode
                       ? 'bg-primary-600 text-white'
                       : 'bg-white text-gray-700 hover:bg-gray-50'
