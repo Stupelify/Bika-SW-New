@@ -31,7 +31,7 @@ export default function FormPromptModal({
       <div
         className={`relative w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-gray-200 bg-white shadow-xl`}
       >
-        <div className="sticky top-0 bg-gradient-to-r from-white via-primary-50/70 to-white border-b border-gray-200 px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
+        <div className="sticky top-0 bg-white/95 border-b border-gray-200 px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-display font-semibold text-gray-900">{title}</h2>
           <button
             type="button"

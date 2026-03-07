@@ -223,9 +223,11 @@ export const CASTE_OPTIONS = [
 ] as const;
 
 export const PRIORITY_OPTIONS = [
-  { label: 'Low', value: '1' },
-  { label: 'Medium', value: '2' },
-  { label: 'High', value: '3' },
+  { label: '1 - Lowest', value: '1' },
+  { label: '2 - Low', value: '2' },
+  { label: '3 - Medium', value: '3' },
+  { label: '4 - High', value: '4' },
+  { label: '5 - Highest', value: '5' },
 ] as const;
 
 export const NAME_REGEX = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;

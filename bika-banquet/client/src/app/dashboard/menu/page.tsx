@@ -1,9 +1,9 @@
 'use client';
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Fragment, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Edit, Layers, ListChecks, Save, Search, Soup, Trash2 } from 'lucide-react';
+import { ChevronDown, Edit, Layers, ListChecks, Save, Search, Soup, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
@@ -177,6 +177,9 @@ function MenuPageContent() {
   const [itemTypePage, setItemTypePage] = useState(1);
   const [itemPage, setItemPage] = useState(1);
   const [templatePage, setTemplatePage] = useState(1);
+  const [collapsedItemTypeGroups, setCollapsedItemTypeGroups] = useState<
+    Record<string, boolean>
+  >({});
   const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>('itemType');
   const sectionParam = searchParams.get('section');
 
@@ -292,6 +295,46 @@ function MenuPageContent() {
     const startIndex = (safePage - 1) * ITEMS_PAGE_SIZE;
     return filteredItems.slice(startIndex, startIndex + ITEMS_PAGE_SIZE);
   }, [filteredItems, itemPage, itemTotalPages]);
+
+  const groupedPaginatedItems = useMemo(() => {
+    const itemTypeMeta = new Map<string, { name: string; order: number }>();
+    itemTypes.forEach((itemType) => {
+      itemTypeMeta.set(itemType.id, {
+        name: itemType.name || 'Other',
+        order: itemType.order ?? itemType.displayOrder ?? Number.MAX_SAFE_INTEGER,
+      });
+    });
+
+    const groupedMap = new Map<
+      string,
+      { key: string; label: string; order: number; rows: Item[] }
+    >();
+
+    paginatedItems.forEach((item) => {
+      const fallbackLabel = item.itemType?.name || 'Other';
+      const meta = item.itemTypeId ? itemTypeMeta.get(item.itemTypeId) : undefined;
+      const groupKey = item.itemTypeId || `other-${fallbackLabel}`;
+      const groupLabel = meta?.name || fallbackLabel;
+      const groupOrder = meta?.order ?? Number.MAX_SAFE_INTEGER;
+
+      const existing = groupedMap.get(groupKey);
+      if (existing) {
+        existing.rows.push(item);
+        return;
+      }
+      groupedMap.set(groupKey, {
+        key: groupKey,
+        label: groupLabel,
+        order: groupOrder,
+        rows: [item],
+      });
+    });
+
+    return Array.from(groupedMap.values()).sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+    });
+  }, [itemTypes, paginatedItems]);
 
   const paginatedTemplateMenus = useMemo(() => {
     const safePage = Math.min(Math.max(templatePage, 1), templateTotalPages);
@@ -1361,38 +1404,74 @@ function MenuPageContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedItems.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-100">
-                      <td className="py-3 px-2">
-                        <p className="text-sm text-gray-900">{item.name}</p>
-                        <p className="text-xs text-gray-500 mt-1">{item.isVeg ? 'Veg' : 'Non-veg'}</p>
-                      </td>
-                      <td className="py-3 px-2 text-sm text-gray-700">{item.itemType?.name || '-'}</td>
-                      <td className="py-3 px-2 text-sm text-gray-700">
-                        {item.cost ? `INR ${item.cost.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="py-3 px-2 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {canEditItem && (
+                  {groupedPaginatedItems.map((group) => {
+                    const collapsed = Boolean(collapsedItemTypeGroups[group.key]);
+                    return (
+                      <Fragment key={`group-${group.key}`}>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <td colSpan={4} className="py-2 px-2">
                             <button
-                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                              onClick={() => openEditItem(item)}
+                              type="button"
+                              className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-gray-100"
+                              onClick={() =>
+                                setCollapsedItemTypeGroups((prev) => ({
+                                  ...prev,
+                                  [group.key]: !prev[group.key],
+                                }))
+                              }
                             >
-                              <Edit className="w-4 h-4" />
+                              <span className="text-sm font-semibold text-gray-800">
+                                {group.label}
+                              </span>
+                              <span className="inline-flex items-center gap-2 text-xs text-gray-500">
+                                {group.rows.length} item{group.rows.length === 1 ? '' : 's'}
+                                <ChevronDown
+                                  className={`w-4 h-4 transition-transform ${collapsed ? '' : 'rotate-180'}`}
+                                />
+                              </span>
                             </button>
-                          )}
-                          {canDeleteItem && (
-                            <button
-                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                              onClick={() => removeItem(item.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          </td>
+                        </tr>
+                        {!collapsed &&
+                          group.rows.map((item) => (
+                            <tr key={item.id} className="border-b border-gray-100">
+                              <td className="py-3 px-2">
+                                <p className="text-sm text-gray-900">{item.name}</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {item.isVeg ? 'Veg' : 'Non-veg'}
+                                </p>
+                              </td>
+                              <td className="py-3 px-2 text-sm text-gray-700">
+                                {group.label || '-'}
+                              </td>
+                              <td className="py-3 px-2 text-sm text-gray-700">
+                                {item.cost ? `INR ${item.cost.toLocaleString()}` : '-'}
+                              </td>
+                              <td className="py-3 px-2 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {canEditItem && (
+                                    <button
+                                      className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                      onClick={() => openEditItem(item)}
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  {canDeleteItem && (
+                                    <button
+                                      className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                      onClick={() => removeItem(item.id)}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               <TablePagination

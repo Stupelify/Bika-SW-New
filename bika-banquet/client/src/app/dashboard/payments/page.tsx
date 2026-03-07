@@ -68,8 +68,7 @@ export default function PaymentsPage() {
       {
         key: 'booking',
         accessor: (booking) =>
-          `${booking.functionName} ${booking.customer?.name ?? ''} ${
-            booking.customer?.phone ?? ''
+          `${booking.functionName} ${booking.customer?.name ?? ''} ${booking.customer?.phone ?? ''
           }`,
       },
       { key: 'eventDate', accessor: (booking) => booking.functionDate },
@@ -305,153 +304,202 @@ export default function PaymentsPage() {
         ) : filteredBookings.length === 0 ? (
           <div className="text-sm text-gray-500 py-8 text-center">No bookings found.</div>
         ) : (
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <SortableHeader
-                    label="Booking"
-                    sortKey="booking"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    className="text-left py-3 px-3 text-sm font-semibold text-gray-700"
-                  />
-                  <SortableHeader
-                    label="Event date"
-                    sortKey="eventDate"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    className="text-left py-3 px-3 text-sm font-semibold text-gray-700"
-                  />
-                  <SortableHeader
-                    label="Total"
-                    sortKey="total"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
-                  />
-                  <SortableHeader
-                    label="Received"
-                    sortKey="received"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
-                  />
-                  <SortableHeader
-                    label="Balance"
-                    sortKey="balance"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
-                  />
-                  <SortableHeader
-                    label="Entries"
-                    sortKey="entries"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
-                  />
-                </tr>
-                <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
-                  <th className="py-2 px-3">
-                    <input
-                      className="input h-9"
-                      placeholder="Search booking"
-                      value={columnSearch.booking}
-                      onChange={(e) =>
-                        setColumnSearch((prev) => ({ ...prev, booking: e.target.value }))
-                      }
-                    />
-                  </th>
-                  <th className="py-2 px-3">
-                    <input
-                      className="input h-9"
-                      placeholder="Search date"
-                      value={columnSearch.eventDate}
-                      onChange={(e) =>
-                        setColumnSearch((prev) => ({ ...prev, eventDate: e.target.value }))
-                      }
-                    />
-                  </th>
-                  <th className="py-2 px-3">
-                    <input
-                      className="input h-9 text-right"
-                      placeholder="Search total"
-                      value={columnSearch.total}
-                      onChange={(e) =>
-                        setColumnSearch((prev) => ({ ...prev, total: e.target.value }))
-                      }
-                    />
-                  </th>
-                  <th className="py-2 px-3">
-                    <input
-                      className="input h-9 text-right"
-                      placeholder="Search received"
-                      value={columnSearch.received}
-                      onChange={(e) =>
-                        setColumnSearch((prev) => ({ ...prev, received: e.target.value }))
-                      }
-                    />
-                  </th>
-                  <th className="py-2 px-3">
-                    <input
-                      className="input h-9 text-right"
-                      placeholder="Search balance"
-                      value={columnSearch.balance}
-                      onChange={(e) =>
-                        setColumnSearch((prev) => ({ ...prev, balance: e.target.value }))
-                      }
-                    />
-                  </th>
-                  <th className="py-2 px-3">
-                    <input
-                      className="input h-9 text-right"
-                      placeholder="Search entries"
-                      value={columnSearch.entries}
-                      onChange={(e) =>
-                        setColumnSearch((prev) => ({ ...prev, entries: e.target.value }))
-                      }
-                    />
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+          <>
+            {/* Mobile card view */}
+            <div className="md:hidden">
+              <div className="mobile-card-list">
                 {paginatedBookings.map((booking) => (
-                  <tr key={booking.id} className="border-b border-gray-100">
-                    <td className="py-3 px-3">
-                      <p className="text-sm text-gray-900">{booking.functionName}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {booking.customer?.name} • {booking.customer?.phone}
-                      </p>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-700">
-                      {formatDateDDMMYYYY(booking.functionDate)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-sm text-gray-700">
-                      INR {(booking.grandTotal || 0).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 text-right text-sm text-gray-700">
-                      INR {(booking.advanceReceived || 0).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 text-right text-sm font-medium text-gray-900">
-                      INR {(booking.balanceAmount || 0).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 text-right text-sm text-gray-700">
-                      {booking._count?.payments || 0}
-                    </td>
-                  </tr>
+                  <div key={booking.id} className="mobile-card">
+                    <div className="mobile-card-header">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="mobile-card-title">{booking.functionName}</div>
+                        <div className="mobile-card-subtitle">
+                          {booking.customer?.name} • {booking.customer?.phone}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Event Date</span>
+                      <span className="mobile-card-value">{formatDateDDMMYYYY(booking.functionDate)}</span>
+                    </div>
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Total</span>
+                      <span className="mobile-card-value">₹{(booking.grandTotal || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Received</span>
+                      <span className="mobile-card-value" style={{ color: '#15803d' }}>₹{(booking.advanceReceived || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Balance</span>
+                      <span className="mobile-card-amount">₹{(booking.balanceAmount || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Entries</span>
+                      <span className="mobile-card-value">{booking._count?.payments || 0}</span>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-            <TablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredBookings.length}
-              pageSize={PAYMENTS_PAGE_SIZE}
-              itemLabel="bookings"
-              onPageChange={setCurrentPage}
-            />
-          </div>
+              </div>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredBookings.length}
+                pageSize={PAYMENTS_PAGE_SIZE}
+                itemLabel="bookings"
+                onPageChange={setCurrentPage}
+              />
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden md:block table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <SortableHeader
+                      label="Booking"
+                      sortKey="booking"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-left py-3 px-3 text-sm font-semibold text-gray-700"
+                    />
+                    <SortableHeader
+                      label="Event date"
+                      sortKey="eventDate"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-left py-3 px-3 text-sm font-semibold text-gray-700"
+                    />
+                    <SortableHeader
+                      label="Total"
+                      sortKey="total"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                    />
+                    <SortableHeader
+                      label="Received"
+                      sortKey="received"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                    />
+                    <SortableHeader
+                      label="Balance"
+                      sortKey="balance"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                    />
+                    <SortableHeader
+                      label="Entries"
+                      sortKey="entries"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                    />
+                  </tr>
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                    <th className="py-2 px-3">
+                      <input
+                        className="input h-9"
+                        placeholder="Search booking"
+                        value={columnSearch.booking}
+                        onChange={(e) =>
+                          setColumnSearch((prev) => ({ ...prev, booking: e.target.value }))
+                        }
+                      />
+                    </th>
+                    <th className="py-2 px-3">
+                      <input
+                        className="input h-9"
+                        placeholder="Search date"
+                        value={columnSearch.eventDate}
+                        onChange={(e) =>
+                          setColumnSearch((prev) => ({ ...prev, eventDate: e.target.value }))
+                        }
+                      />
+                    </th>
+                    <th className="py-2 px-3">
+                      <input
+                        className="input h-9 text-right"
+                        placeholder="Search total"
+                        value={columnSearch.total}
+                        onChange={(e) =>
+                          setColumnSearch((prev) => ({ ...prev, total: e.target.value }))
+                        }
+                      />
+                    </th>
+                    <th className="py-2 px-3">
+                      <input
+                        className="input h-9 text-right"
+                        placeholder="Search received"
+                        value={columnSearch.received}
+                        onChange={(e) =>
+                          setColumnSearch((prev) => ({ ...prev, received: e.target.value }))
+                        }
+                      />
+                    </th>
+                    <th className="py-2 px-3">
+                      <input
+                        className="input h-9 text-right"
+                        placeholder="Search balance"
+                        value={columnSearch.balance}
+                        onChange={(e) =>
+                          setColumnSearch((prev) => ({ ...prev, balance: e.target.value }))
+                        }
+                      />
+                    </th>
+                    <th className="py-2 px-3">
+                      <input
+                        className="input h-9 text-right"
+                        placeholder="Search entries"
+                        value={columnSearch.entries}
+                        onChange={(e) =>
+                          setColumnSearch((prev) => ({ ...prev, entries: e.target.value }))
+                        }
+                      />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedBookings.map((booking) => (
+                    <tr key={booking.id} className="border-b border-gray-100">
+                      <td className="py-3 px-3">
+                        <p className="text-sm text-gray-900">{booking.functionName}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {booking.customer?.name} • {booking.customer?.phone}
+                        </p>
+                      </td>
+                      <td className="py-3 px-3 text-sm text-gray-700">
+                        {formatDateDDMMYYYY(booking.functionDate)}
+                      </td>
+                      <td className="py-3 px-3 text-right text-sm text-gray-700">
+                        INR {(booking.grandTotal || 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right text-sm text-gray-700">
+                        INR {(booking.advanceReceived || 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right text-sm font-medium text-gray-900">
+                        INR {(booking.balanceAmount || 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right text-sm text-gray-700">
+                        {booking._count?.payments || 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredBookings.length}
+                pageSize={PAYMENTS_PAGE_SIZE}
+                itemLabel="bookings"
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

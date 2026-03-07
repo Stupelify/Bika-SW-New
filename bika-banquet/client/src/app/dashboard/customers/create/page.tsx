@@ -11,6 +11,7 @@ import {
   DEFAULT_PHONE_COUNTRY_ISO,
   EMAIL_REGEX,
   NAME_REGEX,
+  PRIORITY_OPTIONS,
   digitsOnly,
   getDialCodeOption,
   getPhoneCodeByIso,
@@ -24,6 +25,7 @@ interface CustomerFormData {
   phoneCountryIso: string;
   phone: string;
   email: string;
+  priority: string;
   city: string;
   state: string;
   address: string;
@@ -35,6 +37,7 @@ const initialFormData: CustomerFormData = {
   phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
   phone: '',
   email: '',
+  priority: '3',
   city: '',
   state: '',
   address: '',
@@ -94,6 +97,7 @@ export default function CreateCustomerPage() {
         phone,
         phoneCountryCode: getPhoneCodeByIso(formData.phoneCountryIso),
         email: email || undefined,
+        priority: formData.priority ? Number(formData.priority) : 3,
         city: formData.city.trim() || undefined,
         state: formData.state.trim() || undefined,
         address: formData.address.trim() || undefined,
@@ -209,6 +213,20 @@ export default function CreateCustomerPage() {
               placeholder="Email address"
             />
             {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
+          </div>
+          <div>
+            <label className="label">Priority</label>
+            <select
+              value={formData.priority}
+              onChange={(e) => setField('priority', e.target.value)}
+              className="input"
+            >
+              {PRIORITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="label">City</label>

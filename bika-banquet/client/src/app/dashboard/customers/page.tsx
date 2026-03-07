@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import FormPromptModal from '@/components/FormPromptModal';
+import FloatingActionButton from '@/components/FloatingActionButton';
 import SortableHeader from '@/components/SortableHeader';
 import {
   SortState,
@@ -105,7 +106,7 @@ const initialFormData: CustomerFormData = {
   twitter: '',
   linkedin: '',
   referredById: '',
-  priority: '',
+  priority: '3',
   rating: '0',
   notes: '',
 };
@@ -319,7 +320,7 @@ export default function CustomersPage() {
         priority:
           customer.priority !== null && customer.priority !== undefined
             ? String(customer.priority)
-            : '',
+            : '3',
         rating: customer.rating || '0',
         notes: customer.notes || '',
       });
@@ -328,8 +329,8 @@ export default function CustomersPage() {
     } catch (error: any) {
       toast.error(
         error?.response?.data?.error ||
-          error?.response?.data?.message ||
-          'Failed to load customer details'
+        error?.response?.data?.message ||
+        'Failed to load customer details'
       );
     } finally {
       setLoadingFormData(false);
@@ -569,417 +570,417 @@ export default function CustomersPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
         ) : (
-        <form onSubmit={handleSubmit} className="space-y-7" noValidate>
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Personal Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-4">
-                <label className="label">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      name: sanitizeNameInput(e.target.value),
-                    }))
-                  }
-                  className="input"
-                  placeholder="Full name"
-                  required
-                />
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-[180px,1fr] gap-2">
-                  <select
-                    value={formData.phoneCountryIso}
-                    onChange={(e) => {
-                      const nextIso = e.target.value;
-                      const digits = getExpectedPhoneDigits(nextIso);
-                      setPhoneFieldErrors((prev) => ({ ...prev, phone: undefined }));
-                      setFormData((prev) => ({
-                        ...prev,
-                        phoneCountryIso: nextIso,
-                        phone: prev.phone.slice(0, digits),
-                        whatsappCountryIso: isWhatsappDifferent
-                          ? prev.whatsappCountryIso
-                          : nextIso,
-                      }));
-                    }}
-                    className="input"
-                  >
-                    {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                      <option key={option.iso2} value={option.iso2}>
-                        {option.flag} {option.country} ({option.code})
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={formData.phone}
-                    onChange={(e) => {
-                      setPhoneFieldErrors((prev) => ({ ...prev, phone: undefined }));
-                      setFormData((prev) => ({
-                        ...prev,
-                        phone: digitsOnly(e.target.value).slice(0, primaryPhoneDigits),
-                      }));
-                    }}
-                    className="input"
-                    placeholder={`${primaryPhoneDigits}-digit number`}
-                    inputMode="numeric"
-                    minLength={primaryPhoneDigits}
-                    maxLength={primaryPhoneDigits}
-                    required
-                  />
-                </div>
-                {phoneFieldErrors.phone && (
-                  <p className="mt-1 text-xs text-red-600">{phoneFieldErrors.phone}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  {getDialCodeOption(formData.phoneCountryIso).country} numbers must be{' '}
-                  {primaryPhoneDigits} digits.
-                </p>
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">2nd Phone No.</label>
-                <div className="grid grid-cols-[180px,1fr] gap-2">
-                  <select
-                    value={formData.alterPhoneCountryIso}
-                    onChange={(e) => {
-                      const nextIso = e.target.value;
-                      const digits = getExpectedPhoneDigits(nextIso);
-                      setPhoneFieldErrors((prev) => ({ ...prev, alterPhone: undefined }));
-                      setFormData((prev) => ({
-                        ...prev,
-                        alterPhoneCountryIso: nextIso,
-                        alterPhone: prev.alterPhone.slice(0, digits),
-                      }));
-                    }}
-                    className="input"
-                  >
-                    {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                      <option
-                        key={`alt-${option.iso2}`}
-                        value={option.iso2}
-                      >
-                        {option.flag} {option.country} ({option.code})
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={formData.alterPhone}
-                    onChange={(e) => {
-                      setPhoneFieldErrors((prev) => ({ ...prev, alterPhone: undefined }));
-                      setFormData((prev) => ({
-                        ...prev,
-                        alterPhone: digitsOnly(e.target.value).slice(0, secondaryPhoneDigits),
-                      }));
-                    }}
-                    className="input"
-                    placeholder={`${secondaryPhoneDigits}-digit number`}
-                    inputMode="numeric"
-                    maxLength={secondaryPhoneDigits}
-                  />
-                </div>
-                {phoneFieldErrors.alterPhone && (
-                  <p className="mt-1 text-xs text-red-600">{phoneFieldErrors.alterPhone}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  Optional. If entered, it must be exactly {secondaryPhoneDigits} digits.
-                </p>
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">Caste</label>
-                <select
-                  value={formData.caste}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, caste: e.target.value }))
-                  }
-                  className="input"
-                >
-                  <option value="">Select caste</option>
-                  {CASTE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => {
-                    setEmailFieldError('');
-                    setFormData((prev) => ({ ...prev, email: e.target.value }));
-                  }}
-                  className="input"
-                  placeholder="name@example.com"
-                />
-                {emailFieldError && (
-                  <p className="mt-1 text-xs text-red-600">{emailFieldError}</p>
-                )}
-              </div>
-              <div className="md:col-span-4 flex items-end">
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700 pb-2">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    checked={isWhatsappDifferent}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setIsWhatsappDifferent(checked);
-                      if (!checked) {
-                        setPhoneFieldErrors((prev) => ({
-                          ...prev,
-                          whatsappNumber: undefined,
-                        }));
-                        setFormData((prev) => ({
-                          ...prev,
-                          whatsappNumber: '',
-                          whatsappCountryIso: prev.phoneCountryIso,
-                        }));
-                      }
-                    }}
-                  />
-                  Is WhatsApp different from phone?
-                </label>
-              </div>
-              {isWhatsappDifferent && (
+          <form onSubmit={handleSubmit} className="space-y-7" noValidate>
+            <section className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Personal Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-4">
                   <label className="label">
-                    WhatsApp Number <span className="text-red-500">*</span>
+                    Full Name <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-[180px,1fr] gap-2">
-                  <select
-                    value={formData.whatsappCountryIso}
-                    onChange={(e) => {
-                      const nextIso = e.target.value;
-                      const digits = getExpectedPhoneDigits(nextIso);
-                      setPhoneFieldErrors((prev) => ({
-                        ...prev,
-                        whatsappNumber: undefined,
-                      }));
-                      setFormData((prev) => ({
-                        ...prev,
-                        whatsappCountryIso: nextIso,
-                        whatsappNumber: prev.whatsappNumber.slice(0, digits),
-                      }));
-                    }}
-                    className="input"
-                  >
-                    {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                      <option
-                        key={`wa-${option.iso2}`}
-                        value={option.iso2}
-                      >
-                        {option.flag} {option.country} ({option.code})
-                      </option>
-                    ))}
-                  </select>
                   <input
-                    value={formData.whatsappNumber}
-                    onChange={(e) => {
-                      setPhoneFieldErrors((prev) => ({
-                        ...prev,
-                        whatsappNumber: undefined,
-                      }));
+                    value={formData.name}
+                    onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        whatsappNumber: digitsOnly(e.target.value).slice(
-                          0,
-                          whatsappPhoneDigits
-                        ),
-                      }));
-                    }}
+                        name: sanitizeNameInput(e.target.value),
+                      }))
+                    }
                     className="input"
-                    placeholder={`${whatsappPhoneDigits}-digit number`}
-                    inputMode="numeric"
-                    minLength={whatsappPhoneDigits}
-                    maxLength={whatsappPhoneDigits}
+                    placeholder="Full name"
                     required
                   />
                 </div>
-                  {phoneFieldErrors.whatsappNumber && (
-                    <p className="mt-1 text-xs text-red-600">
-                      {phoneFieldErrors.whatsappNumber}
-                    </p>
+                <div className="md:col-span-4">
+                  <label className="label">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-[180px,1fr] gap-2">
+                    <select
+                      value={formData.phoneCountryIso}
+                      onChange={(e) => {
+                        const nextIso = e.target.value;
+                        const digits = getExpectedPhoneDigits(nextIso);
+                        setPhoneFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          phoneCountryIso: nextIso,
+                          phone: prev.phone.slice(0, digits),
+                          whatsappCountryIso: isWhatsappDifferent
+                            ? prev.whatsappCountryIso
+                            : nextIso,
+                        }));
+                      }}
+                      className="input"
+                    >
+                      {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                        <option key={option.iso2} value={option.iso2}>
+                          {option.flag} {option.country} ({option.code})
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={formData.phone}
+                      onChange={(e) => {
+                        setPhoneFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          phone: digitsOnly(e.target.value).slice(0, primaryPhoneDigits),
+                        }));
+                      }}
+                      className="input"
+                      placeholder={`${primaryPhoneDigits}-digit number`}
+                      inputMode="numeric"
+                      minLength={primaryPhoneDigits}
+                      maxLength={primaryPhoneDigits}
+                      required
+                    />
+                  </div>
+                  {phoneFieldErrors.phone && (
+                    <p className="mt-1 text-xs text-red-600">{phoneFieldErrors.phone}</p>
                   )}
                   <p className="mt-1 text-xs text-gray-500">
-                    Must be exactly {whatsappPhoneDigits} digits.
+                    {getDialCodeOption(formData.phoneCountryIso).country} numbers must be{' '}
+                    {primaryPhoneDigits} digits.
                   </p>
                 </div>
-              )}
-            </div>
-          </section>
+                <div className="md:col-span-4">
+                  <label className="label">2nd Phone No.</label>
+                  <div className="grid grid-cols-[180px,1fr] gap-2">
+                    <select
+                      value={formData.alterPhoneCountryIso}
+                      onChange={(e) => {
+                        const nextIso = e.target.value;
+                        const digits = getExpectedPhoneDigits(nextIso);
+                        setPhoneFieldErrors((prev) => ({ ...prev, alterPhone: undefined }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          alterPhoneCountryIso: nextIso,
+                          alterPhone: prev.alterPhone.slice(0, digits),
+                        }));
+                      }}
+                      className="input"
+                    >
+                      {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                        <option
+                          key={`alt-${option.iso2}`}
+                          value={option.iso2}
+                        >
+                          {option.flag} {option.country} ({option.code})
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={formData.alterPhone}
+                      onChange={(e) => {
+                        setPhoneFieldErrors((prev) => ({ ...prev, alterPhone: undefined }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          alterPhone: digitsOnly(e.target.value).slice(0, secondaryPhoneDigits),
+                        }));
+                      }}
+                      className="input"
+                      placeholder={`${secondaryPhoneDigits}-digit number`}
+                      inputMode="numeric"
+                      maxLength={secondaryPhoneDigits}
+                    />
+                  </div>
+                  {phoneFieldErrors.alterPhone && (
+                    <p className="mt-1 text-xs text-red-600">{phoneFieldErrors.alterPhone}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Optional. If entered, it must be exactly {secondaryPhoneDigits} digits.
+                  </p>
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">Caste</label>
+                  <select
+                    value={formData.caste}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, caste: e.target.value }))
+                    }
+                    className="input"
+                  >
+                    <option value="">Select caste</option>
+                    {CASTE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => {
+                      setEmailFieldError('');
+                      setFormData((prev) => ({ ...prev, email: e.target.value }));
+                    }}
+                    className="input"
+                    placeholder="name@example.com"
+                  />
+                  {emailFieldError && (
+                    <p className="mt-1 text-xs text-red-600">{emailFieldError}</p>
+                  )}
+                </div>
+                <div className="md:col-span-4 flex items-end">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700 pb-2">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      checked={isWhatsappDifferent}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsWhatsappDifferent(checked);
+                        if (!checked) {
+                          setPhoneFieldErrors((prev) => ({
+                            ...prev,
+                            whatsappNumber: undefined,
+                          }));
+                          setFormData((prev) => ({
+                            ...prev,
+                            whatsappNumber: '',
+                            whatsappCountryIso: prev.phoneCountryIso,
+                          }));
+                        }
+                      }}
+                    />
+                    Is WhatsApp different from phone?
+                  </label>
+                </div>
+                {isWhatsappDifferent && (
+                  <div className="md:col-span-4">
+                    <label className="label">
+                      WhatsApp Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-[180px,1fr] gap-2">
+                      <select
+                        value={formData.whatsappCountryIso}
+                        onChange={(e) => {
+                          const nextIso = e.target.value;
+                          const digits = getExpectedPhoneDigits(nextIso);
+                          setPhoneFieldErrors((prev) => ({
+                            ...prev,
+                            whatsappNumber: undefined,
+                          }));
+                          setFormData((prev) => ({
+                            ...prev,
+                            whatsappCountryIso: nextIso,
+                            whatsappNumber: prev.whatsappNumber.slice(0, digits),
+                          }));
+                        }}
+                        className="input"
+                      >
+                        {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                          <option
+                            key={`wa-${option.iso2}`}
+                            value={option.iso2}
+                          >
+                            {option.flag} {option.country} ({option.code})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={formData.whatsappNumber}
+                        onChange={(e) => {
+                          setPhoneFieldErrors((prev) => ({
+                            ...prev,
+                            whatsappNumber: undefined,
+                          }));
+                          setFormData((prev) => ({
+                            ...prev,
+                            whatsappNumber: digitsOnly(e.target.value).slice(
+                              0,
+                              whatsappPhoneDigits
+                            ),
+                          }));
+                        }}
+                        className="input"
+                        placeholder={`${whatsappPhoneDigits}-digit number`}
+                        inputMode="numeric"
+                        minLength={whatsappPhoneDigits}
+                        maxLength={whatsappPhoneDigits}
+                        required
+                      />
+                    </div>
+                    {phoneFieldErrors.whatsappNumber && (
+                      <p className="mt-1 text-xs text-red-600">
+                        {phoneFieldErrors.whatsappNumber}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Must be exactly {whatsappPhoneDigits} digits.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
 
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Address</h3>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-4">
-                <label className="label">Country</label>
-                <select
-                  value={formData.country}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, country: e.target.value }))
-                  }
-                  className="input"
-                >
-                  {COUNTRY_OPTIONS.map((country) => (
-                    <option key={country} value={country}>
-                      {country}
-                    </option>
-                  ))}
-                </select>
+            <section className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Address</h3>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-4">
+                  <label className="label">Country</label>
+                  <select
+                    value={formData.country}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, country: e.target.value }))
+                    }
+                    className="input"
+                  >
+                    {COUNTRY_OPTIONS.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">PIN Code</label>
+                  <input
+                    value={formData.pincode}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        pincode: digitsOnly(e.target.value),
+                      }))
+                    }
+                    className="input"
+                    placeholder="PIN code"
+                    inputMode="numeric"
+                    maxLength={10}
+                  />
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">State</label>
+                  <input
+                    value={formData.state}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, state: e.target.value }))
+                    }
+                    className="input"
+                    placeholder="State"
+                  />
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">City</label>
+                  <input
+                    value={formData.city}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, city: e.target.value }))
+                    }
+                    className="input"
+                    placeholder="City"
+                  />
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">Street One</label>
+                  <input
+                    value={formData.street1}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, street1: e.target.value }))
+                    }
+                    className="input"
+                    placeholder="Street one"
+                  />
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">Street Two</label>
+                  <input
+                    value={formData.street2}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, street2: e.target.value }))
+                    }
+                    className="input"
+                    placeholder="Street two"
+                  />
+                </div>
               </div>
-              <div className="md:col-span-4">
-                <label className="label">PIN Code</label>
-                <input
-                  value={formData.pincode}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      pincode: digitsOnly(e.target.value),
-                    }))
-                  }
-                  className="input"
-                  placeholder="PIN code"
-                  inputMode="numeric"
-                  maxLength={10}
-                />
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">State</label>
-                <input
-                  value={formData.state}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, state: e.target.value }))
-                  }
-                  className="input"
-                  placeholder="State"
-                />
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">City</label>
-                <input
-                  value={formData.city}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, city: e.target.value }))
-                  }
-                  className="input"
-                  placeholder="City"
-                />
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">Street One</label>
-                <input
-                  value={formData.street1}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, street1: e.target.value }))
-                  }
-                  className="input"
-                  placeholder="Street one"
-                />
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">Street Two</label>
-                <input
-                  value={formData.street2}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, street2: e.target.value }))
-                  }
-                  className="input"
-                  placeholder="Street two"
-                />
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Social Links</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div>
-                <label className="label">Facebook</label>
-                <input
-                  value={formData.facebookProfile}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      facebookProfile: e.target.value,
-                    }))
-                  }
-                  className="input"
-                  placeholder="Facebook profile"
-                />
+            <section className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Social Links</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div>
+                  <label className="label">Facebook</label>
+                  <input
+                    value={formData.facebookProfile}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        facebookProfile: e.target.value,
+                      }))
+                    }
+                    className="input"
+                    placeholder="Facebook profile"
+                  />
+                </div>
+                <div>
+                  <label className="label">Instagram</label>
+                  <input
+                    value={formData.instagramHandle}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        instagramHandle: e.target.value,
+                      }))
+                    }
+                    className="input"
+                    placeholder="Instagram handle"
+                  />
+                </div>
+                <div>
+                  <label className="label">Twitter</label>
+                  <input
+                    value={formData.twitter}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, twitter: e.target.value }))
+                    }
+                    className="input"
+                    placeholder="Twitter"
+                  />
+                </div>
+                <div>
+                  <label className="label">LinkedIn</label>
+                  <input
+                    value={formData.linkedin}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, linkedin: e.target.value }))
+                    }
+                    className="input"
+                    placeholder="LinkedIn"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="label">Instagram</label>
-                <input
-                  value={formData.instagramHandle}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      instagramHandle: e.target.value,
-                    }))
-                  }
-                  className="input"
-                  placeholder="Instagram handle"
-                />
-              </div>
-              <div>
-                <label className="label">Twitter</label>
-                <input
-                  value={formData.twitter}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, twitter: e.target.value }))
-                  }
-                  className="input"
-                  placeholder="Twitter"
-                />
-              </div>
-              <div>
-                <label className="label">LinkedIn</label>
-                <input
-                  value={formData.linkedin}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, linkedin: e.target.value }))
-                  }
-                  className="input"
-                  placeholder="LinkedIn"
-                />
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Other Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-4">
-                <label className="label">Referred By</label>
-                <select
-                  value={formData.referredById}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      referredById: e.target.value,
-                    }))
-                  }
-                  className="input"
-                >
-                  <option value="">Select customer</option>
-                  {referrerOptions.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} ({customer.phoneCountryCode || '+91'} {customer.phone})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">Priority</label>
+            <section className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Other Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-4">
+                  <label className="label">Referred By</label>
+                  <select
+                    value={formData.referredById}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        referredById: e.target.value,
+                      }))
+                    }
+                    className="input"
+                  >
+                    <option value="">Select customer</option>
+                    {referrerOptions.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name} ({customer.phoneCountryCode || '+91'} {customer.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">Priority</label>
                 <select
                   value={formData.priority}
                   onChange={(e) =>
@@ -987,86 +988,84 @@ export default function CustomersPage() {
                   }
                   className="input"
                 >
-                  <option value="">Select priority</option>
                   {PRIORITY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
-                </select>
-              </div>
-              <div className="md:col-span-4">
-                <label className="label">Rating</label>
-                <div className="h-11 flex items-center gap-1 rounded-xl border border-gray-200 px-3">
-                  {[1, 2, 3, 4, 5].map((value) => {
-                    const current = Number(formData.rating || '0');
-                    const active = value <= current;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            rating: prev.rating === String(value) ? '0' : String(value),
-                          }))
-                        }
-                        className="p-0.5"
-                        aria-label={`Set rating ${value}`}
-                      >
-                        <Star
-                          className={`w-5 h-5 ${
-                            active ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
-                          }`}
-                        />
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, rating: '0' }))}
-                    className="ml-2 text-xs font-medium text-gray-500 hover:text-gray-700"
-                  >
-                    Clear
-                  </button>
+                  </select>
+                </div>
+                <div className="md:col-span-4">
+                  <label className="label">Rating</label>
+                  <div className="h-11 flex items-center gap-1 rounded-xl border border-gray-200 px-3">
+                    {[1, 2, 3, 4, 5].map((value) => {
+                      const current = Number(formData.rating || '0');
+                      const active = value <= current;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              rating: prev.rating === String(value) ? '0' : String(value),
+                            }))
+                          }
+                          className="p-0.5"
+                          aria-label={`Set rating ${value}`}
+                        >
+                          <Star
+                            className={`w-5 h-5 ${active ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
+                              }`}
+                          />
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, rating: '0' }))}
+                      className="ml-2 text-xs font-medium text-gray-500 hover:text-gray-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <label className="label">Notes</label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, notes: e.target.value }))
-                }
-                className="input min-h-[96px]"
-                placeholder="Internal notes"
-              />
-            </div>
-          </section>
+              <div>
+                <label className="label">Notes</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, notes: e.target.value }))
+                  }
+                  className="input min-h-[96px]"
+                  placeholder="Internal notes"
+                />
+              </div>
+            </section>
 
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={closeCreatePrompt}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              <span className="inline-flex items-center gap-2">
-                <Save className="w-4 h-4" />
-                {saving
-                  ? 'Saving...'
-                  : editingCustomerId
-                    ? 'Update Customer'
-                    : 'Create Customer'}
-              </span>
-            </button>
-          </div>
-        </form>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeCreatePrompt}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                <span className="inline-flex items-center gap-2">
+                  <Save className="w-4 h-4" />
+                  {saving
+                    ? 'Saving...'
+                    : editingCustomerId
+                      ? 'Update Customer'
+                      : 'Create Customer'}
+                </span>
+              </button>
+            </div>
+          </form>
         )}
       </FormPromptModal>
 
@@ -1095,200 +1094,319 @@ export default function CustomersPage() {
             <p className="text-gray-500">No customers found</p>
           </div>
         ) : (
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <SortableHeader
-                    label="Name"
-                    sortKey="name"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Contact"
-                    sortKey="contact"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Location"
-                    sortKey="location"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Stats"
-                    sortKey="stats"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <SortableHeader
-                    label="Created"
-                    sortKey="createdAt"
-                    sort={sort}
-                    onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                  />
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
-                    Actions
-                  </th>
-                </tr>
-                <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search name"
-                      value={columnSearch.name}
-                      onChange={(e) => handleColumnSearch('name', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search contact"
-                      value={columnSearch.contact}
-                      onChange={(e) => handleColumnSearch('contact', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search location"
-                      value={columnSearch.location}
-                      onChange={(e) => handleColumnSearch('location', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search stats"
-                      value={columnSearch.stats}
-                      onChange={(e) => handleColumnSearch('stats', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4">
-                    <input
-                      className="input h-9"
-                      placeholder="Search date"
-                      value={columnSearch.createdAt}
-                      onChange={(e) => handleColumnSearch('createdAt', e.target.value)}
-                    />
-                  </th>
-                  <th className="py-2 px-4" />
-                </tr>
-              </thead>
-              <tbody>
+          <>
+            {/* Mobile card view */}
+            <div className="md:hidden">
+              <div className="mobile-card-list">
                 {paginatedCustomers.map((customer) => (
-                  <tr
-                    key={customer.id}
-                    className="border-b border-gray-100 hover:bg-gray-50"
-                  >
-                    <td className="py-4 px-4">
-                      <p className="font-medium text-gray-900">{customer.name}</p>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Phone className="w-4 h-4" />
-                          {(customer.phoneCountryCode || '+91') + ' ' + customer.phone}
-                        </div>
-                        {customer.email && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Mail className="w-4 h-4" />
-                            {customer.email}
-                          </div>
-                        )}
+                  <div key={customer.id} className="mobile-card">
+                    <div className="mobile-card-header">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="mobile-card-title">{customer.name}</div>
                       </div>
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-600">
-                      {customer.city && customer.state
-                        ? `${customer.city}, ${customer.state}`
-                        : '-'}
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex gap-3 text-sm">
-                        <span className="text-gray-600">
-                          {customer._count?.enquiries ?? 0} enquiries
-                        </span>
-                        <span className="text-gray-600">
-                          {customer._count?.bookings ?? 0} bookings
+                    </div>
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Phone</span>
+                      <span className="mobile-card-value">
+                        {(customer.phoneCountryCode || '+91') + ' ' + customer.phone}
+                      </span>
+                    </div>
+                    {customer.email && (
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Email</span>
+                        <span className="mobile-card-value">{customer.email}</span>
+                      </div>
+                    )}
+                    {(customer.city || customer.state) && (
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Location</span>
+                        <span className="mobile-card-value">
+                          {customer.city && customer.state
+                            ? `${customer.city}, ${customer.state}`
+                            : customer.city || customer.state}
                         </span>
                       </div>
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-600">
-                      {formatDateDDMMYYYY(customer.createdAt)}
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        {canViewCustomer && (
-                          <Link
-                            href={`/dashboard/customers/${customer.id}`}
-                            className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
-                            title="View"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Link>
-                        )}
-                        {canEditCustomer && (
-                          <button
-                            type="button"
-                            onClick={() => void openEditPrompt(customer.id)}
-                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                            title="Edit"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                        )}
-                        {canDeleteCustomer && (
-                          <button
-                            onClick={() => handleDelete(customer.id)}
-                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                    )}
+                    <div className="mobile-card-meta" style={{ marginTop: 8 }}>
+                      <span className="mobile-card-meta-item">
+                        {customer._count?.enquiries ?? 0} enquiries
+                      </span>
+                      <span className="mobile-card-meta-item">
+                        {customer._count?.bookings ?? 0} bookings
+                      </span>
+                    </div>
+                    <div className="mobile-card-actions">
+                      {canViewCustomer && (
+                        <Link
+                          href={`/dashboard/customers/${customer.id}`}
+                          className="mobile-card-action-btn"
+                        >
+                          <Eye style={{ width: 14, height: 14 }} aria-hidden="true" />
+                          View
+                        </Link>
+                      )}
+                      {canEditCustomer && (
+                        <button
+                          type="button"
+                          className="mobile-card-action-btn"
+                          onClick={() => void openEditPrompt(customer.id)}
+                        >
+                          <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                          Edit
+                        </button>
+                      )}
+                      {canDeleteCustomer && (
+                        <button
+                          type="button"
+                          className="mobile-card-action-btn"
+                          onClick={() => handleDelete(customer.id)}
+                          style={{ color: '#dc2626' }}
+                        >
+                          <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-            {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-gray-600">
-                  Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
-                  {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
-                  {filteredCustomers.length} customers
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-700">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={currentPage >= totalPages}
-                    onClick={() =>
-                      setCurrentPage((page) => Math.min(totalPages, page + 1))
-                    }
-                  >
-                    Next
-                  </button>
-                </div>
               </div>
-            )}
-          </div>
+              {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-gray-600">
+                    Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
+                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
+                    {filteredCustomers.length} customers
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    >
+                      Previous
+                    </button>
+                    <span className="text-sm text-gray-700">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={currentPage >= totalPages}
+                      onClick={() =>
+                        setCurrentPage((page) => Math.min(totalPages, page + 1))
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden md:block table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <SortableHeader
+                      label="Name"
+                      sortKey="name"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Contact"
+                      sortKey="contact"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Location"
+                      sortKey="location"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Stats"
+                      sortKey="stats"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <SortableHeader
+                      label="Created"
+                      sortKey="createdAt"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                    />
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
+                      Actions
+                    </th>
+                  </tr>
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search name"
+                        value={columnSearch.name}
+                        onChange={(e) => handleColumnSearch('name', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search contact"
+                        value={columnSearch.contact}
+                        onChange={(e) => handleColumnSearch('contact', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search location"
+                        value={columnSearch.location}
+                        onChange={(e) => handleColumnSearch('location', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search stats"
+                        value={columnSearch.stats}
+                        onChange={(e) => handleColumnSearch('stats', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4">
+                      <input
+                        className="input h-9"
+                        placeholder="Search date"
+                        value={columnSearch.createdAt}
+                        onChange={(e) => handleColumnSearch('createdAt', e.target.value)}
+                      />
+                    </th>
+                    <th className="py-2 px-4" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedCustomers.map((customer) => (
+                    <tr
+                      key={customer.id}
+                      className="border-b border-gray-100 hover:bg-gray-50"
+                    >
+                      <td className="py-4 px-4">
+                        <p className="font-medium text-gray-900">{customer.name}</p>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Phone className="w-4 h-4" />
+                            {(customer.phoneCountryCode || '+91') + ' ' + customer.phone}
+                          </div>
+                          {customer.email && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Mail className="w-4 h-4" />
+                              {customer.email}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-600">
+                        {customer.city && customer.state
+                          ? `${customer.city}, ${customer.state}`
+                          : '-'}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex gap-3 text-sm">
+                          <span className="text-gray-600">
+                            {customer._count?.enquiries ?? 0} enquiries
+                          </span>
+                          <span className="text-gray-600">
+                            {customer._count?.bookings ?? 0} bookings
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-600">
+                        {formatDateDDMMYYYY(customer.createdAt)}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          {canViewCustomer && (
+                            <Link
+                              href={`/dashboard/customers/${customer.id}`}
+                              className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                              title="View"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Link>
+                          )}
+                          {canEditCustomer && (
+                            <button
+                              type="button"
+                              onClick={() => void openEditPrompt(customer.id)}
+                              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canDeleteCustomer && (
+                            <button
+                              onClick={() => handleDelete(customer.id)}
+                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-gray-600">
+                    Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
+                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
+                    {filteredCustomers.length} customers
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    >
+                      Previous
+                    </button>
+                    <span className="text-sm text-gray-700">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={currentPage >= totalPages}
+                      onClick={() =>
+                        setCurrentPage((page) => Math.min(totalPages, page + 1))
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
+
+      {canAddCustomer && (
+        <FloatingActionButton
+          onClick={openCreatePrompt}
+          label="New Customer"
+        />
+      )}
     </div>
   );
 }
