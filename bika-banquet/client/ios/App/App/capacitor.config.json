@@ -1,0 +1,10 @@
+{
+	"appId": "com.bika.banquet",
+	"appName": "Bika Banquet",
+	"webDir": "public",
+	"server": {
+		"url": "https://banquet.bikafood.com",
+		"cleartext": false
+	},
+	"packageClassList": []
+}
