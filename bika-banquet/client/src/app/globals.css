@@ -676,6 +676,17 @@
     @apply flex flex-col-reverse gap-2 sm:flex-row sm:justify-end;
   }
 
+  /* Keep placeholder/value text clear of leading search/icons on all devices */
+  .relative > svg.absolute + input.input,
+  .relative > svg.absolute + textarea.input,
+  .relative > svg.absolute + select.input {
+    padding-left: 2.5rem;
+  }
+
+  .relative > svg.absolute {
+    pointer-events: none;
+  }
+
 
   /* ── Mobile Card Views ───────────────────────────────────────── */
   .mobile-card-list {
