@@ -117,6 +117,16 @@ const navigation: NavigationItem[] = [
         href: '/dashboard/menu?section=template',
         permissions: ['view_templatemenu', 'manage_menu'],
       },
+      {
+        name: 'Ingredients',
+        href: '/dashboard/menu/ingredients',
+        permissions: ['view_item', 'manage_menu'],
+      },
+      {
+        name: 'Vendors',
+        href: '/dashboard/menu/vendors',
+        permissions: ['view_item', 'manage_menu'],
+      },
     ],
   },
   {
@@ -189,6 +199,8 @@ const ROUTE_LABELS: Record<string, string> = {
   calendar: 'Calendar',
   halls: 'Venues',
   menu: 'Menu & Items',
+  ingredients: 'Ingredients',
+  vendors: 'Vendors',
   payments: 'Payments',
   reports: 'Reports',
   settings: 'Settings',

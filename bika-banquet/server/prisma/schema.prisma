@@ -103,13 +103,17 @@ model Customer {
   id                String    @id @default(uuid())
   name              String
   phone             String    @unique
+  phoneE164         String?   @unique
   phoneCountryCode  String?
   phoneVerified     Boolean   @default(false)
   email             String?   @unique
   alterPhone        String?
   alternatePhone    String?
+  alternatePhoneE164 String?
   alterPhoneCountryCode String?
   whatsapp          String?
+  whatsappE164      String?
+  isWhatsappSameAsPhone Boolean? @default(true)
   address           String?
   country           String?   @default("India")
   street1           String?
@@ -149,6 +153,9 @@ model Customer {
   secondaryBookings Booking[] @relation("SecondaryCustomer")
 
   @@index([phone])
+  @@index([phoneE164])
+  @@index([alternatePhoneE164])
+  @@index([whatsappE164])
   @@index([email])
   @@index([referredById])
   @@map("customers")
@@ -167,6 +174,8 @@ model Enquiry {
   functionTime        String?
   startTime           String?
   endTime             String?
+  startDateTime       DateTime?
+  endDateTime         DateTime?
   expectedGuests      Int
   budgetPerPlate      Float?
   specialRequirements String?
@@ -188,6 +197,8 @@ model Enquiry {
 
   @@index([customerId])
   @@index([functionDate])
+  @@index([startDateTime])
+  @@index([endDateTime])
   @@index([status])
   @@map("enquiries")
 }
@@ -327,9 +338,111 @@ model Item {
   itemType          ItemType            @relation(fields: [itemTypeId], references: [id])
   templateMenuItems TemplateMenuItem[]
   bookingMenuItems  BookingMenuItems[]
+  itemRecipes       ItemRecipe[]
+  vendorSupplies    VendorSupply[]
 
   @@index([itemTypeId])
   @@map("items")
+}
+
+enum QuantityUnit {
+  kg
+  g
+  liter
+  ml
+  piece
+  packet
+  dozen
+  box
+}
+
+model Ingredient {
+  id             String         @id @default(uuid())
+  name           String         @unique
+  defaultUnit    QuantityUnit
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  itemRecipes    ItemRecipe[]
+  vendorSupplies VendorSupply[]
+
+  @@map("ingredients")
+}
+
+model ItemRecipe {
+  id           String      @id @default(uuid())
+  itemId       String
+  ingredientId String
+  quantity     Float
+  unit         QuantityUnit
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  item         Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, ingredientId])
+  @@index([itemId])
+  @@index([ingredientId])
+  @@map("item_recipes")
+}
+
+model Vendor {
+  id        String         @id @default(uuid())
+  name      String         @unique
+  contactPerson String?
+  phone     String?
+  email     String?
+  address   String?
+  gstNumber String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  supplies  VendorSupply[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("vendors")
+}
+
+enum VendorProductType {
+  ingredient
+  item
+}
+
+model VendorSupply {
+  id           String            @id @default(uuid())
+  vendorId     String
+  productType  VendorProductType
+  ingredientId String?
+  itemId       String?
+  price        Float
+  unit         QuantityUnit
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  vendor       Vendor            @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient?       @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  item         Item?             @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  priceHistory VendorSupplyPriceHistory[]
+
+  @@unique([vendorId, ingredientId, unit])
+  @@unique([vendorId, itemId, unit])
+  @@index([vendorId])
+  @@index([productType])
+  @@index([ingredientId])
+  @@index([itemId])
+  @@map("vendor_supplies")
+}
+
+model VendorSupplyPriceHistory {
+  id             String      @id @default(uuid())
+  vendorSupplyId String
+  previousPrice  Float?
+  newPrice       Float
+  changedBy      String?
+  changedAt      DateTime    @default(now())
+  vendorSupply   VendorSupply @relation(fields: [vendorSupplyId], references: [id], onDelete: Cascade)
+
+  @@index([vendorSupplyId])
+  @@index([changedAt])
+  @@map("vendor_supply_price_history")
 }
 
 model TemplateMenu {
@@ -382,22 +495,32 @@ model Booking {
   functionTime        String
   startTime           String?
   endTime             String?
+  startDateTime       DateTime?
+  endDateTime         DateTime?
   expectedGuests      Int
   confirmedGuests     Int?
   totalAmount         Float                   @default(0)
   totalBillAmount     String?
+  totalBillAmountValue Float?
   finalAmount         String?
+  finalAmountValue    Float?
   discountAmount      Float                   @default(0)
   discountPercentage  Float                   @default(0)
   discountAmount2nd   String?
+  discountAmount2ndValue Float?
   discountPercentage2nd String?
+  discountPercentage2ndValue Float?
   taxAmount           Float                   @default(0)
   grandTotal          Float                   @default(0)
   advanceReceived     Float                   @default(0)
   advanceRequired     String?
+  advanceRequiredValue Float?
   paymentReceivedPercent String?
+  paymentReceivedPercentValue Float?
   paymentReceivedAmount String?
+  paymentReceivedAmountValue Float?
   dueAmount           String?
+  dueAmountValue      Float?
   balanceAmount       Float                   @default(0)
   status              String                  @default("confirmed") // confirmed, cancelled, completed
   quotation           Boolean?                @default(false)
@@ -422,6 +545,8 @@ model Booking {
 
   @@index([customerId])
   @@index([functionDate])
+  @@index([startDateTime])
+  @@index([endDateTime])
   @@index([status])
   @@index([isLatest])
   @@map("bookings")
@@ -456,11 +581,16 @@ model BookingPack {
   setupCost       Float        @default(0)
   startTime       String?
   endTime         String?
+  startDateTime   DateTime?
+  endDateTime     DateTime?
   extraPlate      Int?
   extraRate       String?
+  extraRateValue  Float?
   extraAmount     String?
+  extraAmountValue Float?
   menuPoint       Int?
   hallRate        String?
+  hallRateValue   Float?
   boardToRead     String?
   extraCharges    Float        @default(0)
   timeSlot        String?
@@ -473,6 +603,8 @@ model BookingPack {
   bookingMenu     BookingMenu  @relation(fields: [bookingMenuId], references: [id])
 
   @@index([bookingId])
+  @@index([startDateTime])
+  @@index([endDateTime])
   @@map("booking_packs")
 }
 

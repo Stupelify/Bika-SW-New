@@ -44,6 +44,50 @@ interface Item {
     id: string;
     name: string;
   };
+  _count?: {
+    itemRecipes: number;
+    vendorSupplies: number;
+  };
+}
+
+interface IngredientOption {
+  id: string;
+  name: string;
+  defaultUnit: string;
+}
+
+interface VendorOption {
+  id: string;
+  name: string;
+}
+
+interface ItemRecipeRow {
+  id: string;
+  ingredientId: string;
+  quantity: number;
+  unit: string;
+  ingredient?: {
+    id: string;
+    name: string;
+    defaultUnit?: string;
+  };
+}
+
+interface ItemVendorSupplyRow {
+  id: string;
+  vendorId: string;
+  price: number;
+  unit: string;
+  vendor?: {
+    id: string;
+    name: string;
+  };
+}
+
+interface ItemVendorDraft {
+  vendorId: string;
+  price: string;
+  unit: string;
 }
 
 interface TemplateMenu {
@@ -87,6 +131,8 @@ const initialTemplateForm = {
   ratePerPlate: '',
   itemIds: [] as string[],
 };
+
+const recipeUnits = ['kg', 'g', 'liter', 'ml', 'piece', 'packet', 'dozen', 'box'];
 
 const initialTypeColumnSearch = {
   name: '',
@@ -152,6 +198,11 @@ function MenuPageContent() {
   const [typeForm, setTypeForm] = useState(initialTypeForm);
   const [itemForm, setItemForm] = useState(initialItemForm);
   const [templateForm, setTemplateForm] = useState(initialTemplateForm);
+  const [itemVendorDrafts, setItemVendorDrafts] = useState<ItemVendorDraft[]>([]);
+  const [originalItemVendorSupplies, setOriginalItemVendorSupplies] = useState<
+    ItemVendorSupplyRow[]
+  >([]);
+  const [itemVendorSearch, setItemVendorSearch] = useState('');
 
   const [itemTypeGlobalSearch, setItemTypeGlobalSearch] = useState('');
   const [itemTypeColumnSearch, setItemTypeColumnSearch] = useState(
@@ -164,6 +215,30 @@ function MenuPageContent() {
     initialTemplateColumnSearch
   );
   const [templateItemSearch, setTemplateItemSearch] = useState('');
+  const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([]);
+  const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
+
+  const [showRecipePrompt, setShowRecipePrompt] = useState(false);
+  const [recipeItem, setRecipeItem] = useState<Item | null>(null);
+  const [itemRecipes, setItemRecipes] = useState<ItemRecipeRow[]>([]);
+  const [recipeForm, setRecipeForm] = useState({
+    ingredientId: '',
+    quantity: '',
+    unit: 'g',
+  });
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+  const [savingRecipe, setSavingRecipe] = useState(false);
+
+  const [showItemVendorsPrompt, setShowItemVendorsPrompt] = useState(false);
+  const [vendorItem, setVendorItem] = useState<Item | null>(null);
+  const [itemVendors, setItemVendors] = useState<ItemVendorSupplyRow[]>([]);
+  const [itemVendorForm, setItemVendorForm] = useState({
+    vendorId: '',
+    price: '',
+    unit: 'piece',
+  });
+  const [editingItemVendorId, setEditingItemVendorId] = useState<string | null>(null);
+  const [savingItemVendor, setSavingItemVendor] = useState(false);
 
   const [itemTypeSort, setItemTypeSort] = useState<SortState>({
     key: 'order',
@@ -438,18 +513,23 @@ function MenuPageContent() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [typesRes, itemsRes, templatesRes] = await Promise.all([
+      const [typesRes, itemsRes, templatesRes, ingredientsRes, vendorsRes] =
+        await Promise.all([
         canViewItemType ? api.getItemTypes({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canViewItem ? api.getItems({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canViewTemplate
           ? api.getTemplateMenus({ page: 1, limit: 5000, includeItems: false })
           : Promise.resolve(null),
+        canViewItem ? api.getIngredients({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canViewItem ? api.getVendors({ page: 1, limit: 5000 }) : Promise.resolve(null),
       ]);
 
       const types = typesRes?.data?.data?.itemTypes || [];
       setItemTypes(types);
       setItems(itemsRes?.data?.data?.items || []);
       setTemplateMenus(templatesRes?.data?.data?.templateMenus || []);
+      setIngredientOptions(ingredientsRes?.data?.data?.ingredients || []);
+      setVendorOptions(vendorsRes?.data?.data?.vendors || []);
 
       if (types.length > 0) {
         setItemForm((prev) => ({ ...prev, itemTypeId: prev.itemTypeId || types[0].id }));
@@ -515,10 +595,13 @@ function MenuPageContent() {
       ...initialItemForm,
       itemTypeId: prev.itemTypeId || itemTypes[0]?.id || '',
     }));
+    setItemVendorDrafts([]);
+    setOriginalItemVendorSupplies([]);
+    setItemVendorSearch('');
     setShowItemPrompt(true);
   };
 
-  const openEditItem = (item: Item) => {
+  const openEditItem = async (item: Item) => {
     setEditingItemId(item.id);
     setItemForm({
       itemTypeId: item.itemTypeId || '',
@@ -537,7 +620,105 @@ function MenuPageContent() {
       photo: item.photo || '',
       photoFileName: item.photo ? 'Existing image' : '',
     });
+    try {
+      const response = await api.getItemVendors(item.id);
+      const linkedSupplies = (response.data?.data?.supplies || []) as ItemVendorSupplyRow[];
+      const draftMap = new Map<string, ItemVendorDraft>();
+      linkedSupplies.forEach((supply) => {
+        if (!draftMap.has(supply.vendorId)) {
+          draftMap.set(supply.vendorId, {
+            vendorId: supply.vendorId,
+            price: String(supply.price ?? ''),
+            unit: supply.unit || 'piece',
+          });
+        }
+      });
+      setOriginalItemVendorSupplies(linkedSupplies);
+      setItemVendorDrafts(Array.from(draftMap.values()));
+    } catch (error) {
+      setOriginalItemVendorSupplies([]);
+      setItemVendorDrafts([]);
+      toast.error('Unable to load item vendor mappings');
+    }
+    setItemVendorSearch('');
     setShowItemPrompt(true);
+  };
+
+  const getItemVendorDraft = (vendorId: string) =>
+    itemVendorDrafts.find((draft) => draft.vendorId === vendorId);
+
+  const isItemVendorSelected = (vendorId: string) => Boolean(getItemVendorDraft(vendorId));
+
+  const toggleItemVendorDraft = (vendorId: string) => {
+    setItemVendorDrafts((prev) => {
+      const exists = prev.some((draft) => draft.vendorId === vendorId);
+      if (exists) {
+        return prev.filter((draft) => draft.vendorId !== vendorId);
+      }
+      return [...prev, { vendorId, price: '', unit: 'piece' }];
+    });
+  };
+
+  const updateItemVendorDraft = (
+    vendorId: string,
+    patch: Partial<Pick<ItemVendorDraft, 'price' | 'unit'>>
+  ) => {
+    setItemVendorDrafts((prev) =>
+      prev.map((draft) => {
+        if (draft.vendorId !== vendorId) return draft;
+        return { ...draft, ...patch };
+      })
+    );
+  };
+
+  const syncItemVendors = async (itemId: string) => {
+    const existingByVendorId = new Map<string, ItemVendorSupplyRow[]>();
+    originalItemVendorSupplies.forEach((supply) => {
+      const bucket = existingByVendorId.get(supply.vendorId) || [];
+      bucket.push(supply);
+      existingByVendorId.set(supply.vendorId, bucket);
+    });
+
+    const desiredVendorIds = new Set<string>();
+
+    for (const draft of itemVendorDrafts) {
+      desiredVendorIds.add(draft.vendorId);
+      const price = Number(draft.price);
+      if (!Number.isFinite(price) || price < 0) {
+        throw new Error('Invalid price in selected vendors');
+      }
+
+      const payload = {
+        vendorId: draft.vendorId,
+        price,
+        unit: draft.unit,
+      };
+
+      const existingSuppliesForVendor = existingByVendorId.get(draft.vendorId) || [];
+      const matchingUnitSupply = existingSuppliesForVendor.find(
+        (supply) => supply.unit === draft.unit
+      );
+
+      if (matchingUnitSupply) {
+        await api.updateItemVendor(itemId, matchingUnitSupply.id, payload);
+      } else {
+        await api.addItemVendor(itemId, payload);
+      }
+
+      for (const staleSupply of existingSuppliesForVendor) {
+        if (!matchingUnitSupply || staleSupply.id !== matchingUnitSupply.id) {
+          await api.deleteItemVendor(itemId, staleSupply.id);
+        }
+      }
+    }
+
+    for (const [vendorId, existingSuppliesForVendor] of Array.from(existingByVendorId.entries())) {
+      if (!desiredVendorIds.has(vendorId)) {
+        for (const staleSupply of existingSuppliesForVendor) {
+          await api.deleteItemVendor(itemId, staleSupply.id);
+        }
+      }
+    }
   };
 
   const submitItem = async (e: FormEvent<HTMLFormElement>) => {
@@ -546,6 +727,19 @@ function MenuPageContent() {
       toast.error('Item type, item name and points are required');
       return;
     }
+
+    for (const draft of itemVendorDrafts) {
+      if (draft.price === '') {
+        toast.error('Please enter price for every selected vendor');
+        return;
+      }
+      const price = Number(draft.price);
+      if (!Number.isFinite(price) || price < 0) {
+        toast.error('Vendor price must be 0 or greater');
+        return;
+      }
+    }
+
     try {
       setSavingItem(true);
       const payload = {
@@ -560,11 +754,20 @@ function MenuPageContent() {
         photo: itemForm.photo || undefined,
         isVeg: true,
       };
+      let itemId = editingItemId;
       if (editingItemId) {
         await api.updateItem(editingItemId, payload);
       } else {
-        await api.createItem(payload);
+        const response = await api.createItem(payload);
+        itemId = response.data?.data?.item?.id;
       }
+
+      if (!itemId) {
+        throw new Error('Item ID not available');
+      }
+
+      await syncItemVendors(itemId);
+
       toast.success(editingItemId ? 'Item updated' : 'Item created');
       setShowItemPrompt(false);
       setEditingItemId(null);
@@ -572,6 +775,9 @@ function MenuPageContent() {
         ...initialItemForm,
         itemTypeId: prev.itemTypeId,
       }));
+      setItemVendorDrafts([]);
+      setOriginalItemVendorSupplies([]);
+      setItemVendorSearch('');
       await loadData();
     } catch (error: any) {
       toast.error(
@@ -692,6 +898,12 @@ function MenuPageContent() {
     });
   }, [items, templateItemSearch]);
 
+  const filteredItemVendorOptions = useMemo(() => {
+    const query = itemVendorSearch.trim().toLowerCase();
+    if (!query) return vendorOptions;
+    return vendorOptions.filter((vendor) => vendor.name.toLowerCase().includes(query));
+  }, [vendorOptions, itemVendorSearch]);
+
   const groupedTemplateItems = useMemo(() => {
     const map = new Map<string, Item[]>();
     filteredTemplateSourceItems.forEach((item) => {
@@ -745,6 +957,159 @@ function MenuPageContent() {
       await loadData();
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to delete template menu');
+    }
+  };
+
+  const openItemRecipeManager = async (item: Item) => {
+    try {
+      const response = await api.getItemRecipes(item.id);
+      setRecipeItem(item);
+      setItemRecipes(response.data?.data?.recipes || []);
+      setRecipeForm({
+        ingredientId: ingredientOptions[0]?.id || '',
+        quantity: '',
+        unit: 'g',
+      });
+      setEditingRecipeId(null);
+      setShowRecipePrompt(true);
+    } catch (error) {
+      toast.error('Failed to load recipe details');
+    }
+  };
+
+  const editRecipe = (recipe: ItemRecipeRow) => {
+    setEditingRecipeId(recipe.id);
+    setRecipeForm({
+      ingredientId: recipe.ingredientId,
+      quantity: String(recipe.quantity),
+      unit: recipe.unit,
+    });
+  };
+
+  const submitRecipe = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!recipeItem) return;
+    if (!recipeForm.ingredientId || !recipeForm.quantity) {
+      toast.error('Ingredient and quantity are required');
+      return;
+    }
+
+    try {
+      setSavingRecipe(true);
+      const payload = {
+        ingredientId: recipeForm.ingredientId,
+        quantity: Number(recipeForm.quantity),
+        unit: recipeForm.unit,
+      };
+      if (editingRecipeId) {
+        await api.updateItemRecipe(recipeItem.id, editingRecipeId, payload);
+      } else {
+        await api.addItemRecipe(recipeItem.id, payload);
+      }
+      const refreshed = await api.getItemRecipes(recipeItem.id);
+      setItemRecipes(refreshed.data?.data?.recipes || []);
+      setRecipeForm({
+        ingredientId: ingredientOptions[0]?.id || '',
+        quantity: '',
+        unit: 'g',
+      });
+      setEditingRecipeId(null);
+      await loadData();
+      toast.success(editingRecipeId ? 'Recipe updated' : 'Recipe ingredient added');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to save recipe');
+    } finally {
+      setSavingRecipe(false);
+    }
+  };
+
+  const removeRecipe = async (recipeId: string) => {
+    if (!recipeItem) return;
+    if (!confirm('Delete this recipe ingredient?')) return;
+    try {
+      await api.deleteItemRecipe(recipeItem.id, recipeId);
+      const refreshed = await api.getItemRecipes(recipeItem.id);
+      setItemRecipes(refreshed.data?.data?.recipes || []);
+      await loadData();
+      toast.success('Recipe ingredient deleted');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to delete recipe ingredient');
+    }
+  };
+
+  const openItemVendorsManager = async (item: Item) => {
+    try {
+      const response = await api.getItemVendors(item.id);
+      setVendorItem(item);
+      setItemVendors(response.data?.data?.supplies || []);
+      setItemVendorForm({
+        vendorId: vendorOptions[0]?.id || '',
+        price: '',
+        unit: 'piece',
+      });
+      setEditingItemVendorId(null);
+      setShowItemVendorsPrompt(true);
+    } catch (error) {
+      toast.error('Failed to load item vendors');
+    }
+  };
+
+  const editItemVendor = (supply: ItemVendorSupplyRow) => {
+    setEditingItemVendorId(supply.id);
+    setItemVendorForm({
+      vendorId: supply.vendorId,
+      price: String(supply.price),
+      unit: supply.unit,
+    });
+  };
+
+  const submitItemVendor = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!vendorItem) return;
+    if (!itemVendorForm.vendorId || !itemVendorForm.price) {
+      toast.error('Vendor and price are required');
+      return;
+    }
+    try {
+      setSavingItemVendor(true);
+      const payload = {
+        vendorId: itemVendorForm.vendorId,
+        price: Number(itemVendorForm.price),
+        unit: itemVendorForm.unit,
+      };
+      if (editingItemVendorId) {
+        await api.updateItemVendor(vendorItem.id, editingItemVendorId, payload);
+      } else {
+        await api.addItemVendor(vendorItem.id, payload);
+      }
+      const refreshed = await api.getItemVendors(vendorItem.id);
+      setItemVendors(refreshed.data?.data?.supplies || []);
+      setItemVendorForm({
+        vendorId: vendorOptions[0]?.id || '',
+        price: '',
+        unit: 'piece',
+      });
+      setEditingItemVendorId(null);
+      await loadData();
+      toast.success(editingItemVendorId ? 'Item vendor updated' : 'Item vendor added');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to save item vendor');
+    } finally {
+      setSavingItemVendor(false);
+    }
+  };
+
+  const removeItemVendor = async (supplyId: string) => {
+    if (!vendorItem) return;
+    if (!confirm('Delete this item vendor mapping?')) return;
+    try {
+      await api.deleteItemVendor(vendorItem.id, supplyId);
+      const refreshed = await api.getItemVendors(vendorItem.id);
+      setItemVendors(refreshed.data?.data?.supplies || []);
+      await loadData();
+      toast.success('Item vendor mapping deleted');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to delete item vendor mapping');
     }
   };
 
@@ -829,8 +1194,11 @@ function MenuPageContent() {
         onClose={() => {
           setShowItemPrompt(false);
           setEditingItemId(null);
+          setItemVendorDrafts([]);
+          setOriginalItemVendorSupplies([]);
+          setItemVendorSearch('');
         }}
-        widthClass="max-w-3xl"
+        widthClass="max-w-5xl"
       >
         <form className="space-y-4" onSubmit={submitItem}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -927,6 +1295,87 @@ function MenuPageContent() {
                 />
               </label>
             </div>
+            <div className="md:col-span-2 rounded-xl border border-gray-200 bg-white">
+              <div className="px-3 py-2 border-b border-gray-200">
+                <p className="text-sm font-semibold text-gray-800">Link Vendors</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Search, select multiple vendors and set per-unit rates.
+                </p>
+              </div>
+              <div className="px-3 py-2 border-b border-gray-100">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    className="input h-9 pl-9"
+                    placeholder="Search vendors..."
+                    value={itemVendorSearch}
+                    onChange={(event) => setItemVendorSearch(event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+                {filteredItemVendorOptions.length === 0 ? (
+                  <p className="px-3 py-3 text-sm text-gray-500">No vendors available.</p>
+                ) : (
+                  filteredItemVendorOptions.map((vendor) => {
+                    const selected = isItemVendorSelected(vendor.id);
+                    const draft = getItemVendorDraft(vendor.id);
+                    return (
+                      <div
+                        key={`item-vendor-draft-${vendor.id}`}
+                        className="px-3 py-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_120px_120px] gap-2 items-center"
+                      >
+                        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleItemVendorDraft(vendor.id)}
+                          />
+                          <span>{vendor.name}</span>
+                        </label>
+                        {selected ? (
+                          <>
+                            <input
+                              className="input h-9"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              placeholder="Price"
+                              value={draft?.price || ''}
+                              onChange={(event) =>
+                                updateItemVendorDraft(vendor.id, {
+                                  price: event.target.value,
+                                })
+                              }
+                            />
+                            <select
+                              className="input h-9"
+                              value={draft?.unit || 'piece'}
+                              onChange={(event) =>
+                                updateItemVendorDraft(vendor.id, {
+                                  unit: event.target.value,
+                                })
+                              }
+                            >
+                              {recipeUnits.map((unit) => (
+                                <option key={`item-vendor-unit-${vendor.id}-${unit}`} value={unit}>
+                                  {unit}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs text-gray-400">Not selected</span>
+                            <span />
+                          </>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
           <div className="form-actions">
             <button
@@ -935,6 +1384,9 @@ function MenuPageContent() {
               onClick={() => {
                 setShowItemPrompt(false);
                 setEditingItemId(null);
+                setItemVendorDrafts([]);
+                setOriginalItemVendorSupplies([]);
+                setItemVendorSearch('');
               }}
             >
               Cancel
@@ -1103,6 +1555,260 @@ function MenuPageContent() {
             </button>
           </div>
         </form>
+      </FormPromptModal>
+
+      <FormPromptModal
+        open={showRecipePrompt}
+        title={recipeItem ? `Recipe · ${recipeItem.name}` : 'Item Recipe'}
+        onClose={() => {
+          setShowRecipePrompt(false);
+          setRecipeItem(null);
+          setItemRecipes([]);
+          setEditingRecipeId(null);
+          setRecipeForm({
+            ingredientId: ingredientOptions[0]?.id || '',
+            quantity: '',
+            unit: 'g',
+          });
+        }}
+        widthClass="max-w-5xl"
+      >
+        {!recipeItem ? null : (
+          <div className="space-y-4">
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Ingredient</th>
+                    <th>Quantity</th>
+                    <th>Unit</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemRecipes.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="text-center py-4 text-sm text-gray-500">
+                        No ingredients mapped in this recipe.
+                      </td>
+                    </tr>
+                  ) : (
+                    itemRecipes.map((recipe) => (
+                      <tr key={recipe.id}>
+                        <td>{recipe.ingredient?.name || '-'}</td>
+                        <td>{recipe.quantity}</td>
+                        <td>{recipe.unit}</td>
+                        <td className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              onClick={() => editRecipe(recipe)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              onClick={() => removeRecipe(recipe.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <form className="grid grid-cols-1 md:grid-cols-4 gap-3" onSubmit={submitRecipe}>
+              <div>
+                <label className="label">Ingredient</label>
+                <select
+                  className="input"
+                  value={recipeForm.ingredientId}
+                  onChange={(e) =>
+                    setRecipeForm((prev) => ({ ...prev, ingredientId: e.target.value }))
+                  }
+                  required
+                >
+                  <option value="">Select ingredient</option>
+                  {ingredientOptions.map((ingredient) => (
+                    <option key={ingredient.id} value={ingredient.id}>
+                      {ingredient.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Quantity</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={recipeForm.quantity}
+                  onChange={(e) =>
+                    setRecipeForm((prev) => ({ ...prev, quantity: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Unit</label>
+                <select
+                  className="input"
+                  value={recipeForm.unit}
+                  onChange={(e) =>
+                    setRecipeForm((prev) => ({ ...prev, unit: e.target.value }))
+                  }
+                >
+                  {recipeUnits.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button type="submit" className="btn btn-primary w-full" disabled={savingRecipe}>
+                  {savingRecipe ? 'Saving...' : editingRecipeId ? 'Update' : 'Add Ingredient'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </FormPromptModal>
+
+      <FormPromptModal
+        open={showItemVendorsPrompt}
+        title={vendorItem ? `Vendors · ${vendorItem.name}` : 'Item Vendors'}
+        onClose={() => {
+          setShowItemVendorsPrompt(false);
+          setVendorItem(null);
+          setItemVendors([]);
+          setEditingItemVendorId(null);
+          setItemVendorForm({
+            vendorId: vendorOptions[0]?.id || '',
+            price: '',
+            unit: 'piece',
+          });
+        }}
+        widthClass="max-w-5xl"
+      >
+        {!vendorItem ? null : (
+          <div className="space-y-4">
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Vendor</th>
+                    <th>Price</th>
+                    <th>Unit</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemVendors.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="text-center py-4 text-sm text-gray-500">
+                        No vendors linked to this item.
+                      </td>
+                    </tr>
+                  ) : (
+                    itemVendors.map((supply) => (
+                      <tr key={supply.id}>
+                        <td>{supply.vendor?.name || '-'}</td>
+                        <td>INR {Number(supply.price || 0).toLocaleString()}</td>
+                        <td>{supply.unit}</td>
+                        <td className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              onClick={() => editItemVendor(supply)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              onClick={() => removeItemVendor(supply.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <form className="grid grid-cols-1 md:grid-cols-4 gap-3" onSubmit={submitItemVendor}>
+              <div>
+                <label className="label">Vendor</label>
+                <select
+                  className="input"
+                  value={itemVendorForm.vendorId}
+                  onChange={(e) =>
+                    setItemVendorForm((prev) => ({ ...prev, vendorId: e.target.value }))
+                  }
+                  required
+                >
+                  <option value="">Select vendor</option>
+                  {vendorOptions.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Price</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={itemVendorForm.price}
+                  onChange={(e) =>
+                    setItemVendorForm((prev) => ({ ...prev, price: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Unit</label>
+                <select
+                  className="input"
+                  value={itemVendorForm.unit}
+                  onChange={(e) =>
+                    setItemVendorForm((prev) => ({ ...prev, unit: e.target.value }))
+                  }
+                >
+                  {recipeUnits.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  className="btn btn-primary w-full"
+                  disabled={savingItemVendor}
+                >
+                  {savingItemVendor ? 'Saving...' : editingItemVendorId ? 'Update' : 'Add Vendor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </FormPromptModal>
 
       {(canViewItemType || canViewItem || canViewTemplate) && (
@@ -1437,9 +2143,15 @@ function MenuPageContent() {
                             <tr key={item.id} className="border-b border-gray-100">
                               <td className="py-3 px-2">
                                 <p className="text-sm text-gray-900">{item.name}</p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {item.isVeg ? 'Veg' : 'Non-veg'}
-                                </p>
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                  <span>{item.isVeg ? 'Veg' : 'Non-veg'}</span>
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                                    Recipe: {item._count?.itemRecipes || 0}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                                    Vendors: {item._count?.vendorSupplies || 0}
+                                  </span>
+                                </div>
                               </td>
                               <td className="py-3 px-2 text-sm text-gray-700">
                                 {group.label || '-'}
@@ -1451,8 +2163,26 @@ function MenuPageContent() {
                                 <div className="flex items-center justify-end gap-2">
                                   {canEditItem && (
                                     <button
+                                      className="btn btn-secondary"
+                                      onClick={() => openItemRecipeManager(item)}
+                                    >
+                                      Recipe
+                                    </button>
+                                  )}
+                                  {canEditItem && (
+                                    <button
+                                      className="btn btn-secondary"
+                                      onClick={() => openItemVendorsManager(item)}
+                                    >
+                                      Vendors
+                                    </button>
+                                  )}
+                                  {canEditItem && (
+                                    <button
                                       className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                                      onClick={() => openEditItem(item)}
+                                      onClick={() => {
+                                        void openEditItem(item);
+                                      }}
                                     >
                                       <Edit className="w-4 h-4" />
                                     </button>

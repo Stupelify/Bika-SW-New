@@ -4,6 +4,7 @@ import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
+import { resolveEventDateTimes } from '../utils/dateTime';
 import {
   removeEnquiryEventFromGoogleCalendar,
   syncEnquiryEventToGoogleCalendar,
@@ -67,6 +68,12 @@ export async function createEnquiry(req: Request, res: Response): Promise<void> 
       'functionType',
       'specialRequirements',
     ]);
+    const eventDateTimes = resolveEventDateTimes(
+      payload.functionDate,
+      payload.startTime,
+      payload.endTime,
+      payload.functionTime
+    );
 
     const enquiry = await prisma.$transaction(async (tx) => {
       const created = await tx.enquiry.create({
@@ -78,6 +85,8 @@ export async function createEnquiry(req: Request, res: Response): Promise<void> 
           functionTime: payload.functionTime,
           startTime: payload.startTime,
           endTime: payload.endTime,
+          startDateTime: eventDateTimes.startDateTime || undefined,
+          endDateTime: eventDateTimes.endDateTime || undefined,
           expectedGuests: payload.expectedGuests ?? 1,
           budgetPerPlate: payload.budgetPerPlate,
           specialRequirements: payload.specialRequirements,
@@ -296,12 +305,34 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
 
     const exists = await prisma.enquiry.findUnique({
       where: { id },
-      select: { id: true },
+      select: {
+        id: true,
+        functionDate: true,
+        functionTime: true,
+        startTime: true,
+        endTime: true,
+      },
     });
     if (!exists) {
       sendNotFound(res, 'Enquiry not found');
       return;
     }
+
+    const effectiveFunctionDate = payload.functionDate ?? exists.functionDate;
+    const effectiveStartTime =
+      payload.startTime !== undefined ? payload.startTime : exists.startTime;
+    const effectiveEndTime =
+      payload.endTime !== undefined ? payload.endTime : exists.endTime;
+    const effectiveFallbackTime =
+      payload.functionTime !== undefined
+        ? payload.functionTime
+        : exists.functionTime;
+    const eventDateTimes = resolveEventDateTimes(
+      effectiveFunctionDate,
+      effectiveStartTime,
+      effectiveEndTime,
+      effectiveFallbackTime
+    );
 
     const enquiry = await prisma.$transaction(async (tx) => {
       await tx.enquiry.update({
@@ -316,6 +347,8 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
           functionTime: payload.functionTime,
           startTime: payload.startTime,
           endTime: payload.endTime,
+          startDateTime: eventDateTimes.startDateTime || undefined,
+          endDateTime: eventDateTimes.endDateTime || undefined,
           expectedGuests: payload.expectedGuests,
           budgetPerPlate: payload.budgetPerPlate,
           specialRequirements: payload.specialRequirements,
