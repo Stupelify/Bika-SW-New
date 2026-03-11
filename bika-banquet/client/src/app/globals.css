@@ -62,6 +62,13 @@
   *::before,
   *::after {
     @apply border-gray-200;
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Hard-stop any element from making the page wider than the screen */
+    overflow-x: hidden;
+    max-width: 100%;
   }
 
   html,
@@ -78,6 +85,9 @@
     background-color: var(--bg);
     padding-left: var(--safe-left);
     padding-right: var(--safe-right);
+    /* Prevent body itself from ever scrolling horizontally */
+    overflow-x: hidden;
+    max-width: 100%;
     box-sizing: border-box;
   }
 
@@ -304,9 +314,12 @@
   .table-shell {
     @apply overflow-x-auto;
     -webkit-overflow-scrolling: touch;
+    /* Constrain to parent width so the table scrolls internally, not the page */
     max-width: 100%;
     width: 100%;
     overflow-y: visible;
+    /* Prevent the shell itself from leaking past its container */
+    contain: inline-size;
   }
 
   .data-table {
@@ -813,14 +826,20 @@
     bottom: 0;
     left: 0;
     right: 0;
+    /* Height = icon area + home-indicator safe zone */
     height: calc(var(--bottom-nav-h) + var(--safe-bottom));
     background: var(--surface);
     border-top: 1px solid var(--border);
     display: flex;
-    align-items: center;
+    align-items: flex-start; /* icons sit near top, safe-area padding pushes content up */
     justify-content: space-around;
     z-index: 45;
+    /* Push icon row UP above the home indicator */
+    padding-top: 8px;
     padding-bottom: var(--safe-bottom);
+    /* Landscape notch: keep items away from left/right rounded corners */
+    padding-left: max(var(--safe-left), 8px);
+    padding-right: max(var(--safe-right), 8px);
     box-shadow: 0 -1px 6px rgba(15, 23, 42, 0.04);
   }
 
@@ -1052,8 +1071,9 @@
   }
 
 
-  /* Utility to add bottom padding when bottom nav is present */
+  /* Utility to add bottom padding when bottom nav is present.
+     Extra 16 px so the last card / row is never hidden behind the nav. */
   .has-bottom-nav {
-    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 8px);
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 24px);
   }
 }

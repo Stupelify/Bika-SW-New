@@ -412,6 +412,7 @@ export default function PaymentsPage() {
                     </th>
                     <th className="py-2 px-3">
                       <input
+                        type="date"
                         className="input h-9"
                         placeholder="Search date"
                         value={columnSearch.eventDate}

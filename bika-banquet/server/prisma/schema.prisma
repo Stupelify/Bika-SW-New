@@ -28,6 +28,7 @@ model User {
   sessions          Session[]
   userRoles         UserRole[]
   paymentsReceived  BookingPayments[]    @relation("PaymentReceiver")
+  finalizedBookings FinalizedBooking[]   @relation("FinalizedBookingUser")
   finalizedQuotations FinalizedQuotation[]
 
   @@map("users")
@@ -678,10 +679,14 @@ model FinalizedBooking {
   id          String   @id @default(uuid())
   bookingId   String   @unique
   data        Json
+  finalizedBy String?
   finalizedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user        User?    @relation("FinalizedBookingUser", fields: [finalizedBy], references: [id], onDelete: SetNull)
 
+  @@index([bookingId])
+  @@index([finalizedBy])
   @@map("finalized_bookings")
 }
 

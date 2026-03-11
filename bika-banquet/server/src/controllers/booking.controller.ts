@@ -138,6 +138,10 @@ function toStoredNumberString(value: number | undefined): string | undefined {
   return `${value}`;
 }
 
+function toJsonSnapshot(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
 type BookingHallInputRow = {
   hallId: string;
   charges: number;
@@ -695,6 +699,382 @@ async function resolveMealSlotId(
   return created.id;
 }
 
+const BOOKING_RELATION_INCLUDE = {
+  customer: true,
+  secondCustomer: true,
+  halls: {
+    include: {
+      hall: {
+        include: {
+          banquet: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  },
+  packs: {
+    include: {
+      mealSlot: true,
+      bookingMenu: {
+        include: {
+          items: {
+            include: {
+              item: {
+                include: {
+                  itemType: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  additionalItems: true,
+  payments: {
+    include: {
+      receiver: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  },
+  finalizedBooking: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  },
+  previousBooking: {
+    select: {
+      id: true,
+      versionNumber: true,
+      functionDate: true,
+      functionName: true,
+      status: true,
+      isLatest: true,
+    },
+  },
+  nextVersion: {
+    select: {
+      id: true,
+      versionNumber: true,
+      functionDate: true,
+      functionName: true,
+      status: true,
+      isLatest: true,
+    },
+  },
+} as const;
+
+type BookingWithRelations = Prisma.BookingGetPayload<{
+  include: typeof BOOKING_RELATION_INCLUDE;
+}>;
+
+function bookingIsImmutable(booking: {
+  status: string;
+  isLatest: boolean;
+}): boolean {
+  return booking.status === 'completed' || !booking.isLatest;
+}
+
+function bookingImmutableMessage(booking: {
+  status: string;
+  isLatest: boolean;
+}): string {
+  if (booking.status === 'completed') {
+    return 'Completed (party over) bookings are read-only';
+  }
+  return 'Only latest booking versions can be modified';
+}
+
+async function fetchBookingSnapshot(
+  tx: Prisma.TransactionClient,
+  bookingId: string
+): Promise<BookingWithRelations | null> {
+  return tx.booking.findUnique({
+    where: { id: bookingId },
+    include: BOOKING_RELATION_INCLUDE,
+  });
+}
+
+async function cloneBookingVersion(
+  tx: Prisma.TransactionClient,
+  sourceBookingId: string,
+  options?: {
+    status?: string;
+    isQuotation?: boolean;
+    quotation?: boolean;
+  }
+): Promise<BookingWithRelations> {
+  const source = await tx.booking.findUnique({
+    where: { id: sourceBookingId },
+    include: {
+      halls: true,
+      packs: {
+        include: {
+          bookingMenu: {
+            include: {
+              items: true,
+            },
+          },
+        },
+      },
+      additionalItems: true,
+    },
+  });
+
+  if (!source) {
+    throw new Error('Booking not found');
+  }
+
+  const clonedBooking = await tx.booking.create({
+    data: {
+      customerId: source.customerId,
+      secondCustomerId: source.secondCustomerId,
+      referredById: source.referredById,
+      rating: source.rating,
+      secondRating: source.secondRating,
+      priority: source.priority,
+      secondPriority: source.secondPriority,
+      functionName: source.functionName,
+      functionType: source.functionType,
+      functionDate: source.functionDate,
+      functionTime: source.functionTime,
+      startTime: source.startTime,
+      endTime: source.endTime,
+      startDateTime: source.startDateTime,
+      endDateTime: source.endDateTime,
+      expectedGuests: source.expectedGuests,
+      confirmedGuests: source.confirmedGuests,
+      totalAmount: source.totalAmount,
+      totalBillAmount: source.totalBillAmount,
+      totalBillAmountValue: source.totalBillAmountValue,
+      finalAmount: source.finalAmount,
+      finalAmountValue: source.finalAmountValue,
+      discountAmount: source.discountAmount,
+      discountPercentage: source.discountPercentage,
+      discountAmount2nd: source.discountAmount2nd,
+      discountAmount2ndValue: source.discountAmount2ndValue,
+      discountPercentage2nd: source.discountPercentage2nd,
+      discountPercentage2ndValue: source.discountPercentage2ndValue,
+      taxAmount: source.taxAmount,
+      grandTotal: source.grandTotal,
+      advanceReceived: source.advanceReceived,
+      advanceRequired: source.advanceRequired,
+      advanceRequiredValue: source.advanceRequiredValue,
+      paymentReceivedPercent: source.paymentReceivedPercent,
+      paymentReceivedPercentValue: source.paymentReceivedPercentValue,
+      paymentReceivedAmount: source.paymentReceivedAmount,
+      paymentReceivedAmountValue: source.paymentReceivedAmountValue,
+      dueAmount: source.dueAmount,
+      dueAmountValue: source.dueAmountValue,
+      balanceAmount: source.balanceAmount,
+      status: options?.status ?? source.status,
+      quotation: options?.quotation ?? source.quotation,
+      isQuotation: options?.isQuotation ?? source.isQuotation,
+      isLatest: true,
+      previousBookingId: source.id,
+      versionNumber: source.versionNumber + 1,
+      notes: source.notes,
+      internalNotes: source.internalNotes,
+    },
+  });
+
+  if (source.halls.length > 0) {
+    await tx.bookingHall.createMany({
+      data: source.halls.map((hall) => ({
+        bookingId: clonedBooking.id,
+        hallId: hall.hallId,
+        charges: hall.charges,
+      })),
+    });
+  }
+
+  if (source.additionalItems.length > 0) {
+    await tx.additionalBookingItems.createMany({
+      data: source.additionalItems.map((item) => ({
+        bookingId: clonedBooking.id,
+        description: item.description,
+        charges: item.charges,
+        quantity: item.quantity,
+        notes: item.notes,
+      })),
+    });
+  }
+
+  for (const pack of source.packs) {
+    const newMenu = await tx.bookingMenu.create({
+      data: {
+        name: pack.bookingMenu?.name || `${pack.packName || 'Menu'} Menu`,
+        description: pack.bookingMenu?.description,
+        mealSlotId: pack.bookingMenu?.mealSlotId || pack.mealSlotId,
+        setupCost: pack.bookingMenu?.setupCost || pack.setupCost || 0,
+        ratePerPlate: pack.bookingMenu?.ratePerPlate || pack.ratePerPlate || 0,
+      },
+    });
+
+    if (pack.bookingMenu?.items?.length) {
+      await tx.bookingMenuItems.createMany({
+        data: pack.bookingMenu.items.map((entry) => ({
+          bookingMenuId: newMenu.id,
+          itemId: entry.itemId,
+          quantity: entry.quantity || 1,
+        })),
+      });
+    }
+
+    await tx.bookingPack.create({
+      data: {
+        bookingId: clonedBooking.id,
+        mealSlotId: pack.mealSlotId,
+        bookingMenuId: newMenu.id,
+        noOfPack: pack.noOfPack,
+        packName: pack.packName,
+        packCount: pack.packCount,
+        hallIds: pack.hallIds,
+        hallName: pack.hallName,
+        ratePerPlate: pack.ratePerPlate,
+        setupCost: pack.setupCost,
+        startTime: pack.startTime,
+        endTime: pack.endTime,
+        startDateTime: pack.startDateTime,
+        endDateTime: pack.endDateTime,
+        extraPlate: pack.extraPlate,
+        extraRate: pack.extraRate,
+        extraRateValue: pack.extraRateValue,
+        extraAmount: pack.extraAmount,
+        extraAmountValue: pack.extraAmountValue,
+        menuPoint: pack.menuPoint,
+        hallRate: pack.hallRate,
+        hallRateValue: pack.hallRateValue,
+        boardToRead: pack.boardToRead,
+        extraCharges: pack.extraCharges,
+        timeSlot: pack.timeSlot,
+        tags: pack.tags,
+        notes: pack.notes,
+      },
+    });
+  }
+
+  const hydratedClone = await tx.booking.findUnique({
+    where: { id: clonedBooking.id },
+    include: BOOKING_RELATION_INCLUDE,
+  });
+
+  if (!hydratedClone) {
+    throw new Error('Failed to clone booking');
+  }
+
+  return hydratedClone;
+}
+
+async function recalculateBookingFinancials(
+  tx: Prisma.TransactionClient,
+  bookingId: string,
+  options?: {
+    forceFinalAmountToGrandTotal?: boolean;
+  }
+): Promise<void> {
+  const booking = await tx.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      halls: {
+        select: {
+          charges: true,
+        },
+      },
+      packs: {
+        select: {
+          packCount: true,
+          noOfPack: true,
+          ratePerPlate: true,
+          setupCost: true,
+          extraCharges: true,
+        },
+      },
+      additionalItems: {
+        select: {
+          charges: true,
+          quantity: true,
+        },
+      },
+    },
+  });
+
+  if (!booking) {
+    throw new Error('Booking not found');
+  }
+
+  const hallTotal = booking.halls.reduce(
+    (sum, hall) => sum + toSafeMoney(hall.charges),
+    0
+  );
+  const packTotal = booking.packs.reduce(
+    (sum, pack) =>
+      sum +
+      toSafeMoney(pack.ratePerPlate) *
+      Math.max(1, toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)) +
+      toSafeMoney(pack.setupCost) +
+      toSafeMoney(pack.extraCharges),
+    0
+  );
+  const additionalTotal = booking.additionalItems.reduce(
+    (sum, item) =>
+      sum + toSafeMoney(item.charges) * Math.max(1, toSafeNumber(item.quantity || 1)),
+    0
+  );
+
+  const totalAmount = toSafeMoney(hallTotal + packTotal + additionalTotal);
+  const effectiveDiscountPercent = toOptionalSafePercent(booking.discountPercentage) || 0;
+  let discountAmount = toSafeMoney(booking.discountAmount);
+  if (effectiveDiscountPercent > 0) {
+    discountAmount = toSafeMoney((totalAmount * effectiveDiscountPercent) / 100);
+  }
+
+  const grandTotal = toSafeMoney(Math.max(0, totalAmount - discountAmount));
+  const paymentReceived =
+    booking.paymentReceivedAmountValue ??
+    toOptionalSafeMoney(booking.paymentReceivedAmount) ??
+    toSafeMoney(booking.advanceReceived);
+  const finalAmountValue = options?.forceFinalAmountToGrandTotal
+    ? grandTotal
+    : booking.finalAmountValue ??
+    toOptionalSafeMoney(booking.finalAmount) ??
+    grandTotal;
+  const dueAmountValue = toSafeMoney(finalAmountValue - paymentReceived);
+  const balanceAmount = toSafeMoney(grandTotal - paymentReceived);
+
+  await tx.booking.update({
+    where: { id: bookingId },
+    data: {
+      totalAmount,
+      totalBillAmount: toStoredNumberString(totalAmount),
+      totalBillAmountValue: totalAmount,
+      discountAmount,
+      discountPercentage: effectiveDiscountPercent,
+      grandTotal,
+      finalAmount: toStoredNumberString(finalAmountValue),
+      finalAmountValue,
+      dueAmount: toStoredNumberString(dueAmountValue),
+      dueAmountValue,
+      balanceAmount,
+    },
+  });
+}
+
 /**
  * Create new booking
  */
@@ -1151,48 +1531,8 @@ export async function getBookingById(
     const { id } = req.params;
 
     const booking = await prisma.booking.findFirst({
-      where: { id, isLatest: true },
-      include: {
-        customer: true,
-        secondCustomer: true,
-        halls: {
-          include: {
-            hall: true,
-          },
-        },
-        packs: {
-          include: {
-            mealSlot: true,
-            bookingMenu: {
-              include: {
-                items: {
-                  include: {
-                    item: {
-                      include: {
-                        itemType: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        additionalItems: true,
-        payments: {
-          include: {
-            receiver: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        previousBooking: true,
-        nextVersion: true,
-      },
+      where: { id },
+      include: BOOKING_RELATION_INCLUDE,
     });
 
     if (!booking) {
@@ -1203,6 +1543,403 @@ export async function getBookingById(
     sendSuccess(res, { booking });
   } catch (error) {
     sendError(res, 'Failed to fetch booking');
+  }
+}
+
+/**
+ * Finalize booking version and create a new editable replica.
+ */
+export async function finalizeBookingVersion(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    if (!req.user) {
+      sendError(res, 'Unauthorized', 401);
+      return;
+    }
+
+    const { id } = req.params;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          isLatest: true,
+          status: true,
+          versionNumber: true,
+        },
+      });
+
+      if (!booking) {
+        throw new Error('BOOKING_NOT_FOUND');
+      }
+      if (!booking.isLatest) {
+        throw new Error('BOOKING_NOT_LATEST');
+      }
+      if (booking.status === 'completed') {
+        throw new Error('BOOKING_COMPLETED');
+      }
+
+      const existingFinalized = await tx.finalizedBooking.findUnique({
+        where: { bookingId: id },
+        select: { id: true },
+      });
+      if (existingFinalized) {
+        throw new Error('BOOKING_ALREADY_FINALIZED');
+      }
+
+      const snapshot = await fetchBookingSnapshot(tx, id);
+      if (!snapshot) {
+        throw new Error('BOOKING_NOT_FOUND');
+      }
+
+      await tx.finalizedBooking.create({
+        data: {
+          bookingId: id,
+          data: toJsonSnapshot(snapshot),
+          finalizedBy: req.user!.userId,
+        },
+      });
+
+      await tx.booking.update({
+        where: { id },
+        data: { isLatest: false },
+      });
+
+      const replica = await cloneBookingVersion(tx, id);
+      return {
+        replica,
+      };
+    });
+
+    await cancelBookingEventInGoogleCalendar(id);
+    await syncBookingEventToGoogleCalendar(result.replica);
+
+    sendSuccess(
+      res,
+      {
+        booking: result.replica,
+        newBookingId: result.replica.id,
+      },
+      'Booking finalized and new editable version created'
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'BOOKING_NOT_FOUND') {
+        sendNotFound(res, 'Booking not found');
+        return;
+      }
+      if (error.message === 'BOOKING_NOT_LATEST') {
+        sendError(res, 'Only latest booking version can be finalized', 400);
+        return;
+      }
+      if (error.message === 'BOOKING_COMPLETED') {
+        sendError(res, 'Completed (party over) bookings cannot be finalized again', 400);
+        return;
+      }
+      if (error.message === 'BOOKING_ALREADY_FINALIZED') {
+        sendError(res, 'This booking version is already finalized', 409);
+        return;
+      }
+    }
+    sendError(res, 'Failed to finalize booking');
+  }
+}
+
+/**
+ * Party over: apply extra plates, finalize current version, and create completed replica.
+ */
+export async function partyOverBooking(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    if (!req.user) {
+      sendError(res, 'Unauthorized', 401);
+      return;
+    }
+
+    const { id } = req.params;
+
+    const payloadSchema = z.object({
+      packs: z
+        .array(
+          z.object({
+            bookingPackId: idSchema('booking pack ID'),
+            extraPlate: z.number().int().min(0),
+            extraRate: z.number().min(0).optional(),
+          })
+        )
+        .default([]),
+    });
+
+    const parsed = payloadSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      sendError(res, 'Invalid party over payload', 400);
+      return;
+    }
+    const payload = parsed.data;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id },
+        include: {
+          packs: {
+            select: {
+              id: true,
+              packName: true,
+              ratePerPlate: true,
+              extraRate: true,
+              extraRateValue: true,
+              extraPlate: true,
+            },
+          },
+        },
+      });
+
+      if (!booking) {
+        throw new Error('BOOKING_NOT_FOUND');
+      }
+      if (!booking.isLatest) {
+        throw new Error('BOOKING_NOT_LATEST');
+      }
+      if (bookingIsImmutable(booking)) {
+        throw new Error(bookingImmutableMessage(booking));
+      }
+
+      const functionDay = new Date(booking.functionDate);
+      functionDay.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (functionDay.getTime() > today.getTime()) {
+        throw new Error('BOOKING_DATE_IN_FUTURE');
+      }
+
+      const packIds = new Set(booking.packs.map((pack) => pack.id));
+      const requestedPackMap = new Map(
+        payload.packs.map((entry) => [entry.bookingPackId, entry])
+      );
+      for (const entry of payload.packs) {
+        if (!packIds.has(entry.bookingPackId)) {
+          throw new Error('INVALID_PACK_ID');
+        }
+      }
+
+      for (const pack of booking.packs) {
+        const input = requestedPackMap.get(pack.id);
+        const extraPlate = Math.max(0, input?.extraPlate ?? pack.extraPlate ?? 0);
+        const resolvedRate =
+          input?.extraRate ??
+          pack.extraRateValue ??
+          toOptionalSafeMoney(pack.extraRate) ??
+          toSafeMoney(pack.ratePerPlate);
+        const extraRateValue = toSafeMoney(resolvedRate);
+        const extraAmountValue = toSafeMoney(extraPlate * extraRateValue);
+
+        await tx.bookingPack.update({
+          where: { id: pack.id },
+          data: {
+            extraPlate,
+            extraRate: toStoredNumberString(extraRateValue),
+            extraRateValue,
+            extraAmount: toStoredNumberString(extraAmountValue),
+            extraAmountValue,
+            extraCharges: extraAmountValue,
+          },
+        });
+      }
+
+      await recalculateBookingFinancials(tx, id, {
+        forceFinalAmountToGrandTotal: true,
+      });
+
+      const snapshot = await fetchBookingSnapshot(tx, id);
+      if (!snapshot) {
+        throw new Error('BOOKING_NOT_FOUND');
+      }
+
+      await tx.finalizedBooking.upsert({
+        where: { bookingId: id },
+        create: {
+          bookingId: id,
+          data: toJsonSnapshot(snapshot),
+          finalizedBy: req.user!.userId,
+        },
+        update: {
+          data: toJsonSnapshot(snapshot),
+          finalizedBy: req.user!.userId,
+          finalizedAt: new Date(),
+        },
+      });
+
+      await tx.booking.update({
+        where: { id },
+        data: { isLatest: false },
+      });
+
+      const completedReplica = await cloneBookingVersion(tx, id, {
+        status: 'completed',
+      });
+
+      await tx.finalizedBooking.create({
+        data: {
+          bookingId: completedReplica.id,
+          data: toJsonSnapshot(completedReplica),
+          finalizedBy: req.user!.userId,
+        },
+      });
+
+      return {
+        completedReplica,
+      };
+    });
+
+    await cancelBookingEventInGoogleCalendar(id);
+    await syncBookingEventToGoogleCalendar(result.completedReplica);
+
+    sendSuccess(
+      res,
+      {
+        booking: result.completedReplica,
+        newBookingId: result.completedReplica.id,
+      },
+      'Party over applied and booking chain locked'
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'BOOKING_NOT_FOUND') {
+        sendNotFound(res, 'Booking not found');
+        return;
+      }
+      if (error.message === 'BOOKING_NOT_LATEST') {
+        sendError(res, 'Only latest booking version can be used for party over', 400);
+        return;
+      }
+      if (error.message === 'BOOKING_DATE_IN_FUTURE') {
+        sendError(res, 'Party over is available only on or after function date', 400);
+        return;
+      }
+      if (error.message === 'INVALID_PACK_ID') {
+        sendError(res, 'One or more packs do not belong to this booking', 400);
+        return;
+      }
+      if (
+        error.message === 'Completed (party over) bookings are read-only' ||
+        error.message === 'Only latest booking versions can be modified'
+      ) {
+        sendError(res, error.message, 400);
+        return;
+      }
+    }
+    sendError(res, 'Failed to apply party over');
+  }
+}
+
+/**
+ * Get complete booking version history (latest to oldest).
+ */
+export async function getBookingHistory(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const anchor = await prisma.booking.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        previousBookingId: true,
+      },
+    });
+
+    if (!anchor) {
+      sendNotFound(res, 'Booking not found');
+      return;
+    }
+
+    let rootId = anchor.id;
+    let cursor = anchor;
+    while (cursor.previousBookingId) {
+      const previous = await prisma.booking.findUnique({
+        where: { id: cursor.previousBookingId },
+        select: {
+          id: true,
+          previousBookingId: true,
+        },
+      });
+      if (!previous) break;
+      rootId = previous.id;
+      cursor = previous;
+    }
+
+    const lineageIds: string[] = [];
+    let nextCursorId: string | null = rootId;
+    let guard = 0;
+    while (nextCursorId && guard < 200) {
+      lineageIds.push(nextCursorId);
+      const nextVersionRow: { id: string } | null = await prisma.booking.findFirst({
+        where: {
+          previousBookingId: nextCursorId,
+        },
+        select: {
+          id: true,
+        },
+      });
+      nextCursorId = nextVersionRow?.id || null;
+      guard += 1;
+    }
+
+    const versions = await prisma.booking.findMany({
+      where: {
+        id: {
+          in: lineageIds,
+        },
+      },
+      include: BOOKING_RELATION_INCLUDE,
+      orderBy: {
+        versionNumber: 'desc',
+      },
+    });
+
+    const history = versions.map((version) => {
+      const finalizedByUser =
+        ((version.finalizedBooking as any)?.finalizedByUser as
+          | { id: string; name: string | null; email: string }
+          | null
+          | undefined) ??
+        ((version.finalizedBooking as any)?.user as
+          | { id: string; name: string | null; email: string }
+          | null
+          | undefined) ??
+        null;
+
+      return {
+        ...version,
+        finalizedMeta: version.finalizedBooking
+          ? {
+              finalizedAt: version.finalizedBooking.finalizedAt,
+              finalizedBy: finalizedByUser
+                ? {
+                    id: finalizedByUser.id,
+                    name: finalizedByUser.name,
+                    email: finalizedByUser.email,
+                  }
+                : null,
+            }
+          : null,
+        snapshotData: version.finalizedBooking?.data || null,
+      };
+    });
+
+    sendSuccess(res, {
+      bookingId: id,
+      history,
+    });
+  } catch (error) {
+    sendError(res, 'Failed to fetch booking history');
   }
 }
 
@@ -1304,8 +2041,8 @@ export async function downloadBookingMenuPdf(
               typeof entry.item?.itemType?.order === 'number'
                 ? entry.item.itemType.order
                 : typeof entry.item?.itemType?.displayOrder === 'number'
-                ? entry.item.itemType.displayOrder
-                : 9999,
+                  ? entry.item.itemType.displayOrder
+                  : 9999,
             itemName: entry.item?.name || 'Unnamed Item',
           }))
           .filter((entry) => Boolean(entry.itemName)),
@@ -1446,6 +2183,10 @@ export async function updateBooking(
       sendNotFound(res, 'Booking not found');
       return;
     }
+    if (bookingIsImmutable(existingBooking)) {
+      sendError(res, bookingImmutableMessage(existingBooking), 400);
+      return;
+    }
 
     // Create new version if not a quotation
     if (!existingBooking.isQuotation && data.createNewVersion) {
@@ -1544,8 +2285,8 @@ export async function updateBooking(
             data.quotation !== undefined
               ? data.quotation
               : data.isQuotation !== undefined
-              ? data.isQuotation
-              : undefined,
+                ? data.isQuotation
+                : undefined,
           isQuotation: data.isQuotation,
           notes: data.notes,
           internalNotes: data.internalNotes,
@@ -1703,32 +2444,32 @@ export async function updateBooking(
       const hallRows = hallRowsInput
         ? hallRowsInput
         : await tx.bookingHall.findMany({
-            where: { bookingId: id },
-            select: {
-              charges: true,
-            },
-          });
+          where: { bookingId: id },
+          select: {
+            charges: true,
+          },
+        });
       const packRows = Array.isArray(data.packs)
         ? data.packs
         : await tx.bookingPack.findMany({
-            where: { bookingId: id },
-            select: {
-              packCount: true,
-              noOfPack: true,
-              ratePerPlate: true,
-              setupCost: true,
-              extraCharges: true,
-            },
-          });
+          where: { bookingId: id },
+          select: {
+            packCount: true,
+            noOfPack: true,
+            ratePerPlate: true,
+            setupCost: true,
+            extraCharges: true,
+          },
+        });
       const additionalItemRows = Array.isArray(data.additionalItems)
         ? data.additionalItems
         : await tx.additionalBookingItems.findMany({
-            where: { bookingId: id },
-            select: {
-              charges: true,
-              quantity: true,
-            },
-          });
+          where: { bookingId: id },
+          select: {
+            charges: true,
+            quantity: true,
+          },
+        });
 
       const hallTotal = hallRows.reduce(
         (sum: number, hall: { charges?: number }) => sum + toSafeMoney(hall.charges),
@@ -1738,7 +2479,7 @@ export async function updateBooking(
         (sum: number, pack: any) =>
           sum +
           toSafeMoney(pack.ratePerPlate) *
-            Math.max(1, toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)) +
+          Math.max(1, toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)) +
           toSafeMoney(pack.setupCost) +
           toSafeMoney(pack.extraCharges),
         0
@@ -1747,7 +2488,7 @@ export async function updateBooking(
         (sum: number, item: { charges?: number; quantity?: number }) =>
           sum +
           toSafeMoney(item.charges) *
-            Math.max(1, toSafeNumber(item.quantity || 1)),
+          Math.max(1, toSafeNumber(item.quantity || 1)),
         0
       );
 
@@ -1860,10 +2601,14 @@ export async function cancelBooking(
     const { id } = req.params;
     const existing = await prisma.booking.findFirst({
       where: { id, isLatest: true },
-      select: { id: true },
+      select: { id: true, status: true, isLatest: true },
     });
     if (!existing) {
       sendNotFound(res, 'Booking not found');
+      return;
+    }
+    if (bookingIsImmutable(existing)) {
+      sendError(res, bookingImmutableMessage(existing), 400);
       return;
     }
 
@@ -1897,10 +2642,14 @@ export async function deleteBooking(
     const { id } = req.params;
     const existing = await prisma.booking.findFirst({
       where: { id, isLatest: true },
-      select: { id: true },
+      select: { id: true, status: true, isLatest: true },
     });
     if (!existing) {
       sendNotFound(res, 'Booking not found');
+      return;
+    }
+    if (bookingIsImmutable(existing)) {
+      sendError(res, bookingImmutableMessage(existing), 400);
       return;
     }
 
@@ -1957,6 +2706,9 @@ export async function addPayment(
       });
 
       if (booking) {
+        if (bookingIsImmutable(booking)) {
+          throw new Error(bookingImmutableMessage(booking));
+        }
         const currentReceived =
           booking.paymentReceivedAmountValue ??
           toOptionalSafeMoney(booking.paymentReceivedAmount) ??
@@ -1987,6 +2739,14 @@ export async function addPayment(
 
     sendSuccess(res, { payment }, 'Payment added successfully', 201);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === 'Completed (party over) bookings are read-only' ||
+        error.message === 'Only latest booking versions can be modified')
+    ) {
+      sendError(res, error.message, 400);
+      return;
+    }
     sendError(res, 'Failed to add payment');
   }
 }

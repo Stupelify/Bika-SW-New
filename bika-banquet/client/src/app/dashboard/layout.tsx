@@ -639,7 +639,7 @@ function DashboardLayoutContent({
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100dvh', background: 'var(--bg)' }}>
       <a href="#main-content" className="skip-nav">Skip to main content</a>
       {sidebarOpen && (
         <button
@@ -664,7 +664,7 @@ function DashboardLayoutContent({
           top: 0,
           paddingTop: 'var(--safe-top)',
           left: 0,
-          bottom: 0,
+          height: '100dvh',
           width: 'var(--sidebar-w)',
           background: 'var(--surface)',
           borderRight: '1px solid var(--border)',
@@ -681,9 +681,11 @@ function DashboardLayoutContent({
         style={{
           position: 'fixed',
           top: 0,
-          paddingTop: 'var(--safe-top)',
+          /* Use max() so the sidebar always clears the Dynamic Island (up to ~59 px)
+             on regular iPhones with just a home button/notch it adds comfortable breathing room */
+          paddingTop: 'max(var(--safe-top), 20px)',
           left: 0,
-          bottom: 0,
+          height: '100dvh',
           width: 'min(84vw, 232px)',
           background: 'var(--surface)',
           borderRight: '1px solid var(--border)',

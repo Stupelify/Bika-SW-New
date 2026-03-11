@@ -77,6 +77,12 @@ export const api = {
       params: packId ? { packId } : undefined,
       responseType: 'blob',
     }),
+  finalizeBooking: (id: string) => apiClient.post(`/bookings/${id}/finalize`),
+  partyOverBooking: (
+    id: string,
+    data: { packs: Array<{ bookingPackId: string; extraPlate: number; extraRate?: number }> }
+  ) => apiClient.post(`/bookings/${id}/party-over`, data),
+  getBookingHistory: (id: string) => apiClient.get(`/bookings/${id}/history`),
   cancelBooking: (id: string) => apiClient.post(`/bookings/${id}/cancel`),
   addPayment: (id: string, data: any) => apiClient.post(`/bookings/${id}/payments`, data),
 

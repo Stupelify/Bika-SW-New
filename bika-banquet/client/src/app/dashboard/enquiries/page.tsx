@@ -283,6 +283,12 @@ export default function EnquiriesPage() {
     setColumnSearch((prev) => ({ ...prev, [key]: value }));
   };
 
+  const clearSearch = () => {
+    setGlobalSearch('');
+    setColumnSearch(initialColumnSearch);
+    setCurrentPage(1);
+  };
+
   const openCreatePrompt = () => {
     setEditingEnquiryId(null);
     setFormData({
@@ -730,11 +736,36 @@ export default function EnquiriesPage() {
           <div className="relative md:col-span-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
-              className="input pl-10"
+              className="input pl-10 pr-10"
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
               placeholder="Overall search across all enquiry columns..."
             />
+            {globalSearch && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={clearSearch}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 2,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
           </div>
           <select
             className="input"
@@ -758,7 +789,21 @@ export default function EnquiriesPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
         ) : filteredEnquiries.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">No enquiries found.</div>
+          <div className="text-center py-12">
+            {(globalSearch || Object.values(columnSearch).some(Boolean)) ? (
+              <>
+                <p className="text-gray-500 mb-1">No enquiries match your search</p>
+                <p className="text-gray-400 text-sm mb-4">
+                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo;
+                </p>
+                <button type="button" onClick={clearSearch} className="btn btn-secondary">
+                  Clear search
+                </button>
+              </>
+            ) : (
+              <p className="text-gray-500">No enquiries found.</p>
+            )}
+          </div>
         ) : (
           <>
             {/* Mobile card view */}
@@ -899,6 +944,7 @@ export default function EnquiriesPage() {
                     </th>
                     <th className="py-2 px-4">
                       <input
+                        type="date"
                         className="input h-9"
                         placeholder="Search date"
                         value={columnSearch.functionDate}
