@@ -613,7 +613,7 @@ function HallsPageContent() {
             </div>
             <div className="md:col-span-2">
               <label className="label">Hall Image</label>
-              <label className="block rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50/60 p-4 hover:border-primary-300 transition cursor-pointer">
+              <label className="block rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-4 hover:border-primary-300 transition cursor-pointer">
                 <div className="text-sm text-gray-600">
                   {hallForm.photoFileName
                     ? `Selected: ${hallForm.photoFileName}`
@@ -746,7 +746,7 @@ function HallsPageContent() {
                         Actions
                       </th>
                     </tr>
-                    <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                    <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                       <th className="py-2 px-2">
                         <input
                           className="input h-9"
@@ -900,7 +900,7 @@ function HallsPageContent() {
                         Actions
                       </th>
                     </tr>
-                    <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                    <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                       <th className="py-2 px-2">
                         <input
                           className="input h-9"

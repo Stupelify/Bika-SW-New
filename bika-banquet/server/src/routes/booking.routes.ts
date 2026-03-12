@@ -9,6 +9,9 @@ import {
   addPayment,
   downloadBookingMenuPdf,
   createBookingSchema,
+  finalizeBookingVersion,
+  partyOverBooking,
+  getBookingHistory,
 } from '../controllers/booking.controller';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -31,5 +34,8 @@ router.put('/:id', requirePermission('edit_booking', 'manage_bookings'), updateB
 router.delete('/:id', requirePermission('delete_booking', 'manage_bookings'), deleteBooking);
 router.post('/:id/cancel', requirePermission('cancel_booking', 'edit_booking', 'manage_bookings'), cancelBooking);
 router.post('/:id/payments', requirePermission('manage_payments', 'edit_booking', 'manage_bookings'), addPayment);
+router.post('/:id/finalize', requirePermission('edit_booking', 'manage_bookings'), finalizeBookingVersion);
+router.post('/:id/party-over', requirePermission('edit_booking', 'manage_bookings'), partyOverBooking);
+router.get('/:id/history', requirePermission('view_booking', 'manage_bookings'), getBookingHistory);
 
 export default router;

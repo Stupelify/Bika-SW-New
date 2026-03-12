@@ -117,6 +117,16 @@ const navigation: NavigationItem[] = [
         href: '/dashboard/menu?section=template',
         permissions: ['view_templatemenu', 'manage_menu'],
       },
+      {
+        name: 'Ingredients',
+        href: '/dashboard/menu/ingredients',
+        permissions: ['view_item', 'manage_menu'],
+      },
+      {
+        name: 'Vendors',
+        href: '/dashboard/menu/vendors',
+        permissions: ['view_item', 'manage_menu'],
+      },
     ],
   },
   {
@@ -189,6 +199,8 @@ const ROUTE_LABELS: Record<string, string> = {
   calendar: 'Calendar',
   halls: 'Venues',
   menu: 'Menu & Items',
+  ingredients: 'Ingredients',
+  vendors: 'Vendors',
   payments: 'Payments',
   reports: 'Reports',
   settings: 'Settings',
@@ -627,7 +639,7 @@ function DashboardLayoutContent({
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100dvh', background: 'var(--bg)' }}>
       <a href="#main-content" className="skip-nav">Skip to main content</a>
       {sidebarOpen && (
         <button
@@ -650,13 +662,12 @@ function DashboardLayoutContent({
         style={{
           position: 'fixed',
           top: 0,
+          paddingTop: 'var(--safe-top)',
           left: 0,
-          bottom: 0,
+          height: '100dvh',
           width: 'var(--sidebar-w)',
-          background: 'rgba(255, 255, 255, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderRight: '1px solid rgba(226, 232, 240, 0.6)',
+          background: 'var(--surface)',
+          borderRight: '1px solid var(--border)',
           zIndex: 50,
           overflowY: 'auto',
         }}
@@ -670,13 +681,14 @@ function DashboardLayoutContent({
         style={{
           position: 'fixed',
           top: 0,
+          /* Use max() so the sidebar always clears the Dynamic Island (up to ~59 px)
+             on regular iPhones with just a home button/notch it adds comfortable breathing room */
+          paddingTop: 'max(var(--safe-top), 20px)',
           left: 0,
-          bottom: 0,
+          height: '100dvh',
           width: 'min(84vw, 232px)',
-          background: 'rgba(255, 255, 255, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderRight: '1px solid rgba(226, 232, 240, 0.6)',
+          background: 'var(--surface)',
+          borderRight: '1px solid var(--border)',
           zIndex: 50,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform 0.2s ease-out',
@@ -689,14 +701,14 @@ function DashboardLayoutContent({
       <div className="ml-0 lg:ml-[var(--sidebar-w)]">
         <header
           style={{
-            height: 52,
-            background: 'rgba(255, 255, 255, 0.85)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            borderBottom: '1px solid rgba(226, 232, 240, 0.6)',
+            height: 'calc(52px + var(--safe-top))',
+            background: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
-            padding: '0 20px',
+            paddingLeft: 20,
+            paddingRight: 20,
+            paddingTop: 'var(--safe-top)',
             gap: 12,
             position: 'sticky',
             top: 0,

@@ -41,6 +41,25 @@ const authWindowMinutes = Number.parseInt(
   process.env.AUTH_RATE_LIMIT_WINDOW || String(apiWindowMinutes || 15),
   10
 );
+const trustedRateLimitIps = new Set(
+  (process.env.RATE_LIMIT_TRUSTED_IPS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
+
+function extractIp(req: Request): string {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  return ip.replace(/^::ffff:/, '');
+}
+
+function isTrustedIp(req: Request): boolean {
+  if (trustedRateLimitIps.size === 0) {
+    return false;
+  }
+  const ip = extractIp(req);
+  return trustedRateLimitIps.has(ip);
+}
 
 function getRateLimitKey(req: Request): string {
   const authHeader = req.headers.authorization;
@@ -62,7 +81,7 @@ function getRateLimitKey(req: Request): string {
     }
   }
 
-  return `ip:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+  return `ip:${extractIp(req)}`;
 }
 
 function getAuthRateLimitKey(req: Request): string {
@@ -71,7 +90,7 @@ function getAuthRateLimitKey(req: Request): string {
   if (email) {
     return `login:${email}`;
   }
-  return `login-ip:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+  return `login-ip:${extractIp(req)}`;
 }
 
 const apiLimiter = rateLimit({
@@ -79,6 +98,7 @@ const apiLimiter = rateLimit({
   max: Number.parseInt(process.env.RATE_LIMIT_MAX || '2000', 10),
   keyGenerator: getRateLimitKey,
   skip: (req) =>
+    isTrustedIp(req) ||
     req.path === '/auth/login' ||
     req.path === '/auth/register' ||
     req.path === '/auth/forgot-password' ||
@@ -92,6 +112,7 @@ const authLimiter = rateLimit({
   windowMs: (Number.isFinite(authWindowMinutes) ? authWindowMinutes : 15) * 60 * 1000,
   max: Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX || '1000', 10),
   keyGenerator: getAuthRateLimitKey,
+  skip: (req) => isTrustedIp(req),
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,

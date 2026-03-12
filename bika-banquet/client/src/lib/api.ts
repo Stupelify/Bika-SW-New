@@ -77,6 +77,12 @@ export const api = {
       params: packId ? { packId } : undefined,
       responseType: 'blob',
     }),
+  finalizeBooking: (id: string) => apiClient.post(`/bookings/${id}/finalize`),
+  partyOverBooking: (
+    id: string,
+    data: { packs: Array<{ bookingPackId: string; extraPlate: number; extraRate?: number }> }
+  ) => apiClient.post(`/bookings/${id}/party-over`, data),
+  getBookingHistory: (id: string) => apiClient.get(`/bookings/${id}/history`),
   cancelBooking: (id: string) => apiClient.post(`/bookings/${id}/cancel`),
   addPayment: (id: string, data: any) => apiClient.post(`/bookings/${id}/payments`, data),
 
@@ -113,6 +119,45 @@ export const api = {
   updateTemplateMenu: (id: string, data: any) =>
     apiClient.put(`/template-menus/${id}`, data),
   deleteTemplateMenu: (id: string) => apiClient.delete(`/template-menus/${id}`),
+
+  // Ingredients
+  getIngredients: (params?: any) => apiClient.get('/ingredients', { params }),
+  getIngredient: (id: string) => apiClient.get(`/ingredients/${id}`),
+  createIngredient: (data: any) => apiClient.post('/ingredients', data),
+  updateIngredient: (id: string, data: any) => apiClient.put(`/ingredients/${id}`, data),
+  deleteIngredient: (id: string) => apiClient.delete(`/ingredients/${id}`),
+  addIngredientVendor: (id: string, data: any) =>
+    apiClient.post(`/ingredients/${id}/vendors`, data),
+  updateIngredientVendor: (id: string, supplyId: string, data: any) =>
+    apiClient.put(`/ingredients/${id}/vendors/${supplyId}`, data),
+  deleteIngredientVendor: (id: string, supplyId: string) =>
+    apiClient.delete(`/ingredients/${id}/vendors/${supplyId}`),
+
+  // Vendors
+  getVendors: (params?: any) => apiClient.get('/vendors', { params }),
+  getVendor: (id: string) => apiClient.get(`/vendors/${id}`),
+  createVendor: (data: any) => apiClient.post('/vendors', data),
+  updateVendor: (id: string, data: any) => apiClient.put(`/vendors/${id}`, data),
+  deleteVendor: (id: string) => apiClient.delete(`/vendors/${id}`),
+  addVendorSupply: (id: string, data: any) => apiClient.post(`/vendors/${id}/supplies`, data),
+  updateVendorSupply: (id: string, supplyId: string, data: any) =>
+    apiClient.put(`/vendors/${id}/supplies/${supplyId}`, data),
+  deleteVendorSupply: (id: string, supplyId: string) =>
+    apiClient.delete(`/vendors/${id}/supplies/${supplyId}`),
+
+  // Item recipes & vendor supplies
+  getItemRecipes: (id: string) => apiClient.get(`/items/${id}/recipes`),
+  addItemRecipe: (id: string, data: any) => apiClient.post(`/items/${id}/recipes`, data),
+  updateItemRecipe: (id: string, recipeId: string, data: any) =>
+    apiClient.put(`/items/${id}/recipes/${recipeId}`, data),
+  deleteItemRecipe: (id: string, recipeId: string) =>
+    apiClient.delete(`/items/${id}/recipes/${recipeId}`),
+  getItemVendors: (id: string) => apiClient.get(`/items/${id}/vendors`),
+  addItemVendor: (id: string, data: any) => apiClient.post(`/items/${id}/vendors`, data),
+  updateItemVendor: (id: string, supplyId: string, data: any) =>
+    apiClient.put(`/items/${id}/vendors/${supplyId}`, data),
+  deleteItemVendor: (id: string, supplyId: string) =>
+    apiClient.delete(`/items/${id}/vendors/${supplyId}`),
 
   // Users & RBAC
   getUsers: (params?: any) => apiClient.get('/users', { params }),

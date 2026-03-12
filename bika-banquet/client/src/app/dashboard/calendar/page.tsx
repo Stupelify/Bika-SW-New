@@ -1340,8 +1340,8 @@ export default function CalendarPage() {
                                   onClick={() => setSelectedDate(dayKey)}
                                   className={`rounded-xl border p-2 text-left min-h-[96px] sm:min-h-[126px] transition relative overflow-hidden ${isSelected
                                       ? 'border-primary-400 bg-primary-50 shadow-sm'
-                                      : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50/40'
-                                    } ${isCurrentMonth ? '' : 'bg-gray-50/70 opacity-75'}`}
+                                      : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50'
+                                    } ${isCurrentMonth ? '' : 'bg-gray-50 opacity-75'}`}
                                 >
                                   <div className="flex items-center justify-between relative z-10">
                                     <span
@@ -1429,13 +1429,13 @@ export default function CalendarPage() {
                                 </span>
                                 <div className="flex gap-1 mt-1.5 h-1.5">
                                   {hasBookings && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'}`} />}
-                                  {hasEnquiries && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : 'bg-amber-400'}`} />}
+                                  {hasEnquiries && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-amber-400'}`} />}
                                 </div>
                               </button>
                             );
                           })}
                         </div>
-                        <div className="mt-2 p-4 rounded-xl bg-primary-50/50 border border-primary-100 flex items-center justify-between">
+                        <div className="mt-2 p-4 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-between">
                           <p className="text-xs text-primary-800 font-medium">Viewing agenda for selected day below</p>
                           <svg className="w-5 h-5 text-primary-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -1463,7 +1463,7 @@ export default function CalendarPage() {
                               onClick={() => setSelectedDate(dayKey)}
                               className={`rounded-xl border p-3 text-left align-top min-h-[280px] ${isSelected
                                   ? 'border-primary-400 bg-primary-50'
-                                  : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50/30'
+                                  : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50'
                                 }`}
                             >
                               <p className="text-xs uppercase tracking-wide text-gray-500">
@@ -1538,10 +1538,10 @@ export default function CalendarPage() {
                               }
                             }}
                             className={`rounded-xl border px-3 py-2 ${entry.kind === 'booking'
-                                ? 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70'
+                                ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100'
                                 : entry.kind === 'enquiry'
-                                  ? 'border-amber-200 bg-amber-50/70'
-                                  : 'border-sky-200 bg-sky-50/70'
+                                  ? 'border-amber-200 bg-amber-50'
+                                  : 'border-sky-200 bg-sky-50'
                               } ${entry.kind === 'booking' ? 'cursor-pointer transition text-left' : 'text-left'}`}
                           >
                             <div className="flex items-center justify-between gap-3">
@@ -1597,7 +1597,7 @@ export default function CalendarPage() {
                           key={booking.id}
                           type="button"
                           onClick={() => void openBookingDetails(booking.id)}
-                          className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50/40 transition"
+                          className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50 transition"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-medium text-gray-900 truncate">{booking.functionName}</p>
@@ -1772,7 +1772,7 @@ export default function CalendarPage() {
                       }
                     }}
                     className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left ${entry.kind === 'booking'
-                        ? 'hover:border-primary-300 hover:bg-primary-50/40 transition'
+                        ? 'hover:border-primary-300 hover:bg-primary-50 transition'
                         : 'cursor-default'
                       }`}
                   >
@@ -1837,7 +1837,7 @@ export default function CalendarPage() {
                 hallBoardRows.map((row, index) => (
                   <div
                     key={row.hallName}
-                    className={`grid grid-cols-[220px_1fr] border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/70'
+                    className={`grid grid-cols-[220px_1fr] border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                   >
                     <div className="px-4 py-4 border-r border-gray-100 text-sm font-semibold text-gray-900">

@@ -6,6 +6,7 @@ import { generateOTP } from '../utils/auth';
 import { normalizeCaseFields } from '../utils/textCase';
 import phoneDigitsByCode from '../config/phoneDigitsByCode.json';
 import { idSchema } from '../utils/validation';
+import { toE164 } from '../utils/phone';
 
 const NAME_PATTERN = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
 const PHONE_PATTERN = /^\d+$/;
@@ -125,6 +126,7 @@ const customerBaseSchema = z.object({
   alterPhoneCountryCode: optionalCountryCodeSchema,
   whatsapp: optionalPhoneSchema,
   whatsappCountryCode: optionalCountryCodeSchema,
+  isWhatsappSameAsPhone: z.boolean().optional(),
   country: optionalTextSchema,
   address: optionalTextSchema,
   street1: optionalTextSchema,
@@ -228,6 +230,52 @@ function withPhoneLengthValidation<T extends z.AnyZodObject>(schema: T) {
   });
 }
 
+function buildNormalizedPhoneFields(
+  data: Record<string, any>,
+  existing?: Record<string, any>
+) {
+  const primaryCountryCode =
+    data.phoneCountryCode ??
+    existing?.phoneCountryCode ??
+    DEFAULT_COUNTRY_CODE;
+  const primaryPhone = data.phone ?? existing?.phone;
+  const phoneE164 = toE164(primaryCountryCode, primaryPhone);
+
+  const alternateCountryCode =
+    data.alterPhoneCountryCode ??
+    existing?.alterPhoneCountryCode ??
+    primaryCountryCode;
+  const alternatePhoneSource =
+    data.alterPhone ??
+    data.alternatePhone ??
+    existing?.alterPhone ??
+    existing?.alternatePhone;
+  const alternatePhoneE164 = toE164(alternateCountryCode, alternatePhoneSource);
+
+  const whatsappCountryCode =
+    data.whatsappCountryCode ??
+    existing?.whatsappCountryCode ??
+    primaryCountryCode;
+  const whatsappSource =
+    data.whatsapp ??
+    data.whatsappNumber ??
+    existing?.whatsapp ??
+    existing?.whatsappNumber;
+  const whatsappE164 = toE164(whatsappCountryCode, whatsappSource);
+
+  const isWhatsappSameAsPhone =
+    data.isWhatsappSameAsPhone !== undefined
+      ? Boolean(data.isWhatsappSameAsPhone)
+      : !whatsappE164 || (Boolean(phoneE164) && whatsappE164 === phoneE164);
+
+  return {
+    phoneE164,
+    alternatePhoneE164,
+    whatsappE164,
+    isWhatsappSameAsPhone,
+  };
+}
+
 // Validation schemas
 export const createCustomerSchema = z.object({
   body: withPhoneLengthValidation(
@@ -279,8 +327,13 @@ export async function createCustomer(
       data.priority = 3;
     }
 
+    const normalizedPhoneFields = buildNormalizedPhoneFields(data);
+
     const customer = await prisma.customer.create({
-      data,
+      data: {
+        ...data,
+        ...normalizedPhoneFields,
+      },
       include: {
         referredBy: {
           select: {
@@ -319,6 +372,13 @@ export async function getCustomers(req: Request, res: Response): Promise<void> {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
+        { phoneE164: { contains: search } },
+        { alterPhone: { contains: search } },
+        { alternatePhone: { contains: search } },
+        { alternatePhoneE164: { contains: search } },
+        { whatsapp: { contains: search } },
+        { whatsappNumber: { contains: search } },
+        { whatsappE164: { contains: search } },
         { email: { contains: search, mode: 'insensitive' } },
       ];
     }
@@ -423,6 +483,14 @@ export async function updateCustomer(
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id },
+    });
+    if (!existingCustomer) {
+      sendNotFound(res, 'Customer not found');
+      return;
+    }
+
     const data = normalizeCaseFields({ ...req.body }, [
       'name',
       'country',
@@ -444,9 +512,17 @@ export async function updateCustomer(
       data.anniversary = new Date(data.anniversary);
     }
 
+    const normalizedPhoneFields = buildNormalizedPhoneFields(
+      data,
+      existingCustomer as Record<string, any>
+    );
+
     const customer = await prisma.customer.update({
       where: { id },
-      data,
+      data: {
+        ...data,
+        ...normalizedPhoneFields,
+      },
       include: {
         referredBy: {
           select: {
@@ -500,6 +576,7 @@ export async function deleteCustomer(
 export async function sendOTP(req: Request, res: Response): Promise<void> {
   try {
     const { phone } = req.body;
+    const phoneE164 = toE164(DEFAULT_COUNTRY_CODE, phone);
 
     const otp = generateOTP();
     const otpExpiry = new Date();
@@ -511,12 +588,16 @@ export async function sendOTP(req: Request, res: Response): Promise<void> {
       update: {
         otpCode: otp,
         otpExpiry,
+        phoneCountryCode: DEFAULT_COUNTRY_CODE,
+        phoneE164,
       },
       create: {
         phone,
         name: 'Guest', // Temporary name
         otpCode: otp,
         otpExpiry,
+        phoneCountryCode: DEFAULT_COUNTRY_CODE,
+        phoneE164,
       },
     });
 

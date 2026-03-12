@@ -29,6 +29,7 @@ export function formatDateDDMMYYYY(input: string | Date | null | undefined): str
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'UTC'
   }).format(parsed);
 }
 

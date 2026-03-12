@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarCheck,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
   Download,
   Edit,
   FileText,
+  Flag,
+  Lock,
   Plus,
   Printer,
   Save,
@@ -128,6 +133,7 @@ type PackKey = 'breakfast' | 'lunch' | 'hiTea' | 'dinner';
 type AmountSyncMode = 'discountPercent' | 'discountAmount' | 'finalAmount';
 
 interface BookingPackRow {
+  bookingPackId?: string;
   enabled: boolean;
   withHall: boolean;
   withCatering: boolean;
@@ -142,6 +148,13 @@ interface BookingPackRow {
   ratePerPlate: string;
   pax: string;
   amount: string;
+  extraPlate?: number;
+  extraRateValue?: number;
+  extraRate?: string;
+  extraAmountValue?: number;
+  extraAmount?: string;
+  extraCharges?: number;
+  setupCost?: string;
 }
 
 interface PaymentRow {
@@ -326,10 +339,10 @@ const PACK_LABELS: Record<PackKey, string> = {
 };
 
 const PACK_ROW_STYLES: Record<PackKey, string> = {
-  breakfast: 'border-orange-200 bg-orange-50/70',
-  lunch: 'border-green-200 bg-green-50/70',
-  hiTea: 'border-slate-200 bg-slate-50/80',
-  dinner: 'border-slate-300 bg-slate-100/80',
+  breakfast: 'border-orange-200 bg-orange-50',
+  lunch: 'border-green-200 bg-green-50',
+  hiTea: 'border-slate-200 bg-slate-50',
+  dinner: 'border-slate-300 bg-slate-100',
 };
 
 const FUNCTION_TYPE_OPTIONS = [
@@ -383,6 +396,16 @@ function compareCustomersByName(a: CustomerOption, b: CustomerOption): number {
   return a.id.localeCompare(b.id);
 }
 
+function formatDateTimeLabel(value?: string | Date | null): string {
+  if (!value) return 'N/A';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'N/A';
+  return `${formatDateDDMMYYYY(parsed.toISOString())} ${parsed.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+}
+
 export default function BookingsPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -401,9 +424,19 @@ export default function BookingsPage() {
   const [templateMenus, setTemplateMenus] = useState<TemplateMenuOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [bookingHistory, setBookingHistory] = useState<any[]>([]);
+  const [expandedHistoryVersions, setExpandedHistoryVersions] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [showPartyOverModal, setShowPartyOverModal] = useState(false);
+  const [partyOverPlates, setPartyOverPlates] = useState<Record<string, number>>({});
+  const [partyOverRates, setPartyOverRates] = useState<Record<string, number>>({});
+  const [activePartyOverBooking, setActivePartyOverBooking] = useState<any>(null);
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [editingBookingStatus, setEditingBookingStatus] = useState<string | null>(null);
   const [menuEditorPack, setMenuEditorPack] = useState<PackKey | null>(null);
   const [menuItemSearch, setMenuItemSearch] = useState('');
   const [menuPdfBookingId, setMenuPdfBookingId] = useState<string | null>(null);
@@ -443,6 +476,10 @@ export default function BookingsPage() {
     whatsappNumber?: string;
   }>({});
   const [amountSyncMode, setAmountSyncMode] = useState<AmountSyncMode>('discountPercent');
+  const isReadOnlyBooking = useMemo(
+    () => Boolean(editingBookingId && editingBookingStatus === 'completed'),
+    [editingBookingId, editingBookingStatus]
+  );
   const todayIsoDate = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -507,6 +544,171 @@ export default function BookingsPage() {
     const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
     return filteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
   }, [currentPage, filteredBookings, totalPages]);
+
+  const historicalVersions = useMemo(
+    () =>
+      bookingHistory.filter(
+        (entry: { id?: string | null }) => Boolean(entry?.id) && entry.id !== editingBookingId
+      ),
+    [bookingHistory, editingBookingId]
+  );
+
+  // ── Diff helpers ─────────────────────────────────────────────────────────
+
+  /** Shape we normalise both history entries and the live form into for diffing */
+  type DiffPackSnapshot = {
+    packName: string;
+    pax: number;
+    ratePerPlate: number;
+    hallRate: number;
+    menuItemIds: string[]; // raw item IDs
+  };
+  type DiffSnapshot = {
+    functionDate: string;
+    functionType: string;
+    discountAmount: number;
+    finalAmount: number;
+    advanceRequired: number;
+    dueAmount: number;
+    packs: DiffPackSnapshot[];
+  };
+
+  /** Compute which fields differ between newer and older snapshots */
+  function computeVersionDiff(
+    newer: DiffSnapshot,
+    older: DiffSnapshot
+  ): {
+    functionDate?: { from: string; to: string };
+    functionType?: { from: string; to: string };
+    discountAmountChange?: { from: number; to: number };
+    finalAmountChange?: { from: number; to: number };
+    advanceRequiredChange?: { from: number; to: number };
+    dueAmountChange?: { from: number; to: number };
+    packs: Record<string, {
+      paxChange?: { from: number; to: number };
+      ratePerPlateChange?: { from: number; to: number };
+      hallRateChange?: { from: number; to: number };
+      addedItemIds: string[];
+      removedItemIds: string[];
+    }>;
+  } {
+    const diff: ReturnType<typeof computeVersionDiff> = { packs: {} };
+    if (newer.functionDate !== older.functionDate)
+      diff.functionDate = { from: older.functionDate, to: newer.functionDate };
+    if (newer.functionType !== older.functionType)
+      diff.functionType = { from: older.functionType, to: newer.functionType };
+    if (Math.abs(newer.discountAmount - older.discountAmount) > 0.001)
+      diff.discountAmountChange = { from: older.discountAmount, to: newer.discountAmount };
+    if (Math.abs(newer.finalAmount - older.finalAmount) > 0.001)
+      diff.finalAmountChange = { from: older.finalAmount, to: newer.finalAmount };
+    if (Math.abs(newer.advanceRequired - older.advanceRequired) > 0.001)
+      diff.advanceRequiredChange = { from: older.advanceRequired, to: newer.advanceRequired };
+    if (Math.abs(newer.dueAmount - older.dueAmount) > 0.001)
+      diff.dueAmountChange = { from: older.dueAmount, to: newer.dueAmount };
+
+    // Pack-level diffs — keyed by pack name (Breakfast, Lunch, etc.)
+    const olderPackMap = new Map(older.packs.map((p) => [p.packName.toLowerCase(), p]));
+    const newerPackMap = new Map(newer.packs.map((p) => [p.packName.toLowerCase(), p]));
+    const allPackNames = new Set([...Array.from(olderPackMap.keys()), ...Array.from(newerPackMap.keys())]);
+    allPackNames.forEach((key) => {
+      const o = olderPackMap.get(key);
+      const n = newerPackMap.get(key);
+      const packDiff: (typeof diff.packs)[string] = {
+        addedItemIds: [],
+        removedItemIds: [],
+      };
+      if (o && n) {
+        if (o.pax !== n.pax) packDiff.paxChange = { from: o.pax, to: n.pax };
+        if (Math.abs(o.ratePerPlate - n.ratePerPlate) > 0.001)
+          packDiff.ratePerPlateChange = { from: o.ratePerPlate, to: n.ratePerPlate };
+        if (Math.abs(o.hallRate - n.hallRate) > 0.001)
+          packDiff.hallRateChange = { from: o.hallRate, to: n.hallRate };
+        const oldSet = new Set(o.menuItemIds);
+        const newSet = new Set(n.menuItemIds);
+        packDiff.addedItemIds = n.menuItemIds.filter((id) => !oldSet.has(id));
+        packDiff.removedItemIds = o.menuItemIds.filter((id) => !newSet.has(id));
+      } else if (!o && n) {
+        // pack was added entirely
+        packDiff.addedItemIds = [...n.menuItemIds];
+      } else if (o && !n) {
+        // pack was removed entirely
+        packDiff.removedItemIds = [...o.menuItemIds];
+      }
+      const hasDiff =
+        packDiff.paxChange ||
+        packDiff.ratePerPlateChange ||
+        packDiff.hallRateChange ||
+        packDiff.addedItemIds.length > 0 ||
+        packDiff.removedItemIds.length > 0;
+      if (hasDiff) diff.packs[key] = packDiff;
+    });
+    return diff;
+  }
+
+  /** Converts a raw history entry to a normalised DiffSnapshot */
+  function histToSnapshot(hist: any): DiffSnapshot {
+    const resolved = hist?.snapshotData && typeof hist.snapshotData === 'object'
+      ? hist.snapshotData
+      : hist;
+    const histPacks: any[] = Array.isArray(resolved?.packs) ? resolved.packs : [];
+    return {
+      functionDate: (resolved?.functionDate || hist?.functionDate || '').slice(0, 10),
+      functionType: resolved?.functionType || hist?.functionType || '',
+      discountAmount: Number(resolved?.discountAmountValue ?? resolved?.discountAmount ?? hist?.discountAmount ?? 0),
+      finalAmount: Number(resolved?.finalAmountValue ?? resolved?.finalAmount ?? hist?.finalAmount ?? resolved?.grandTotal ?? hist?.grandTotal ?? 0),
+      advanceRequired: Number(resolved?.advanceRequiredValue ?? resolved?.advanceRequired ?? hist?.advanceRequired ?? 0),
+      dueAmount: Number(resolved?.dueAmountValue ?? resolved?.dueAmount ?? hist?.dueAmount ?? 0),
+      packs: histPacks.map((pack: any) => {
+        const packName = (pack?.packName || pack?.mealSlot?.name || '').trim();
+        const menuItemIds: string[] = (pack?.bookingMenu?.items || [])
+          .map((e: any) => e?.itemId || e?.item?.id || '')
+          .filter(Boolean);
+        return {
+          packName,
+          pax: Number(pack?.packCount ?? pack?.noOfPack ?? 0),
+          ratePerPlate: Number(pack?.ratePerPlate ?? 0),
+          hallRate: Number(pack?.hallRateValue ?? pack?.hallRate ?? 0),
+          menuItemIds,
+        };
+      }),
+    };
+  }
+
+  /** Most-recent finalized version (index 0 since list is newest-first) */
+  const lastFinalizedVersion = useMemo(
+    () => (historicalVersions.length > 0 ? historicalVersions[0] : null),
+    [historicalVersions]
+  );
+
+  /** Live diff: current form state vs. the last finalized version */
+  const formDiff = useMemo(() => {
+    if (!editingBookingId || !lastFinalizedVersion) return null;
+    const olderSnap = histToSnapshot(lastFinalizedVersion);
+    const newerSnap: DiffSnapshot = {
+      functionDate: formData.functionDate,
+      functionType: formData.functionType,
+      discountAmount: Number(formData.finalDiscountAmount || 0),
+      finalAmount: Number(formData.finalAmount || 0),
+      advanceRequired: Number(formData.advanceRequired || 0),
+      dueAmount: Number(formData.dueAmount || 0),
+      packs: (Object.keys(formData.packs) as PackKey[])
+        .filter((k) => formData.packs[k].enabled)
+        .map((k) => {
+          const row = formData.packs[k];
+          return {
+            packName: PACK_LABELS[k],
+            pax: Number(row.pax || 0),
+            ratePerPlate: Number(row.ratePerPlate || 0),
+            hallRate: Number(row.hallRate || 0),
+            menuItemIds: [...row.menuItemIds],
+          };
+        }),
+    };
+    return computeVersionDiff(newerSnap, olderSnap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingBookingId, lastFinalizedVersion, formData]);
+
+  // ── End diff helpers ──────────────────────────────────────────────────────
 
   const customerReferrerOptions = useMemo(
     () => [...customers].sort(compareCustomersByName),
@@ -1282,9 +1484,22 @@ export default function BookingsPage() {
     setColumnSearch((prev) => ({ ...prev, [key]: value }));
   };
 
+  const clearSearch = () => {
+    setGlobalSearch('');
+    setColumnSearch(initialColumnSearch);
+    setCurrentPage(1);
+  };
+
   const closeBookingForm = () => {
     setShowCreateForm(false);
     setEditingBookingId(null);
+    setEditingBookingStatus(null);
+    setBookingHistory([]);
+    setExpandedHistoryVersions({});
+    setShowPartyOverModal(false);
+    setPartyOverPlates({});
+    setPartyOverRates({});
+    setActivePartyOverBooking(null);
     setMenuEditorPack(null);
     setOpenHallPickerPack(null);
     setMenuItemSearch('');
@@ -1296,10 +1511,16 @@ export default function BookingsPage() {
     setActiveCustomerSearchField(null);
     setAmountSyncMode('discountPercent');
     setFormData(initialFormData);
+    // Clear any active search so the freshly-saved booking is always visible
+    // in the list (Bug: booking appeared to vanish because search was still active)
+    clearSearch();
   };
 
   const openCreateBooking = () => {
     setEditingBookingId(null);
+    setEditingBookingStatus(null);
+    setBookingHistory([]);
+    setExpandedHistoryVersions({});
     setMenuEditorPack(null);
     setOpenHallPickerPack(null);
     setMenuItemSearch('');
@@ -1328,12 +1549,24 @@ export default function BookingsPage() {
   const openEditBooking = async (bookingId: string) => {
     try {
       setSaving(true);
-      const response = await api.getBooking(bookingId);
+      const [response, historyResponse] = await Promise.all([
+        api.getBooking(bookingId),
+        api.getBookingHistory(bookingId).catch(() => ({ data: { data: { history: [] } } }))
+      ]);
       const booking = response.data?.data?.booking;
       if (!booking) {
         toast.error('Booking not found');
         return;
       }
+
+      const historyRows = historyResponse.data?.data?.history || [];
+      setBookingHistory(historyRows);
+      const firstPreviousVersion = historyRows.find(
+        (row: { id?: string }) => row?.id && row.id !== bookingId
+      );
+      setExpandedHistoryVersions(
+        firstPreviousVersion?.id ? { [firstPreviousVersion.id]: true } : {}
+      );
 
       const hallIdSet = new Set(halls.map((hall) => hall.id));
       const bookingHallIds = Array.from(
@@ -1370,6 +1603,7 @@ export default function BookingsPage() {
         const firstPackHall = halls.find((hall) => hall.id === resolvedPackHallIds[0]);
 
         nextPacks[packKey] = {
+          bookingPackId: pack.id,
           enabled: true,
           withHall: resolvedPackHallIds.length > 0 || Boolean(pack.hallRate),
           withCatering: true,
@@ -1393,10 +1627,21 @@ export default function BookingsPage() {
               ? String(pack.packCount)
               : '',
           amount: '',
+          extraPlate: pack.extraPlate,
+          extraRateValue: pack.extraRateValue,
+          extraRate: pack.extraRate,
+          extraAmountValue: pack.extraAmountValue,
+          extraAmount: pack.extraAmount,
+          extraCharges: pack.extraCharges,
+          setupCost:
+            pack.setupCost !== null && pack.setupCost !== undefined
+              ? String(pack.setupCost)
+              : undefined,
         };
       });
 
       setEditingBookingId(bookingId);
+      setEditingBookingStatus(booking.status || null);
       setFormData({
         ...initialFormData,
         customerId: booking.customerId || booking.customer?.id || '',
@@ -1707,8 +1952,13 @@ export default function BookingsPage() {
           packCount: Math.max(1, toNumber(row.pax || '1')),
           noOfPack: Math.max(1, toNumber(row.pax || '1')),
           ratePerPlate: row.withCatering ? toNumber(row.ratePerPlate) : 0,
-          setupCost: 0,
-          extraCharges: 0,
+          setupCost: row.setupCost ? toNumber(row.setupCost) : 0,
+          extraCharges: row.extraCharges || 0,
+          extraPlate: row.extraPlate,
+          extraAmount: row.extraAmount,
+          extraAmountValue: row.extraAmountValue,
+          extraRate: row.extraRate,
+          extraRateValue: row.extraRateValue,
           startTime: row.startTime || undefined,
           endTime: row.endTime || undefined,
           hallRate: row.withHall ? row.hallRate || undefined : undefined,
@@ -1820,6 +2070,103 @@ export default function BookingsPage() {
         error?.response?.data?.error ||
         (editingBookingId ? 'Failed to update booking' : 'Failed to create booking')
       );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFinalizeBooking = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!editingBookingId) return;
+    if (!confirm('Finalize this booking? It will become read-only and a new editable replica will be generated.')) return;
+
+    try {
+      setSaving(true);
+      const res = await api.finalizeBooking(editingBookingId);
+      toast.success('Booking finalized successfully.');
+      await loadBookings();
+      if (res.data?.data?.newBookingId) {
+        await openEditBooking(res.data.data.newBookingId);
+      } else {
+        closeBookingForm();
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to finalize booking');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openPartyOver = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!editingBookingId) return;
+    // Pre-validate: don't bother calling API if function date hasn't arrived
+    const loadedDate = formData.functionDate;
+    if (loadedDate) {
+      const funcDay = new Date(loadedDate);
+      funcDay.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (funcDay.getTime() > today.getTime()) {
+        toast.error('Party Over is only available on or after the function date.');
+        return;
+      }
+    }
+    api.getBooking(editingBookingId).then((res) => {
+      const activeInfo = res.data?.data?.booking;
+      if (!activeInfo) return toast.error('Could not load current booking details');
+      setActivePartyOverBooking(activeInfo);
+
+      const initialPlates: Record<string, number> = {};
+      (activeInfo.packs || []).forEach((p: any) => {
+        initialPlates[p.id] = p.extraPlate || 0;
+      });
+      setPartyOverPlates(initialPlates);
+
+      const initialRates: Record<string, number> = {};
+      (activeInfo.packs || []).forEach((p: any) => {
+        initialRates[p.id] =
+          p.extraRateValue ??
+          (p.extraRate !== null && p.extraRate !== undefined ? Number(p.extraRate) : null) ??
+          p.ratePerPlate ??
+          0;
+      });
+      setPartyOverRates(initialRates);
+      setShowPartyOverModal(true);
+    }).catch(err => {
+      toast.error('Failed to load active booking packs');
+    });
+  };
+
+  const handlePartyOverSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePartyOverBooking) return;
+
+    if (!confirm('Are you sure you want to mark the party as over? This will calculate final plates and lock ALL versions permanently.')) return;
+
+    try {
+      setSaving(true);
+      const payload = {
+        packs: (activePartyOverBooking.packs || []).map((pack: any) => ({
+          bookingPackId: pack.id,
+          extraPlate: Math.max(0, Number(partyOverPlates[pack.id] || 0)),
+          extraRate: partyOverRates[pack.id] ?? Number(pack.ratePerPlate ?? 0),
+        })),
+      };
+      const response = await api.partyOverBooking(activePartyOverBooking.id, payload);
+      toast.success('Party finalized permanently!');
+      setShowPartyOverModal(false);
+      setPartyOverPlates({});
+      setPartyOverRates({});
+      setActivePartyOverBooking(null);
+      await loadBookings();
+      if (response.data?.data?.newBookingId) {
+        await openEditBooking(response.data.data.newBookingId);
+      } else {
+        closeBookingForm();
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to submit party over finalization');
     } finally {
       setSaving(false);
     }
@@ -1939,831 +2286,1336 @@ export default function BookingsPage() {
         onClose={closeBookingForm}
         widthClass="max-w-[1400px]"
       >
-        <form onSubmit={handleSubmitBooking} className="space-y-5">
-          <div className="flex items-center gap-3">
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              <span className="inline-flex items-center gap-2">
-                <Save className="w-4 h-4" />
-                {saving ? 'Saving...' : 'Submit'}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => window.print()}
-            >
-              <span className="inline-flex items-center gap-2">
-                <Printer className="w-4 h-4" />
-                Print
-              </span>
-            </button>
-          </div>
-
-          <section className="rounded-2xl border border-gray-300 p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <h3 className="text-2xl font-semibold text-gray-900">Booking Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-[1fr,100px] gap-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="label m-0">Primary Customer <span className="text-red-500">*</span></span>
-                    {canAddCustomer && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary text-xs px-2.5 py-1.5"
-                        onClick={openQuickCustomerForm}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add Customer
-                      </button>
-                    )}
-                  </div>
-                  {renderCustomerTypeahead({
-                    field: 'primary',
-                    label: '',
-                    required: true,
-                    placeholder: 'Type customer name or number',
-                  })}
-                </div>
-                <div>
-                  <label className="label">Priority</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, priority: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <label className="inline-flex items-center gap-2 text-base text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={formData.includeSecondCustomer}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setFormData((prev) => ({
-                      ...prev,
-                      includeSecondCustomer: checked,
-                      secondCustomerId: checked ? prev.secondCustomerId : '',
-                    }));
-                    if (!checked) {
-                      setCustomerSearchInputs((prev) => ({
-                        ...prev,
-                        second: '',
-                      }));
-                      setActiveCustomerSearchField((field) =>
-                        field === 'second' ? null : field
-                      );
-                    }
-                  }}
-                />
-                Add Second Customer
-              </label>
-
-              {formData.includeSecondCustomer && (
-                renderCustomerTypeahead({
-                  field: 'second',
-                  label: 'Second Customer',
-                  placeholder: 'Type customer name or number',
-                })
+        <fieldset disabled={isReadOnlyBooking}>
+          <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} className="space-y-5">
+            <div className="flex items-center gap-3">
+              {!isReadOnlyBooking && (
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  <span className="inline-flex items-center gap-2">
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Saving...' : 'Submit'}
+                  </span>
+                </button>
               )}
-
-              {renderCustomerTypeahead({
-                field: 'referred',
-                label: 'Referred By',
-                placeholder: 'Type customer name or number',
-              })}
-
-              <div>
-                <label className="label">
-                  Function Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="input"
-                  value={formData.functionType}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, functionType: e.target.value }))
-                  }
-                  required
-                >
-                  <option value="">Select function type</option>
-                  {FUNCTION_TYPE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="label">
-                  Function Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  className="input"
-                  type="date"
-                  value={formData.functionDate}
-                  min={!editingBookingId ? todayIsoDate : undefined}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, functionDate: e.target.value }))
-                  }
-                  required
-                />
-              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => window.print()}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Printer className="w-4 h-4" />
+                  Print
+                </span>
+              </button>
             </div>
 
-            <div className="space-y-3">
-              <h3 className="text-2xl font-semibold text-gray-900">Payment</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="label">Advance Required</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    value={formData.advanceRequired}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, advanceRequired: e.target.value }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="label">% Payment Received</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={formData.paymentReceivedPercent}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        paymentReceivedPercent: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="label">Due Amount</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    value={formData.dueAmount}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, dueAmount: e.target.value }))
-                    }
-                  />
-                </div>
+            {isReadOnlyBooking && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 flex items-center gap-2">
+                <Lock className="w-4 h-4" />
+                This booking is completed (party over) and is now read-only.
               </div>
+            )}
 
-              <div className="rounded-xl border border-gray-300 overflow-hidden">
-                <div className="grid grid-cols-6 bg-slate-200 text-xs font-semibold text-slate-700 px-3 py-2">
-                  <div>Mode</div>
-                  <div>Narration</div>
-                  <div>Date</div>
-                  <div>Received By</div>
-                  <div>Amount</div>
-                  <div className="text-right">
-                    <button
-                      type="button"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-primary-600 text-primary-700 hover:bg-primary-50"
-                      onClick={addPaymentRow}
-                      aria-label="Add payment row"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                {formData.payments.length === 0 ? (
-                  <div className="px-3 py-5 text-center text-sm text-gray-500">
-                    No payments added. Click the + button to add payment entries.
-                  </div>
-                ) : (
-                  formData.payments.map((payment, index) => (
-                    <div
-                      key={`payment-${index}`}
-                      className="grid grid-cols-1 md:grid-cols-6 gap-2 border-t border-gray-200 p-3"
-                    >
-                      <input
-                        className="input h-10"
-                        value={payment.mode}
-                        onChange={(e) =>
-                          updatePaymentRow(index, 'mode', e.target.value)
-                        }
-                      />
-                      <input
-                        className="input h-10"
-                        value={payment.narration}
-                        onChange={(e) =>
-                          updatePaymentRow(index, 'narration', e.target.value)
-                        }
-                      />
-                      <input
-                        className="input h-10"
-                        type="date"
-                        value={payment.date}
-                        onChange={(e) =>
-                          updatePaymentRow(index, 'date', e.target.value)
-                        }
-                      />
-                      <input
-                        className="input h-10"
-                        value={payment.receivedBy}
-                        onChange={(e) =>
-                          updatePaymentRow(index, 'receivedBy', e.target.value)
-                        }
-                      />
-                      <input
-                        className="input h-10"
-                        type="number"
-                        min={0}
-                        value={payment.amount}
-                        onChange={(e) =>
-                          updatePaymentRow(index, 'amount', e.target.value)
-                        }
-                      />
-                      <div className="flex md:justify-end">
+            <section className="rounded-2xl border border-gray-300 p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <h3 className="text-2xl font-semibold text-gray-900">Booking Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-[1fr,100px] gap-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="label m-0">Primary Customer <span className="text-red-500">*</span></span>
+                      {canAddCustomer && (
                         <button
                           type="button"
-                          className="btn btn-secondary"
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              payments: prev.payments.filter(
-                                (_, rowIndex) => rowIndex !== index
-                              ),
-                            }))
-                          }
+                          className="btn btn-secondary text-xs px-2.5 py-1.5"
+                          onClick={openQuickCustomerForm}
                         >
-                          Remove
+                          <Plus className="w-3.5 h-3.5" />
+                          Add Customer
                         </button>
-                      </div>
+                      )}
                     </div>
-                  ))
+                    {renderCustomerTypeahead({
+                      field: 'primary',
+                      label: '',
+                      required: true,
+                      placeholder: 'Type customer name or number',
+                    })}
+                  </div>
+                  <div>
+                    <label className="label">Priority</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      value={formData.priority}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, priority: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <label className="inline-flex items-center gap-2 text-base text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.includeSecondCustomer}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFormData((prev) => ({
+                        ...prev,
+                        includeSecondCustomer: checked,
+                        secondCustomerId: checked ? prev.secondCustomerId : '',
+                      }));
+                      if (!checked) {
+                        setCustomerSearchInputs((prev) => ({
+                          ...prev,
+                          second: '',
+                        }));
+                        setActiveCustomerSearchField((field) =>
+                          field === 'second' ? null : field
+                        );
+                      }
+                    }}
+                  />
+                  Add Second Customer
+                </label>
+
+                {formData.includeSecondCustomer && (
+                  renderCustomerTypeahead({
+                    field: 'second',
+                    label: 'Second Customer',
+                    placeholder: 'Type customer name or number',
+                  })
                 )}
-                <div className="space-y-1 border-t border-gray-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800">
-                  <div className="flex items-center justify-between">
-                    <span>Total Payments</span>
-                    <span>₹{totalPayments.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Total Bill Amount</span>
-                    <span>₹{totalBillAmount.toLocaleString()}</span>
-                  </div>
+
+                {renderCustomerTypeahead({
+                  field: 'referred',
+                  label: 'Referred By',
+                  placeholder: 'Type customer name or number',
+                })}
+
+                <div>
+                  <label className="label">
+                    Function Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="input"
+                    value={formData.functionType}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, functionType: e.target.value }))
+                    }
+                    required
+                  >
+                    <option value="">Select function type</option>
+                    {FUNCTION_TYPE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label">
+                    Function Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    className="input"
+                    type="date"
+                    value={formData.functionDate}
+                    min={!editingBookingId ? todayIsoDate : undefined}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, functionDate: e.target.value }))
+                    }
+                    required
+                  />
                 </div>
               </div>
 
-              <div className="rounded-xl border border-gray-300 p-3">
-                <p className="text-lg mb-2 font-semibold text-gray-900">Settlement Calculation</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-3">
+                <h3 className="text-2xl font-semibold text-gray-900">Payment</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="label">Discount Amount</label>
+                    <label className="label">Advance Required</label>
                     <input
                       className="input"
                       type="number"
                       min={0}
-                      value={formData.settlementDiscountAmount}
+                      value={formData.advanceRequired}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, advanceRequired: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="label">% Payment Received</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={formData.paymentReceivedPercent}
                       onChange={(e) =>
                         setFormData((prev) => ({
                           ...prev,
-                          settlementDiscountAmount: e.target.value,
+                          paymentReceivedPercent: e.target.value,
                         }))
                       }
                     />
                   </div>
                   <div>
-                    <label className="label">Settlement Amount</label>
+                    <label className="label">Due Amount</label>
                     <input
                       className="input"
                       type="number"
                       min={0}
-                      value={formData.settlementAmount}
+                      value={formData.dueAmount}
                       onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          settlementAmount: e.target.value,
-                        }))
+                        setFormData((prev) => ({ ...prev, dueAmount: e.target.value }))
                       }
                     />
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-gray-300 overflow-hidden">
+                  <div className="grid grid-cols-6 bg-slate-200 text-xs font-semibold text-slate-700 px-3 py-2">
+                    <div>Mode</div>
+                    <div>Narration</div>
+                    <div>Date</div>
+                    <div>Received By</div>
+                    <div>Amount</div>
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-primary-600 text-primary-700 hover:bg-primary-50"
+                        onClick={addPaymentRow}
+                        aria-label="Add payment row"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  {formData.payments.length === 0 ? (
+                    <div className="px-3 py-5 text-center text-sm text-gray-500">
+                      No payments added. Click the + button to add payment entries.
+                    </div>
+                  ) : (
+                    formData.payments.map((payment, index) => (
+                      <div
+                        key={`payment-${index}`}
+                        className="grid grid-cols-1 md:grid-cols-6 gap-2 border-t border-gray-200 p-3"
+                      >
+                        <input
+                          className="input h-10"
+                          value={payment.mode}
+                          onChange={(e) =>
+                            updatePaymentRow(index, 'mode', e.target.value)
+                          }
+                        />
+                        <input
+                          className="input h-10"
+                          value={payment.narration}
+                          onChange={(e) =>
+                            updatePaymentRow(index, 'narration', e.target.value)
+                          }
+                        />
+                        <input
+                          className="input h-10"
+                          type="date"
+                          value={payment.date}
+                          onChange={(e) =>
+                            updatePaymentRow(index, 'date', e.target.value)
+                          }
+                        />
+                        <input
+                          className="input h-10"
+                          value={payment.receivedBy}
+                          onChange={(e) =>
+                            updatePaymentRow(index, 'receivedBy', e.target.value)
+                          }
+                        />
+                        <input
+                          className="input h-10"
+                          type="number"
+                          min={0}
+                          value={payment.amount}
+                          onChange={(e) =>
+                            updatePaymentRow(index, 'amount', e.target.value)
+                          }
+                        />
+                        <div className="flex md:justify-end">
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                payments: prev.payments.filter(
+                                  (_, rowIndex) => rowIndex !== index
+                                ),
+                              }))
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  <div className="space-y-1 border-t border-gray-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800">
+                    <div className="flex items-center justify-between">
+                      <span>Total Payments</span>
+                      <span>₹{totalPayments.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Total Bill Amount</span>
+                      <span>₹{totalBillAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-300 p-3">
+                  <p className="text-lg mb-2 font-semibold text-gray-900">Settlement Calculation</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Discount Amount</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        value={formData.settlementDiscountAmount}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            settlementDiscountAmount: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Settlement Amount</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        value={formData.settlementAmount}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            settlementAmount: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section className="space-y-3">
-            {(Object.keys(PACK_LABELS) as PackKey[]).map((packKey) => {
-              const row = formData.packs[packKey];
-              const filteredHalls = halls.filter(
-                (hall) => !row.banquetId || hall.banquet?.id === row.banquetId
-              );
-              const validSelectedHallIds = row.hallIds.filter((hallId) =>
-                filteredHalls.some((hall) => hall.id === hallId)
-              );
-              const selectedHallNames = filteredHalls
-                .filter((hall) => validSelectedHallIds.includes(hall.id))
-                .map((hall) => hall.name);
+            <section className="space-y-3">
+              {(Object.keys(PACK_LABELS) as PackKey[]).map((packKey) => {
+                const row = formData.packs[packKey];
+                const filteredHalls = halls.filter(
+                  (hall) => !row.banquetId || hall.banquet?.id === row.banquetId
+                );
+                const validSelectedHallIds = row.hallIds.filter((hallId) =>
+                  filteredHalls.some((hall) => hall.id === hallId)
+                );
+                const selectedHallNames = filteredHalls
+                  .filter((hall) => validSelectedHallIds.includes(hall.id))
+                  .map((hall) => hall.name);
 
-              return (
-                <div
-                  key={packKey}
-                  className={`rounded-2xl border p-3 space-y-3 ${PACK_ROW_STYLES[packKey]}`}
-                >
+                return (
                   <div
-                    className={`grid gap-3 items-center ${row.enabled && row.withHall
+                    key={packKey}
+                    className={`rounded-2xl border p-3 space-y-3 ${PACK_ROW_STYLES[packKey]}`}
+                  >
+                    <div
+                      className={`grid gap-3 items-center ${row.enabled && row.withHall
                         ? 'grid-cols-1 xl:grid-cols-[220px,170px,170px,1fr,1fr]'
                         : row.enabled
                           ? 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
                           : 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white/70 px-3 py-2">
-                      <div className="inline-flex items-center gap-2">
-                        <label className="relative inline-flex cursor-pointer items-center">
+                        }`}
+                    >
+                      <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2">
+                        <div className="inline-flex items-center gap-2">
+                          <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                              type="checkbox"
+                              className="peer sr-only"
+                              checked={row.enabled}
+                              onChange={(e) => {
+                                const enabled = e.target.checked;
+                                if (!enabled && openHallPickerPack === packKey) {
+                                  setOpenHallPickerPack(null);
+                                }
+                                updatePackRow(packKey, { enabled });
+                              }}
+                            />
+                            <span className="h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-primary-600 peer-focus:ring-2 peer-focus:ring-primary-200 peer-focus:ring-offset-1 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
+                          </label>
+                          <span className="text-base font-semibold text-gray-900">
+                            {PACK_LABELS[packKey]}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
+                          ? 'border-gray-200 bg-white'
+                          : 'border-gray-200 bg-white opacity-80'
+                          }`}
+                      >
+                        <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
                           <input
                             type="checkbox"
-                            className="peer sr-only"
-                            checked={row.enabled}
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            checked={row.withHall}
+                            disabled={!row.enabled}
                             onChange={(e) => {
-                              const enabled = e.target.checked;
-                              if (!enabled && openHallPickerPack === packKey) {
+                              const withHall = e.target.checked;
+                              if (!withHall && openHallPickerPack === packKey) {
                                 setOpenHallPickerPack(null);
                               }
-                              updatePackRow(packKey, { enabled });
+                              updatePackRow(packKey, { withHall });
                             }}
                           />
-                          <span className="h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-primary-600 peer-focus:ring-2 peer-focus:ring-primary-200 peer-focus:ring-offset-1 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
+                          Hall
                         </label>
-                        <span className="text-base font-semibold text-gray-900">
-                          {PACK_LABELS[packKey]}
-                        </span>
                       </div>
-                    </div>
 
-                    <div
-                      className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-gray-200 bg-white/70'
-                          : 'border-gray-200/80 bg-white/50 opacity-80'
-                        }`}
-                    >
-                      <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                          checked={row.withHall}
-                          disabled={!row.enabled}
-                          onChange={(e) => {
-                            const withHall = e.target.checked;
-                            if (!withHall && openHallPickerPack === packKey) {
-                              setOpenHallPickerPack(null);
-                            }
-                            updatePackRow(packKey, { withHall });
-                          }}
-                        />
-                        Hall
-                      </label>
-                    </div>
-
-                    <div
-                      className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-gray-200 bg-white/70'
-                          : 'border-gray-200/80 bg-white/50 opacity-80'
-                        }`}
-                    >
-                      <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                          checked={row.withCatering}
-                          disabled={!row.enabled}
-                          onChange={(e) =>
-                            updatePackRow(packKey, { withCatering: e.target.checked })
-                          }
-                        />
-                        Catering
-                      </label>
-                    </div>
-
-                    {row.enabled && row.withHall && (
-                      <div className="space-y-1">
-                        <label className="label">Banquet</label>
-                        <select
-                          className="input"
-                          value={row.banquetId}
-                          onChange={(e) => {
-                            setOpenHallPickerPack((current) =>
-                              current === packKey ? null : current
-                            );
-                            updatePackRow(packKey, {
-                              banquetId: e.target.value,
-                              hallIds: [],
-                            });
-                          }}
-                        >
-                          <option value="">Select Banquet</option>
-                          {banquets.map((banquet) => (
-                            <option key={banquet.id} value={banquet.id}>
-                              {banquet.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {row.enabled && row.withHall && (
                       <div
-                        className="relative space-y-1"
-                        ref={openHallPickerPack === packKey ? hallPickerContainerRef : undefined}
+                        className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
+                          ? 'border-gray-200 bg-white'
+                          : 'border-gray-200 bg-white opacity-80'
+                          }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <label className="label">Hall</label>
-                          <p className="text-xs text-gray-600">
-                            {validSelectedHallIds.length} hall
-                            {validSelectedHallIds.length === 1 ? '' : 's'} selected
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          className="input flex w-full items-center justify-between text-left"
-                          disabled={!row.banquetId}
-                          onClick={() =>
-                            setOpenHallPickerPack((current) =>
-                              current === packKey ? null : packKey
-                            )
-                          }
-                        >
-                          <span className="truncate">
-                            {!row.banquetId
-                              ? 'Select Banquet First'
-                              : selectedHallNames.length > 0
-                                ? selectedHallNames.join(', ')
-                                : 'Select Halls *'}
-                          </span>
-                          <span className="text-gray-500 text-xs">
-                            {openHallPickerPack === packKey ? 'Close' : 'Select'}
-                          </span>
-                        </button>
-
-                        {openHallPickerPack === packKey && (
-                          <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
-                            {filteredHalls.length === 0 ? (
-                              <p className="px-3 py-2 text-xs text-gray-500">
-                                No halls available for this banquet.
-                              </p>
-                            ) : (
-                              filteredHalls.map((hall) => {
-                                const checked = row.hallIds.includes(hall.id);
-                                return (
-                                  <label
-                                    key={hall.id}
-                                    className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-2 text-sm text-gray-800 last:border-b-0 hover:bg-gray-50"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() => {
-                                        const nextHallIds = checked
-                                          ? row.hallIds.filter((id) => id !== hall.id)
-                                          : [...row.hallIds, hall.id];
-                                        updatePackRow(packKey, { hallIds: nextHallIds });
-                                      }}
-                                    />
-                                    <span>{hall.name}</span>
-                                  </label>
-                                );
-                              })
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {row.enabled && (
-                    <div className="grid grid-cols-1 xl:grid-cols-[120px,120px,1fr,130px,1fr,1fr,1fr,1fr] gap-3 items-end">
-                      <div>
-                        <label className="label mb-1 text-xs">Start Time</label>
-                        <input
-                          className="input"
-                          type="time"
-                          value={row.startTime}
-                          onChange={(e) => updatePackRow(packKey, { startTime: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="label mb-1 text-xs">End Time</label>
-                        <input
-                          className="input"
-                          type="time"
-                          value={row.endTime}
-                          onChange={(e) => updatePackRow(packKey, { endTime: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="label mb-1 text-xs">Hall Rate</label>
-                        <input
-                          className="input"
-                          type="number"
-                          min={0}
-                          value={row.hallRate}
-                          disabled={!row.withHall}
-                          onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="label mb-1 text-xs">Menu</label>
-                        <button
-                          type="button"
-                          className="btn btn-secondary w-full"
-                          onClick={() => {
-                            setMenuEditorPack(packKey);
-                            setMenuItemSearch('');
-                          }}
-                        >
-                          {row.menuItemIds.length} items
-                        </button>
-                      </div>
-                      <div>
-                        <label className="label mb-1 text-xs">Menu Points</label>
-                        <input
-                          className="input bg-gray-50"
-                          type="number"
-                          min={0}
-                          value={row.menuPoints}
-                          readOnly
-                          title="Auto-calculated from selected menu items"
-                        />
-                      </div>
-                      <div>
-                        <label className="label mb-1 text-xs">Rate Per Plate</label>
-                        <input
-                          className="input"
-                          type="number"
-                          min={0}
-                          value={row.ratePerPlate}
-                          onChange={(e) =>
-                            updatePackRow(packKey, { ratePerPlate: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="label mb-1 text-xs">
-                          PAX <span className="text-red-500">*</span>
+                        <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            checked={row.withCatering}
+                            disabled={!row.enabled}
+                            onChange={(e) =>
+                              updatePackRow(packKey, { withCatering: e.target.checked })
+                            }
+                          />
+                          Catering
                         </label>
-                        <input
-                          className="input"
-                          type="number"
-                          min={0}
-                          value={row.pax}
-                          onChange={(e) => updatePackRow(packKey, { pax: e.target.value })}
-                        />
                       </div>
-                      <div>
-                        <label className="label mb-1 text-xs">Amount</label>
-                        <input
-                          className="input bg-gray-50"
-                          type="number"
-                          min={0}
-                          value={formatComputedAmount(calculatePackAmount(row))}
-                          readOnly
-                          title="Auto-calculated as Hall Rate + (Rate Per Plate × PAX)"
-                        />
-                      </div>
+
+                      {row.enabled && row.withHall && (
+                        <div className="space-y-1">
+                          <label className="label">Banquet</label>
+                          <select
+                            className="input"
+                            value={row.banquetId}
+                            onChange={(e) => {
+                              setOpenHallPickerPack((current) =>
+                                current === packKey ? null : current
+                              );
+                              updatePackRow(packKey, {
+                                banquetId: e.target.value,
+                                hallIds: [],
+                              });
+                            }}
+                          >
+                            <option value="">Select Banquet</option>
+                            {banquets.map((banquet) => (
+                              <option key={banquet.id} value={banquet.id}>
+                                {banquet.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {row.enabled && row.withHall && (
+                        <div
+                          className="relative space-y-1"
+                          ref={openHallPickerPack === packKey ? hallPickerContainerRef : undefined}
+                        >
+                          <div className="flex items-center justify-between">
+                            <label className="label">Hall</label>
+                            <p className="text-xs text-gray-600">
+                              {validSelectedHallIds.length} hall
+                              {validSelectedHallIds.length === 1 ? '' : 's'} selected
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="input flex w-full items-center justify-between text-left"
+                            disabled={!row.banquetId}
+                            onClick={() =>
+                              setOpenHallPickerPack((current) =>
+                                current === packKey ? null : packKey
+                              )
+                            }
+                          >
+                            <span className="truncate">
+                              {!row.banquetId
+                                ? 'Select Banquet First'
+                                : selectedHallNames.length > 0
+                                  ? selectedHallNames.join(', ')
+                                  : 'Select Halls *'}
+                            </span>
+                            <span className="text-gray-500 text-xs">
+                              {openHallPickerPack === packKey ? 'Close' : 'Select'}
+                            </span>
+                          </button>
+
+                          {openHallPickerPack === packKey && (
+                            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                              {filteredHalls.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-gray-500">
+                                  No halls available for this banquet.
+                                </p>
+                              ) : (
+                                filteredHalls.map((hall) => {
+                                  const checked = row.hallIds.includes(hall.id);
+                                  return (
+                                    <label
+                                      key={hall.id}
+                                      className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-2 text-sm text-gray-800 last:border-b-0 hover:bg-gray-50"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => {
+                                          const nextHallIds = checked
+                                            ? row.hallIds.filter((id) => id !== hall.id)
+                                            : [...row.hallIds, hall.id];
+                                          updatePackRow(packKey, { hallIds: nextHallIds });
+                                        }}
+                                      />
+                                      <span>{hall.name}</span>
+                                    </label>
+                                  );
+                                })
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </section>
 
-          <section className="space-y-2 rounded-2xl border border-gray-200 bg-white/80 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-semibold text-gray-900">Amount Summary</h3>
-              <button
-                type="button"
-                className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
-                onClick={() =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    additionalRequirements: [
-                      ...prev.additionalRequirements,
-                      { description: '', amount: '' },
-                    ],
-                  }))
-                }
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Requirement
-              </button>
-            </div>
+                    {row.enabled && (() => {
+                        const packDiffKey = PACK_LABELS[packKey].toLowerCase();
+                        const packDiff = formDiff?.packs[packDiffKey];
+                        const menuAdded = packDiff?.addedItemIds.length ?? 0;
+                        const menuRemoved = packDiff?.removedItemIds.length ?? 0;
+                        const hasMenuDiff = menuAdded > 0 || menuRemoved > 0;
+                        return (
+                          <div className="grid grid-cols-1 xl:grid-cols-[120px,120px,1fr,130px,1fr,1fr,1fr,1fr] gap-3 items-end">
+                            <div>
+                              <label className="label mb-1 text-xs">Start Time</label>
+                              <input
+                                className="input"
+                                type="time"
+                                value={row.startTime}
+                                onChange={(e) => updatePackRow(packKey, { startTime: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="label mb-1 text-xs">End Time</label>
+                              <input
+                                className="input"
+                                type="time"
+                                value={row.endTime}
+                                onChange={(e) => updatePackRow(packKey, { endTime: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="label mb-1 text-xs">Hall Rate</label>
+                              <input
+                                className={`input${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`}
+                                type="number"
+                                min={0}
+                                value={row.hallRate}
+                                disabled={!row.withHall}
+                                onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
+                              />
+                              {packDiff?.hallRateChange && (
+                                <p className="mt-0.5 text-xs text-amber-600">
+                                  was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="label mb-1 text-xs">Menu</label>
+                              <button
+                                type="button"
+                                className={`btn w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
+                                onClick={() => {
+                                  setMenuEditorPack(packKey);
+                                  setMenuItemSearch('');
+                                }}
+                              >
+                                {row.menuItemIds.length} items
+                                {hasMenuDiff && (
+                                  <span className="ml-1 text-xs font-normal">
+                                    {menuAdded > 0 && <span className="text-green-700">+{menuAdded}</span>}
+                                    {menuAdded > 0 && menuRemoved > 0 && <span className="text-gray-500"> / </span>}
+                                    {menuRemoved > 0 && <span className="text-red-700">−{menuRemoved}</span>}
+                                  </span>
+                                )}
+                              </button>
+                            </div>
+                            <div>
+                              <label className="label mb-1 text-xs">Menu Points</label>
+                              <input
+                                className="input bg-gray-50"
+                                type="number"
+                                min={0}
+                                value={row.menuPoints}
+                                readOnly
+                                title="Auto-calculated from selected menu items"
+                              />
+                            </div>
+                            <div>
+                              <label className="label mb-1 text-xs">Rate Per Plate</label>
+                              <input
+                                className={`input${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`}
+                                type="number"
+                                min={0}
+                                value={row.ratePerPlate}
+                                onChange={(e) =>
+                                  updatePackRow(packKey, { ratePerPlate: e.target.value })
+                                }
+                              />
+                              {packDiff?.ratePerPlateChange && (
+                                <p className="mt-0.5 text-xs text-amber-600">
+                                  was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="label mb-1 text-xs">
+                                PAX <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                className={`input${packDiff?.paxChange ? ' ring-2 ring-amber-300' : ''}`}
+                                type="number"
+                                min={0}
+                                value={row.pax}
+                                onChange={(e) => updatePackRow(packKey, { pax: e.target.value })}
+                              />
+                              {packDiff?.paxChange && (
+                                <p className="mt-0.5 text-xs text-amber-600">
+                                  was {packDiff.paxChange.from}
+                                </p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="label mb-1 text-xs">Amount</label>
+                              <input
+                                className="input bg-gray-50"
+                                type="number"
+                                min={0}
+                                value={formatComputedAmount(calculatePackAmount(row))}
+                                readOnly
+                                title="Auto-calculated as Hall Rate + (Rate Per Plate × PAX)"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
 
-            {enabledPackAmountRows.length === 0 &&
-              formData.additionalRequirements.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                Enable a pack to view its amount rows.
-              </p>
-            ) : null}
+                  </div>
+                );
+              })}
+            </section>
 
-            <div className="space-y-2">
-              {enabledPackAmountRows.map((entry) => (
-                <div
-                  key={entry.key}
-                  className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px]"
+            <section className="space-y-2 rounded-2xl border border-gray-200 bg-white p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-semibold text-gray-900">Amount Summary</h3>
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      additionalRequirements: [
+                        ...prev.additionalRequirements,
+                        { description: '', amount: '' },
+                      ],
+                    }))
+                  }
                 >
-                  <label className="label">{entry.label} Amount</label>
-                  <input
-                    className="input bg-gray-50 text-right"
-                    type="number"
-                    min={0}
-                    value={formatComputedAmount(entry.amount)}
-                    readOnly
-                  />
-                </div>
-              ))}
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Requirement
+                </button>
+              </div>
 
-              {formData.additionalRequirements.map((item, index) => (
-                <div
-                  key={`req-${index}`}
-                  className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px,auto]"
-                >
-                  <div>
-                    <label className="label">Additional Requirement {index + 1}</label>
+              {enabledPackAmountRows.length === 0 &&
+                formData.additionalRequirements.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  Enable a pack to view its amount rows.
+                </p>
+              ) : null}
+
+              <div className="space-y-2">
+                {enabledPackAmountRows.map((entry) => (
+                  <div
+                    key={entry.key}
+                    className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px]"
+                  >
+                    <label className="label">{entry.label} Amount</label>
                     <input
-                      className="input"
-                      value={item.description}
-                      onChange={(e) =>
+                      className="input bg-gray-50 text-right"
+                      type="number"
+                      min={0}
+                      value={formatComputedAmount(entry.amount)}
+                      readOnly
+                    />
+                  </div>
+                ))}
+
+                {formData.additionalRequirements.map((item, index) => (
+                  <div
+                    key={`req-${index}`}
+                    className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px,auto]"
+                  >
+                    <div>
+                      <label className="label">Additional Requirement {index + 1}</label>
+                      <input
+                        className="input"
+                        value={item.description}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            additionalRequirements: prev.additionalRequirements.map(
+                              (entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, description: e.target.value }
+                                  : entry
+                            ),
+                          }))
+                        }
+                        placeholder="Requirement details"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Amount</label>
+                      <input
+                        className="input text-right"
+                        type="number"
+                        min={0}
+                        value={item.amount}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            additionalRequirements: prev.additionalRequirements.map(
+                              (entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, amount: e.target.value }
+                                  : entry
+                            ),
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary md:self-end"
+                      onClick={() =>
                         setFormData((prev) => ({
                           ...prev,
-                          additionalRequirements: prev.additionalRequirements.map(
-                            (entry, entryIndex) =>
-                              entryIndex === index
-                                ? { ...entry, description: e.target.value }
-                                : entry
+                          additionalRequirements: prev.additionalRequirements.filter(
+                            (_, entryIndex) => entryIndex !== index
                           ),
                         }))
                       }
-                      placeholder="Requirement details"
-                    />
+                    >
+                      Remove
+                    </button>
                   </div>
+                ))}
+
+                <div className="grid grid-cols-1 items-end gap-2 border-t border-gray-200 pt-2 md:grid-cols-3">
                   <div>
-                    <label className="label">Amount</label>
+                    <label className="label">Discount %</label>
                     <input
                       className="input text-right"
                       type="number"
                       min={0}
-                      value={item.amount}
-                      onChange={(e) =>
+                      max={100}
+                      value={formData.finalDiscountPercent}
+                      onChange={(e) => {
+                        setAmountSyncMode('discountPercent');
                         setFormData((prev) => ({
                           ...prev,
-                          additionalRequirements: prev.additionalRequirements.map(
-                            (entry, entryIndex) =>
-                              entryIndex === index
-                                ? { ...entry, amount: e.target.value }
-                                : entry
+                          ...normalizeAmountSnapshot(
+                            'discountPercent',
+                            e.target.value,
+                            totalBillAmount
                           ),
-                        }))
-                      }
-                      placeholder="0"
+                        }));
+                      }}
                     />
                   </div>
+                  <div>
+                    <label className="label">Discount Amount</label>
+                    <input
+                      className="input text-right"
+                      type="number"
+                      min={0}
+                      value={formData.finalDiscountAmount}
+                      onChange={(e) => {
+                        setAmountSyncMode('discountAmount');
+                        setFormData((prev) => ({
+                          ...prev,
+                          ...normalizeAmountSnapshot(
+                            'discountAmount',
+                            e.target.value,
+                            totalBillAmount
+                          ),
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Final Amount</label>
+                    <input
+                      className="input text-right"
+                      type="number"
+                      min={0}
+                      value={formData.finalAmount}
+                      onChange={(e) => {
+                        setAmountSyncMode('finalAmount');
+                        setFormData((prev) => ({
+                          ...prev,
+                          ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillAmount),
+                        }));
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-3">
+                  <div className="md:col-start-3">
+                    <label className="label font-semibold text-gray-900">Total Amount</label>
+                    <input
+                      className="input bg-gray-50 text-right font-semibold text-primary-700"
+                      type="number"
+                      min={0}
+                      value={formatComputedAmount(totalBillAmount)}
+                      readOnly
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div>
+              <label className="label">Notes</label>
+              <textarea
+                className="input min-h-[110px]"
+                value={formData.notes}
+                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+              />
+            </div>
+
+            <section className="rounded-2xl border border-gray-300 bg-gray-50 p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Terms & Conditions</h3>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
+                <li>
+                  30% advance at booking. Balance payment to be completed at least 4 days
+                  before the event.
+                </li>
+                <li>Extra plates above expected guests are strictly chargeable.</li>
+                <li>No menu modifications are entertained within 3 days of the event date.</li>
+                <li>
+                  Advance booking money may be forfeited on cancellation, subject to company
+                  discretion.
+                </li>
+                <li>Sound or music after 10:15 PM is not permissible.</li>
+              </ul>
+            </section>
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeBookingForm}
+              >
+                Cancel
+              </button>
+              {!isReadOnlyBooking && (
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  <span className="inline-flex items-center gap-2">
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Saving...' : 'Submit'}
+                  </span>
+                </button>
+              )}
+              {editingBookingId && !isReadOnlyBooking && (
+                <>
                   <button
                     type="button"
-                    className="btn btn-secondary md:self-end"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        additionalRequirements: prev.additionalRequirements.filter(
-                          (_, entryIndex) => entryIndex !== index
-                        ),
-                      }))
-                    }
+                    className="btn bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                    onClick={handleFinalizeBooking}
+                    disabled={saving}
                   >
-                    Remove
+                    <span className="inline-flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Finalize Version
+                    </span>
                   </button>
-                </div>
-              ))}
-
-              <div className="grid grid-cols-1 items-end gap-2 border-t border-gray-200 pt-2 md:grid-cols-3">
-                <div>
-                  <label className="label">Discount %</label>
-                  <input
-                    className="input text-right"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={formData.finalDiscountPercent}
-                    onChange={(e) => {
-                      setAmountSyncMode('discountPercent');
-                      setFormData((prev) => ({
-                        ...prev,
-                        ...normalizeAmountSnapshot(
-                          'discountPercent',
-                          e.target.value,
-                          totalBillAmount
-                        ),
-                      }));
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="label">Discount Amount</label>
-                  <input
-                    className="input text-right"
-                    type="number"
-                    min={0}
-                    value={formData.finalDiscountAmount}
-                    onChange={(e) => {
-                      setAmountSyncMode('discountAmount');
-                      setFormData((prev) => ({
-                        ...prev,
-                        ...normalizeAmountSnapshot(
-                          'discountAmount',
-                          e.target.value,
-                          totalBillAmount
-                        ),
-                      }));
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="label">Final Amount</label>
-                  <input
-                    className="input text-right"
-                    type="number"
-                    min={0}
-                    value={formData.finalAmount}
-                    onChange={(e) => {
-                      setAmountSyncMode('finalAmount');
-                      setFormData((prev) => ({
-                        ...prev,
-                        ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillAmount),
-                      }));
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-3">
-                <div className="md:col-start-3">
-                  <label className="label font-semibold text-gray-900">Total Amount</label>
-                  <input
-                    className="input bg-gray-50 text-right font-semibold text-primary-700"
-                    type="number"
-                    min={0}
-                    value={formatComputedAmount(totalBillAmount)}
-                    readOnly
-                  />
-                </div>
-              </div>
+                  <button
+                    type="button"
+                    className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                    onClick={openPartyOver}
+                    disabled={saving}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Flag className="w-4 h-4" />
+                      Party Over
+                    </span>
+                  </button>
+                </>
+              )}
             </div>
-          </section>
+          </form>
 
-          <div>
-            <label className="label">Notes</label>
-            <textarea
-              className="input min-h-[110px]"
-              value={formData.notes}
-              onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-            />
-          </div>
+          {historicalVersions.length > 0 && (
+            <div className="mt-8 space-y-6 border-t border-gray-200 pt-8">
+              <h2 className="text-xl font-bold text-gray-900">Finalized Version History</h2>
+              <p className="text-sm text-gray-500 -mt-3">
+                Previous immutable versions — always expanded so you can track every booking detail at each step.
+              </p>
+              {historicalVersions.map((hist: any, histIdx: number) => {
+                const resolved = hist?.snapshotData && typeof hist.snapshotData === 'object'
+                  ? hist.snapshotData
+                  : hist;
+                const historyPacks = Array.isArray(resolved?.packs) ? resolved.packs : [];
+                const histPayments: any[] = Array.isArray(hist?.payments)
+                  ? hist.payments
+                  : Array.isArray(resolved?.payments)
+                  ? resolved.payments
+                  : [];
+                const histAdditional: any[] = Array.isArray(hist?.additionalItems)
+                  ? hist.additionalItems
+                  : Array.isArray(resolved?.additionalItems)
+                  ? resolved.additionalItems
+                  : [];
+                const finalizedBy =
+                  hist?.finalizedMeta?.finalizedBy?.name ||
+                  hist?.finalizedBooking?.finalizedByUser?.name ||
+                  hist?.finalizedBooking?.user?.name ||
+                  'System';
+                const finalizedAt =
+                  hist?.finalizedMeta?.finalizedAt ||
+                  hist?.finalizedBooking?.finalizedAt ||
+                  null;
 
-          <section className="rounded-2xl border border-gray-300 bg-gray-50 p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Terms & Conditions</h3>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
-              <li>
-                30% advance at booking. Balance payment to be completed at least 4 days
-                before the event.
-              </li>
-              <li>Extra plates above expected guests are strictly chargeable.</li>
-              <li>No menu modifications are entertained within 3 days of the event date.</li>
-              <li>
-                Advance booking money may be forfeited on cancellation, subject to company
-                discretion.
-              </li>
-              <li>Sound or music after 10:15 PM is not permissible.</li>
-            </ul>
-          </section>
+                const histGrandTotal = Number(
+                  resolved?.grandTotal ?? hist?.grandTotal ?? 0
+                );
+                const histFinalAmount = Number(
+                  resolved?.finalAmountValue ?? resolved?.finalAmount ?? hist?.finalAmount ?? histGrandTotal
+                );
+                const histDiscountAmount = Number(
+                  resolved?.discountAmountValue ?? resolved?.discountAmount ?? hist?.discountAmount ?? 0
+                );
+                const histDiscountPercent = Number(
+                  resolved?.discountPercentageValue ?? resolved?.discountPercentage ?? hist?.discountPercentage ?? 0
+                );
+                const histAdvanceRequired = Number(
+                  resolved?.advanceRequiredValue ?? resolved?.advanceRequired ?? hist?.advanceRequired ?? 0
+                );
+                const histDueAmount = Number(
+                  resolved?.dueAmountValue ?? resolved?.dueAmount ?? hist?.dueAmount ?? 0
+                );
+                const histNotes: string = resolved?.notes || hist?.notes || '';
+                const histTotalPayments = histPayments.reduce((sum: number, p: any) => {
+                  const amt = Number(p?.amount ?? p?.amountValue ?? 0);
+                  return sum + (Number.isFinite(amt) ? amt : 0);
+                }, 0);
+                const histTotalAdditional = histAdditional.reduce((sum: number, item: any) => {
+                  const amt = Number(item?.charges ?? item?.amount ?? 0);
+                  return sum + (Number.isFinite(amt) ? Math.max(0, amt) : 0);
+                }, 0);
+                const histTotalPackAmount = historyPacks.reduce((sum: number, pack: any) => {
+                  const hallRate = Number(pack?.hallRateValue ?? pack?.hallRate ?? 0);
+                  const ratePerPlate = Number(pack?.ratePerPlate || 0);
+                  const pax = Number(pack?.packCount ?? pack?.noOfPack ?? 0);
+                  const extraCharges = Number(pack?.extraCharges || 0);
+                  return sum + hallRate + ratePerPlate * pax + extraCharges;
+                }, 0);
+                const histTotalBill = histTotalPackAmount + histTotalAdditional;
 
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={closeBookingForm}
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              <span className="inline-flex items-center gap-2">
-                <Save className="w-4 h-4" />
-                {saving ? 'Saving...' : 'Finalize'}
-              </span>
-            </button>
-          </div>
-        </form>
+                return (
+                  <div key={hist.id} className="rounded-xl border-2 border-gray-300 bg-white shadow-sm overflow-hidden">
+                    {/* ── Version header ── */}
+                    <div className="flex items-center justify-between gap-3 bg-gray-100 px-5 py-3 border-b border-gray-200">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">
+                          Version {hist.versionNumber}
+                          <span className="ml-2 inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">
+                            {hist.status}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Finalized by <strong>{finalizedBy}</strong> on {formatDateTimeLabel(finalizedAt)}
+                        </p>
+                      </div>
+                      <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    </div>
+
+                    {/* ── Inter-version diff summary ── */}
+                    {(() => {
+                      const prevHist = historicalVersions[histIdx + 1];
+                      if (!prevHist) return null;
+                      const thisDiff = computeVersionDiff(
+                        histToSnapshot(hist),
+                        histToSnapshot(prevHist)
+                      );
+                      const hasAnyDiff =
+                        thisDiff.functionDate ||
+                        thisDiff.functionType ||
+                        thisDiff.discountAmountChange ||
+                        thisDiff.finalAmountChange ||
+                        thisDiff.advanceRequiredChange ||
+                        thisDiff.dueAmountChange ||
+                        Object.keys(thisDiff.packs).length > 0;
+                      if (!hasAnyDiff) return null;
+
+                      const DiffPill = ({
+                        label,
+                        from,
+                        to,
+                        prefix = '',
+                        isNum = false,
+                      }: {
+                        label: string;
+                        from: string | number;
+                        to: string | number;
+                        prefix?: string;
+                        isNum?: boolean;
+                      }) => {
+                        const numDelta = isNum ? Number(to) - Number(from) : 0;
+                        const up = isNum && numDelta > 0;
+                        const down = isNum && numDelta < 0;
+                        return (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-xs text-gray-700">
+                            <span className="font-medium text-gray-500">{label}:</span>
+                            <span className="line-through text-red-500">{prefix}{typeof from === 'number' ? from.toLocaleString('en-IN') : from}</span>
+                            <span className="text-gray-400">→</span>
+                            <span className={`font-semibold ${up ? 'text-green-700' : down ? 'text-red-700' : 'text-gray-800'}`}>
+                              {prefix}{typeof to === 'number' ? to.toLocaleString('en-IN') : to}
+                            </span>
+                            {isNum && numDelta !== 0 && (
+                              <span className={`font-bold ${up ? 'text-green-600' : 'text-red-600'}`}>
+                                {up ? '▲' : '▼'}{Math.abs(numDelta).toLocaleString('en-IN')}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      };
+
+                      // Collect all menu item names for this lookup
+                      const allMenuItemsForDiff = new Map<string, string>();
+                      historyPacks.forEach((pack: any) => {
+                        (pack?.bookingMenu?.items || []).forEach((entry: any) => {
+                          const id = entry?.itemId || entry?.item?.id;
+                          const name = entry?.item?.name;
+                          if (id && name) allMenuItemsForDiff.set(id, name);
+                        });
+                      });
+
+                      return (
+                        <div className="px-5 pt-3 pb-0">
+                          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                              Changes from v{historicalVersions[histIdx + 1]?.versionNumber ?? '?'}
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {thisDiff.functionDate && (
+                                <DiffPill label="Date" from={thisDiff.functionDate.from} to={thisDiff.functionDate.to} />
+                              )}
+                              {thisDiff.functionType && (
+                                <DiffPill label="Function" from={thisDiff.functionType.from} to={thisDiff.functionType.to} />
+                              )}
+                              {thisDiff.finalAmountChange && (
+                                <DiffPill label="Final Amount" prefix="₹" from={thisDiff.finalAmountChange.from} to={thisDiff.finalAmountChange.to} isNum />
+                              )}
+                              {thisDiff.discountAmountChange && (
+                                <DiffPill label="Discount" prefix="₹" from={thisDiff.discountAmountChange.from} to={thisDiff.discountAmountChange.to} isNum />
+                              )}
+                              {thisDiff.advanceRequiredChange && (
+                                <DiffPill label="Advance" prefix="₹" from={thisDiff.advanceRequiredChange.from} to={thisDiff.advanceRequiredChange.to} isNum />
+                              )}
+                              {thisDiff.dueAmountChange && (
+                                <DiffPill label="Due" prefix="₹" from={thisDiff.dueAmountChange.from} to={thisDiff.dueAmountChange.to} isNum />
+                              )}
+                              {Object.entries(thisDiff.packs).map(([packKey, pd]) => (
+                                <span key={`diff-pack-${packKey}`} className="inline-flex flex-wrap gap-1 contents">
+                                  {pd.paxChange && (
+                                    <DiffPill label={`${packKey} PAX`} from={pd.paxChange.from} to={pd.paxChange.to} isNum />
+                                  )}
+                                  {pd.ratePerPlateChange && (
+                                    <DiffPill label={`${packKey} Rate`} prefix="₹" from={pd.ratePerPlateChange.from} to={pd.ratePerPlateChange.to} isNum />
+                                  )}
+                                  {pd.hallRateChange && (
+                                    <DiffPill label={`${packKey} Hall`} prefix="₹" from={pd.hallRateChange.from} to={pd.hallRateChange.to} isNum />
+                                  )}
+                                  {pd.addedItemIds.map((id) => (
+                                    <span key={`add-${id}`} className="inline-flex items-center rounded-full bg-green-100 border border-green-300 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                                      + {allMenuItemsForDiff.get(id) || id}
+                                    </span>
+                                  ))}
+                                  {pd.removedItemIds.map((id) => (
+                                    <span key={`rem-${id}`} className="inline-flex items-center rounded-full bg-red-100 border border-red-300 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                                      − {allMenuItemsForDiff.get(id) || id}
+                                    </span>
+                                  ))}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="px-5 py-4 space-y-6">
+                      {/* ── Core info grid ── */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Customer</span>
+                          <span className="text-sm font-semibold text-gray-900">{resolved?.customer?.name || '-'}</span>
+                          {resolved?.customer?.phone && (
+                            <span className="block text-xs text-gray-500">{resolved.customer.phone}</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Function</span>
+                          <span className="text-sm font-semibold text-gray-900">{resolved?.functionName || '-'}</span>
+                          {resolved?.functionType && (
+                            <span className="block text-xs text-gray-500">{resolved.functionType}</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Date</span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {resolved?.functionDate ? formatDateDDMMYYYY(resolved.functionDate) : '-'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Expected Guests</span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {resolved?.expectedGuests ?? hist?.expectedGuests ?? '-'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* ── Packs ── */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Packs</h4>
+                        {historyPacks.length === 0 ? (
+                          <p className="text-sm text-gray-500">No packs recorded.</p>
+                        ) : (
+                          historyPacks.map((pack: any) => {
+                            const hallRate = Number(pack?.hallRateValue ?? pack?.hallRate ?? 0);
+                            const ratePerPlate = Number(pack?.ratePerPlate || 0);
+                            const pax = Number(pack?.packCount ?? pack?.noOfPack ?? 0);
+                            const extraPlate = Number(pack?.extraPlate || 0);
+                            const extraCharges = Number(pack?.extraCharges || 0);
+                            const computedAmount = hallRate + ratePerPlate * pax + extraCharges;
+                            const menuItems = Array.isArray(pack?.bookingMenu?.items)
+                              ? pack.bookingMenu.items
+                              : [];
+                            const hallNames: string[] = Array.isArray(pack?.halls)
+                              ? pack.halls.map((h: any) => h?.hall?.name || h?.name || '').filter(Boolean)
+                              : pack?.hallName
+                              ? [pack.hallName]
+                              : [];
+
+                            return (
+                              <div
+                                key={pack.id || `${hist.id}-${pack.packName}`}
+                                className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3"
+                              >
+                                {/* Pack header row */}
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {pack.packName}
+                                    {pack.timeSlot ? ` (${pack.timeSlot})` : ''}
+                                  </span>
+                                  {pack.withHall !== undefined && (
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withHall ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
+                                      Hall {pack.withHall ? '✓' : '✗'}
+                                    </span>
+                                  )}
+                                  {pack.withCatering !== undefined && (
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withCatering ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                                      Catering {pack.withCatering ? '✓' : '✗'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Pack numbers grid */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-sm">
+                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
+                                    <span className="text-xs text-gray-500 block">Pax</span>
+                                    <span className="font-semibold text-gray-900">{pax}</span>
+                                  </div>
+                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
+                                    <span className="text-xs text-gray-500 block">Rate / Plate</span>
+                                    <span className="font-semibold text-gray-900">₹{ratePerPlate.toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
+                                    <span className="text-xs text-gray-500 block">Hall Rate</span>
+                                    <span className="font-semibold text-gray-900">₹{hallRate.toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
+                                    <span className="text-xs text-gray-500 block">Extra Plates</span>
+                                    <span className="font-semibold text-gray-900">{extraPlate}</span>
+                                  </div>
+                                  <div className="rounded-md bg-white border border-blue-200 bg-blue-50 px-3 py-2">
+                                    <span className="text-xs text-blue-600 block">Pack Amount</span>
+                                    <span className="font-bold text-blue-800">₹{computedAmount.toLocaleString('en-IN')}</span>
+                                  </div>
+                                </div>
+
+                                {/* Hall names */}
+                                {hallNames.length > 0 && (
+                                  <p className="text-xs text-gray-600">
+                                    <span className="font-medium">Halls: </span>
+                                    {hallNames.join(', ')}
+                                  </p>
+                                )}
+
+                                {/* Menu items */}
+                                <div>
+                                  <p className="text-xs font-medium text-gray-600 mb-1">Menu Items</p>
+                                  {menuItems.length === 0 ? (
+                                    <span className="text-xs text-gray-400">No menu items saved.</span>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {menuItems.map((entry: any) => (
+                                        <span
+                                          key={`${pack.id}-${entry.itemId || entry.item?.id}`}
+                                          className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-xs text-gray-700"
+                                        >
+                                          {entry?.item?.itemType?.name
+                                            ? <><span className="text-gray-400 mr-1">{entry.item.itemType.name}:</span></>
+                                            : null}
+                                          {entry?.item?.name || 'Item'}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* ── Additional Requirements ── */}
+                      {histAdditional.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Additional Requirements</h4>
+                          <div className="rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="grid grid-cols-[1fr,auto] bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
+                              <div>Description</div>
+                              <div className="text-right">Amount</div>
+                            </div>
+                            {histAdditional.map((item: any, idx: number) => (
+                              <div key={`hist-add-${hist.id}-${idx}`} className="grid grid-cols-[1fr,auto] px-3 py-2 text-sm border-t border-gray-100 bg-white">
+                                <span className="text-gray-800">{item?.description || '-'}</span>
+                                <span className="text-right font-medium text-gray-900">
+                                  ₹{Number(item?.charges ?? item?.amount ?? 0).toLocaleString('en-IN')}
+                                </span>
+                              </div>
+                            ))}
+                            <div className="grid grid-cols-[1fr,auto] px-3 py-2 bg-gray-50 border-t border-gray-200 text-sm font-semibold text-gray-700">
+                              <span>Additional Total</span>
+                              <span className="text-right">₹{histTotalAdditional.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── Payments ── */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Payments</h4>
+                        {histPayments.length === 0 ? (
+                          <p className="text-sm text-gray-500">No payments recorded.</p>
+                        ) : (
+                          <div className="rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="hidden md:grid md:grid-cols-5 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
+                              <div>Mode</div>
+                              <div>Narration</div>
+                              <div>Date</div>
+                              <div>Received By</div>
+                              <div className="text-right">Amount</div>
+                            </div>
+                            {histPayments.map((payment: any, idx: number) => (
+                              <div key={`hist-pay-${hist.id}-${idx}`} className="grid grid-cols-2 md:grid-cols-5 gap-1 px-3 py-2 text-sm border-t border-gray-100 bg-white">
+                                <span className="text-gray-800 font-medium">{payment?.method || payment?.paymentMethod || payment?.mode || '-'}</span>
+                                <span className="text-gray-600">{payment?.narration || '-'}</span>
+                                <span className="text-gray-600">{payment?.paymentDate ? formatDateDDMMYYYY(payment.paymentDate.slice(0, 10)) : payment?.date ? formatDateDDMMYYYY(payment.date) : '-'}</span>
+                                <span className="text-gray-600">{payment?.receiver?.name || payment?.receivedBy || '-'}</span>
+                                <span className="text-right font-semibold text-gray-900">₹{Number(payment?.amount ?? payment?.amountValue ?? 0).toLocaleString('en-IN')}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-200 text-sm font-semibold text-gray-700">
+                              <span>Total Payments</span>
+                              <span>₹{histTotalPayments.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ── Amount Summary ── */}
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-3">Amount Summary</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                          <div>
+                            <span className="text-xs text-gray-500 block">Total Bill</span>
+                            <span className="font-semibold text-gray-900">₹{histTotalBill.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 block">Discount ({histDiscountPercent.toFixed(2)}%)</span>
+                            <span className="font-semibold text-red-700">−₹{histDiscountAmount.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 block">Final Amount</span>
+                            <span className="font-bold text-green-800 text-base">₹{histFinalAmount.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 block">Advance Required</span>
+                            <span className="font-semibold text-gray-900">₹{histAdvanceRequired.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 block">Due Amount</span>
+                            <span className="font-semibold text-gray-900">₹{histDueAmount.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500 block">Payments Received</span>
+                            <span className="font-semibold text-gray-900">₹{histTotalPayments.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── Notes ── */}
+                      {histNotes && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1 mb-2">Notes</h4>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap rounded-lg bg-amber-50 border border-amber-100 p-3">{histNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </fieldset>
       </FormPromptModal>
 
       <FormPromptModal
@@ -3212,9 +4064,8 @@ export default function BookingsPage() {
                         aria-label={`Set rating ${value}`}
                       >
                         <Star
-                          className={`w-5 h-5 ${
-                            active ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
-                          }`}
+                          className={`w-5 h-5 ${active ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
+                            }`}
                         />
                       </button>
                     );
@@ -3306,7 +4157,10 @@ export default function BookingsPage() {
                   value={menuItemSearch}
                   onChange={(e) => setMenuItemSearch(e.target.value)}
                 />
-                <div className="max-h-[360px] overflow-y-auto rounded-lg border border-gray-200">
+                <div
+                  className="max-h-[360px] overflow-y-auto rounded-lg border border-gray-200"
+                  style={{ contain: 'content', overscrollBehavior: 'contain' }}
+                >
                   {groupedMenuItems.length === 0 ? (
                     <div className="p-3 text-sm text-gray-500">No matching items</div>
                   ) : (
@@ -3315,19 +4169,29 @@ export default function BookingsPage() {
                         <div className="px-3 py-2 text-sm font-semibold text-gray-800 bg-primary-50 border-b border-gray-200">
                           {group}
                         </div>
-                        {grouped.map((item) => (
-                          <label
-                            key={`${menuEditorPack}-${item.id}`}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 border-b border-gray-100 last:border-b-0"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={activeMenuPackRow.menuItemIds.includes(item.id)}
-                              onChange={() => togglePackMenuItem(menuEditorPack, item.id)}
-                            />
-                            <span>{item.name}</span>
-                          </label>
-                        ))}
+                        {grouped.map((item) => {
+                            const _edPDK = menuEditorPack ? PACK_LABELS[menuEditorPack].toLowerCase() : '';
+                            const _edPD = formDiff?.packs[_edPDK];
+                            const _isAdded = _edPD?.addedItemIds.includes(item.id);
+                            const _isRemoved = _edPD?.removedItemIds.includes(item.id);
+                            return (
+                              <label
+                                key={`${menuEditorPack}-${item.id}`}
+                                className={`cv-auto flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 ${
+                                  _isAdded ? 'bg-green-50 text-green-900' : _isRemoved ? 'bg-red-50 text-red-900' : 'text-gray-700'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={activeMenuPackRow.menuItemIds.includes(item.id)}
+                                  onChange={() => togglePackMenuItem(menuEditorPack, item.id)}
+                                />
+                                <span>{item.name}</span>
+                                {_isAdded && <span className="ml-auto text-xs font-semibold text-green-700">+ added</span>}
+                                {_isRemoved && <span className="ml-auto text-xs font-semibold text-red-700">− removed</span>}
+                              </label>
+                            );
+                          })}
                       </div>
                     ))
                   )}
@@ -3339,26 +4203,39 @@ export default function BookingsPage() {
                 {activeMenuPackRow.menuItemIds.length === 0 ? (
                   <p className="text-sm text-gray-500">No items selected.</p>
                 ) : (
-                  <div className="max-h-[360px] overflow-y-auto space-y-3">
+                  <div
+                    className="max-h-[360px] overflow-y-auto space-y-3"
+                    style={{ contain: 'content', overscrollBehavior: 'contain' }}
+                  >
                     {selectedMenuItemsByGroup.map(([group, grouped]) => (
                       <div key={`selected-group-${group}`} className="space-y-2">
                         <p className="text-sm font-semibold text-gray-800">{group}</p>
                         <div className="flex flex-wrap gap-2">
-                          {grouped.map((item) => (
-                            <span
-                              key={`selected-${menuEditorPack}-${item.id}`}
-                              className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm"
-                            >
-                              {item.name}
-                              <button
-                                type="button"
-                                className="text-red-600"
-                                onClick={() => togglePackMenuItem(menuEditorPack, item.id)}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
+                          {grouped.map((item) => {
+                              const _sPDK = menuEditorPack ? PACK_LABELS[menuEditorPack].toLowerCase() : '';
+                              const _sPD = formDiff?.packs[_sPDK];
+                              const _sAdded = _sPD?.addedItemIds.includes(item.id);
+                              const _sRemoved = _sPD?.removedItemIds.includes(item.id);
+                              return (
+                                <span
+                                  key={`selected-${menuEditorPack}-${item.id}`}
+                                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${
+                                    _sAdded ? 'border-green-400 bg-green-50 text-green-900' : _sRemoved ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white'
+                                  }`}
+                                >
+                                  {_sAdded && <span className="text-green-600 font-bold text-xs">+</span>}
+                                  {_sRemoved && <span className="text-red-600 font-bold text-xs">−</span>}
+                                  {item.name}
+                                  <button
+                                    type="button"
+                                    className="text-red-600"
+                                    onClick={() => togglePackMenuItem(menuEditorPack, item.id)}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            })}
                         </div>
                       </div>
                     ))}
@@ -3464,8 +4341,33 @@ export default function BookingsPage() {
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
             placeholder="Overall search across all booking columns..."
-            className="input pl-10"
+            className="input pl-10 pr-10"
           />
+          {globalSearch && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={clearSearch}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-4)',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 2,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -3479,7 +4381,23 @@ export default function BookingsPage() {
         ) : filteredBookings.length === 0 ? (
           <div className="text-center py-12">
             <CalendarCheck className="w-10 h-10 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">No bookings found</p>
+            {(globalSearch || Object.values(columnSearch).some(Boolean)) ? (
+              <>
+                <p className="text-gray-500 mb-1">No bookings match your search</p>
+                <p className="text-gray-400 text-sm mb-4">
+                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo;
+                </p>
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="btn btn-secondary"
+                >
+                  Clear search
+                </button>
+              </>
+            ) : (
+              <p className="text-gray-500">No bookings found</p>
+            )}
           </div>
         ) : (
           <>
@@ -3557,7 +4475,7 @@ export default function BookingsPage() {
                       </th>
                     )}
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                     <th className="py-2 px-4">
                       <input
                         className="input h-9"
@@ -3576,6 +4494,7 @@ export default function BookingsPage() {
                     </th>
                     <th className="py-2 px-4">
                       <input
+                        type="date"
                         className="input h-9"
                         placeholder="Search date"
                         value={columnSearch.functionDate}
@@ -3615,7 +4534,7 @@ export default function BookingsPage() {
                   {paginatedBookings.map((booking) => (
                     <tr
                       key={booking.id}
-                      className="border-b border-gray-100 hover:bg-gray-50"
+                      className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
                     >
                       <td className="py-4 px-4">
                         <p className="font-medium text-gray-900">{booking.functionName}</p>
@@ -3637,10 +4556,10 @@ export default function BookingsPage() {
                       <td className="py-4 px-4">
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-medium ${booking.isQuotation
-                              ? 'bg-amber-100 text-amber-800'
-                              : booking.status === 'cancelled'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-green-100 text-green-700'
+                            ? 'bg-amber-100 text-amber-800'
+                            : booking.status === 'cancelled'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-green-100 text-green-700'
                             }`}
                         >
                           {booking.isQuotation ? 'Quotation' : booking.status}
@@ -3708,6 +4627,121 @@ export default function BookingsPage() {
           label="New Booking"
         />
       )}
+      <FormPromptModal
+        open={showPartyOverModal}
+        title="Settle Party Remainder (Extra Plates)"
+        onClose={() => {
+          setShowPartyOverModal(false);
+          setPartyOverPlates({});
+          setPartyOverRates({});
+          setActivePartyOverBooking(null);
+        }}
+        widthClass="max-w-xl"
+      >
+        <form onSubmit={handlePartyOverSubmit} className="space-y-5">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 mb-4">
+            <h4 className="font-semibold text-red-800 flex items-center gap-2 mb-1"><Flag className="w-4 h-4" /> Permanent Finalization</h4>
+            <p className="text-sm text-red-700">Marking a party as over will freeze ALL versions. This action cannot be reversed. Please input the extra plates strictly as used.</p>
+          </div>
+
+          <div className="space-y-4">
+            {activePartyOverBooking?.packs?.map((pack: any) => (
+              <div key={pack.id} className="p-3 border border-gray-200 rounded-lg space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h5 className="font-medium text-gray-900">{pack.packName}</h5>
+                    <p className="text-xs text-gray-500">
+                      Confirmed Pax: {pack.packCount || pack.noOfPack} @ ₹{pack.ratePerPlate}/plate
+                    </p>
+                  </div>
+                  {(() => {
+                    const ep = partyOverPlates[pack.id] || 0;
+                    const er = partyOverRates[pack.id] || 0;
+                    if (ep > 0) {
+                      return (
+                        <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1">
+                          Extra: ₹{(ep * er).toLocaleString('en-IN')}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Extra Plates Used</label>
+                    <input
+                      type="number"
+                      min={0}
+                      className="input w-full"
+                      value={partyOverPlates[pack.id] || ''}
+                      onChange={(e) =>
+                        setPartyOverPlates((prev) => ({
+                          ...prev,
+                          [pack.id]: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Rate / Extra Plate (₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      className="input w-full"
+                      value={partyOverRates[pack.id] ?? ''}
+                      onChange={(e) =>
+                        setPartyOverRates((prev) => ({
+                          ...prev,
+                          [pack.id]: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(!activePartyOverBooking?.packs || activePartyOverBooking.packs.length === 0) && (
+              <p className="text-sm text-gray-500">No packs to settle for this booking.</p>
+            )}
+          </div>
+
+          {(() => {
+            const extraTotal = (activePartyOverBooking?.packs || []).reduce((sum: number, pack: any) => {
+              const ep = partyOverPlates[pack.id] || 0;
+              const er = partyOverRates[pack.id] || 0;
+              return sum + ep * er;
+            }, 0);
+            if (extraTotal <= 0) return null;
+            return (
+              <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-orange-800">Total Extra Charges</span>
+                <span className="text-base font-bold text-orange-800">
+                  ₹{extraTotal.toLocaleString('en-IN')}
+                </span>
+              </div>
+            );
+          })()}
+
+          <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowPartyOverModal(false);
+                setPartyOverPlates({});
+                setPartyOverRates({});
+                setActivePartyOverBooking(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button type="submit" className="btn bg-red-600 hover:bg-red-700 text-white" disabled={saving}>
+              {saving ? 'Processing...' : 'Settle & Lock'}
+            </button>
+          </div>
+        </form>
+      </FormPromptModal>
     </div>
   );
 }

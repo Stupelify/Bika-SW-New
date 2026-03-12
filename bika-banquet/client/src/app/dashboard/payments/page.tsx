@@ -399,7 +399,7 @@ export default function PaymentsPage() {
                       className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
                     />
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                     <th className="py-2 px-3">
                       <input
                         className="input h-9"
@@ -412,6 +412,7 @@ export default function PaymentsPage() {
                     </th>
                     <th className="py-2 px-3">
                       <input
+                        type="date"
                         className="input h-9"
                         placeholder="Search date"
                         value={columnSearch.eventDate}

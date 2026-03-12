@@ -273,7 +273,7 @@ export default function ReportsPage() {
                             className="text-right py-3 px-2 text-sm font-semibold text-gray-700"
                           />
                         </tr>
-                        <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                        <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                           <th className="py-2 px-2">
                             <input
                               className="input h-9"
@@ -385,7 +385,7 @@ export default function ReportsPage() {
                           className="text-right py-3 px-2 text-sm font-semibold text-gray-700"
                         />
                       </tr>
-                      <tr className="table-search-row border-b border-gray-100 bg-gray-50/70">
+                      <tr className="table-search-row border-b border-gray-100 bg-gray-50">
                         <th className="py-2 px-2">
                           <input
                             className="input h-9"

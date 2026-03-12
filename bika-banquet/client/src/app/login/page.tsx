@@ -41,7 +41,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-8 md:py-14">
+    <div className="min-h-screen px-4 pb-8 md:pb-14 pt-[calc(var(--safe-top)+2rem)] md:pt-[calc(var(--safe-top)+3.5rem)]">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6">
         <section className="lg:col-span-3 card overflow-hidden relative">
           <div className="absolute inset-0 bg-gradient-to-br from-primary-100/70 via-white to-accent-100/60 pointer-events-none"></div>
