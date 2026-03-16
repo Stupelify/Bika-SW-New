@@ -25,9 +25,11 @@ import {
   LucideIcon,
   LogOut,
   Menu,
+  Moon,
   PhoneCall,
   Search,
   Settings,
+  Sun,
   Users,
   UtensilsCrossed,
   X,
@@ -259,6 +261,61 @@ function SearchShortcut() {
   }, []);
 
   return <span className="kbd">{isMac ? '⌘K' : 'Ctrl K'}</span>;
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('theme');
+    const initial = stored === 'dark' ? 'dark' : 'light';
+    setTheme(initial);
+    document.documentElement.dataset.theme = initial;
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('theme', next);
+    }
+    document.documentElement.dataset.theme = next;
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      onClick={toggleTheme}
+      style={{
+        border: '1px solid var(--border)',
+        background: 'var(--surface)',
+        color: 'var(--text-3)',
+        borderRadius: 10,
+        padding: '6px 8px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'color 0.15s, border-color 0.15s, background 0.15s',
+      }}
+      onMouseOver={(event) => {
+        event.currentTarget.style.color = 'var(--text-1)';
+        event.currentTarget.style.borderColor = 'var(--border-2)';
+      }}
+      onMouseOut={(event) => {
+        event.currentTarget.style.color = 'var(--text-3)';
+        event.currentTarget.style.borderColor = 'var(--border)';
+      }}
+    >
+      {theme === 'dark' ? (
+        <Sun width={16} height={16} aria-hidden="true" />
+      ) : (
+        <Moon width={16} height={16} aria-hidden="true" />
+      )}
+    </button>
+  );
 }
 
 function DashboardLayoutContent({
@@ -754,6 +811,7 @@ function DashboardLayoutContent({
             <SearchShortcut />
           </button>
 
+          <ThemeToggle />
           <button
             type="button"
             aria-label="Help"
