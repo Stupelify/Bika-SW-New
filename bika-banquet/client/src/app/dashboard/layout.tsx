@@ -792,7 +792,13 @@ function DashboardLayoutContent({
           style={{
             maxWidth: 1400,
             margin: '0 auto',
-            padding: 'clamp(16px, 2.5vw, 28px)',
+            paddingTop: 'clamp(16px, 2.5vw, 28px)',
+            paddingLeft: 'clamp(16px, 2.5vw, 28px)',
+            paddingRight: 'clamp(16px, 2.5vw, 28px)',
+            /* paddingBottom is intentionally omitted here so the
+               .has-bottom-nav class can apply the correct bottom
+               clearance (nav height + safe-area + extra breathing room).
+               On desktop, lg:!pb-0 resets it back to zero. */
           }}
           data-active-nav={activeNav?.name || ''}
         >

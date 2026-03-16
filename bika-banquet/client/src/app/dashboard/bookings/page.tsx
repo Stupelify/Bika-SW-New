@@ -4438,6 +4438,15 @@ export default function BookingsPage() {
             </button>
           )}
         </div>
+        <div className="mt-3 md:hidden">
+          <label className="label">Search by date</label>
+          <input
+            type="date"
+            className="input"
+            value={columnSearch.functionDate}
+            onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="card">
@@ -4447,53 +4456,45 @@ export default function BookingsPage() {
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
-        ) : filteredBookings.length === 0 ? (
-          <div className="text-center py-12">
-            <CalendarCheck className="w-10 h-10 mx-auto text-gray-300 mb-3" />
-            {(globalSearch || Object.values(columnSearch).some(Boolean)) ? (
-              <>
-                <p className="text-gray-500 mb-1">No bookings match your search</p>
-                <p className="text-gray-400 text-sm mb-4">
-                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo;
-                </p>
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="btn btn-secondary"
-                >
-                  Clear search
-                </button>
-              </>
-            ) : (
-              <p className="text-gray-500">No bookings found</p>
-            )}
-          </div>
         ) : (
           <>
             {/* Mobile card view */}
             <div className="md:hidden">
-              <div className="mobile-card-list">
-                {paginatedBookings.map((booking) => (
-                  <MobileBookingCard
-                    key={booking.id}
-                    booking={booking}
-                    canExportMenuPdf={canExportMenuPdf}
-                    canEditBooking={canEditBooking}
-                    canDeleteBooking={canDeleteBooking}
-                    onExportPdf={(b) => openMenuPdfModal(b)}
-                    onEdit={(id) => openEditBooking(id)}
-                    onDelete={(id) => handleDeleteBooking(id)}
+              {filteredBookings.length === 0 ? (
+                <div className="py-10 text-center">
+                  <CalendarCheck className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">
+                    {(globalSearch || Object.values(columnSearch).some(Boolean))
+                      ? 'No bookings match your search.'
+                      : 'No bookings found.'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mobile-card-list">
+                    {paginatedBookings.map((booking) => (
+                      <MobileBookingCard
+                        key={booking.id}
+                        booking={booking}
+                        canExportMenuPdf={canExportMenuPdf}
+                        canEditBooking={canEditBooking}
+                        canDeleteBooking={canDeleteBooking}
+                        onExportPdf={(b) => openMenuPdfModal(b)}
+                        onEdit={(id) => openEditBooking(id)}
+                        onDelete={(id) => handleDeleteBooking(id)}
+                      />
+                    ))}
+                  </div>
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredBookings.length}
+                    pageSize={BOOKINGS_PAGE_SIZE}
+                    itemLabel="bookings"
+                    onPageChange={setCurrentPage}
                   />
-                ))}
-              </div>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredBookings.length}
-                pageSize={BOOKINGS_PAGE_SIZE}
-                itemLabel="bookings"
-                onPageChange={setCurrentPage}
-              />
+                </>
+              )}
             </div>
 
             {/* Desktop table view */}
@@ -4600,11 +4601,25 @@ export default function BookingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedBookings.map((booking) => (
-                    <tr
-                      key={booking.id}
-                      className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
-                    >
+                  {filteredBookings.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={
+                          (canExportMenuPdf || canEditBooking || canDeleteBooking) ? 7 : 6
+                        }
+                        className="py-10 text-center text-sm text-gray-500"
+                      >
+                        {(globalSearch || Object.values(columnSearch).some(Boolean))
+                          ? 'No bookings match your search.'
+                          : 'No bookings found.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedBookings.map((booking) => (
+                      <tr
+                        key={booking.id}
+                        className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
+                      >
                       <td className="py-4 px-4">
                         <p className="font-medium text-gray-900">{booking.functionName}</p>
                         <p className="text-xs text-gray-500 mt-1">{booking.functionType}</p>
@@ -4673,8 +4688,9 @@ export default function BookingsPage() {
                           </div>
                         </td>
                       )}
-                    </tr>
-                  ))}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
               <TablePagination
