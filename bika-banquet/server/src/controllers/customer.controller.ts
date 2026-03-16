@@ -7,6 +7,8 @@ import { normalizeCaseFields } from '../utils/textCase';
 import phoneDigitsByCode from '../config/phoneDigitsByCode.json';
 import { idSchema } from '../utils/validation';
 import { toE164 } from '../utils/phone';
+import { sanitizeSearchTerm } from '../utils/search';
+import { parsePagination } from '../utils/pagination';
 
 const NAME_PATTERN = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
 const PHONE_PATTERN = /^\d+$/;
@@ -360,11 +362,13 @@ export async function createCustomer(
  */
 export async function getCustomers(req: Request, res: Response): Promise<void> {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const search = req.query.search as string;
-
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(
+      req.query.page,
+      req.query.limit,
+      20,
+      200
+    );
+    const search = sanitizeSearchTerm(req.query.search);
 
     // Build where clause for search
     const where: any = {};

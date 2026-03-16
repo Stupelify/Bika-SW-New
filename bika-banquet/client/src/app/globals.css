@@ -85,6 +85,7 @@
     background-color: var(--bg);
     padding-left: var(--safe-left);
     padding-right: var(--safe-right);
+    padding-bottom: var(--safe-bottom);
     /* Prevent body itself from ever scrolling horizontally */
     overflow-x: hidden;
     max-width: 100%;
@@ -1074,6 +1075,6 @@
   /* Utility to add bottom padding when bottom nav is present.
      Extra 16 px so the last card / row is never hidden behind the nav. */
   .has-bottom-nav {
-    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 24px);
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 44px);
   }
 }

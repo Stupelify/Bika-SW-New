@@ -8,6 +8,8 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { normalizeCaseFields, normalizeCaseInArrayObjects } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
 import { resolveEventDateTimes } from '../utils/dateTime';
+import { sanitizeSearchTerm } from '../utils/search';
+import { parsePagination } from '../utils/pagination';
 import {
   cancelBookingEventInGoogleCalendar,
   syncBookingEventToGoogleCalendar,
@@ -19,8 +21,20 @@ export const createBookingSchema = z.object({
     customerId: idSchema('customer ID'),
     secondCustomerId: idSchema('second customer ID').optional(),
     referredById: idSchema('referred by customer ID').optional(),
-    functionName: z.string().min(2, 'Function name is required'),
-    functionType: z.string().min(2, 'Function type is required'),
+    functionName: z.preprocess(
+      (value) => (typeof value === 'string' ? value.trim() : value),
+      z
+        .string()
+        .min(2, 'Function name is required')
+        .max(120, 'Function name must be at most 120 characters')
+    ),
+    functionType: z.preprocess(
+      (value) => (typeof value === 'string' ? value.trim() : value),
+      z
+        .string()
+        .min(2, 'Function type is required')
+        .max(120, 'Function type must be at most 120 characters')
+    ),
     functionDate: z.string(),
     functionTime: z.string(),
     expectedGuests: z.number().min(1, 'Expected guests must be at least 1'),
@@ -32,7 +46,7 @@ export const createBookingSchema = z.object({
     })).optional(),
     packs: z.array(z.object({
       mealSlotId: idSchema('meal slot ID').optional(),
-      packName: z.string(),
+      packName: z.string().min(1).max(120, 'Pack name must be at most 120 characters'),
       noOfPack: z.number().min(1).optional(),
       packCount: z.number().min(1).optional(),
       hallIds: z.array(z.number().int()).optional(),
@@ -42,16 +56,16 @@ export const createBookingSchema = z.object({
       startTime: z.string().optional(),
       endTime: z.string().optional(),
       extraPlate: z.number().int().optional(),
-      extraRate: z.string().optional(),
-      extraAmount: z.string().optional(),
+      extraRate: z.string().max(50).optional(),
+      extraAmount: z.string().max(50).optional(),
       menuPoint: z.number().int().optional(),
-      hallRate: z.string().optional(),
-      boardToRead: z.string().optional(),
-      hallName: z.string().optional(),
-      timeSlot: z.string().optional(),
+      hallRate: z.string().max(50).optional(),
+      boardToRead: z.string().max(200).optional(),
+      hallName: z.string().max(120).optional(),
+      timeSlot: z.string().max(50).optional(),
       tags: z.array(z.string()).optional(),
       menu: z.object({
-        name: z.string(),
+        name: z.string().min(1).max(120, 'Menu name must be at most 120 characters'),
         templateMenuId: idSchema('template menu ID').optional(),
         items: z.array(z.object({
           itemId: idSchema('item ID'),
@@ -60,15 +74,122 @@ export const createBookingSchema = z.object({
       }),
     })).optional(),
     additionalItems: z.array(z.object({
-      description: z.string(),
+      description: z.string().min(1).max(200, 'Description must be at most 200 characters'),
       charges: z.number(),
       quantity: z.number().min(1).optional(),
     })).optional(),
     discountAmount: z.number().min(0).optional(),
     discountPercentage: z.number().min(0).max(100).optional(),
-    notes: z.string().optional(),
-    internalNotes: z.string().optional(),
+    notes: z.string().max(2000, 'Notes must be at most 2000 characters').optional(),
+    internalNotes: z
+      .string()
+      .max(2000, 'Internal notes must be at most 2000 characters')
+      .optional(),
   }),
+});
+
+export const updateBookingSchema = z.object({
+  body: z
+    .object({
+      customerId: idSchema('customer ID').optional(),
+      secondCustomerId: idSchema('second customer ID').optional(),
+      referredById: idSchema('referred by customer ID').optional(),
+      functionName: z
+        .preprocess(
+          (value) => (typeof value === 'string' ? value.trim() : value),
+          z
+            .string()
+            .min(2, 'Function name is required')
+            .max(120, 'Function name must be at most 120 characters')
+        )
+        .optional(),
+      functionType: z
+        .preprocess(
+          (value) => (typeof value === 'string' ? value.trim() : value),
+          z
+            .string()
+            .min(2, 'Function type is required')
+            .max(120, 'Function type must be at most 120 characters')
+        )
+        .optional(),
+      functionDate: z.string().optional(),
+      functionTime: z.string().optional(),
+      expectedGuests: z.number().min(1, 'Expected guests must be at least 1').optional(),
+      confirmedGuests: z.number().optional(),
+      isQuotation: z.boolean().optional(),
+      halls: z
+        .array(
+          z.object({
+            hallId: idSchema('hall ID'),
+            charges: z.number().min(0),
+          })
+        )
+        .optional(),
+      packs: z
+        .array(
+          z.object({
+            mealSlotId: idSchema('meal slot ID').optional(),
+            packName: z
+              .string()
+              .min(1)
+              .max(120, 'Pack name must be at most 120 characters'),
+            noOfPack: z.number().min(1).optional(),
+            packCount: z.number().min(1).optional(),
+            hallIds: z.array(z.number().int()).optional(),
+            ratePerPlate: z.number().min(0),
+            setupCost: z.number().min(0).optional(),
+            extraCharges: z.number().min(0).optional(),
+            startTime: z.string().optional(),
+            endTime: z.string().optional(),
+            extraPlate: z.number().int().optional(),
+            extraRate: z.string().max(50).optional(),
+            extraAmount: z.string().max(50).optional(),
+            menuPoint: z.number().int().optional(),
+            hallRate: z.string().max(50).optional(),
+            boardToRead: z.string().max(200).optional(),
+            hallName: z.string().max(120).optional(),
+            timeSlot: z.string().max(50).optional(),
+            tags: z.array(z.string()).optional(),
+            menu: z.object({
+              name: z
+                .string()
+                .min(1)
+                .max(120, 'Menu name must be at most 120 characters'),
+              templateMenuId: idSchema('template menu ID').optional(),
+              items: z.array(
+                z.object({
+                  itemId: idSchema('item ID'),
+                  quantity: z.number().min(1),
+                })
+              ),
+            }),
+          })
+        )
+        .optional(),
+      additionalItems: z
+        .array(
+          z.object({
+            description: z
+              .string()
+              .min(1)
+              .max(200, 'Description must be at most 200 characters'),
+            charges: z.number(),
+            quantity: z.number().min(1).optional(),
+          })
+        )
+        .optional(),
+      discountAmount: z.number().min(0).optional(),
+      discountPercentage: z.number().min(0).max(100).optional(),
+      notes: z.string().max(2000, 'Notes must be at most 2000 characters').optional(),
+      internalNotes: z
+        .string()
+        .max(2000, 'Internal notes must be at most 2000 characters')
+        .optional(),
+      createNewVersion: z.boolean().optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, {
+      message: 'At least one field is required',
+    }),
 });
 
 const MONEY_DECIMALS = 2;
@@ -1424,15 +1545,17 @@ export async function createBooking(
  */
 export async function getBookings(req: Request, res: Response): Promise<void> {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const { page, limit, skip } = parsePagination(
+      req.query.page,
+      req.query.limit,
+      20,
+      200
+    );
     const status = req.query.status as string;
-    const search = req.query.search as string;
+    const search = sanitizeSearchTerm(req.query.search);
     const fromDate = req.query.fromDate as string;
     const toDate = req.query.toDate as string;
     const isQuotation = req.query.isQuotation === 'true';
-
-    const skip = (page - 1) * limit;
 
     // Build where clause
     const where: any = { isLatest: true };
@@ -1461,13 +1584,30 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
       ];
     }
 
-    if (fromDate || toDate) {
+    const parseDateParam = (value?: string) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const fromParsed = parseDateParam(fromDate);
+    const toParsed = parseDateParam(toDate);
+    if (fromDate && !fromParsed) {
+      sendError(res, 'Invalid fromDate', 400);
+      return;
+    }
+    if (toDate && !toParsed) {
+      sendError(res, 'Invalid toDate', 400);
+      return;
+    }
+
+    if (fromParsed || toParsed) {
       where.functionDate = {};
-      if (fromDate) {
-        where.functionDate.gte = new Date(fromDate);
+      if (fromParsed) {
+        where.functionDate.gte = fromParsed;
       }
-      if (toDate) {
-        where.functionDate.lte = new Date(toDate);
+      if (toParsed) {
+        where.functionDate.lte = toParsed;
       }
     }
 

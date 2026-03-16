@@ -8,8 +8,15 @@ export default function RootLayout() {
             <Stack>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="login/index" options={{ headerShown: false }} />
+                <Stack.Screen name="dashboard/index" options={{ headerShown: false }} />
             </Stack>
-            <Toast />
+            <Toast
+                visibilityTime={1400}
+                autoHide
+                onShow={() => {
+                    setTimeout(() => Toast.hide(), 1500);
+                }}
+            />
         </>
     );
 }

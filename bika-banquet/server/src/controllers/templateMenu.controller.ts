@@ -4,6 +4,8 @@ import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
+import { sanitizeSearchTerm } from '../utils/search';
+import { parsePagination } from '../utils/pagination';
 
 const menuItemSchema = z.object({
   itemId: idSchema('item ID'),
@@ -101,9 +103,13 @@ export async function getTemplateMenus(
   res: Response
 ): Promise<void> {
   try {
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 20;
-    const search = (req.query.search as string) || '';
+    const { page, limit, skip } = parsePagination(
+      req.query.page,
+      req.query.limit,
+      20,
+      200
+    );
+    const search = sanitizeSearchTerm(req.query.search);
     const includeItems = String(req.query.includeItems || '').toLowerCase() === 'true';
 
     const where = search
@@ -117,7 +123,7 @@ export async function getTemplateMenus(
       includeItems
         ? prisma.templateMenu.findMany({
             where,
-            skip: (page - 1) * limit,
+            skip,
             take: limit,
             orderBy: { createdAt: 'desc' },
             include: {
@@ -134,7 +140,7 @@ export async function getTemplateMenus(
           })
         : prisma.templateMenu.findMany({
             where,
-            skip: (page - 1) * limit,
+            skip,
             take: limit,
             orderBy: { createdAt: 'desc' },
             include: {

@@ -3042,6 +3042,7 @@ export default function BookingsPage() {
                       type="number"
                       min={0}
                       max={100}
+                      step="0.01"
                       value={formData.finalDiscountPercent}
                       onChange={(e) => {
                         setAmountSyncMode('discountPercent');
@@ -3062,6 +3063,7 @@ export default function BookingsPage() {
                       className="input text-right"
                       type="number"
                       min={0}
+                      step="0.01"
                       value={formData.finalDiscountAmount}
                       onChange={(e) => {
                         setAmountSyncMode('discountAmount');
@@ -3246,6 +3248,31 @@ export default function BookingsPage() {
                   return sum + hallRate + ratePerPlate * pax + extraCharges;
                 }, 0);
                 const histTotalBill = histTotalPackAmount + histTotalAdditional;
+                const histCustomerName =
+                  resolved?.customer?.name ||
+                  resolved?.customerName ||
+                  hist?.customer?.name ||
+                  'Unknown';
+                const histCustomerPhone =
+                  resolved?.customer?.phone ||
+                  resolved?.customerPhone ||
+                  hist?.customer?.phone ||
+                  '-';
+                const histFunctionDate = resolved?.functionDate
+                  ? formatDateDDMMYYYY(resolved.functionDate)
+                  : '-';
+                const histTimeRange = (() => {
+                  const start = resolved?.startTime || resolved?.functionTime || '';
+                  const end = resolved?.endTime || '';
+                  if (start && end) return `${start} - ${end}`;
+                  return start || end || '-';
+                })();
+                const hallNames = (Array.isArray(resolved?.halls) ? resolved.halls : [])
+                  .map((entry: any) => entry?.hall?.name || entry?.hallName)
+                  .filter(Boolean);
+                const banquetNames = (Array.isArray(resolved?.halls) ? resolved.halls : [])
+                  .map((entry: any) => entry?.hall?.banquet?.name)
+                  .filter(Boolean);
 
                 return (
                   <div key={hist.id} className="rounded-xl border-2 border-gray-300 bg-white shadow-sm overflow-hidden">
@@ -3381,33 +3408,63 @@ export default function BookingsPage() {
                     })()}
 
                     <div className="px-5 py-4 space-y-6">
-                      {/* ── Core info grid ── */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* ── Core info (form-style, read-only) ── */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Customer</span>
-                          <span className="text-sm font-semibold text-gray-900">{resolved?.customer?.name || '-'}</span>
-                          {resolved?.customer?.phone && (
-                            <span className="block text-xs text-gray-500">{resolved.customer.phone}</span>
-                          )}
+                          <label className="label">Customer</label>
+                          <input className="input" value={histCustomerName} readOnly />
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Function</span>
-                          <span className="text-sm font-semibold text-gray-900">{resolved?.functionName || '-'}</span>
-                          {resolved?.functionType && (
-                            <span className="block text-xs text-gray-500">{resolved.functionType}</span>
-                          )}
+                          <label className="label">Customer Phone</label>
+                          <input className="input" value={histCustomerPhone} readOnly />
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Date</span>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {resolved?.functionDate ? formatDateDDMMYYYY(resolved.functionDate) : '-'}
-                          </span>
+                          <label className="label">Function Type</label>
+                          <input className="input" value={resolved?.functionType || '-'} readOnly />
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Expected Guests</span>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {resolved?.expectedGuests ?? hist?.expectedGuests ?? '-'}
-                          </span>
+                          <label className="label">Function Name</label>
+                          <input className="input" value={resolved?.functionName || '-'} readOnly />
+                        </div>
+                        <div>
+                          <label className="label">Function Date</label>
+                          <input className="input" value={histFunctionDate} readOnly />
+                        </div>
+                        <div>
+                          <label className="label">Time</label>
+                          <input className="input" value={histTimeRange} readOnly />
+                        </div>
+                        <div>
+                          <label className="label">Expected Guests</label>
+                          <input
+                            className="input"
+                            value={resolved?.expectedGuests ?? hist?.expectedGuests ?? '-'}
+                            readOnly
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Confirmed Guests</label>
+                          <input
+                            className="input"
+                            value={resolved?.confirmedGuests ?? hist?.confirmedGuests ?? 0}
+                            readOnly
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Banquet</label>
+                          <input
+                            className="input"
+                            value={banquetNames.length > 0 ? banquetNames.join(', ') : '-'}
+                            readOnly
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="label">Halls</label>
+                          <input
+                            className="input"
+                            value={hallNames.length > 0 ? hallNames.join(', ') : '-'}
+                            readOnly
+                          />
                         </div>
                       </div>
 
@@ -3456,27 +3513,39 @@ export default function BookingsPage() {
                                   )}
                                 </div>
 
-                                {/* Pack numbers grid */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-sm">
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Pax</span>
-                                    <span className="font-semibold text-gray-900">{pax}</span>
+                                {/* Pack numbers (form-style, read-only) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                                  <div>
+                                    <label className="label">PAX</label>
+                                    <input className="input" value={pax} readOnly />
                                   </div>
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Rate / Plate</span>
-                                    <span className="font-semibold text-gray-900">₹{ratePerPlate.toLocaleString('en-IN')}</span>
+                                  <div>
+                                    <label className="label">Rate / Plate</label>
+                                    <input
+                                      className="input"
+                                      value={`₹${ratePerPlate.toLocaleString('en-IN')}`}
+                                      readOnly
+                                    />
                                   </div>
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Hall Rate</span>
-                                    <span className="font-semibold text-gray-900">₹{hallRate.toLocaleString('en-IN')}</span>
+                                  <div>
+                                    <label className="label">Hall Rate</label>
+                                    <input
+                                      className="input"
+                                      value={`₹${hallRate.toLocaleString('en-IN')}`}
+                                      readOnly
+                                    />
                                   </div>
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Extra Plates</span>
-                                    <span className="font-semibold text-gray-900">{extraPlate}</span>
+                                  <div>
+                                    <label className="label">Extra Plates</label>
+                                    <input className="input" value={extraPlate} readOnly />
                                   </div>
-                                  <div className="rounded-md bg-white border border-blue-200 bg-blue-50 px-3 py-2">
-                                    <span className="text-xs text-blue-600 block">Pack Amount</span>
-                                    <span className="font-bold text-blue-800">₹{computedAmount.toLocaleString('en-IN')}</span>
+                                  <div>
+                                    <label className="label">Pack Amount</label>
+                                    <input
+                                      className="input font-semibold text-blue-700"
+                                      value={`₹${computedAmount.toLocaleString('en-IN')}`}
+                                      readOnly
+                                    />
                                   </div>
                                 </div>
 
