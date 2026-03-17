@@ -7,6 +7,7 @@ import { CreditCard, Plus, Save, Search } from 'lucide-react';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
+import { TableSkeleton } from '@/components/Skeletons';
 import {
   SortState,
   TableColumnConfig,
@@ -298,11 +299,17 @@ export default function PaymentsPage() {
         </div>
 
         {loading ? (
-          <div className="py-12 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="py-6">
+            <TableSkeleton rows={8} />
           </div>
         ) : filteredBookings.length === 0 ? (
-          <div className="text-sm text-gray-500 py-8 text-center">No bookings found.</div>
+          <div className="empty-state" style={{ padding: '32px 16px' }}>
+            <div className="empty-state-icon">
+              <CreditCard size={22} />
+            </div>
+            <p className="empty-state-title">No bookings found</p>
+            <p className="empty-state-desc">Try adjusting the filters or date range.</p>
+          </div>
         ) : (
           <>
             {/* Mobile card view */}

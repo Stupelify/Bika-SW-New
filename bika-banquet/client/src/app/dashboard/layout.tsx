@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import BottomNav from '@/components/BottomNav';
 import Avatar from '@/components/Avatar';
+import CommandPalette from '@/components/CommandPalette';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -17,6 +18,7 @@ import {
   Building2,
   CalendarCheck,
   CalendarDays,
+  ChevronLeft,
   ChevronDown,
   ChevronRight,
   DollarSign,
@@ -269,7 +271,8 @@ function ThemeToggle() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = window.localStorage.getItem('theme');
-    const initial = stored === 'dark' ? 'dark' : 'light';
+    const osPref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const initial = stored === 'dark' || stored === 'light' ? stored : osPref;
     setTheme(initial);
     document.documentElement.dataset.theme = initial;
   }, []);
@@ -328,7 +331,15 @@ function DashboardLayoutContent({
   const searchParams = useSearchParams();
   const { user, loadUser, logout, isAuthenticated } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteBookings, setPaletteBookings] = useState<
+    Array<{ id: string; name: string; subtitle?: string; href?: string }>
+  >([]);
+  const [paletteCustomers, setPaletteCustomers] = useState<
+    Array<{ id: string; name: string; subtitle?: string; href?: string }>
+  >([]);
 
   const sectionParam = searchParams.get('section');
 
@@ -362,6 +373,57 @@ function DashboardLayoutContent({
   useEffect(() => {
     void loadUser();
   }, [loadUser]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('sidebar-collapsed');
+    setSidebarCollapsed(stored === 'true');
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const cores = navigator.hardwareConcurrency ?? 4;
+    const memory = (navigator as any).deviceMemory ?? 4;
+    const conn = (navigator as any).connection;
+    const slowNet = conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g';
+    let tier: 'low' | 'mid' | 'high' = 'high';
+    if (cores <= 2 || memory <= 1 || slowNet) tier = 'low';
+    else if (cores <= 4 || memory <= 2) tier = 'mid';
+    document.documentElement.dataset.deviceTier = tier;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!paletteOpen || typeof window === 'undefined') return;
+    const readList = (key: string) => {
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+    setPaletteBookings(readList('bika_palette_bookings'));
+    setPaletteCustomers(readList('bika_palette_customers'));
+  }, [paletteOpen]);
 
   useEffect(() => {
     if (!isAuthenticated && typeof window !== 'undefined') {
@@ -422,8 +484,11 @@ function DashboardLayoutContent({
     router.push('/login');
   };
 
-  const renderSidebarContent = (isMobile: boolean) => (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+  const renderSidebarContent = (isMobile: boolean, isCollapsed: boolean) => (
+    <div
+      className={isCollapsed ? 'sidebar-collapsed' : undefined}
+      style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}
+    >
       <div
         style={{
           padding: '18px 16px 14px',
@@ -434,7 +499,7 @@ function DashboardLayoutContent({
         }}
       >
         <Avatar name="Bika Banquet" size="sm" />
-        <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="sidebar-label" style={{ minWidth: 0, flex: 1 }}>
           <p
             style={{
               fontSize: 14,
@@ -506,6 +571,7 @@ function DashboardLayoutContent({
                 <Link
                   href={item.href}
                   aria-current={isActive ? 'page' : undefined}
+                  title={isCollapsed ? item.name : undefined}
                   style={{
                     flex: 1,
                     display: 'flex',
@@ -532,6 +598,7 @@ function DashboardLayoutContent({
                     aria-hidden="true"
                   />
                   <span
+                    className="sidebar-label"
                     style={{
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -578,7 +645,13 @@ function DashboardLayoutContent({
               </div>
 
               {hasChildren && isOpen && (
-                <div style={{ marginLeft: 35, marginBottom: 4 }}>
+                <div
+                  style={{
+                    marginLeft: isCollapsed ? 0 : 35,
+                    marginBottom: 4,
+                    display: isCollapsed ? 'none' : 'block',
+                  }}
+                >
                   {item.children?.map((child) => {
                     const childActive = isHrefActive(child.href);
                     return (
@@ -620,7 +693,7 @@ function DashboardLayoutContent({
           }}
         >
           <Avatar name={user?.name} size="sm" />
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="sidebar-label" style={{ flex: 1, minWidth: 0 }}>
             <p
               style={{
                 fontSize: 12.5,
@@ -674,6 +747,23 @@ function DashboardLayoutContent({
           </button>
         </div>
       </div>
+
+      {!isMobile && (
+        <div style={{ padding: '6px 8px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            className="sidebar-collapse-btn"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+          >
+            {isCollapsed ? (
+              <ChevronRight style={{ width: 14, height: 14 }} aria-hidden="true" />
+            ) : (
+              <ChevronLeft style={{ width: 14, height: 14 }} aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -695,8 +785,19 @@ function DashboardLayoutContent({
     );
   }
 
+  const currentSidebarWidth = sidebarCollapsed ? '56px' : 'var(--sidebar-w)';
+
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--bg)' }}>
+    <div
+      className={sidebarCollapsed ? 'sidebar-collapsed' : undefined}
+      style={
+        {
+          minHeight: '100dvh',
+          background: 'var(--bg)',
+          '--current-sidebar-w': currentSidebarWidth,
+        } as React.CSSProperties
+      }
+    >
       <a href="#main-content" className="skip-nav">Skip to main content</a>
       {sidebarOpen && (
         <button
@@ -722,14 +823,15 @@ function DashboardLayoutContent({
           paddingTop: 'var(--safe-top)',
           left: 0,
           height: '100dvh',
-          width: 'var(--sidebar-w)',
+          width: 'var(--current-sidebar-w)',
           background: 'var(--surface)',
           borderRight: '1px solid var(--border)',
           zIndex: 50,
           overflowY: 'auto',
+          transition: 'width 0.2s ease',
         }}
       >
-        {renderSidebarContent(false)}
+        {renderSidebarContent(false, sidebarCollapsed)}
       </aside>
 
       <aside
@@ -752,10 +854,13 @@ function DashboardLayoutContent({
           overflowY: 'auto',
         }}
       >
-        {renderSidebarContent(true)}
+        {renderSidebarContent(true, false)}
       </aside>
 
-      <div className="ml-0 lg:ml-[var(--sidebar-w)]">
+      <div
+        className="ml-0 lg:ml-[var(--current-sidebar-w)]"
+        style={{ transition: 'margin-left 0.2s ease' }}
+      >
         <header
           style={{
             height: 'calc(52px + var(--safe-top))',
@@ -805,7 +910,12 @@ function DashboardLayoutContent({
 
           <div style={{ flex: 1 }} />
 
-          <button className="header-search hidden md:flex" aria-label="Quick search" type="button">
+          <button
+            className="header-search hidden md:flex"
+            aria-label="Quick search"
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+          >
             <Search style={{ width: 13, height: 13 }} aria-hidden="true" />
             <span>Quick search…</span>
             <SearchShortcut />
@@ -860,13 +970,22 @@ function DashboardLayoutContent({
           }}
           data-active-nav={activeNav?.name || ''}
         >
-          {children}
+          <div key={pathname} className="page-enter">
+            {children}
+          </div>
         </main>
       </div>
 
       <BottomNav
         permissions={user?.permissions || []}
         onMoreClick={() => setSidebarOpen(true)}
+      />
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        recentBookings={paletteBookings}
+        customers={paletteCustomers}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { getDefaultDashboardRoute } from '@/lib/routeAccess';
+import { PageSkeleton } from '@/components/Skeletons';
 
 export default function HomePage() {
   const router = useRouter();
@@ -26,9 +27,8 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-600 to-accent-600">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4"></div>
-        <p className="text-white text-lg">Loading...</p>
+      <div className="w-full max-w-md px-6">
+        <PageSkeleton />
       </div>
     </div>
   );

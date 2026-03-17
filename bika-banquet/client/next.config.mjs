@@ -12,6 +12,7 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
+  transpilePackages: ['@ionic/react', '@ionic/core', 'ionicons'],
 };
 
 export default nextConfig;

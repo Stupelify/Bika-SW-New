@@ -3,11 +3,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { CalendarDays, Edit, Plus, Save, Search, Trash2, Users } from 'lucide-react';
+import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users } from 'lucide-react';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
+import { TableSkeleton } from '@/components/Skeletons';
 import {
   SortState,
   TableColumnConfig,
@@ -15,6 +16,7 @@ import {
   getNextSort,
 } from '@/lib/tableUtils';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 
@@ -159,6 +161,7 @@ export default function EnquiriesPage() {
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
   const [editingEnquiryId, setEditingEnquiryId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
+  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [status, setStatus] = useState('');
   const [sort, setSort] = useState<SortState>({
@@ -198,8 +201,8 @@ export default function EnquiriesPage() {
   );
 
   const filteredEnquiries = useMemo(
-    () => filterAndSortRows(enquiries, tableColumns, globalSearch, columnSearch, sort),
-    [enquiries, tableColumns, globalSearch, columnSearch, sort]
+    () => filterAndSortRows(enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort),
+    [enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort]
   );
 
   const totalPages = useMemo(
@@ -223,7 +226,7 @@ export default function EnquiriesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [globalSearch, columnSearch, sort, status]);
+  }, [debouncedGlobalSearch, columnSearch, sort, status]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
@@ -783,25 +786,40 @@ export default function EnquiriesPage() {
 
       <div className="card">
         {!canViewEnquiry ? (
-          <div className="text-sm text-gray-500">No data available.</div>
+          <div className="empty-state" style={{ padding: '32px 16px' }}>
+            <div className="empty-state-icon">
+              <PhoneCall size={22} />
+            </div>
+            <p className="empty-state-title">No data available</p>
+            <p className="empty-state-desc">You do not have access to view enquiries.</p>
+          </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="py-6">
+            <TableSkeleton rows={8} />
           </div>
         ) : filteredEnquiries.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-6">
             {(globalSearch || Object.values(columnSearch).some(Boolean)) ? (
-              <>
-                <p className="text-gray-500 mb-1">No enquiries match your search</p>
-                <p className="text-gray-400 text-sm mb-4">
-                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo;
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">
+                  <Search size={22} />
+                </div>
+                <p className="empty-state-title">No enquiries match your search</p>
+                <p className="empty-state-desc">
+                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo; returned no results.
                 </p>
                 <button type="button" onClick={clearSearch} className="btn btn-secondary">
                   Clear search
                 </button>
-              </>
+              </div>
             ) : (
-              <p className="text-gray-500">No enquiries found.</p>
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">
+                  <PhoneCall size={22} />
+                </div>
+                <p className="empty-state-title">No enquiries found</p>
+                <p className="empty-state-desc">New enquiries will appear here.</p>
+              </div>
             )}
           </div>
         ) : (

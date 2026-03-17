@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import { Manrope, Space_Grotesk } from 'next/font/google';
 import './globals.css';
+import './mobile.css';
 import { Toaster } from 'sonner';
+import IonicProvider from '@/components/IonicProvider';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -49,7 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${manrope.variable} ${spaceGrotesk.variable}`}>
-        {children}
+        <IonicProvider>{children}</IonicProvider>
         <Toaster position="top-right" richColors />
       </body>
     </html>

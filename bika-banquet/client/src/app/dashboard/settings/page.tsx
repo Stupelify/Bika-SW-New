@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { KeyRound, Save, Settings2, Shield, Trash2, Users } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
+import { TableSkeleton } from '@/components/Skeletons';
 
 interface UserRow {
   id: string;
@@ -695,7 +696,13 @@ function SettingsPageContent() {
                 Role permissions can be assigned later by users with permission access.
               </p>
             ) : permissionGroups.length === 0 ? (
-              <p className="text-sm text-gray-500">No permissions available yet.</p>
+              <div className="empty-state" style={{ padding: '20px 12px' }}>
+                <div className="empty-state-icon">
+                  <Shield size={22} />
+                </div>
+                <p className="empty-state-title">No permissions available</p>
+                <p className="empty-state-desc">Create permissions to assign to this role.</p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {permissionGroups.map((group) => {
@@ -1045,7 +1052,13 @@ function SettingsPageContent() {
                 </select>
               </div>
               {permissionGroups.length === 0 ? (
-                <p className="text-sm text-gray-500">No permissions available yet.</p>
+                <div className="empty-state" style={{ padding: '20px 12px' }}>
+                  <div className="empty-state-icon">
+                    <Shield size={22} />
+                  </div>
+                  <p className="empty-state-title">No permissions available</p>
+                  <p className="empty-state-desc">Create permissions before mapping them to roles.</p>
+                </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {permissionGroups.map((group) => {
@@ -1138,9 +1151,7 @@ function SettingsPageContent() {
             )}
           </div>
           {loading ? (
-            <div className="py-10 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
+            <TableSkeleton rows={5} />
           ) : !canViewUsers ? (
             <p className="text-sm text-gray-500">
               You can create or delete users, but you do not have permission to view user records.
@@ -1187,9 +1198,7 @@ function SettingsPageContent() {
             )}
           </div>
           {loading ? (
-            <div className="py-10 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
+            <TableSkeleton rows={5} />
           ) : !canViewRoles ? (
             <p className="text-sm text-gray-500">
               You can create or delete roles, but you do not have permission to view role records.
@@ -1235,9 +1244,7 @@ function SettingsPageContent() {
             )}
           </div>
           {loading ? (
-            <div className="py-10 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
+            <TableSkeleton rows={5} />
           ) : !canViewPermissions ? (
             <p className="text-sm text-gray-500">
               You can manage permission definitions, but you do not have permission to view permission records.

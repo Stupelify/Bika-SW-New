@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { ArrowLeft, Edit, Mail, MapPin, Phone } from 'lucide-react';
+import { PageSkeleton } from '@/components/Skeletons';
+import { ArrowLeft, CalendarCheck, Edit, Mail, MapPin, Phone, PhoneCall } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -47,9 +48,7 @@ export default function CustomerDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
+      <PageSkeleton />
     );
   }
 
@@ -121,7 +120,13 @@ export default function CustomerDetailPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No enquiries found</p>
+            <div className="empty-state" style={{ padding: '20px 12px' }}>
+              <div className="empty-state-icon">
+                <PhoneCall size={20} />
+              </div>
+              <p className="empty-state-title">No enquiries found</p>
+              <p className="empty-state-desc">No enquiries are linked to this customer yet.</p>
+            </div>
           )}
         </div>
 
@@ -142,7 +147,13 @@ export default function CustomerDetailPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No bookings found</p>
+            <div className="empty-state" style={{ padding: '20px 12px' }}>
+              <div className="empty-state-icon">
+                <CalendarCheck size={20} />
+              </div>
+              <p className="empty-state-title">No bookings found</p>
+              <p className="empty-state-desc">No bookings are linked to this customer yet.</p>
+            </div>
           )}
         </div>
       </div>
