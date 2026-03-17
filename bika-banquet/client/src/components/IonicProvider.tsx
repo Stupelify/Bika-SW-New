@@ -1,24 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { setupIonicReact } from '@ionic/react';
 import { Capacitor } from '@capacitor/core';
 
-// This provider explicitly avoids importing Ionic CSS if we are on the web,
-// preserving the exact web styling untouched.
 export default function IonicProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [isNative, setIsNative] = useState(false);
+
   useEffect(() => {
-    // Only initialize Ionic styling/scripts if running inside native Capacitor
     if (Capacitor.isNativePlatform()) {
+      setIsNative(true);
       setupIonicReact({
         mode: Capacitor.getPlatform() === 'ios' ? 'ios' : 'md',
       });
 
-      // Dynamically load Ionic CSS only on mobile to avoid breaking web
       const loadCSS = async () => {
         await import('@ionic/react/css/core.css');
         await import('@ionic/react/css/normalize.css');
@@ -36,5 +35,21 @@ export default function IonicProvider({
     }
   }, []);
 
-  return <>{children}</>;
+  return (
+    <>
+      {isNative && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          html, body {
+            overflow: auto !important;
+            overflow-y: auto !important;
+            touch-action: auto !important;
+          }
+          ion-app {
+            pointer-events: none !important;
+          }
+        `}} />
+      )}
+      {children}
+    </>
+  );
 }
