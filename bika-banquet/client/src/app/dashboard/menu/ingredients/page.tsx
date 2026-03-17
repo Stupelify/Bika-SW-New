@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit, Plus, Save, Search, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import FormPromptModal from '@/components/FormPromptModal';
+import { TableSkeleton } from '@/components/Skeletons';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
@@ -487,7 +488,13 @@ export default function IngredientsPage() {
             </div>
             <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
               {filteredPromptVendors.length === 0 ? (
-                <p className="px-3 py-3 text-sm text-gray-500">No vendors available.</p>
+                <div className="empty-state" style={{ padding: '20px 12px' }}>
+                  <div className="empty-state-icon">
+                    <Users size={20} />
+                  </div>
+                  <p className="empty-state-title">No vendors available</p>
+                  <p className="empty-state-desc">Add vendors to link them to this ingredient.</p>
+                </div>
               ) : (
                 filteredPromptVendors.map((vendor) => {
                   const selected = isVendorSelected(vendor.id);
@@ -710,9 +717,7 @@ export default function IngredientsPage() {
             </div>
 
             {loading ? (
-              <div className="py-10 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-              </div>
+              <TableSkeleton rows={5} />
             ) : (
               <div className="table-shell">
                 <table className="data-table">

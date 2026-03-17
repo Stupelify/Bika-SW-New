@@ -1,11 +1,14 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+const serverUrl =
+  process.env.CAPACITOR_SERVER_URL || 'https://banquet.bikafood.com';
+
 const config: CapacitorConfig = {
   appId: 'com.bika.banquet',
   appName: 'Bika Banquet',
   webDir: 'public',
   server: {
-    url: 'https://banquet.bikafood.com',
+    url: serverUrl,
     cleartext: false,
   },
   ios: {
@@ -26,4 +29,3 @@ const config: CapacitorConfig = {
 };
 
 export default config;
-

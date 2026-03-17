@@ -24,6 +24,7 @@ import { api } from '@/lib/api';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
+import { TableSkeleton } from '@/components/Skeletons';
 import {
   SortState,
   TableColumnConfig,
@@ -31,6 +32,7 @@ import {
   getNextSort,
 } from '@/lib/tableUtils';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import {
@@ -339,18 +341,23 @@ const PACK_LABELS: Record<PackKey, string> = {
 };
 
 const PACK_ROW_STYLES: Record<PackKey, string> = {
-  breakfast: 'border-orange-200 bg-orange-50',
-  lunch: 'border-green-200 bg-green-50',
-  hiTea: 'border-slate-200 bg-slate-50',
-  dinner: 'border-slate-300 bg-slate-100',
+  breakfast: 'border-orange-200 bg-orange-50 border-l-[3px] border-l-orange-500',
+  lunch: 'border-green-200 bg-green-50 border-l-[3px] border-l-green-500',
+  hiTea: 'border-slate-200 bg-slate-50 border-l-[3px] border-l-slate-500',
+  dinner: 'border-indigo-200 bg-indigo-50 border-l-[3px] border-l-indigo-500',
 };
 
 const FUNCTION_TYPE_OPTIONS = [
-  'Wedding',
+  'Marriage',
+  'Tilak/Sangeet',
   'Reception',
-  'Birthday Party',
+  'Engagement/Ring Ceremony',
+  'Roka',
+  'Kirtan/Mangal Path',
   'Anniversary',
-  'Corporate Event',
+  'Birthday',
+  'Mayra/Bhaat',
+  'Jalwa Party',
   'Other',
 ] as const;
 
@@ -456,7 +463,10 @@ export default function BookingsPage() {
   const [activeCustomerSearchField, setActiveCustomerSearchField] =
     useState<CustomerSearchField | null>(null);
   const hallPickerContainerRef = useRef<HTMLDivElement | null>(null);
+  const actionSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [showStickyActions, setShowStickyActions] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
+  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [sort, setSort] = useState<SortState>({
     key: 'functionDate',
@@ -530,8 +540,8 @@ export default function BookingsPage() {
   );
 
   const filteredBookings = useMemo(
-    () => filterAndSortRows(bookings, tableColumns, globalSearch, columnSearch, sort),
-    [bookings, tableColumns, globalSearch, columnSearch, sort]
+    () => filterAndSortRows(bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort),
+    [bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort]
   );
 
   const totalPages = useMemo(
@@ -1189,8 +1199,31 @@ export default function BookingsPage() {
   }, [canViewBooking]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = bookings.slice(0, 20).map((booking) => ({
+      id: booking.id,
+      name: booking.functionName || 'Booking',
+      subtitle: formatCustomerLabel(booking.customer),
+      href: `/dashboard/bookings?section=edit&id=${booking.id}`,
+    }));
+    window.localStorage.setItem('bika_palette_bookings', JSON.stringify(payload));
+  }, [bookings]);
+
+  useEffect(() => {
+    if (!actionSentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowStickyActions(!entry.isIntersecting);
+      },
+      { root: null, rootMargin: '-200px 0px 0px 0px', threshold: 0 }
+    );
+    observer.observe(actionSentinelRef.current);
+    return () => observer.disconnect();
+  }, [actionSentinelRef]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [globalSearch, columnSearch, sort]);
+  }, [debouncedGlobalSearch, columnSearch, sort]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
@@ -1561,12 +1594,13 @@ export default function BookingsPage() {
 
       const historyRows = historyResponse.data?.data?.history || [];
       setBookingHistory(historyRows);
-      const firstPreviousVersion = historyRows.find(
-        (row: { id?: string }) => row?.id && row.id !== bookingId
-      );
-      setExpandedHistoryVersions(
-        firstPreviousVersion?.id ? { [firstPreviousVersion.id]: true } : {}
-      );
+      const expanded: Record<string, boolean> = {};
+      historyRows.forEach((row: { id?: string }) => {
+        if (row?.id && row.id !== bookingId) {
+          expanded[row.id] = true;
+        }
+      });
+      setExpandedHistoryVersions(expanded);
 
       const hallIdSet = new Set(halls.map((hall) => hall.id));
       const bookingHallIds = Array.from(
@@ -2287,7 +2321,8 @@ export default function BookingsPage() {
         widthClass="max-w-[1400px]"
       >
         <fieldset disabled={isReadOnlyBooking}>
-          <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} className="space-y-5">
+        <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} className="space-y-5">
+          <div ref={actionSentinelRef} />
             <div className="flex items-center gap-3">
               {!isReadOnlyBooking && (
                 <button type="submit" className="btn btn-primary" disabled={saving}>
@@ -2800,7 +2835,8 @@ export default function BookingsPage() {
                       )}
                     </div>
 
-                    {row.enabled && (() => {
+                    <div className={`pack-section-body ${row.enabled ? 'open' : ''}`}>
+                      {row.enabled && (() => {
                         const packDiffKey = PACK_LABELS[packKey].toLowerCase();
                         const packDiff = formDiff?.packs[packDiffKey];
                         const menuAdded = packDiff?.addedItemIds.length ?? 0;
@@ -2921,6 +2957,7 @@ export default function BookingsPage() {
                           </div>
                         );
                       })()}
+                    </div>
 
                   </div>
                 );
@@ -3042,6 +3079,7 @@ export default function BookingsPage() {
                       type="number"
                       min={0}
                       max={100}
+                      step="0.01"
                       value={formData.finalDiscountPercent}
                       onChange={(e) => {
                         setAmountSyncMode('discountPercent');
@@ -3062,6 +3100,7 @@ export default function BookingsPage() {
                       className="input text-right"
                       type="number"
                       min={0}
+                      step="0.01"
                       value={formData.finalDiscountAmount}
                       onChange={(e) => {
                         setAmountSyncMode('discountAmount');
@@ -3178,6 +3217,62 @@ export default function BookingsPage() {
                 </>
               )}
             </div>
+
+            {!isReadOnlyBooking && (
+              <div
+                className="form-actions"
+                style={{
+                  position: 'sticky',
+                  bottom: 0,
+                  background: 'var(--surface)',
+                  borderTop: '1px solid var(--border)',
+                  padding: '12px 16px',
+                  marginTop: 12,
+                  zIndex: 20,
+                  display: showStickyActions ? 'flex' : 'none',
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={closeBookingForm}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  <span className="inline-flex items-center gap-2">
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Saving...' : 'Submit'}
+                  </span>
+                </button>
+                {editingBookingId && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                      onClick={handleFinalizeBooking}
+                      disabled={saving}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        Finalize Version
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                      onClick={openPartyOver}
+                      disabled={saving}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Flag className="w-4 h-4" />
+                        Party Over
+                      </span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </form>
 
           {historicalVersions.length > 0 && (
@@ -3246,6 +3341,31 @@ export default function BookingsPage() {
                   return sum + hallRate + ratePerPlate * pax + extraCharges;
                 }, 0);
                 const histTotalBill = histTotalPackAmount + histTotalAdditional;
+                const histCustomerName =
+                  resolved?.customer?.name ||
+                  resolved?.customerName ||
+                  hist?.customer?.name ||
+                  'Unknown';
+                const histCustomerPhone =
+                  resolved?.customer?.phone ||
+                  resolved?.customerPhone ||
+                  hist?.customer?.phone ||
+                  '-';
+                const histFunctionDate = resolved?.functionDate
+                  ? formatDateDDMMYYYY(resolved.functionDate)
+                  : '-';
+                const histTimeRange = (() => {
+                  const start = resolved?.startTime || resolved?.functionTime || '';
+                  const end = resolved?.endTime || '';
+                  if (start && end) return `${start} - ${end}`;
+                  return start || end || '-';
+                })();
+                const hallNames = (Array.isArray(resolved?.halls) ? resolved.halls : [])
+                  .map((entry: any) => entry?.hall?.name || entry?.hallName)
+                  .filter(Boolean);
+                const banquetNames = (Array.isArray(resolved?.halls) ? resolved.halls : [])
+                  .map((entry: any) => entry?.hall?.banquet?.name)
+                  .filter(Boolean);
 
                 return (
                   <div key={hist.id} className="rounded-xl border-2 border-gray-300 bg-white shadow-sm overflow-hidden">
@@ -3299,17 +3419,35 @@ export default function BookingsPage() {
                         const numDelta = isNum ? Number(to) - Number(from) : 0;
                         const up = isNum && numDelta > 0;
                         const down = isNum && numDelta < 0;
+                        const baseStyle = isNum
+                          ? {
+                              background: '#2d1a00',
+                              color: '#fcd34d',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                            }
+                          : {
+                              background: 'var(--surface)',
+                              color: 'var(--text-2)',
+                              border: '1px solid var(--border)',
+                            };
                         return (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-xs text-gray-700">
-                            <span className="font-medium text-gray-500">{label}:</span>
-                            <span className="line-through text-red-500">{prefix}{typeof from === 'number' ? from.toLocaleString('en-IN') : from}</span>
-                            <span className="text-gray-400">→</span>
-                            <span className={`font-semibold ${up ? 'text-green-700' : down ? 'text-red-700' : 'text-gray-800'}`}>
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs"
+                            style={baseStyle}
+                          >
+                            <span style={{ fontWeight: 600, opacity: 0.8 }}>{label}:</span>
+                            <span style={{ textDecoration: 'line-through', opacity: 0.7 }}>
+                              {prefix}
+                              {typeof from === 'number' ? from.toLocaleString('en-IN') : from}
+                            </span>
+                            <span style={{ opacity: 0.7 }}>→</span>
+                            <span className={`font-semibold ${up ? 'text-green-200' : down ? 'text-red-200' : ''}`}>
                               {prefix}{typeof to === 'number' ? to.toLocaleString('en-IN') : to}
                             </span>
                             {isNum && numDelta !== 0 && (
-                              <span className={`font-bold ${up ? 'text-green-600' : 'text-red-600'}`}>
-                                {up ? '▲' : '▼'}{Math.abs(numDelta).toLocaleString('en-IN')}
+                              <span className={`font-bold ${up ? 'text-green-200' : 'text-red-200'}`}>
+                                {up ? '▲' : '▼'}
+                                {Math.abs(numDelta).toLocaleString('en-IN')}
                               </span>
                             )}
                           </span>
@@ -3363,12 +3501,28 @@ export default function BookingsPage() {
                                     <DiffPill label={`${packKey} Hall`} prefix="₹" from={pd.hallRateChange.from} to={pd.hallRateChange.to} isNum />
                                   )}
                                   {pd.addedItemIds.map((id) => (
-                                    <span key={`add-${id}`} className="inline-flex items-center rounded-full bg-green-100 border border-green-300 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                                    <span
+                                      key={`add-${id}`}
+                                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                      style={{
+                                        background: '#052e16',
+                                        color: '#86efac',
+                                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                                      }}
+                                    >
                                       + {allMenuItemsForDiff.get(id) || id}
                                     </span>
                                   ))}
                                   {pd.removedItemIds.map((id) => (
-                                    <span key={`rem-${id}`} className="inline-flex items-center rounded-full bg-red-100 border border-red-300 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                                    <span
+                                      key={`rem-${id}`}
+                                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                      style={{
+                                        background: '#2d0a0a',
+                                        color: '#fca5a5',
+                                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                                      }}
+                                    >
                                       − {allMenuItemsForDiff.get(id) || id}
                                     </span>
                                   ))}
@@ -3381,33 +3535,63 @@ export default function BookingsPage() {
                     })()}
 
                     <div className="px-5 py-4 space-y-6">
-                      {/* ── Core info grid ── */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* ── Core info (form-style, read-only) ── */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Customer</span>
-                          <span className="text-sm font-semibold text-gray-900">{resolved?.customer?.name || '-'}</span>
-                          {resolved?.customer?.phone && (
-                            <span className="block text-xs text-gray-500">{resolved.customer.phone}</span>
-                          )}
+                          <label className="label">Customer</label>
+                          <input className="input" value={histCustomerName} readOnly />
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Function</span>
-                          <span className="text-sm font-semibold text-gray-900">{resolved?.functionName || '-'}</span>
-                          {resolved?.functionType && (
-                            <span className="block text-xs text-gray-500">{resolved.functionType}</span>
-                          )}
+                          <label className="label">Customer Phone</label>
+                          <input className="input" value={histCustomerPhone} readOnly />
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Date</span>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {resolved?.functionDate ? formatDateDDMMYYYY(resolved.functionDate) : '-'}
-                          </span>
+                          <label className="label">Function Type</label>
+                          <input className="input" value={resolved?.functionType || '-'} readOnly />
                         </div>
                         <div>
-                          <span className="text-xs font-medium text-gray-500 block uppercase tracking-wide mb-1">Expected Guests</span>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {resolved?.expectedGuests ?? hist?.expectedGuests ?? '-'}
-                          </span>
+                          <label className="label">Function Name</label>
+                          <input className="input" value={resolved?.functionName || '-'} readOnly />
+                        </div>
+                        <div>
+                          <label className="label">Function Date</label>
+                          <input className="input" value={histFunctionDate} readOnly />
+                        </div>
+                        <div>
+                          <label className="label">Time</label>
+                          <input className="input" value={histTimeRange} readOnly />
+                        </div>
+                        <div>
+                          <label className="label">Expected Guests</label>
+                          <input
+                            className="input"
+                            value={resolved?.expectedGuests ?? hist?.expectedGuests ?? '-'}
+                            readOnly
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Confirmed Guests</label>
+                          <input
+                            className="input"
+                            value={resolved?.confirmedGuests ?? hist?.confirmedGuests ?? 0}
+                            readOnly
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Banquet</label>
+                          <input
+                            className="input"
+                            value={banquetNames.length > 0 ? banquetNames.join(', ') : '-'}
+                            readOnly
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="label">Halls</label>
+                          <input
+                            className="input"
+                            value={hallNames.length > 0 ? hallNames.join(', ') : '-'}
+                            readOnly
+                          />
                         </div>
                       </div>
 
@@ -3415,7 +3599,13 @@ export default function BookingsPage() {
                       <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Packs</h4>
                         {historyPacks.length === 0 ? (
-                          <p className="text-sm text-gray-500">No packs recorded.</p>
+                          <div className="empty-state" style={{ padding: '16px 12px' }}>
+                            <div className="empty-state-icon">
+                              <FileText size={20} />
+                            </div>
+                            <p className="empty-state-title">No packs recorded</p>
+                            <p className="empty-state-desc">No menu packs were saved in this version.</p>
+                          </div>
                         ) : (
                           historyPacks.map((pack: any) => {
                             const hallRate = Number(pack?.hallRateValue ?? pack?.hallRate ?? 0);
@@ -3456,27 +3646,39 @@ export default function BookingsPage() {
                                   )}
                                 </div>
 
-                                {/* Pack numbers grid */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-sm">
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Pax</span>
-                                    <span className="font-semibold text-gray-900">{pax}</span>
+                                {/* Pack numbers (form-style, read-only) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                                  <div>
+                                    <label className="label">PAX</label>
+                                    <input className="input" value={pax} readOnly />
                                   </div>
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Rate / Plate</span>
-                                    <span className="font-semibold text-gray-900">₹{ratePerPlate.toLocaleString('en-IN')}</span>
+                                  <div>
+                                    <label className="label">Rate / Plate</label>
+                                    <input
+                                      className="input"
+                                      value={`₹${ratePerPlate.toLocaleString('en-IN')}`}
+                                      readOnly
+                                    />
                                   </div>
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Hall Rate</span>
-                                    <span className="font-semibold text-gray-900">₹{hallRate.toLocaleString('en-IN')}</span>
+                                  <div>
+                                    <label className="label">Hall Rate</label>
+                                    <input
+                                      className="input"
+                                      value={`₹${hallRate.toLocaleString('en-IN')}`}
+                                      readOnly
+                                    />
                                   </div>
-                                  <div className="rounded-md bg-white border border-gray-200 px-3 py-2">
-                                    <span className="text-xs text-gray-500 block">Extra Plates</span>
-                                    <span className="font-semibold text-gray-900">{extraPlate}</span>
+                                  <div>
+                                    <label className="label">Extra Plates</label>
+                                    <input className="input" value={extraPlate} readOnly />
                                   </div>
-                                  <div className="rounded-md bg-white border border-blue-200 bg-blue-50 px-3 py-2">
-                                    <span className="text-xs text-blue-600 block">Pack Amount</span>
-                                    <span className="font-bold text-blue-800">₹{computedAmount.toLocaleString('en-IN')}</span>
+                                  <div>
+                                    <label className="label">Pack Amount</label>
+                                    <input
+                                      className="input font-semibold text-blue-700"
+                                      value={`₹${computedAmount.toLocaleString('en-IN')}`}
+                                      readOnly
+                                    />
                                   </div>
                                 </div>
 
@@ -3544,7 +3746,13 @@ export default function BookingsPage() {
                       <div className="space-y-2">
                         <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Payments</h4>
                         {histPayments.length === 0 ? (
-                          <p className="text-sm text-gray-500">No payments recorded.</p>
+                          <div className="empty-state" style={{ padding: '16px 12px' }}>
+                            <div className="empty-state-icon">
+                              <FileText size={20} />
+                            </div>
+                            <p className="empty-state-title">No payments recorded</p>
+                            <p className="empty-state-desc">Payments will appear here once logged.</p>
+                          </div>
                         ) : (
                           <div className="rounded-lg border border-gray-200 overflow-hidden">
                             <div className="hidden md:grid md:grid-cols-5 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
@@ -4162,7 +4370,13 @@ export default function BookingsPage() {
                   style={{ contain: 'content', overscrollBehavior: 'contain' }}
                 >
                   {groupedMenuItems.length === 0 ? (
-                    <div className="p-3 text-sm text-gray-500">No matching items</div>
+                    <div className="empty-state" style={{ padding: '20px 12px' }}>
+                      <div className="empty-state-icon">
+                        <Search size={20} />
+                      </div>
+                      <p className="empty-state-title">No matching items</p>
+                      <p className="empty-state-desc">Try another keyword.</p>
+                    </div>
                   ) : (
                     groupedMenuItems.map(([group, grouped]) => (
                       <div key={group}>
@@ -4201,7 +4415,13 @@ export default function BookingsPage() {
               <div className="rounded-xl border border-gray-200 p-3">
                 <p className="text-sm font-semibold text-gray-800 mb-2">Selected Items</p>
                 {activeMenuPackRow.menuItemIds.length === 0 ? (
-                  <p className="text-sm text-gray-500">No items selected.</p>
+                  <div className="empty-state" style={{ padding: '20px 12px' }}>
+                    <div className="empty-state-icon">
+                      <FileText size={20} />
+                    </div>
+                    <p className="empty-state-title">No items selected</p>
+                    <p className="empty-state-desc">Choose items from the list to build this pack.</p>
+                  </div>
                 ) : (
                   <div
                     className="max-h-[360px] overflow-y-auto space-y-3"
@@ -4316,7 +4536,7 @@ export default function BookingsPage() {
               </div>
             ) : menuPdfLoading ? (
               <div className="h-[500px] grid place-items-center">
-                <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-primary-600"></div>
+                <div className="skeleton" style={{ width: 120, height: 120, borderRadius: 16 }} />
               </div>
             ) : menuPdfPreviewUrl ? (
               <iframe
@@ -4369,62 +4589,76 @@ export default function BookingsPage() {
             </button>
           )}
         </div>
+        <div className="mt-3 md:hidden">
+          <label className="label">Search by date</label>
+          <input
+            type="date"
+            className="input"
+            value={columnSearch.functionDate}
+            onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="card">
         {!canViewBooking ? (
-          <div className="text-sm text-gray-500">No data available.</div>
-        ) : loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="empty-state" style={{ padding: '32px 16px' }}>
+            <div className="empty-state-icon">
+              <CalendarCheck size={22} />
+            </div>
+            <p className="empty-state-title">No data available</p>
+            <p className="empty-state-desc">You do not have access to view bookings.</p>
           </div>
-        ) : filteredBookings.length === 0 ? (
-          <div className="text-center py-12">
-            <CalendarCheck className="w-10 h-10 mx-auto text-gray-300 mb-3" />
-            {(globalSearch || Object.values(columnSearch).some(Boolean)) ? (
-              <>
-                <p className="text-gray-500 mb-1">No bookings match your search</p>
-                <p className="text-gray-400 text-sm mb-4">
-                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo;
-                </p>
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="btn btn-secondary"
-                >
-                  Clear search
-                </button>
-              </>
-            ) : (
-              <p className="text-gray-500">No bookings found</p>
-            )}
+        ) : loading ? (
+          <div className="py-6">
+            <TableSkeleton rows={8} />
           </div>
         ) : (
           <>
             {/* Mobile card view */}
             <div className="md:hidden">
-              <div className="mobile-card-list">
-                {paginatedBookings.map((booking) => (
-                  <MobileBookingCard
-                    key={booking.id}
-                    booking={booking}
-                    canExportMenuPdf={canExportMenuPdf}
-                    canEditBooking={canEditBooking}
-                    canDeleteBooking={canDeleteBooking}
-                    onExportPdf={(b) => openMenuPdfModal(b)}
-                    onEdit={(id) => openEditBooking(id)}
-                    onDelete={(id) => handleDeleteBooking(id)}
+              {filteredBookings.length === 0 ? (
+                <div className="empty-state" style={{ padding: '24px 16px' }}>
+                  <div className="empty-state-icon">
+                    <CalendarCheck size={22} />
+                  </div>
+                  <p className="empty-state-title">
+                    {(globalSearch || Object.values(columnSearch).some(Boolean))
+                      ? 'No bookings match your search'
+                      : 'No bookings found'}
+                  </p>
+                  <p className="empty-state-desc">
+                    {(globalSearch || Object.values(columnSearch).some(Boolean))
+                      ? 'Try another keyword or clear the filters.'
+                      : 'Create a booking to start tracking events.'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mobile-card-list">
+                    {paginatedBookings.map((booking) => (
+                      <MobileBookingCard
+                        key={booking.id}
+                        booking={booking}
+                        canExportMenuPdf={canExportMenuPdf}
+                        canEditBooking={canEditBooking}
+                        canDeleteBooking={canDeleteBooking}
+                        onExportPdf={(b) => openMenuPdfModal(b)}
+                        onEdit={(id) => openEditBooking(id)}
+                        onDelete={(id) => handleDeleteBooking(id)}
+                      />
+                    ))}
+                  </div>
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredBookings.length}
+                    pageSize={BOOKINGS_PAGE_SIZE}
+                    itemLabel="bookings"
+                    onPageChange={setCurrentPage}
                   />
-                ))}
-              </div>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredBookings.length}
-                pageSize={BOOKINGS_PAGE_SIZE}
-                itemLabel="bookings"
-                onPageChange={setCurrentPage}
-              />
+                </>
+              )}
             </div>
 
             {/* Desktop table view */}
@@ -4531,11 +4765,37 @@ export default function BookingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedBookings.map((booking) => (
-                    <tr
-                      key={booking.id}
-                      className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
-                    >
+                  {filteredBookings.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={
+                          (canExportMenuPdf || canEditBooking || canDeleteBooking) ? 7 : 6
+                        }
+                        className="py-8"
+                      >
+                        <div className="empty-state" style={{ padding: '20px 16px' }}>
+                          <div className="empty-state-icon">
+                            <CalendarCheck size={22} />
+                          </div>
+                          <p className="empty-state-title">
+                            {(globalSearch || Object.values(columnSearch).some(Boolean))
+                              ? 'No bookings match your search'
+                              : 'No bookings found'}
+                          </p>
+                          <p className="empty-state-desc">
+                            {(globalSearch || Object.values(columnSearch).some(Boolean))
+                              ? 'Try another keyword or clear the filters.'
+                              : 'Create a booking to start tracking events.'}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedBookings.map((booking) => (
+                      <tr
+                        key={booking.id}
+                        className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
+                      >
                       <td className="py-4 px-4">
                         <p className="font-medium text-gray-900">{booking.functionName}</p>
                         <p className="text-xs text-gray-500 mt-1">{booking.functionType}</p>
@@ -4604,8 +4864,9 @@ export default function BookingsPage() {
                           </div>
                         </td>
                       )}
-                    </tr>
-                  ))}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
               <TablePagination
@@ -4702,7 +4963,13 @@ export default function BookingsPage() {
               </div>
             ))}
             {(!activePartyOverBooking?.packs || activePartyOverBooking.packs.length === 0) && (
-              <p className="text-sm text-gray-500">No packs to settle for this booking.</p>
+              <div className="empty-state" style={{ padding: '20px 12px' }}>
+                <div className="empty-state-icon">
+                  <FileText size={20} />
+                </div>
+                <p className="empty-state-title">No packs to settle</p>
+                <p className="empty-state-desc">This booking has no pack entries to update.</p>
+              </div>
             )}
           </div>
 

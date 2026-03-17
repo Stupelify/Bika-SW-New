@@ -1,0 +1,10 @@
+declare module '@ionic/react/css/core.css';
+declare module '@ionic/react/css/normalize.css';
+declare module '@ionic/react/css/structure.css';
+declare module '@ionic/react/css/typography.css';
+declare module '@ionic/react/css/padding.css';
+declare module '@ionic/react/css/float-elements.css';
+declare module '@ionic/react/css/text-alignment.css';
+declare module '@ionic/react/css/text-transformation.css';
+declare module '@ionic/react/css/flex-utils.css';
+declare module '@ionic/react/css/display.css';

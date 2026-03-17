@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
+import { TableSkeleton } from '@/components/Skeletons';
 import {
   SortState,
   TableColumnConfig,
@@ -1315,7 +1316,13 @@ function MenuPageContent() {
               </div>
               <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
                 {filteredItemVendorOptions.length === 0 ? (
-                  <p className="px-3 py-3 text-sm text-gray-500">No vendors available.</p>
+                  <div className="empty-state" style={{ padding: '20px 12px' }}>
+                    <div className="empty-state-icon">
+                      <ListChecks size={20} />
+                    </div>
+                    <p className="empty-state-title">No vendors available</p>
+                    <p className="empty-state-desc">Add vendors to link them to this item.</p>
+                  </div>
                 ) : (
                   filteredItemVendorOptions.map((vendor) => {
                     const selected = isItemVendorSelected(vendor.id);
@@ -1475,7 +1482,13 @@ function MenuPageContent() {
                 />
                 <div className="max-h-[340px] overflow-y-auto rounded-lg border border-gray-200">
                   {groupedTemplateItems.length === 0 ? (
-                    <div className="p-3 text-sm text-gray-500">No matching items</div>
+                    <div className="empty-state" style={{ padding: '20px 12px' }}>
+                      <div className="empty-state-icon">
+                        <Search size={20} />
+                      </div>
+                      <p className="empty-state-title">No matching items</p>
+                      <p className="empty-state-desc">Try another keyword.</p>
+                    </div>
                   ) : (
                     groupedTemplateItems.map(([group, grouped]) => (
                       <div key={group}>
@@ -1504,7 +1517,13 @@ function MenuPageContent() {
               <div className="border border-gray-200 rounded-xl p-3">
                 <div className="max-h-[340px] overflow-y-auto space-y-3">
                   {selectedTemplateItemsByGroup.length === 0 ? (
-                    <p className="text-sm text-gray-500">No items selected.</p>
+                    <div className="empty-state" style={{ padding: '20px 12px' }}>
+                      <div className="empty-state-icon">
+                        <Soup size={20} />
+                      </div>
+                      <p className="empty-state-title">No items selected</p>
+                      <p className="empty-state-desc">Choose items to build this template.</p>
+                    </div>
                   ) : (
                     selectedTemplateItemsByGroup.map(([group, grouped]) => (
                       <div key={`selected-${group}`} className="space-y-2">
@@ -1883,9 +1902,7 @@ function MenuPageContent() {
             />
           </div>
           {loading ? (
-            <div className="py-10 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
+            <TableSkeleton rows={5} />
           ) : (
             <div className="table-shell">
               <table className="data-table">
@@ -2033,9 +2050,7 @@ function MenuPageContent() {
             />
           </div>
           {loading ? (
-            <div className="py-10 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
+            <TableSkeleton rows={5} />
           ) : (
             <div className="table-shell">
               <table className="data-table">
@@ -2244,9 +2259,7 @@ function MenuPageContent() {
             />
           </div>
           {loading ? (
-            <div className="py-10 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
+            <TableSkeleton rows={5} />
           ) : (
             <div className="table-shell">
               <table className="data-table">

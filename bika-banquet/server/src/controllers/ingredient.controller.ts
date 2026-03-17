@@ -5,6 +5,8 @@ import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
 import { QUANTITY_UNITS, normalizeQuantityUnit } from '../config/units';
+import { sanitizeSearchTerm } from '../utils/search';
+import { parsePagination } from '../utils/pagination';
 
 const measureUnitSchema = z.preprocess(
   (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
@@ -136,9 +138,13 @@ export async function createIngredient(req: Request, res: Response): Promise<voi
 
 export async function getIngredients(req: Request, res: Response): Promise<void> {
   try {
-    const page = Number.parseInt(req.query.page as string, 10) || 1;
-    const limit = Number.parseInt(req.query.limit as string, 10) || 50;
-    const search = String(req.query.search || '').trim();
+    const { page, limit, skip } = parsePagination(
+      req.query.page,
+      req.query.limit,
+      50,
+      200
+    );
+    const search = sanitizeSearchTerm(req.query.search);
 
     const where = search
       ? {
@@ -152,7 +158,7 @@ export async function getIngredients(req: Request, res: Response): Promise<void>
     const [ingredients, total] = await Promise.all([
       prisma.ingredient.findMany({
         where,
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
         orderBy: { name: 'asc' },
         include: {

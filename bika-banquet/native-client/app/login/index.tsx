@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '../../store/authStore';
 import Toast from 'react-native-toast-message';
-import { getDefaultDashboardRoute } from '@/lib/routeAccess';
+import { getDefaultDashboardRoute } from '../../lib/routeAccess';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -31,13 +31,25 @@ export default function LoginPage() {
                 return;
             }
 
-            Toast.show({ type: 'success', text1: 'Login successful!' });
+            Toast.show({
+                type: 'success',
+                text1: 'Login successful!',
+                visibilityTime: 1200,
+                autoHide: true,
+            });
 
             // Refresh profile in background, but don't block successful login navigation.
             loadUser().catch(() => undefined);
 
             // Replace removes login screen from the back-stack history
-            router.replace(nextRoute as any);
+            // Expo app only has a single dashboard webview route.
+            const targetRoute = nextRoute.startsWith('/dashboard')
+                ? '/dashboard'
+                : nextRoute;
+            router.replace(targetRoute as any);
+            setTimeout(() => {
+                Toast.hide();
+            }, 1300);
         } catch (error: any) {
             const message =
                 error?.response?.data?.error ||

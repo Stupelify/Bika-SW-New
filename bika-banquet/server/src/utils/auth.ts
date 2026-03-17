@@ -2,7 +2,13 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
-const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET || 'fallback-secret-key';
+const JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!JWT_SECRET_RAW || JWT_SECRET_RAW.length < 32) {
+  throw new Error(
+    'JWT_SECRET is required and must be at least 32 characters long.'
+  );
+}
+const JWT_SECRET: jwt.Secret = JWT_SECRET_RAW;
 const JWT_EXPIRES_IN: jwt.SignOptions['expiresIn'] =
   (process.env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn']) || '7d';
 

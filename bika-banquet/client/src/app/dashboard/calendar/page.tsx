@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Building2,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import { CalendarSkeleton } from '@/components/Skeletons';
 
 interface BookingCalendarRow {
   id: string;
@@ -91,6 +92,8 @@ interface HallScheduleParty {
   customerPhone: string;
   guests: number;
   sortMinutes: number;
+  startMinutes: number;
+  endMinutes: number;
 }
 
 interface HallScheduleGroup {
@@ -192,9 +195,12 @@ interface HallBoardSlot {
   timeLabel: string;
   functionName: string;
   customerName?: string;
+  guests?: number;
   location?: string;
   status: string;
   sortKey: number;
+  startMinutes: number;
+  endMinutes: number;
   source: 'software' | 'google';
   htmlLink?: string;
 }
@@ -293,6 +299,27 @@ function bookingSortMinutes(entry: BookingCalendarRow): number {
   return Number.POSITIVE_INFINITY;
 }
 
+function resolveBookingTimeRange(entry: {
+  startTime?: string | null;
+  endTime?: string | null;
+  functionTime?: string | null;
+}): { startMinutes: number; endMinutes: number } {
+  const startCandidate = entry.startTime || entry.functionTime || entry.endTime || '';
+  let start = parseClockToMinutes(startCandidate);
+  if (!Number.isFinite(start)) {
+    return { startMinutes: 0, endMinutes: 1440 };
+  }
+
+  let end = parseClockToMinutes(entry.endTime || '');
+  if (!Number.isFinite(end)) {
+    end = Math.min(start + 120, 1440);
+  }
+  if (end <= start) {
+    end = Math.min(start + 60, 1440);
+  }
+  return { startMinutes: start, endMinutes: end };
+}
+
 function getBookingHallNames(entry: BookingCalendarRow): string[] {
   const names = (entry.halls || [])
     .map((hallRow) => hallRow.hall?.name?.trim() || '')
@@ -337,6 +364,34 @@ function googleEventSortMinutes(entry: GoogleCalendarEventRow): number {
   const date = new Date(entry.start);
   if (Number.isNaN(date.getTime())) return Number.POSITIVE_INFINITY;
   return date.getHours() * 60 + date.getMinutes();
+}
+
+function googleEventRangeMinutes(entry: GoogleCalendarEventRow): { startMinutes: number; endMinutes: number } {
+  if (entry.isAllDay) return { startMinutes: 0, endMinutes: 1440 };
+  const start = googleEventSortMinutes(entry);
+  if (!Number.isFinite(start)) return { startMinutes: 0, endMinutes: 1440 };
+  if (!entry.end) return { startMinutes: start, endMinutes: Math.min(start + 60, 1440) };
+  const endDate = new Date(entry.end);
+  if (Number.isNaN(endDate.getTime())) {
+    return { startMinutes: start, endMinutes: Math.min(start + 60, 1440) };
+  }
+  const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+  return {
+    startMinutes: start,
+    endMinutes: endMinutes > start ? endMinutes : Math.min(start + 60, 1440),
+  };
+}
+
+function findOverlaps(parties: HallScheduleParty[]) {
+  const sorted = [...parties].sort((a, b) => a.startMinutes - b.startMinutes);
+  const overlaps: Array<{ first: HallScheduleParty; second: HallScheduleParty }> = [];
+  for (let i = 0; i < sorted.length; i += 1) {
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      if (sorted[j].startMinutes >= sorted[i].endMinutes) break;
+      overlaps.push({ first: sorted[i], second: sorted[j] });
+    }
+  }
+  return overlaps;
 }
 
 function parseDateKey(key: string): Date {
@@ -520,6 +575,9 @@ export default function CalendarPage() {
   const [isBookingDetailsOpen, setIsBookingDetailsOpen] = useState(false);
   const [bookingDetailsLoading, setBookingDetailsLoading] = useState(false);
   const [bookingDetails, setBookingDetails] = useState<BookingDetail | null>(null);
+  const [printingDay, setPrintingDay] = useState(false);
+  const [printBookings, setPrintBookings] = useState<BookingDetail[]>([]);
+  const dayPanelRef = useRef<HTMLDivElement | null>(null);
 
   const closeBookingDetails = useCallback(() => {
     setIsBookingDetailsOpen(false);
@@ -550,6 +608,18 @@ export default function CalendarPage() {
     } finally {
       setBookingDetailsLoading(false);
     }
+  }, []);
+
+  const openEnquiryDetails = useCallback((enquiryId: string) => {
+    if (!enquiryId) return;
+    window.location.href = `/dashboard/enquiries?section=edit&id=${enquiryId}`;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => setPrintBookings([]);
+    window.addEventListener('afterprint', handler);
+    return () => window.removeEventListener('afterprint', handler);
   }, []);
 
   const loadCalendarData = useCallback(async () => {
@@ -752,6 +822,10 @@ export default function CalendarPage() {
   const selectedBookings = bookingsByDate.get(selectedDate) || [];
   const selectedEnquiries = enquiriesByDate.get(selectedDate) || [];
   const selectedGoogleEvents = googleEventsByDate.get(selectedDate) || [];
+  const noSelectedEvents =
+    selectedBookings.length === 0 &&
+    selectedEnquiries.length === 0 &&
+    selectedGoogleEvents.length === 0;
   const selectedDateLabel = parseDateKey(selectedDate).toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -786,6 +860,12 @@ export default function CalendarPage() {
           year: 'numeric',
         });
   const hallBoardRangeLabel = viewMode === 'day' ? selectedDateLabel : viewLabel;
+  const hallBoardDateKey = selectedDate;
+  const hallBoardSegments = [
+    { key: 'morning', label: 'Morning', range: '6am–12pm', start: 360, end: 720 },
+    { key: 'afternoon', label: 'Afternoon', range: '12pm–4pm', start: 720, end: 960 },
+    { key: 'evening', label: 'Evening', range: '4pm–12am', start: 960, end: 1440 },
+  ] as const;
   const todayKey = formatDateKey(new Date());
   const calendarDays = useMemo(
     () => buildCalendarDays(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)),
@@ -796,8 +876,17 @@ export default function CalendarPage() {
     [selectedDate]
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth >= 1024) return;
+    if (viewMode === 'month' && displayMode !== 'calendar') return;
+    dayPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedDate, viewMode, displayMode]);
+
   const summary = useMemo(() => {
     const activeBookings = filteredBookings.filter((entry) => entry.status !== 'cancelled');
+    const cancelledBookings = filteredBookings.filter((entry) => entry.status === 'cancelled')
+      .length;
     const confirmedBookings = activeBookings.filter((entry) => !entry.isQuotation).length;
     const monthlyRevenue = activeBookings.reduce(
       (sum, entry) => sum + toSafeNumber(entry.grandTotal),
@@ -809,7 +898,8 @@ export default function CalendarPage() {
     );
 
     return {
-      bookings: filteredBookings.length,
+      bookings: activeBookings.length,
+      cancelledBookings,
       enquiries: filteredEnquiries.length,
       googleEvents: filteredGoogleEvents.length,
       confirmedBookings,
@@ -909,6 +999,7 @@ export default function CalendarPage() {
 
       effectiveHallNames.forEach((hallName) => {
         const bucket = grouped.get(hallName) || [];
+        const { startMinutes, endMinutes } = resolveBookingTimeRange(booking);
         bucket.push({
           id: booking.id,
           title: booking.functionName,
@@ -919,6 +1010,8 @@ export default function CalendarPage() {
           customerPhone: booking.customer?.phone || '--',
           guests: toSafeNumber(booking.expectedGuests),
           sortMinutes: bookingSortMinutes(booking),
+          startMinutes,
+          endMinutes,
         });
         grouped.set(hallName, bucket);
       });
@@ -933,6 +1026,27 @@ export default function CalendarPage() {
         }),
       }))
       .sort((a, b) => a.hallName.localeCompare(b.hallName));
+  }, [selectedBookings]);
+
+  const handlePrintDay = useCallback(async () => {
+    if (selectedBookings.length === 0) {
+      toast.error('No bookings available for this day.');
+      return;
+    }
+    try {
+      setPrintingDay(true);
+      const detailRows = await Promise.all(
+        selectedBookings.map((booking) =>
+          api.getBooking(booking.id).then((res) => res.data?.data?.booking as BookingDetail)
+        )
+      );
+      setPrintBookings(detailRows.filter(Boolean));
+      setTimeout(() => window.print(), 250);
+    } catch (error) {
+      toast.error('Failed to prepare print view.');
+    } finally {
+      setPrintingDay(false);
+    }
   }, [selectedBookings]);
 
   const hallMetaById = useMemo(() => {
@@ -964,6 +1078,7 @@ export default function CalendarPage() {
       const bookingDate = new Date(entry.functionDate).getTime();
       const bookingMinutes = bookingSortMinutes(entry);
       const timeLabel = bookingTimeLabel(entry);
+      const { startMinutes, endMinutes } = resolveBookingTimeRange(entry);
       const hallRows = entry.halls || [];
       const effectiveHallRows =
         hallRows.length > 0
@@ -1002,6 +1117,9 @@ export default function CalendarPage() {
           status: entry.isQuotation ? 'quotation' : entry.status,
           sortKey:
             bookingDate + (Number.isFinite(bookingMinutes) ? bookingMinutes * 60 * 1000 : 0),
+          startMinutes,
+          endMinutes,
+          guests: toSafeNumber(entry.expectedGuests),
           source: 'software',
         });
 
@@ -1024,6 +1142,7 @@ export default function CalendarPage() {
 
       const startMs = new Date(entry.start).getTime();
       const sortMinutes = googleEventSortMinutes(entry);
+      const { startMinutes, endMinutes } = googleEventRangeMinutes(entry);
 
       row.slots.push({
         date: eventDateKey(entry.start),
@@ -1032,6 +1151,8 @@ export default function CalendarPage() {
         location: entry.location,
         status: entry.status,
         sortKey: startMs + (Number.isFinite(sortMinutes) ? sortMinutes * 60 * 1000 : 0),
+        startMinutes,
+        endMinutes,
         source: 'google',
         htmlLink: entry.htmlLink,
       });
@@ -1142,8 +1263,23 @@ export default function CalendarPage() {
                 setSelectedDate(formatDateKey(now));
               }}
               className="btn btn-secondary"
+              style={{ position: 'relative' }}
             >
-              Today
+              <span>Today</span>
+              {selectedDate === todayKey && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: 4,
+                    left: '50%',
+                    width: 6,
+                    height: 6,
+                    borderRadius: 999,
+                    background: 'var(--teal-500)',
+                    transform: 'translateX(-50%)',
+                  }}
+                />
+              )}
             </button>
             <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
               <span className="text-xs font-semibold text-gray-600 whitespace-nowrap">Go to</span>
@@ -1257,9 +1393,16 @@ export default function CalendarPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         <div className="card">
           <p className="text-xs uppercase tracking-wide text-gray-500">Bookings</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            {summary.bookings.toLocaleString()}
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-2xl font-semibold text-gray-900">
+              {summary.bookings.toLocaleString()}
+            </p>
+            {summary.cancelledBookings > 0 && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                Cancelled {summary.cancelledBookings}
+              </span>
+            )}
+          </div>
           <CalendarCheck className="w-4 h-4 text-primary-700 mt-3" />
         </div>
         <div className="card">
@@ -1291,7 +1434,7 @@ export default function CalendarPage() {
           <Users className="w-4 h-4 text-sky-700 mt-3" />
         </div>
         <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Projected Revenue</p>
+          <p className="text-xs uppercase tracking-wide text-gray-500">Active Revenue</p>
           <p className="text-2xl font-semibold text-gray-900 mt-1">
             ₹{summary.monthlyRevenue.toLocaleString('en-IN')}
           </p>
@@ -1304,8 +1447,8 @@ export default function CalendarPage() {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="card xl:col-span-2">
               {loading ? (
-                <div className="py-20 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+                <div className="py-8">
+                  <CalendarSkeleton />
                 </div>
               ) : (
                 <>
@@ -1329,9 +1472,41 @@ export default function CalendarPage() {
                               const dayBookings = bookingsByDate.get(dayKey) || [];
                               const dayEnquiries = enquiriesByDate.get(dayKey) || [];
                               const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
+                              const activeDayBookings = dayBookings.filter(
+                                (booking) => booking.status !== 'cancelled'
+                              );
+                              const dayGuestCount = activeDayBookings.reduce(
+                                (sum, booking) => sum + toSafeNumber(booking.expectedGuests),
+                                0
+                              );
+                              const dayHallCount = new Set(
+                                activeDayBookings.flatMap((booking) => getBookingHallNames(booking))
+                              ).size;
                               const isCurrentMonth = day.getMonth() === viewDate.getMonth();
                               const isToday = dayKey === todayKey;
                               const isSelected = dayKey === selectedDate;
+                              const eventBars = [
+                                ...dayBookings.map((booking) => ({
+                                  id: booking.id,
+                                  label: booking.functionName,
+                                  kind: 'booking' as const,
+                                  status: booking.status,
+                                })),
+                                ...dayEnquiries.map((enquiry) => ({
+                                  id: enquiry.id,
+                                  label: enquiry.functionName,
+                                  kind: 'enquiry' as const,
+                                  status: enquiry.status,
+                                })),
+                                ...dayGoogleEvents.map((event) => ({
+                                  id: event.id,
+                                  label: event.title,
+                                  kind: 'google' as const,
+                                  status: event.status,
+                                })),
+                              ];
+                              const visibleEvents = eventBars.slice(0, 3);
+                              const overflowCount = Math.max(eventBars.length - visibleEvents.length, 0);
 
                               return (
                                 <button
@@ -1358,37 +1533,50 @@ export default function CalendarPage() {
                                   </div>
 
                                   <div className="mt-2 space-y-1.5 relative z-10">
-                                    {dayBookings.length > 0 && (
-                                      <p className="text-[11px] inline-flex rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
-                                        {dayBookings.length} booking
-                                        {dayBookings.length > 1 ? 's' : ''}
-                                      </p>
+                                    {visibleEvents.map((event) => {
+                                      const isCancelled = event.kind === 'booking' && event.status === 'cancelled';
+                                      const colors: Record<string, { bg: string; text: string }> = {
+                                        booking: { bg: 'var(--teal-500)', text: '#ffffff' },
+                                        enquiry: { bg: '#f59e0b', text: '#1f2937' },
+                                        google: { bg: '#38bdf8', text: '#0f172a' },
+                                      };
+                                      const color = colors[event.kind];
+                                      return (
+                                        <div
+                                          key={`${event.kind}-${event.id}`}
+                                          title={event.label}
+                                          style={{
+                                            padding: '2px 6px',
+                                            borderRadius: 999,
+                                            fontSize: 10,
+                                            lineHeight: '12px',
+                                            background: color.bg,
+                                            color: color.text,
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            opacity: isCancelled ? 0.5 : 1,
+                                            textDecoration: isCancelled ? 'line-through' : 'none',
+                                          }}
+                                        >
+                                          {event.label}
+                                        </div>
+                                      );
+                                    })}
+                                    {overflowCount > 0 && (
+                                      <span className="text-[10px] text-[var(--text-4)]">
+                                        +{overflowCount} more
+                                      </span>
                                     )}
-                                    {dayEnquiries.length > 0 && (
-                                      <p className="text-[11px] inline-flex rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                                        {dayEnquiries.length} enquir
-                                        {dayEnquiries.length > 1 ? 'ies' : 'y'}
-                                      </p>
-                                    )}
-                                    {dayGoogleEvents.length > 0 && (
-                                      <p className="text-[11px] inline-flex rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
-                                        {dayGoogleEvents.length} google
-                                      </p>
-                                    )}
-                                    {dayBookings[0] && (
-                                      <p className="text-xs text-gray-700 truncate">
-                                        {dayBookings[0].functionName}
-                                      </p>
-                                    )}
-                                    {!dayBookings[0] && dayEnquiries[0] && (
-                                      <p className="text-xs text-gray-700 truncate">
-                                        {dayEnquiries[0].functionName}
-                                      </p>
-                                    )}
-                                    {!dayBookings[0] && !dayEnquiries[0] && dayGoogleEvents[0] && (
-                                      <p className="text-xs text-gray-700 truncate">
-                                        {dayGoogleEvents[0].title}
-                                      </p>
+                                  </div>
+                                  <div className="mt-2 text-[10px] text-[var(--text-4)] relative z-10">
+                                    {dayGuestCount > 0 ? (
+                                      <span>
+                                        {dayGuestCount.toLocaleString()} guests
+                                        {dayHallCount > 0 ? ` • ${dayHallCount} halls` : ''}
+                                      </span>
+                                    ) : (
+                                      <span>No bookings</span>
                                     )}
                                   </div>
                                 </button>
@@ -1496,12 +1684,17 @@ export default function CalendarPage() {
                                   </button>
                                 ))}
                                 {dayEnquiries.slice(0, 4).map((enquiry) => (
-                                  <div
+                                  <button
                                     key={enquiry.id}
-                                    className="rounded-md bg-amber-100 text-amber-900 px-2 py-1 text-xs truncate"
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openEnquiryDetails(enquiry.id);
+                                    }}
+                                    className="rounded-md bg-amber-100 text-amber-900 px-2 py-1 text-xs truncate text-left"
                                   >
                                     {enquiry.functionTime || '--:--'} {enquiry.functionName}
-                                  </div>
+                                  </button>
                                 ))}
                                 {dayGoogleEvents.slice(0, 4).map((event) => (
                                   <div
@@ -1511,9 +1704,6 @@ export default function CalendarPage() {
                                     {googleEventTimeLabel(event)} {event.venueName} • {event.title}
                                   </div>
                                 ))}
-                                {dayBookings.length + dayEnquiries.length + dayGoogleEvents.length === 0 && (
-                                  <p className="text-xs text-gray-400">No events</p>
-                                )}
                               </div>
                             </button>
                           );
@@ -1526,7 +1716,13 @@ export default function CalendarPage() {
                     <div className="space-y-3">
                       <p className="text-sm font-semibold text-gray-900">{selectedDateLabel}</p>
                       {dayEvents.length === 0 ? (
-                        <p className="text-sm text-gray-500">No software or Google events for this day.</p>
+                        <div className="empty-state" style={{ padding: '20px 12px' }}>
+                          <div className="empty-state-icon">
+                            <CalendarDays size={20} />
+                          </div>
+                          <p className="empty-state-title">No events</p>
+                          <p className="empty-state-desc">Nothing scheduled for this date.</p>
+                        </div>
                       ) : (
                         dayEvents.map((entry) => (
                           <button
@@ -1535,6 +1731,11 @@ export default function CalendarPage() {
                             onClick={() => {
                               if (entry.kind === 'booking' && entry.bookingId) {
                                 void openBookingDetails(entry.bookingId);
+                                return;
+                              }
+                              if (entry.kind === 'enquiry') {
+                                const enquiryId = entry.id.replace('enquiry-', '');
+                                openEnquiryDetails(enquiryId);
                               }
                             }}
                             className={`rounded-xl border px-3 py-2 ${entry.kind === 'booking'
@@ -1574,180 +1775,277 @@ export default function CalendarPage() {
               )}
             </div>
 
-            <div className="card xl:sticky xl:top-24 h-fit">
-              <div className="mb-4">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Selected Day</p>
-                <h2 className="text-lg font-semibold text-gray-900 mt-1">{selectedDateLabel}</h2>
+            <div
+              key={selectedDate}
+              ref={dayPanelRef}
+              className="card xl:sticky xl:top-24 h-fit day-panel-enter"
+            >
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Selected Day</p>
+                  <h2 className="text-lg font-semibold text-gray-900 mt-1">{selectedDateLabel}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePrintDay}
+                  className="btn btn-secondary no-print"
+                  disabled={printingDay || selectedBookings.length === 0}
+                >
+                  {printingDay ? 'Preparing…' : 'Print / Export Day'}
+                </button>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-gray-900">Bookings</p>
-                    <span className="text-xs rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
-                      {selectedBookings.length}
-                    </span>
+              {noSelectedEvents ? (
+                <div className="empty-state" style={{ padding: '32px 16px' }}>
+                  <div className="empty-state-icon">
+                    <CalendarDays size={22} />
                   </div>
-                  <div className="space-y-2">
-                    {selectedBookings.length === 0 ? (
-                      <p className="text-xs text-gray-500">No bookings for this day.</p>
-                    ) : (
-                      selectedBookings.map((booking) => (
-                        <button
-                          key={booking.id}
-                          type="button"
-                          onClick={() => void openBookingDetails(booking.id)}
-                          className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50 transition"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">{booking.functionName}</p>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${booking.isQuotation
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : booking.status === 'cancelled'
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-emerald-100 text-emerald-700'
-                                }`}
-                            >
-                              {booking.isQuotation ? 'quotation' : booking.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
-                            {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            {bookingTimeLabel(booking)} • ₹
-                            {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
-                          </p>
-                        </button>
-                      ))
-                    )}
-                  </div>
+                  <p className="empty-state-title">No events</p>
+                  <p className="empty-state-desc">Nothing scheduled for this date.</p>
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-gray-900">Hall-wise Party Schedule</p>
-                    <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
-                      {hallWiseSchedule.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {hallWiseSchedule.length === 0 ? (
-                      <p className="text-xs text-gray-500">No hall bookings for this day.</p>
-                    ) : (
-                      hallWiseSchedule.map((group) => (
-                        <div
-                          key={group.hallName}
-                          className="rounded-lg border border-gray-200 bg-white p-2.5"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 inline-flex items-center gap-1.5">
-                              <Building2 className="w-3.5 h-3.5 text-sky-700" />
-                              {group.hallName}
-                            </p>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
-                              {group.parties.length} part
-                              {group.parties.length > 1 ? 'ies' : 'y'}
-                            </span>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-gray-900">Bookings</p>
+                      <span className="text-xs rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
+                        {selectedBookings.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedBookings.length === 0 ? (
+                        <div className="empty-state" style={{ padding: '16px 12px' }}>
+                          <div className="empty-state-icon">
+                            <CalendarCheck size={18} />
                           </div>
-                          <div className="mt-2 space-y-1.5">
-                            {group.parties.map((party) => (
-                              <button
-                                key={`${group.hallName}-${party.id}`}
-                                type="button"
-                                onClick={() => void openBookingDetails(party.id)}
-                                className="w-full rounded-md bg-gray-50 px-2 py-1.5 text-left hover:bg-sky-50 transition"
+                          <p className="empty-state-title">No bookings</p>
+                          <p className="empty-state-desc">Nothing booked for this date.</p>
+                        </div>
+                      ) : (
+                        selectedBookings.map((booking) => (
+                          <button
+                            key={booking.id}
+                            type="button"
+                            onClick={() => void openBookingDetails(booking.id)}
+                            className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50 transition"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-gray-900 truncate">{booking.functionName}</p>
+                              <span
+                                className={`status-pill ${booking.isQuotation
+                                    ? 'status-quotation'
+                                    : booking.status === 'confirmed'
+                                      ? 'status-confirmed'
+                                      : booking.status === 'cancelled'
+                                        ? 'status-cancelled'
+                                        : 'status-pending'
+                                  }`}
                               >
-                                <p className="text-xs font-semibold text-gray-900">{party.title}</p>
-                                <p className="text-[11px] text-gray-600 mt-0.5">
-                                  {formatDateDDMMYYYY(party.date)} • {party.timeLabel}
-                                </p>
-                                <p className="text-[11px] text-gray-600 mt-0.5">
-                                  {party.customerName} • {party.customerPhone} • {party.guests} guests
-                                </p>
-                                <p className="text-[11px] text-gray-600 mt-0.5 capitalize">
-                                  {party.status}
-                                </p>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                    )}
+                                {booking.isQuotation ? 'quotation' : booking.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1">
+                              {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
+                              {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              {bookingTimeLabel(booking)} • ₹
+                              {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-gray-900">Enquiries</p>
-                    <span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
-                      {selectedEnquiries.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {selectedEnquiries.length === 0 ? (
-                      <p className="text-xs text-gray-500">No enquiries for this day.</p>
-                    ) : (
-                      selectedEnquiries.map((enquiry) => (
-                        <div key={enquiry.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">{enquiry.functionName}</p>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
-                              {enquiry.isPencilBooked ? 'pencil' : enquiry.status}
-                            </span>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-gray-900">Hall-wise Party Schedule</p>
+                      <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                        {hallWiseSchedule.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {hallWiseSchedule.length === 0 ? (
+                        <div className="empty-state" style={{ padding: '16px 12px' }}>
+                          <div className="empty-state-icon">
+                            <Building2 size={18} />
                           </div>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {enquiry.customer?.name || 'Lead'} • {enquiry.expectedGuests} guests
-                          </p>
+                          <p className="empty-state-title">No hall bookings</p>
+                          <p className="empty-state-desc">No halls are reserved for this date.</p>
                         </div>
-                      ))
-                    )}
+                      ) : (
+                        hallWiseSchedule.map((group) => {
+                          const overlaps = findOverlaps(group.parties);
+                          return (
+                            <div
+                              key={group.hallName}
+                              className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-medium text-gray-900 inline-flex items-center gap-1.5">
+                                  <Building2 className="w-3.5 h-3.5 text-sky-700" />
+                                  {group.hallName}
+                                </p>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                                  {group.parties.length} part
+                                  {group.parties.length > 1 ? 'ies' : 'y'}
+                                </span>
+                              </div>
+                              {overlaps.length > 0 && (
+                                <div className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700">
+                                  <div className="font-semibold">Possible time overlap</div>
+                                  {overlaps.slice(0, 2).map((pair) => (
+                                    <div key={`${pair.first.id}-${pair.second.id}`}>
+                                      {pair.first.timeLabel} {pair.first.title} vs {pair.second.timeLabel}{' '}
+                                      {pair.second.title}
+                                    </div>
+                                  ))}
+                                  {overlaps.length > 2 && (
+                                    <div>+{overlaps.length - 2} more overlaps</div>
+                                  )}
+                                </div>
+                              )}
+                              <div className="space-y-1.5">
+                                {group.parties.map((party) => (
+                                  <button
+                                    key={`${group.hallName}-${party.id}`}
+                                    type="button"
+                                    onClick={() => void openBookingDetails(party.id)}
+                                    className="w-full rounded-md bg-gray-50 px-2 py-1.5 text-left hover:bg-sky-50 transition"
+                                  >
+                                    <p className="text-xs font-semibold text-gray-900">{party.title}</p>
+                                    <p className="text-[11px] text-gray-600 mt-0.5">
+                                      {formatDateDDMMYYYY(party.date)} • {party.timeLabel}
+                                    </p>
+                                    <p className="text-[11px] text-gray-600 mt-0.5">
+                                      {party.customerName} • {party.customerPhone} • {party.guests} guests
+                                    </p>
+                                    <p className="text-[11px] text-gray-600 mt-0.5 capitalize">
+                                      {party.status}
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-gray-900">Google Venue Events</p>
-                    <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
-                      {selectedGoogleEvents.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {selectedGoogleEvents.length === 0 ? (
-                      <p className="text-xs text-gray-500">No Google events for this day.</p>
-                    ) : (
-                      selectedGoogleEvents.map((event) => (
-                        <div key={event.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
-                              {event.origin === 'software' ? 'software mirror' : 'google'}
-                            </span>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-gray-900">Enquiries</p>
+                      <span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
+                        {selectedEnquiries.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedEnquiries.length === 0 ? (
+                        <div className="empty-state" style={{ padding: '16px 12px' }}>
+                          <div className="empty-state-icon">
+                            <PhoneCall size={18} />
                           </div>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {event.venueName}
-                            {event.location ? ` • ${event.location}` : ''}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            {googleEventTimeLabel(event)} • <span className="capitalize">{event.status}</span>
-                          </p>
+                          <p className="empty-state-title">No enquiries</p>
+                          <p className="empty-state-desc">No enquiries scheduled for this date.</p>
                         </div>
-                      ))
-                    )}
+                      ) : (
+                        selectedEnquiries.map((enquiry) => {
+                          const phone = enquiry.customer?.phone?.trim() || '';
+                          return (
+                            <div key={enquiry.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEnquiryDetails(enquiry.id)}
+                                  className="text-sm font-medium text-gray-900 truncate text-left hover:text-primary-700"
+                                >
+                                  {enquiry.functionName}
+                                </button>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                                  {enquiry.isPencilBooked ? 'pencil' : enquiry.status}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">
+                                {enquiry.customer?.name || 'Lead'} • {enquiry.expectedGuests} guests
+                              </p>
+                              <div className="mt-2 flex items-center gap-2">
+                                {phone ? (
+                                  <a
+                                    href={`tel:${phone}`}
+                                    className="btn btn-secondary px-2 py-1 text-xs"
+                                  >
+                                    <PhoneCall className="w-3 h-3" />
+                                    Call
+                                  </a>
+                                ) : (
+                                  <span className="text-[11px] text-gray-500">No phone on record</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => openEnquiryDetails(enquiry.id)}
+                                  className="text-xs text-primary-700 hover:text-primary-800"
+                                >
+                                  Open enquiry →
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-gray-900">Google Venue Events</p>
+                      <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
+                        {selectedGoogleEvents.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedGoogleEvents.length === 0 ? (
+                        <div className="empty-state" style={{ padding: '16px 12px' }}>
+                          <div className="empty-state-icon">
+                            <Globe2 size={18} />
+                          </div>
+                          <p className="empty-state-title">No Google events</p>
+                          <p className="empty-state-desc">Nothing synced for this date.</p>
+                        </div>
+                      ) : (
+                        selectedGoogleEvents.map((event) => (
+                          <div key={event.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                                {event.origin === 'software' ? 'software mirror' : 'google'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1">
+                              {event.venueName}
+                              {event.location ? ` • ${event.location}` : ''}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              {googleEventTimeLabel(event)} •{' '}
+                              <span className="capitalize">{event.status}</span>
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100 flex gap-2">
+                    <Link href="/dashboard/bookings" className="btn btn-secondary flex-1 justify-center">
+                      Bookings
+                    </Link>
+                    <Link href="/dashboard/enquiries" className="btn btn-secondary flex-1 justify-center">
+                      Enquiries
+                    </Link>
                   </div>
                 </div>
-
-                <div className="pt-2 border-t border-gray-100 flex gap-2">
-                  <Link href="/dashboard/bookings" className="btn btn-secondary flex-1 justify-center">
-                    Bookings
-                  </Link>
-                  <Link href="/dashboard/enquiries" className="btn btn-secondary flex-1 justify-center">
-                    Enquiries
-                  </Link>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -1757,7 +2055,13 @@ export default function CalendarPage() {
             </div>
             <div className="space-y-2">
               {agenda.length === 0 ? (
-                <p className="text-sm text-gray-500">No events found for the selected month.</p>
+                <div className="empty-state" style={{ padding: '32px 16px' }}>
+                  <div className="empty-state-icon">
+                    <CalendarDays size={22} />
+                  </div>
+                  <p className="empty-state-title">No events</p>
+                  <p className="empty-state-desc">Nothing scheduled for this date.</p>
+                </div>
               ) : (
                 agenda.map((entry) => (
                   <button
@@ -1818,90 +2122,120 @@ export default function CalendarPage() {
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Hall Booking Board</h2>
               <p className="text-sm text-gray-600 mt-1">
-                Halls are listed on the left. Blocked booking date/time slots are shown on the right for{' '}
-                <span className="font-medium">{hallBoardRangeLabel}</span>.
+                Timeline view for <span className="font-medium">{selectedDateLabel}</span>.{' '}
+                <span className="text-xs text-gray-500">(Range: {hallBoardRangeLabel})</span>
               </p>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <div className="min-w-[920px] rounded-xl border border-gray-200 overflow-hidden">
-              <div className="grid grid-cols-[220px_1fr] bg-gray-100 text-xs uppercase tracking-wide text-gray-600 font-semibold">
+            <div className="min-w-[980px] rounded-xl border border-gray-200 overflow-hidden">
+              <div className="grid grid-cols-[220px_repeat(3,1fr)] bg-gray-100 text-xs uppercase tracking-wide text-gray-600 font-semibold">
                 <div className="px-4 py-3 border-r border-gray-200">Hall / Banquet</div>
-                <div className="px-4 py-3">Blocked Time and Date</div>
+                {hallBoardSegments.map((segment) => (
+                  <div key={segment.key} className="px-4 py-3 border-r border-gray-200 last:border-r-0">
+                    {segment.label}
+                    <span className="block text-[10px] text-gray-500 normal-case font-medium">
+                      {segment.range}
+                    </span>
+                  </div>
+                ))}
               </div>
 
               {hallBoardRows.length === 0 ? (
-                <div className="px-4 py-8 text-sm text-gray-500">No halls or bookings found.</div>
-              ) : (
-                hallBoardRows.map((row, index) => (
-                  <div
-                    key={row.hallName}
-                    className={`grid grid-cols-[220px_1fr] border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                      }`}
-                  >
-                    <div className="px-4 py-4 border-r border-gray-100 text-sm font-semibold text-gray-900">
-                      {row.hallName}
-                      <p className="text-xs font-normal text-gray-500 mt-1">
-                        {row.banquetName ? `Banquet: ${row.banquetName}` : 'Banquet: Unassigned'}
-                      </p>
-                    </div>
-                    <div className="px-3 py-3">
-                      {row.slots.length === 0 ? (
-                        <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                          Available
-                        </span>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {row.slots.map((slot) => (
-                            <button
-                              key={`${row.hallName}-${slot.source}-${slot.bookingId || slot.functionName}-${slot.sortKey}`}
-                              type="button"
-                              onClick={() => {
-                                if (slot.source === 'software' && slot.bookingId) {
-                                  void openBookingDetails(slot.bookingId);
-                                  return;
-                                }
-                                if (slot.htmlLink) {
-                                  window.open(slot.htmlLink, '_blank', 'noopener,noreferrer');
-                                }
-                              }}
-                              className={`rounded-lg border px-2.5 py-1.5 text-left transition ${slot.source === 'google'
-                                  ? 'border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100'
-                                  : 'border-rose-200 bg-rose-50 hover:border-rose-300 hover:bg-rose-100'
-                                }`}
-                            >
-                              <p
-                                className={`text-xs font-semibold ${slot.source === 'google' ? 'text-sky-900' : 'text-rose-900'
-                                  }`}
-                              >
-                                {formatDateDDMMYYYY(slot.date)} • {slot.timeLabel}
-                              </p>
-                              <p
-                                className={`text-xs mt-0.5 ${slot.source === 'google' ? 'text-sky-800' : 'text-rose-800'
-                                  }`}
-                              >
-                                {slot.functionName}
-                                {slot.source === 'software' && slot.customerName
-                                  ? ` • ${slot.customerName}`
-                                  : ''}
-                                {slot.source === 'google' && slot.location
-                                  ? ` • ${slot.location}`
-                                  : ''}
-                              </p>
-                              <p
-                                className={`text-[11px] mt-0.5 capitalize ${slot.source === 'google' ? 'text-sky-700' : 'text-rose-700'
-                                  }`}
-                              >
-                                {slot.status} • {slot.source === 'google' ? 'Google' : 'Software'}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                <div className="empty-state" style={{ padding: '24px 16px' }}>
+                  <div className="empty-state-icon">
+                    <Building2 size={22} />
                   </div>
-                ))
+                  <p className="empty-state-title">No halls or bookings found</p>
+                  <p className="empty-state-desc">Try adjusting the date range or filters.</p>
+                </div>
+              ) : (
+                hallBoardRows.map((row, index) => {
+                  const daySlots = row.slots.filter((slot) => slot.date === hallBoardDateKey);
+                  return (
+                    <div
+                      key={row.hallName}
+                      className={`grid grid-cols-[220px_repeat(3,1fr)] border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        }`}
+                    >
+                      <div className="px-4 py-4 border-r border-gray-100 text-sm font-semibold text-gray-900">
+                        {row.hallName}
+                        <p className="text-xs font-normal text-gray-500 mt-1">
+                          {row.banquetName ? `Banquet: ${row.banquetName}` : 'Banquet: Unassigned'}
+                        </p>
+                      </div>
+                      {hallBoardSegments.map((segment) => {
+                        const segmentSlots = daySlots.filter(
+                          (slot) => slot.startMinutes < segment.end && slot.endMinutes > segment.start
+                        );
+                        const isDouble = segmentSlots.length > 1;
+                        return (
+                          <div
+                            key={`${row.hallName}-${segment.key}`}
+                            className="px-3 py-3 border-r border-gray-100 last:border-r-0"
+                          >
+                            {segmentSlots.length === 0 ? (
+                              <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                                Available
+                              </span>
+                            ) : (
+                              <div className="space-y-2">
+                                {isDouble && (
+                                  <div className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 inline-flex w-fit">
+                                    Double booked
+                                  </div>
+                                )}
+                                {segmentSlots.map((slot) => (
+                                  <button
+                                    key={`${row.hallName}-${segment.key}-${slot.source}-${slot.bookingId || slot.functionName}-${slot.sortKey}`}
+                                    type="button"
+                                    onClick={() => {
+                                      if (slot.source === 'software' && slot.bookingId) {
+                                        void openBookingDetails(slot.bookingId);
+                                        return;
+                                      }
+                                      if (slot.htmlLink) {
+                                        window.open(slot.htmlLink, '_blank', 'noopener,noreferrer');
+                                      }
+                                    }}
+                                    className={`w-full rounded-lg border px-2.5 py-1.5 text-left transition ${slot.source === 'google'
+                                        ? 'border-sky-200 bg-sky-50 hover:border-sky-300 hover:bg-sky-100'
+                                        : 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100'
+                                      }`}
+                                  >
+                                    <p
+                                      className={`text-xs font-semibold ${slot.source === 'google' ? 'text-sky-900' : 'text-emerald-900'
+                                        }`}
+                                    >
+                                      {slot.timeLabel}
+                                    </p>
+                                    <p
+                                      className={`text-xs mt-0.5 ${slot.source === 'google' ? 'text-sky-800' : 'text-emerald-800'
+                                        }`}
+                                    >
+                                      {slot.functionName}
+                                      {slot.source === 'software' && slot.customerName
+                                        ? ` • ${slot.customerName}`
+                                        : ''}
+                                    </p>
+                                    <p
+                                      className={`text-[11px] mt-0.5 ${slot.source === 'google' ? 'text-sky-700' : 'text-emerald-700'
+                                        }`}
+                                    >
+                                      {slot.guests ? `${slot.guests} guests • ` : ''}
+                                      {slot.source === 'google' ? 'Google' : 'Software'}
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -1935,8 +2269,8 @@ export default function CalendarPage() {
 
             <div className="h-[calc(100%-69px)] overflow-y-auto px-4 py-4 sm:px-5">
               {bookingDetailsLoading ? (
-                <div className="py-16 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-primary-600"></div>
+                <div className="py-8">
+                  <CalendarSkeleton />
                 </div>
               ) : !bookingDetails ? (
                 <p className="text-sm text-gray-500">Unable to load booking details.</p>
@@ -2002,7 +2336,13 @@ export default function CalendarPage() {
                   <div className="rounded-xl border border-gray-200 bg-white p-3">
                     <p className="text-sm font-semibold text-gray-900">Menu/Pack Details</p>
                     {bookingDetailsPacks.length === 0 ? (
-                      <p className="text-xs text-gray-500 mt-2">No packs added.</p>
+                      <div className="empty-state" style={{ padding: '16px 12px' }}>
+                        <div className="empty-state-icon">
+                          <CalendarCheck size={18} />
+                        </div>
+                        <p className="empty-state-title">No packs added</p>
+                        <p className="empty-state-desc">Pack details will appear here.</p>
+                      </div>
                     ) : (
                       <div className="mt-2 space-y-2">
                         {bookingDetailsPacks.map((pack) => (
@@ -2023,7 +2363,13 @@ export default function CalendarPage() {
                   <div className="rounded-xl border border-gray-200 bg-white p-3">
                     <p className="text-sm font-semibold text-gray-900">Payments</p>
                     {bookingDetailsPayments.length === 0 ? (
-                      <p className="text-xs text-gray-500 mt-2">No payments recorded.</p>
+                      <div className="empty-state" style={{ padding: '16px 12px' }}>
+                        <div className="empty-state-icon">
+                          <IndianRupee size={18} />
+                        </div>
+                        <p className="empty-state-title">No payments recorded</p>
+                        <p className="empty-state-desc">Payments will appear here once logged.</p>
+                      </div>
                     ) : (
                       <div className="mt-2 space-y-2">
                         {bookingDetailsPayments.map((payment) => (
@@ -2078,7 +2424,14 @@ export default function CalendarPage() {
                   )}
 
                   <div className="flex justify-end">
-                    <Link href="/dashboard/bookings" className="btn btn-secondary">
+                    <Link
+                      href={
+                        bookingDetails?.id
+                          ? `/dashboard/bookings?section=edit&id=${bookingDetails.id}`
+                          : '/dashboard/bookings'
+                      }
+                      className="btn btn-secondary"
+                    >
                       Open Booking Module
                     </Link>
                   </div>
@@ -2088,6 +2441,55 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      <div className="print-only">
+        <div style={{ padding: '24px' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+            Day Schedule — {selectedDateLabel}
+          </h1>
+          {printBookings.length === 0 ? (
+            <p style={{ fontSize: 12 }}>No bookings available for this date.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {printBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 12,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{booking.functionName}</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>
+                    {booking.functionType || '-'} • {formatDateDDMMYYYY(booking.functionDate)} •{' '}
+                    {bookingTimeLabel(booking)}
+                  </div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>
+                    Halls: {getBookingHallNames(booking as BookingCalendarRow).join(', ') || 'Unassigned'}
+                  </div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>
+                    Guests: {toSafeNumber(booking.expectedGuests).toLocaleString()} • Phone:{' '}
+                    {booking.customer?.phone || '-'}
+                  </div>
+                  <div style={{ fontSize: 12, marginTop: 6 }}>
+                    Menu Slots:{' '}
+                    {booking.packs && booking.packs.length > 0
+                      ? booking.packs
+                        .map((pack) => {
+                          const label = pack.packName || pack.mealSlot?.name || 'Meal';
+                          const count = pack.packCount ?? pack.noOfPack ?? '';
+                          return `${label}${count ? ` (${count})` : ''}`;
+                        })
+                        .join(', ')
+                      : 'Not specified'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

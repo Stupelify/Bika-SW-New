@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface FormPromptModalProps {
@@ -18,6 +19,12 @@ export default function FormPromptModal({
   children,
   widthClass = 'max-w-4xl',
 }: FormPromptModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
 
@@ -35,21 +42,21 @@ export default function FormPromptModal({
     };
   }, [open]);
 
-  if (!open) return null;
+  if (!open || !mounted || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-2 sm:p-4"
       style={{ overscrollBehavior: 'contain' }}
     >
       <button
         type="button"
-        className="absolute inset-0 bg-slate-900/45"
+        className="absolute inset-0 bg-slate-900/45 z-0"
         onClick={onClose}
         aria-label="Close form prompt backdrop"
       />
       <div
-        className={`relative w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-gray-200 bg-white shadow-xl transform-gpu will-change-transform`}
+        className={`relative z-10 w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-gray-200 bg-white shadow-xl transform-gpu`}
       >
         <div className="sticky top-0 z-10 bg-white/95 border-b border-gray-200 px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-display font-semibold text-gray-900">{title}</h2>
@@ -64,6 +71,7 @@ export default function FormPromptModal({
         </div>
         <div className="p-4 sm:p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

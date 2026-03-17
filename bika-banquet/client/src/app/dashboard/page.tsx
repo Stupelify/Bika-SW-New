@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import { KpiCardSkeleton } from '@/components/Skeletons';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -26,6 +27,8 @@ import {
   Users,
   UtensilsCrossed,
 } from 'lucide-react';
+import { AdaptiveCard } from '@/components/adaptive/AdaptiveCard';
+import { AdaptiveButton } from '@/components/adaptive/AdaptiveButton';
 
 interface DashboardAnalytics {
   range: {
@@ -144,6 +147,15 @@ function formatCurrency(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function formatBookingSubtitle(booking: BookingRow): string | undefined {
+  const name = booking.customer?.name || '';
+  const phone = booking.customer?.phone || '';
+  if (name && phone) return `${name} • ${phone}`;
+  if (name) return name;
+  if (phone) return phone;
+  return booking.functionType || undefined;
 }
 
 function formatMonthLabel(monthKey: string): string {
@@ -318,6 +330,108 @@ function Sparkline({
   );
 }
 
+function formatYAxisValue(value: number): string {
+  if (value > 100000) {
+    return `₹${(value / 100000).toFixed(1)}L`;
+  }
+  if (value >= 1000) {
+    return `₹${Math.round(value / 1000)}K`;
+  }
+  return `₹${Math.round(value)}`;
+}
+
+function BarChart({
+  data,
+  height = 200,
+  color = 'var(--teal-500)',
+}: {
+  data: Array<{ label: string; value: number }>;
+  height?: number;
+  color?: string;
+}) {
+  const width = 640;
+  const padding = { top: 16, right: 12, bottom: 28, left: 48 };
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+  const maxValue = Math.max(1, ...data.map((item) => item.value));
+  const gap = 4;
+  const barWidth = data.length
+    ? (innerWidth - gap * (data.length - 1)) / data.length
+    : innerWidth;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+      <defs>
+        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--teal-400, #2dd4bf)" />
+          <stop offset="100%" stopColor="var(--teal-600)" />
+        </linearGradient>
+      </defs>
+      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+        const y = padding.top + innerHeight - innerHeight * ratio;
+        return (
+          <g key={`grid-${ratio}`}>
+            <line
+              x1={padding.left}
+              x2={width - padding.right}
+              y1={y}
+              y2={y}
+              stroke="var(--border)"
+              strokeDasharray="4 6"
+            />
+            <text
+              x={padding.left - 8}
+              y={y + 4}
+              textAnchor="end"
+              fontSize="10"
+              fill="var(--text-4)"
+            >
+              {formatYAxisValue(maxValue * ratio)}
+            </text>
+          </g>
+        );
+      })}
+      {data.map((item, index) => {
+        const x = padding.left + index * (barWidth + gap);
+        const barHeight = (item.value / maxValue) * innerHeight;
+        const y = padding.top + innerHeight - barHeight;
+        return (
+          <g key={item.label} className="bar-grow">
+            <rect
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              rx={3}
+              fill="url(#barGradient)"
+              style={{ transformOrigin: 'center bottom', transformBox: 'fill-box' }}
+            >
+              <title>
+                {item.label}: {formatCurrency(item.value)}
+              </title>
+            </rect>
+          </g>
+        );
+      })}
+      {data.map((item, index) => {
+        const x = padding.left + index * (barWidth + gap) + barWidth / 2;
+        return (
+          <text
+            key={`${item.label}-label`}
+            x={x}
+            y={height - 8}
+            textAnchor="middle"
+            fontSize="10"
+            fill="var(--text-4)"
+          >
+            {item.label}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const canViewDashboard = user?.permissions?.includes('view_dashboard');
@@ -326,6 +440,18 @@ export default function DashboardPage() {
   const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardState | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!data?.recentBookings) return;
+    const payload = data.recentBookings.slice(0, 20).map((booking) => ({
+      id: booking.id,
+      name: booking.functionName || 'Booking',
+      subtitle: formatBookingSubtitle(booking),
+      href: `/dashboard/bookings/${booking.id}`,
+    }));
+    window.localStorage.setItem('bika_palette_bookings', JSON.stringify(payload));
+  }, [data?.recentBookings]);
 
   const loadDashboardData = useCallback(async () => {
     if (!canViewDashboard) {
@@ -523,24 +649,32 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="space-y-6">
+        <KpiCardSkeleton />
+        <AdaptiveCard>
+          <div className="skeleton" style={{ height: 16, width: 160, marginBottom: 12 }} />
+          <div className="skeleton" style={{ height: 180, width: '100%' }} />
+        </AdaptiveCard>
       </div>
     );
   }
 
   if (user && !canViewDashboard) {
     return (
-      <div className="card py-16 text-center">
+      <AdaptiveCard className="py-16 text-center">
         <p className="text-gray-600">You do not have access to view the dashboard.</p>
-      </div>
+      </AdaptiveCard>
     );
   }
 
   if (!data) {
     return (
-      <div className="card py-16 text-center">
-        <p className="text-gray-600">No dashboard data available.</p>
+      <div className="empty-state">
+        <div className="empty-state-icon">
+          <BarChart3 size={22} />
+        </div>
+        <p className="empty-state-title">No data available</p>
+        <p className="empty-state-desc">Try changing the date range.</p>
       </div>
     );
   }
@@ -579,7 +713,10 @@ export default function DashboardPage() {
       : 0;
 
   const maxHallRevenue = Math.max(1, ...hallSections.top.map((row) => row.revenue));
-  const maxMonthlyRevenue = Math.max(1, ...monthlyRevenueSeries);
+  const monthlyRevenueData = monthlyTrend.map((entry) => ({
+    label: formatMonthShort(entry.month),
+    value: toSafeNumber(entry.revenue),
+  }));
 
   const renderDelta = (value: number) => {
     const positive = value > 0;
@@ -599,7 +736,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <div className="card-padded">
+      <AdaptiveCard>
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
           <div>
             <h1 className="page-title">
@@ -635,17 +772,17 @@ export default function DashboardPage() {
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
             />
-            <button
+            <AdaptiveButton
               type="button"
               onClick={() => void loadDashboardData()}
-              className="btn btn-primary justify-center sm:min-w-[112px]"
+              className="justify-center sm:min-w-[112px]"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
-            </button>
+            </AdaptiveButton>
           </div>
         </div>
-      </div>
+      </AdaptiveCard>
 
       <div className="kpi-grid">
         <div className="kpi-card">
@@ -709,8 +846,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="card">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <AdaptiveCard noPadding>
           <div className="panel-header">
             <div>
               <p className="panel-title">Top Performing Halls</p>
@@ -723,7 +860,13 @@ export default function DashboardPage() {
           </div>
           <div className="panel-body space-y-0">
             {hallSections.top.length === 0 ? (
-              <p className="text-sm text-gray-500">No hall performance data available.</p>
+              <div className="empty-state" style={{ padding: '32px 16px' }}>
+                <div className="empty-state-icon">
+                  <Building2 size={22} />
+                </div>
+                <p className="empty-state-title">No data available</p>
+                <p className="empty-state-desc">Try changing the date range.</p>
+              </div>
             ) : (
               hallSections.top.map((hall, index) => (
                 <div
@@ -747,9 +890,9 @@ export default function DashboardPage() {
               ))
             )}
           </div>
-        </div>
+        </AdaptiveCard>
 
-        <div className="card">
+        <AdaptiveCard noPadding>
           <div className="panel-header">
             <div>
               <p className="panel-title">Monthly Revenue</p>
@@ -761,41 +904,85 @@ export default function DashboardPage() {
           </div>
           <div className="panel-body">
             {monthlyTrend.length === 0 ? (
-              <p className="text-sm text-gray-500">No monthly trend data for this range.</p>
+              <div className="empty-state" style={{ padding: '32px 16px' }}>
+                <div className="empty-state-icon">
+                  <BarChart3 size={22} />
+                </div>
+                <p className="empty-state-title">No data available</p>
+                <p className="empty-state-desc">Try changing the date range.</p>
+              </div>
             ) : (
-              <div className="h-[240px]">
-                <div className="h-[205px] flex items-end gap-1.5 sm:gap-2">
-                  {monthlyTrend.map((entry) => {
-                    const value = toSafeNumber(entry.revenue);
-                    const pct = Math.max((value / maxMonthlyRevenue) * 100, 9);
+              <BarChart data={monthlyRevenueData} height={200} />
+            )}
+          </div>
+        </AdaptiveCard>
+
+        <AdaptiveCard noPadding>
+          <div className="panel-header">
+            <div>
+              <p className="panel-title">Function Type Mix</p>
+              <p className="panel-subtitle">Share of bookings</p>
+            </div>
+          </div>
+          <div className="panel-body">
+            {data.topFunctions.length === 0 ? (
+              <div className="empty-state" style={{ padding: '32px 16px' }}>
+                <div className="empty-state-icon">
+                  <BarChart3 size={22} />
+                </div>
+                <p className="empty-state-title">No data available</p>
+                <p className="empty-state-desc">Try changing the date range.</p>
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    height: 8,
+                    borderRadius: 999,
+                    overflow: 'hidden',
+                    background: 'var(--surface-2)',
+                  }}
+                >
+                  {data.topFunctions.map((entry) => {
+                    const colorMap: Record<string, string> = {
+                      Wedding: '#14b8a6',
+                      Reception: '#0d9488',
+                      Birthday: '#f59e0b',
+                      Corporate: '#6366f1',
+                      Other: '#94a3b8',
+                    };
                     return (
-                      <div key={entry.month} className="flex-1 min-w-0">
-                        <div
-                          className="rounded-t-md bg-gradient-to-b from-teal-400 to-teal-600 transition-opacity hover:opacity-85"
-                          style={{ height: `${pct}%` }}
-                          title={`${formatMonthLabel(entry.month)} - ${formatCurrency(value)}`}
-                        />
-                      </div>
+                      <div
+                        key={entry.name}
+                        style={{
+                          width: `${entry.share}%`,
+                          background: colorMap[entry.name] || '#94a3b8',
+                        }}
+                      />
                     );
                   })}
                 </div>
-                <div
-                  className="mt-3 grid gap-1.5 sm:gap-2 text-center"
-                  style={{ gridTemplateColumns: `repeat(${Math.max(monthlyTrend.length, 1)}, minmax(0, 1fr))` }}
-                >
-                  {monthlyTrend.map((entry) => (
-                    <span key={`${entry.month}-label`} className="text-[11px] text-[var(--text-4)]">
-                      {formatMonthShort(entry.month)}
-                    </span>
+                <div className="mt-4 space-y-2">
+                  {data.topFunctions.map((entry) => (
+                    <div
+                      key={`${entry.name}-list`}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span style={{ color: 'var(--text-2)' }}>{entry.name}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>
+                        {entry.count}
+                      </span>
+                    </div>
                   ))}
                 </div>
-              </div>
+              </>
             )}
           </div>
-        </div>
+        </AdaptiveCard>
       </div>
 
-      <div className="card">
+      <AdaptiveCard noPadding>
         <div className="panel-header">
           <div>
             <h2 className="panel-title">Business Insights</h2>
@@ -823,9 +1010,9 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-      </div>
+      </AdaptiveCard>
 
-      <div className="card">
+      <AdaptiveCard noPadding>
         <div className="panel-header">
           <div>
             <h2 className="panel-title">Resource Counts</h2>
@@ -903,9 +1090,9 @@ export default function DashboardPage() {
             <BarChart3 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
         </div>
-      </div>
+      </AdaptiveCard>
 
-      <div className="card">
+      <AdaptiveCard noPadding>
         <div className="panel-header">
           <h2 className="panel-title">Recent Bookings</h2>
           <Link
@@ -918,7 +1105,13 @@ export default function DashboardPage() {
         </div>
         <div className="panel-body space-y-3">
           {data.recentBookings.length === 0 ? (
-            <p className="text-sm text-gray-500">No bookings in selected range.</p>
+            <div className="empty-state" style={{ padding: '32px 16px' }}>
+              <div className="empty-state-icon">
+                <CalendarCheck size={22} />
+              </div>
+              <p className="empty-state-title">No data available</p>
+              <p className="empty-state-desc">Try changing the date range.</p>
+            </div>
           ) : (
             data.recentBookings.map((booking) => (
               <div
@@ -946,7 +1139,7 @@ export default function DashboardPage() {
             ))
           )}
         </div>
-      </div>
+      </AdaptiveCard>
     </div>
   );
 }

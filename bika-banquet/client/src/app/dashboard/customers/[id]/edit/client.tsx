@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { PageSkeleton } from '@/components/Skeletons';
 import { ArrowLeft, Save } from 'lucide-react';
 import {
   COUNTRY_DIAL_CODE_OPTIONS,
@@ -167,9 +168,7 @@ export default function EditCustomerPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
+      <PageSkeleton />
     );
   }
 

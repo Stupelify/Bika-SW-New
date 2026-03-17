@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
+import { TableSkeleton } from '@/components/Skeletons';
 import {
   SortState,
   TableColumnConfig,
@@ -711,11 +712,15 @@ function HallsPageContent() {
             {!canViewBanquet ? (
               <p className="text-sm text-amber-700">No permission to view banquet table.</p>
             ) : loading ? (
-              <div className="py-10 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              </div>
+              <TableSkeleton rows={5} />
             ) : filteredBanquets.length === 0 ? (
-              <p className="text-gray-500 text-sm">No banquets found.</p>
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">
+                  <Building2 size={22} />
+                </div>
+                <p className="empty-state-title">No banquets found</p>
+                <p className="empty-state-desc">Create a banquet to start adding halls.</p>
+              </div>
             ) : (
               <div className="table-shell">
                 <table className="data-table">
@@ -865,11 +870,15 @@ function HallsPageContent() {
             {!canViewHall ? (
               <p className="text-sm text-amber-700">No permission to view hall table.</p>
             ) : loading ? (
-              <div className="py-10 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              </div>
+              <TableSkeleton rows={5} />
             ) : filteredHalls.length === 0 ? (
-              <p className="text-gray-500 text-sm">No halls found.</p>
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">
+                  <Building2 size={22} />
+                </div>
+                <p className="empty-state-title">No halls found</p>
+                <p className="empty-state-desc">Add a hall to make it available for bookings.</p>
+              </div>
             ) : (
               <div className="table-shell">
                 <table className="data-table">

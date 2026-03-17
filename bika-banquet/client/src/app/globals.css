@@ -37,6 +37,43 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
+[data-theme="dark"] {
+  --bg:        #000000;
+  --surface:   #0b0b0b;
+  --surface-2: #121212;
+  --surface-3: #1a1a1a;
+  --text-1:    #f8fafc;
+  --text-2:    #e2e8f0;
+  --text-3:    #b3b8c2;
+  --text-4:    #8b93a1;
+  --border:    #1f1f1f;
+  --border-2:  #2a2a2a;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 18px rgba(0, 0, 0, 0.55);
+  --ring:      rgba(20, 184, 166, 0.28);
+  --teal-50:   #021c1b;
+  --teal-100:  #08302e;
+}
+
+/* Dark mode specific overrides */
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(90deg, #0b0b0b 25%, #141414 50%, #0b0b0b 75%);
+}
+[data-theme="dark"] .status-confirmed { background: #052e16; color: #86efac; }
+[data-theme="dark"] .status-pending   { background: #2d1a00; color: #fcd34d; }
+[data-theme="dark"] .status-cancelled { background: #2d0a0a; color: #fca5a5; }
+[data-theme="dark"] .status-quotation { background: #0d1f4a; color: #93c5fd; }
+[data-theme="dark"] tbody tr:hover    { background-color: rgba(20, 184, 166, 0.06); }
+[data-theme="dark"] thead th          { background-color: var(--surface-2); }
+[data-theme="dark"] .kpi-delta.delta-up   { background: #052e16; color: #86efac; }
+[data-theme="dark"] .kpi-delta.delta-down { background: #2d0a0a; color: #fca5a5; }
+[data-theme="dark"] .bg-white { background-color: var(--surface); }
+[data-theme="dark"] .bg-gray-50 { background-color: var(--surface-2); }
+[data-theme="dark"] .bg-gray-100 { background-color: var(--surface-2); }
+[data-theme="dark"] .border-gray-200 { border-color: var(--border); }
+[data-theme="dark"] .border-gray-100 { border-color: var(--border); }
+
 /* ── Skip-to-content link (accessibility) ─────────────────────── */
 .skip-nav {
   position: absolute;
@@ -85,6 +122,7 @@
     background-color: var(--bg);
     padding-left: var(--safe-left);
     padding-right: var(--safe-right);
+    padding-bottom: var(--safe-bottom);
     /* Prevent body itself from ever scrolling horizontally */
     overflow-x: hidden;
     max-width: 100%;
@@ -157,7 +195,7 @@
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-[12px] px-3.5 py-[7px] text-[13px] font-semibold duration-150 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
-    transition-property: background-color, border-color, color, box-shadow, transform, opacity;
+    transition-property: background-color, border-color, color, transform, opacity;
     white-space: nowrap;
   }
 
@@ -322,6 +360,13 @@
     contain: inline-size;
   }
 
+  @supports (content-visibility: auto) {
+    .table-shell tbody tr {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 44px;
+    }
+  }
+
   .data-table {
     width: 100%;
     min-width: 760px;
@@ -419,11 +464,10 @@
     border-radius: 18px;
     padding: 20px;
     box-shadow: var(--shadow-xs);
-    transition: box-shadow 0.2s, border-color 0.2s;
+    transition: border-color 0.2s;
   }
 
   .kpi-card:hover {
-    box-shadow: var(--shadow-md);
     border-color: var(--border-2);
   }
 
@@ -503,16 +547,25 @@
   .insight-card.good {
     background: #f0fdf4;
     border-color: #bbf7d0;
+    border-left-width: 3px;
+    border-left-style: solid;
+    border-left-color: #22c55e;
   }
 
   .insight-card.warn {
     background: #fffbeb;
     border-color: #fde68a;
+    border-left-width: 3px;
+    border-left-style: solid;
+    border-left-color: #f59e0b;
   }
 
   .insight-card.neutral {
     background: var(--surface-2);
     border-color: var(--border);
+    border-left-width: 3px;
+    border-left-style: solid;
+    border-left-color: var(--border-2);
   }
 
   .insight-label {
@@ -544,7 +597,7 @@
     border-radius: 16px;
     padding: 14px;
     cursor: pointer;
-    transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s, color 0.15s;
+    transition: border-color 0.15s, background-color 0.15s, color 0.15s, transform 0.15s;
     box-shadow: var(--shadow-xs);
     text-decoration: none;
     display: block;
@@ -553,7 +606,7 @@
   .resource-tile:hover {
     border-color: var(--teal-500);
     background-color: var(--teal-50);
-    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.1);
+    transform: translateY(-1px);
     color: inherit;
   }
 
@@ -689,6 +742,46 @@
     @apply flex flex-col-reverse gap-2 sm:flex-row sm:justify-end;
   }
 
+  .sidebar-label {
+    overflow: hidden;
+    white-space: nowrap;
+    transition: opacity 0.2s, width 0.2s;
+  }
+
+  .sidebar-collapsed .sidebar-label {
+    opacity: 0;
+    width: 0;
+  }
+
+  .sidebar-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-4);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .sidebar-collapse-btn:hover {
+    color: var(--text-1);
+    background: var(--surface-3);
+  }
+
+  .pack-section-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.22s ease;
+  }
+
+  .pack-section-body.open {
+    max-height: 2000px;
+  }
+
   /* Keep placeholder/value text clear of leading search/icons on all devices */
   .relative > svg.absolute + input.input,
   .relative > svg.absolute + textarea.input,
@@ -714,11 +807,11 @@
     border-radius: 16px;
     padding: 14px 16px;
     box-shadow: var(--shadow-xs);
-    transition: box-shadow 0.15s;
+    transition: transform 0.15s;
   }
 
   .mobile-card:active {
-    box-shadow: var(--shadow-md);
+    transform: scale(0.99);
   }
 
   .mobile-card-header {
@@ -904,13 +997,12 @@
     cursor: pointer;
     box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
     z-index: 35;
-    transition: transform 0.15s, box-shadow 0.15s;
+    transition: transform 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
 
   .fab:hover {
     transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(13, 148, 136, 0.45);
   }
 
   .fab:active {
@@ -921,6 +1013,59 @@
     width: 24px;
     height: 24px;
     stroke-width: 2.5;
+  }
+}
+
+/* ── Device tier overrides ───────────────────────────────────── */
+[data-device-tier="mid"] .page-enter {
+  animation-duration: 0.12s;
+}
+
+[data-device-tier="low"] .page-enter {
+  animation: none !important;
+}
+
+[data-device-tier="low"] .skeleton {
+  animation: none !important;
+  background-color: var(--surface-2) !important;
+}
+
+[data-device-tier="low"] .kpi-card:hover,
+[data-device-tier="low"] .card:hover,
+[data-device-tier="low"] .fab:hover {
+  transform: none !important;
+}
+
+[data-device-tier="low"] .bar-grow {
+  animation: none !important;
+}
+
+[data-device-tier="low"] .modal-panel,
+[data-device-tier="low"] .command-palette {
+  backdrop-filter: none !important;
+  background: var(--surface) !important;
+}
+
+[data-device-tier="low"] .command-palette-overlay {
+  backdrop-filter: none !important;
+}
+
+[data-device-tier="low"] .bottom-nav-indicator {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-device-tier="high"] .kpi-card,
+  [data-device-tier="mid"] .kpi-card {
+    transition: transform 0.15s ease;
+  }
+
+  [data-device-tier="high"] .kpi-card:hover {
+    transform: translateY(-2px);
+  }
+
+  [data-device-tier="mid"] .kpi-card:hover {
+    transform: translateY(-1px);
   }
 }
 
@@ -995,6 +1140,60 @@
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes page-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .page-enter {
+    animation: page-enter 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  }
+
+  @keyframes bar-grow {
+    from {
+      transform: scaleY(0);
+    }
+
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  [data-device-tier="high"] .bar-grow {
+    animation: bar-grow 0.45s ease;
+    transform-origin: bottom;
+  }
+
+  [data-device-tier="mid"] .bar-grow {
+    animation: bar-grow 0.25s ease;
+    transform-origin: bottom;
+  }
+
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(20px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .day-panel-enter {
+    animation: slide-in-right 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  }
+}
+
 /* ── FAB entry animation ──────────────────────────────────────── */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes fab-enter {
@@ -1050,6 +1249,30 @@
     text-wrap: balance;
   }
 
+  .text-gray-900 {
+    color: var(--text-1);
+  }
+
+  .text-gray-700 {
+    color: var(--text-2);
+  }
+
+  .text-gray-800 {
+    color: var(--text-2);
+  }
+
+  .text-gray-600 {
+    color: var(--text-3);
+  }
+
+  .text-gray-500 {
+    color: var(--text-4);
+  }
+
+  .text-gray-400 {
+    color: var(--text-4);
+  }
+
   .num {
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
@@ -1074,6 +1297,46 @@
   /* Utility to add bottom padding when bottom nav is present.
      Extra 16 px so the last card / row is never hidden behind the nav. */
   .has-bottom-nav {
-    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 24px);
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 44px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  header,
+  aside,
+  .bottom-nav,
+  .fab,
+  .command-palette,
+  .sidebar-collapse-btn,
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  #main-content {
+    padding: 0 !important;
+    margin: 0 !important;
   }
 }

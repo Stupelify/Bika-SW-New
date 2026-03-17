@@ -5,6 +5,8 @@ import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
 import { resolveEventDateTimes } from '../utils/dateTime';
+import { sanitizeSearchTerm } from '../utils/search';
+import { parsePagination } from '../utils/pagination';
 import {
   removeEnquiryEventFromGoogleCalendar,
   syncEnquiryEventToGoogleCalendar,
@@ -174,9 +176,13 @@ export async function createEnquiry(req: Request, res: Response): Promise<void> 
 
 export async function getEnquiries(req: Request, res: Response): Promise<void> {
   try {
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 20;
-    const search = (req.query.search as string) || '';
+    const { page, limit, skip } = parsePagination(
+      req.query.page,
+      req.query.limit,
+      20,
+      200
+    );
+    const search = sanitizeSearchTerm(req.query.search);
     const status = req.query.status as string | undefined;
 
     const where: Record<string, unknown> = {};
@@ -195,7 +201,7 @@ export async function getEnquiries(req: Request, res: Response): Promise<void> {
     const [enquiries, total] = await Promise.all([
       prisma.enquiry.findMany({
         where,
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
         orderBy: { functionDate: 'desc' },
         include: {

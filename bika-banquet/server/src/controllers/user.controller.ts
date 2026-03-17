@@ -4,6 +4,8 @@ import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { hashPassword } from '../utils/auth';
 import { toEntryCase } from '../utils/textCase';
+import { sanitizeSearchTerm } from '../utils/search';
+import { parsePagination } from '../utils/pagination';
 
 export const createUserSchema = z.object({
   body: z.object({
@@ -32,9 +34,13 @@ export async function getUsersSimple(req: Request, res: Response): Promise<void>
 
 export async function getUsers(req: Request, res: Response): Promise<void> {
   try {
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 20;
-    const search = (req.query.search as string) || '';
+    const { page, limit, skip } = parsePagination(
+      req.query.page,
+      req.query.limit,
+      20,
+      200
+    );
+    const search = sanitizeSearchTerm(req.query.search);
 
     const where = search
       ? {
@@ -48,7 +54,7 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         select: {

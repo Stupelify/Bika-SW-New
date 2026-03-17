@@ -4,6 +4,8 @@ import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
+import { sanitizeSearchTerm } from '../utils/search';
+import { parsePagination } from '../utils/pagination';
 
 export const createHallSchema = z.object({
   body: z.object({
@@ -57,9 +59,13 @@ export async function createHall(req: Request, res: Response): Promise<void> {
 
 export async function getHalls(req: Request, res: Response): Promise<void> {
   try {
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 20;
-    const search = (req.query.search as string) || '';
+    const { page, limit, skip } = parsePagination(
+      req.query.page,
+      req.query.limit,
+      20,
+      200
+    );
+    const search = sanitizeSearchTerm(req.query.search);
     const banquetId = req.query.banquetId as string | undefined;
 
     const where: Record<string, unknown> = {};
@@ -81,7 +87,7 @@ export async function getHalls(req: Request, res: Response): Promise<void> {
     const [halls, total] = await Promise.all([
       prisma.hall.findMany({
         where,
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
         orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
         include: {

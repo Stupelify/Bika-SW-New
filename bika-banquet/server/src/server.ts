@@ -24,9 +24,67 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // CORS
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CLIENT_URL || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const allowedOriginSet = new Set(allowedOrigins);
+
+function isPrivateHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return true;
+  }
+  if (hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
+    return true;
+  }
+  if (hostname.startsWith('172.')) {
+    const parts = hostname.split('.');
+    const second = Number(parts[1] || 0);
+    return second >= 16 && second <= 31;
+  }
+  return false;
+}
+
+function isAllowedOrigin(origin: string | undefined | null): boolean {
+  if (!origin) {
+    return true;
+  }
+  if (allowedOriginSet.has(origin)) {
+    return true;
+  }
+  try {
+    const parsed = new URL(origin);
+    const protocol = parsed.protocol;
+    const hostname = parsed.hostname;
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return true;
+    }
+    if (hostname.endsWith('.bikafood.com')) {
+      return true;
+    }
+    if (protocol === 'capacitor:' || protocol === 'ionic:') {
+      return true;
+    }
+    if (protocol === 'exp:' && isPrivateHost(hostname)) {
+      return true;
+    }
+  } catch (error) {
+    // ignore parsing failures, fall through to deny
+  }
+  return false;
+}
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );

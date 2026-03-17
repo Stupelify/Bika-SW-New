@@ -9,6 +9,7 @@ import {
   Save,
   Phone,
   Mail,
+  Users,
   Eye,
   Edit,
   Trash2,
@@ -18,6 +19,7 @@ import Link from 'next/link';
 import FormPromptModal from '@/components/FormPromptModal';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import SortableHeader from '@/components/SortableHeader';
+import { TableSkeleton } from '@/components/Skeletons';
 import {
   SortState,
   TableColumnConfig,
@@ -25,6 +27,7 @@ import {
   getNextSort,
 } from '@/lib/tableUtils';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import {
@@ -137,6 +140,7 @@ export default function CustomersPage() {
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [isWhatsappDifferent, setIsWhatsappDifferent] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
+  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [sort, setSort] = useState<SortState>({ key: 'name', direction: 'asc' });
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
@@ -177,8 +181,8 @@ export default function CustomersPage() {
   );
 
   const filteredCustomers = useMemo(
-    () => filterAndSortRows(customers, tableColumns, globalSearch, columnSearch, sort),
-    [customers, tableColumns, globalSearch, columnSearch, sort]
+    () => filterAndSortRows(customers, tableColumns, debouncedGlobalSearch, columnSearch, sort),
+    [customers, tableColumns, debouncedGlobalSearch, columnSearch, sort]
   );
 
   const totalPages = Math.max(
@@ -205,8 +209,21 @@ export default function CustomersPage() {
   }, [canViewCustomer]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = customers.slice(0, 40).map((customer) => ({
+      id: customer.id,
+      name: customer.name || 'Customer',
+      subtitle: customer.phone
+        ? `${customer.phoneCountryCode || '+91'} ${customer.phone}`
+        : undefined,
+      href: `/dashboard/customers/${customer.id}`,
+    }));
+    window.localStorage.setItem('bika_palette_customers', JSON.stringify(payload));
+  }, [customers]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [globalSearch, columnSearch, sort]);
+  }, [debouncedGlobalSearch, columnSearch, sort]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
@@ -572,8 +589,8 @@ export default function CustomersPage() {
         widthClass="max-w-6xl"
       >
         {loadingFormData ? (
-          <div className="py-14 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="py-6">
+            <TableSkeleton rows={5} />
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-7" noValidate>
@@ -1115,25 +1132,40 @@ export default function CustomersPage() {
 
       <div className="card">
         {!canViewCustomer ? (
-          <div className="text-sm text-gray-500">No data available.</div>
+          <div className="empty-state" style={{ padding: '32px 16px' }}>
+            <div className="empty-state-icon">
+              <Users size={22} />
+            </div>
+            <p className="empty-state-title">No data available</p>
+            <p className="empty-state-desc">You do not have access to view customers.</p>
+          </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="py-6">
+            <TableSkeleton rows={8} />
           </div>
         ) : filteredCustomers.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-6">
             {(globalSearch || Object.values(columnSearch).some(Boolean)) ? (
-              <>
-                <p className="text-gray-500 mb-1">No customers match your search</p>
-                <p className="text-gray-400 text-sm mb-4">
-                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo;
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">
+                  <Search size={22} />
+                </div>
+                <p className="empty-state-title">No customers match your search</p>
+                <p className="empty-state-desc">
+                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo; returned no results.
                 </p>
                 <button type="button" onClick={clearSearch} className="btn btn-secondary">
                   Clear search
                 </button>
-              </>
+              </div>
             ) : (
-              <p className="text-gray-500">No customers found</p>
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">
+                  <Users size={22} />
+                </div>
+                <p className="empty-state-title">No customers found</p>
+                <p className="empty-state-desc">Add your first customer to get started.</p>
+              </div>
             )}
           </div>
         ) : (

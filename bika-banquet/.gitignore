@@ -11,6 +11,11 @@ dist/
 build/
 .next/
 out/
+**/dist/
+**/build/
+**/.turbo/
+**/.cache/
+**/.gradle/
 
 # Environment variables
 .env
@@ -27,6 +32,7 @@ yarn-error.log*
 
 # OS files
 .DS_Store
+**/.DS_Store
 Thumbs.db
 
 # IDE
@@ -36,10 +42,27 @@ Thumbs.db
 *.swo
 *~
 
+# Mobile / native (Capacitor / Ionic / React Native / Expo)
+android/
+ios/
+client/android/
+client/ios/
+native-client/android/
+native-client/ios/
+native-client/.expo/
+native-client/.expo-shared/
+native-client/.gradle/
+native-client/.cxx/
+
+# Expo / React Native cache
+**/.expo/
+**/.expo-shared/
+
 # Database
 *.db
 *.sqlite
 *.sqlite3
+*.sql
 
 # Uploads
 uploads/
