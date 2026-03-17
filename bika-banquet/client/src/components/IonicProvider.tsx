@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { setupIonicReact } from '@ionic/react';
 import { Capacitor } from '@capacitor/core';
 
@@ -11,8 +11,6 @@ export default function IonicProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [isIonicInitialized, setIsIonicInitialized] = useState(false);
-
   useEffect(() => {
     // Only initialize Ionic styling/scripts if running inside native Capacitor
     if (Capacitor.isNativePlatform()) {
@@ -32,21 +30,11 @@ export default function IonicProvider({
         await import('@ionic/react/css/text-transformation.css');
         await import('@ionic/react/css/flex-utils.css');
         await import('@ionic/react/css/display.css');
-        
-        setIsIonicInitialized(true);
       };
 
       loadCSS();
-    } else {
-      // On web, immediately ready without loading Ionic CSS
-      setIsIonicInitialized(true);
     }
   }, []);
-
-  // Avoid hydration mismatch by waiting for initialization
-  if (!isIonicInitialized) {
-    return null; 
-  }
 
   return <>{children}</>;
 }

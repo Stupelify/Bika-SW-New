@@ -50,7 +50,7 @@ function isAllowedOrigin(origin: string | undefined | null): boolean {
   if (!origin) {
     return true;
   }
-  if (allowedOriginSet.size === 0 || allowedOriginSet.has(origin)) {
+  if (allowedOriginSet.has(origin)) {
     return true;
   }
   try {

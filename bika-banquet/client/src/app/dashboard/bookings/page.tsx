@@ -1204,7 +1204,7 @@ export default function BookingsPage() {
       id: booking.id,
       name: booking.functionName || 'Booking',
       subtitle: formatCustomerLabel(booking.customer),
-      href: `/dashboard/bookings/${booking.id}`,
+      href: `/dashboard/bookings?section=edit&id=${booking.id}`,
     }));
     window.localStorage.setItem('bika_palette_bookings', JSON.stringify(payload));
   }, [bookings]);
