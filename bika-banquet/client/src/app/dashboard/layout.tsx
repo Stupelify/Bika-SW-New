@@ -793,7 +793,10 @@ function DashboardLayoutContent({
       style={
         {
           minHeight: '100dvh',
+          height: '100dvh',
           background: 'var(--bg)',
+          display: 'flex',
+          flexDirection: 'column',
           '--current-sidebar-w': currentSidebarWidth,
         } as React.CSSProperties
       }
@@ -859,7 +862,14 @@ function DashboardLayoutContent({
 
       <div
         className="ml-0 lg:ml-[var(--current-sidebar-w)]"
-        style={{ transition: 'margin-left 0.2s ease' }}
+        style={{
+          transition: 'margin-left 0.2s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          flex: 1,
+          minWidth: 0,
+        }}
       >
         <header
           style={{
@@ -875,6 +885,7 @@ function DashboardLayoutContent({
             position: 'sticky',
             top: 0,
             zIndex: 30,
+            flexShrink: 0,
           }}
         >
           <button
@@ -959,7 +970,13 @@ function DashboardLayoutContent({
           className="has-bottom-nav lg:!pb-0"
           style={{
             maxWidth: 1400,
+            width: '100%',
             margin: '0 auto',
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch',
             paddingTop: 'clamp(16px, 2.5vw, 28px)',
             paddingLeft: 'clamp(16px, 2.5vw, 28px)',
             paddingRight: 'clamp(16px, 2.5vw, 28px)',
