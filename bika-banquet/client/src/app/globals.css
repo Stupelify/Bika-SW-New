@@ -756,25 +756,13 @@
   .sidebar-collapsed .sidebar-label {
     opacity: 0;
     width: 0;
+    pointer-events: none;
   }
 
-  .sidebar-collapse-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    color: var(--text-4);
-    cursor: pointer;
-    transition: color 0.15s, background 0.15s;
-  }
-
-  .sidebar-collapse-btn:hover {
-    color: var(--text-1);
-    background: var(--surface-3);
+  .sidebar-collapsed .sidebar-nav-label {
+    opacity: 1;
+    width: 100%;
+    pointer-events: auto;
   }
 
   .pack-section-body {
@@ -1327,7 +1315,6 @@
   .bottom-nav,
   .fab,
   .command-palette,
-  .sidebar-collapse-btn,
   .no-print {
     display: none !important;
   }

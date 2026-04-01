@@ -258,6 +258,8 @@ function MenuPageContent() {
   >({});
   const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>('itemType');
   const sectionParam = searchParams.get('section');
+  const isIngredientsPage = pathname === '/dashboard/menu/ingredients';
+  const isVendorsPage = pathname === '/dashboard/menu/vendors';
 
   const itemTypeColumns = useMemo<TableColumnConfig<ItemType>[]>(
     () => [
@@ -1119,7 +1121,7 @@ function MenuPageContent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Menu & Items</h1>
         <p className="text-gray-600 mt-1">
-          Manage item categories, individual dishes and reusable template menus.
+          Manage item categories, individual dishes, ingredients, vendors and reusable template menus.
         </p>
       </div>
 
@@ -1832,13 +1834,13 @@ function MenuPageContent() {
 
       {(canViewItemType || canViewItem || canViewTemplate) && (
         <div className="card p-2">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
             <button
               type="button"
               onClick={() => navigateToMenuSection('itemType')}
               disabled={!canViewItemType}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeMenuSection === 'itemType' && canViewItemType
+                activeMenuSection === 'itemType' && canViewItemType && !isIngredientsPage && !isVendorsPage
                   ? 'bg-primary-600 text-white shadow'
                   : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
@@ -1850,7 +1852,7 @@ function MenuPageContent() {
               onClick={() => navigateToMenuSection('item')}
               disabled={!canViewItem}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeMenuSection === 'item' && canViewItem
+                activeMenuSection === 'item' && canViewItem && !isIngredientsPage && !isVendorsPage
                   ? 'bg-primary-600 text-white shadow'
                   : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
@@ -1862,12 +1864,36 @@ function MenuPageContent() {
               onClick={() => navigateToMenuSection('template')}
               disabled={!canViewTemplate}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeMenuSection === 'template' && canViewTemplate
+                activeMenuSection === 'template' && canViewTemplate && !isIngredientsPage && !isVendorsPage
                   ? 'bg-primary-600 text-white shadow'
                   : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Template Menus
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/menu/ingredients')}
+              disabled={!canViewItem}
+              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                isIngredientsPage && canViewItem
+                  ? 'bg-primary-600 text-white shadow'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
+            >
+              Ingredients
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/menu/vendors')}
+              disabled={!canViewItem}
+              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                isVendorsPage && canViewItem
+                  ? 'bg-primary-600 text-white shadow'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
+            >
+              Vendors
             </button>
           </div>
         </div>

@@ -18,7 +18,6 @@ import {
   Building2,
   CalendarCheck,
   CalendarDays,
-  ChevronLeft,
   ChevronDown,
   ChevronRight,
   DollarSign,
@@ -484,6 +483,43 @@ function DashboardLayoutContent({
     router.push('/login');
   };
 
+  const navToggleButton = (
+    <button
+      type="button"
+      onClick={() => {
+        if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+          setSidebarCollapsed((prev) => !prev);
+          return;
+        }
+        setSidebarOpen(true);
+      }}
+      aria-label={sidebarCollapsed ? 'Expand navigation' : 'Toggle navigation'}
+      style={{
+        border: 'none',
+        background: 'transparent',
+        color: 'var(--text-3)',
+        borderRadius: 8,
+        width: 30,
+        height: 30,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        flexShrink: 0,
+      }}
+      onMouseOver={(event) => {
+        event.currentTarget.style.background = 'var(--surface-2)';
+        event.currentTarget.style.color = 'var(--text-1)';
+      }}
+      onMouseOut={(event) => {
+        event.currentTarget.style.background = 'transparent';
+        event.currentTarget.style.color = 'var(--text-3)';
+      }}
+    >
+      <Menu style={{ width: 18, height: 18 }} aria-hidden="true" />
+    </button>
+  );
+
   const renderSidebarContent = (isMobile: boolean, isCollapsed: boolean) => (
     <div
       className={isCollapsed ? 'sidebar-collapsed' : undefined}
@@ -496,23 +532,10 @@ function DashboardLayoutContent({
           display: 'flex',
           alignItems: 'center',
           gap: 10,
+          justifyContent: 'flex-end',
+          minHeight: 73,
         }}
       >
-        <Avatar name="Bika Banquet" size="sm" />
-        <div className="sidebar-label" style={{ minWidth: 0, flex: 1 }}>
-          <p
-            style={{
-              fontSize: 14,
-              fontWeight: 650,
-              color: 'var(--text-1)',
-              letterSpacing: '-0.01em',
-              lineHeight: 1.2,
-            }}
-          >
-            Bika Banquet
-          </p>
-          <p style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>Operations Suite</p>
-        </div>
         {isMobile && (
           <button
             type="button"
@@ -576,8 +599,10 @@ function DashboardLayoutContent({
                     flex: 1,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 9,
-                    padding: '7px 10px',
+                    flexDirection: isCollapsed ? 'column' : 'row',
+                    justifyContent: isCollapsed ? 'center' : 'flex-start',
+                    gap: isCollapsed ? 0 : 9,
+                    padding: isCollapsed ? '8px 6px' : '7px 10px',
                     fontSize: 13.5,
                     fontWeight: isActive ? 600 : 450,
                     color: isActive ? 'var(--teal-700)' : 'var(--text-3)',
@@ -594,21 +619,27 @@ function DashboardLayoutContent({
                       opacity: isActive ? 1 : 0.65,
                       flexShrink: 0,
                       color: isActive ? 'var(--teal-600)' : 'currentColor',
+                      marginBottom: isCollapsed ? 4 : 0,
                     }}
                     aria-hidden="true"
                   />
                   <span
-                    className="sidebar-label"
+                    className="sidebar-label sidebar-nav-label"
                     style={{
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                      width: isCollapsed ? '100%' : undefined,
+                      opacity: 1,
+                      textAlign: isCollapsed ? 'center' : 'left',
+                      fontSize: isCollapsed ? 10 : undefined,
+                      lineHeight: isCollapsed ? 1.1 : undefined,
                     }}
                   >
                     {item.name}
                   </span>
                 </Link>
-                {hasChildren && (
+                {hasChildren && !isCollapsed && (
                   <button
                     type="button"
                     aria-label={`Toggle ${item.name} submenu`}
@@ -687,8 +718,9 @@ function DashboardLayoutContent({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 9,
-            padding: '8px 10px',
+            justifyContent: isCollapsed ? 'center' : 'flex-start',
+            gap: isCollapsed ? 0 : 9,
+            padding: isCollapsed ? '8px 4px' : '8px 10px',
             borderRadius: 10,
           }}
         >
@@ -722,6 +754,7 @@ function DashboardLayoutContent({
             type="button"
             onClick={handleLogout}
             aria-label="Log out"
+            title={isCollapsed ? 'Log out' : undefined}
             style={{
               border: 'none',
               background: 'none',
@@ -747,23 +780,6 @@ function DashboardLayoutContent({
           </button>
         </div>
       </div>
-
-      {!isMobile && (
-        <div style={{ padding: '6px 8px 14px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            className="sidebar-collapse-btn"
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
-          >
-            {isCollapsed ? (
-              <ChevronRight style={{ width: 14, height: 14 }} aria-hidden="true" />
-            ) : (
-              <ChevronLeft style={{ width: 14, height: 14 }} aria-hidden="true" />
-            )}
-          </button>
-        </div>
-      )}
     </div>
   );
 
@@ -785,7 +801,7 @@ function DashboardLayoutContent({
     );
   }
 
-  const currentSidebarWidth = sidebarCollapsed ? '56px' : 'var(--sidebar-w)';
+  const currentSidebarWidth = sidebarCollapsed ? '72px' : 'var(--sidebar-w)';
 
   return (
     <div
@@ -802,6 +818,24 @@ function DashboardLayoutContent({
       }
     >
       <a href="#main-content" className="skip-nav">Skip to main content</a>
+      <div
+        className="hidden lg:flex"
+        style={{
+          position: 'fixed',
+          top: 'var(--safe-top)',
+          left: 0,
+          width: '72px',
+          height: '52px',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--surface)',
+          borderRight: '1px solid var(--border)',
+          borderBottom: '1px solid var(--border)',
+          zIndex: 60,
+        }}
+      >
+        {navToggleButton}
+      </div>
       {sidebarOpen && (
         <button
           type="button"
@@ -888,34 +922,36 @@ function DashboardLayoutContent({
             flexShrink: 0,
           }}
         >
-          <button
-            type="button"
-            className="lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open navigation"
+          <div className="lg:hidden">{navToggleButton}</div>
+          <div
             style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-3)',
-              borderRadius: 8,
-              width: 30,
-              height: 30,
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-            onMouseOver={(event) => {
-              event.currentTarget.style.background = 'var(--surface-2)';
-              event.currentTarget.style.color = 'var(--text-1)';
-            }}
-            onMouseOut={(event) => {
-              event.currentTarget.style.background = 'transparent';
-              event.currentTarget.style.color = 'var(--text-3)';
+              gap: 12,
+              flexShrink: 0,
             }}
           >
-            <Menu style={{ width: 18, height: 18 }} aria-hidden="true" />
-          </button>
+            <img
+              src="https://assets.zyrosite.com/MBlLcEqY2yw3y2EF/1-2-removebg-scaled-e1752152009924-7iV2qZXAcVUCou9o.png"
+              alt="Bika Banquet"
+              style={{
+                width: 32,
+                height: 32,
+                objectFit: 'contain',
+              }}
+            />
+            <span
+              aria-hidden="true"
+              style={{
+                color: 'var(--text-4)',
+                fontSize: 16,
+                fontWeight: 600,
+                lineHeight: 1,
+              }}
+            >
+              |
+            </span>
+          </div>
 
           <Breadcrumb pathname={pathname} />
 

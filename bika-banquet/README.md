@@ -176,6 +176,39 @@ docker-compose down
 
 Access: http://localhost (https://localhost for TLS)
 
+### Optional Ops Stack
+
+The repository includes optional operational tooling:
+
+- **Metabase** for BI/reporting dashboards
+- **Uptime Kuma** for uptime and API monitoring
+
+Start them only when needed:
+
+```bash
+docker-compose --profile ops up -d metabase uptime-kuma
+```
+
+Default local access:
+
+- Metabase: `http://localhost:3001`
+- Uptime Kuma: `http://localhost:3002`
+
+Recommended setup after first launch:
+
+1. In **Metabase**, add the application PostgreSQL database as a data source using:
+   - Host: `db`
+   - Port: `5432`
+   - Database: value of `DB_NAME`
+   - Username: value of `DB_USER`
+   - Password: value of `DB_PASSWORD`
+2. In **Uptime Kuma**, create monitors for:
+   - Frontend: `http://client:3000`
+   - Backend health: `http://server:5000/api/health`
+   - External site: your public domain over HTTPS
+
+These services share the same Docker network as the banquet stack, so they can reach `db`, `server`, and `client` directly.
+
 ## 📚 API Documentation
 
 ### Authentication

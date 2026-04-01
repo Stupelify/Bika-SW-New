@@ -9,21 +9,19 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     url: serverUrl,
-    cleartext: false,
+    cleartext: true, // required for http local network test
   },
   ios: {
-    // Let the web view extend under the status bar / Dynamic Island.
-    // Safe-area insets are then correctly exposed via env(safe-area-inset-*).
-    contentInset: 'always',
+    // Setting this to 'never' ensures the WebView extends all the way 
+    // to the edges of the device past the safe areas, removing black bars.
+    contentInset: 'never',
     scrollEnabled: true,
   },
   plugins: {
     StatusBar: {
-      // Overlay = true means the webview extends under the iOS status bar.
-      // Our header already pads by var(--safe-top) = env(safe-area-inset-top).
       overlaysWebView: true,
       style: 'DARK',
-      backgroundColor: '#ffffff00', // transparent — header background shows through
+      backgroundColor: '#00000000', // transparent
     },
   },
 };

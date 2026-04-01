@@ -213,6 +213,97 @@ interface HallBoardRow {
   slots: HallBoardSlot[];
 }
 
+interface MobileTimelineEntry {
+  id: string;
+  kind: 'booking' | 'enquiry' | 'google';
+  title: string;
+  subtitle: string;
+  timeLabel: string;
+  top: number;
+  height: number;
+  borderColor: string;
+  background: string;
+  textColor: string;
+  source: 'software' | 'google';
+  bookingId?: string;
+  enquiryId?: string;
+}
+
+type ServiceSlot = 'breakfast' | 'lunch' | 'hiTea' | 'dinner';
+
+const SERVICE_SLOT_LABELS: Record<ServiceSlot, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  hiTea: 'Hi-Tea',
+  dinner: 'Dinner',
+};
+
+const LOCATION_PALETTE = [
+  {
+    solid: '#0d9488',
+    soft: 'rgba(13, 148, 136, 0.1)',
+    text: '#115e59',
+    border: '#14b8a6',
+  },
+  {
+    solid: '#4f46e5',
+    soft: 'rgba(79, 70, 229, 0.1)',
+    text: '#3730a3',
+    border: '#6366f1',
+  },
+  {
+    solid: '#d97706',
+    soft: 'rgba(217, 119, 6, 0.12)',
+    text: '#92400e',
+    border: '#f59e0b',
+  },
+  {
+    solid: '#e11d48',
+    soft: 'rgba(225, 29, 72, 0.1)',
+    text: '#9f1239',
+    border: '#fb7185',
+  },
+];
+
+function stableHash(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function getLocationPalette(seed: string) {
+  const normalized = seed.trim().toLowerCase();
+  if (!normalized) return LOCATION_PALETTE[0];
+  return LOCATION_PALETTE[stableHash(normalized) % LOCATION_PALETTE.length];
+}
+
+function resolveServiceSlot(minutes: number): ServiceSlot {
+  if (!Number.isFinite(minutes)) return 'lunch';
+  if (minutes < 660) return 'breakfast';
+  if (minutes < 900) return 'lunch';
+  if (minutes < 1080) return 'hiTea';
+  return 'dinner';
+}
+
+function compactLocationLabel(value: string): string {
+  const clean = value.trim();
+  if (!clean) return '';
+  if (clean.length <= 16) return clean;
+  return `${clean.slice(0, 13)}...`;
+}
+
+function compactFunctionLabel(value: string, max = 18): string {
+  const clean = value.trim();
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, Math.max(6, max - 3))}...`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 function toSafeNumber(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -875,6 +966,127 @@ export default function CalendarPage() {
     () => buildWeekDays(parseDateKey(selectedDate)),
     [selectedDate]
   );
+  const mobileTimelineEntries = useMemo<MobileTimelineEntry[]>(() => {
+    const timelineStart = 8 * 60;
+    const timelineEnd = 20 * 60;
+    const timelineSpan = timelineEnd - timelineStart;
+    const timelineHeight = 560;
+
+    const bookingsTimeline = selectedBookings
+      .filter((booking) => booking.status !== 'cancelled')
+      .map((booking) => {
+        const { startMinutes, endMinutes } = resolveBookingTimeRange(booking);
+        const palette = getLocationPalette(getPrimaryHallName(booking));
+        const clampedStart = clamp(startMinutes, timelineStart, timelineEnd - 30);
+        const clampedEnd = clamp(endMinutes, clampedStart + 30, timelineEnd);
+        return {
+          id: `booking-${booking.id}`,
+          kind: 'booking' as const,
+          title: booking.functionName,
+          subtitle: `${getPrimaryHallName(booking)} • ${toSafeNumber(booking.expectedGuests)} guests`,
+          timeLabel: bookingTimeLabel(booking),
+          top: ((clampedStart - timelineStart) / timelineSpan) * timelineHeight,
+          height: Math.max(((clampedEnd - clampedStart) / timelineSpan) * timelineHeight, 72),
+          borderColor: palette.border,
+          background: palette.soft,
+          textColor: palette.text,
+          source: 'software' as const,
+          bookingId: booking.id,
+        };
+      });
+
+    const enquiriesTimeline = selectedEnquiries.map((enquiry) => {
+      const start = parseClockToMinutes(enquiry.functionTime || '');
+      const clampedStart = clamp(Number.isFinite(start) ? start : 12 * 60, timelineStart, timelineEnd - 30);
+      const end = clamp(clampedStart + 60, clampedStart + 30, timelineEnd);
+      return {
+        id: `enquiry-${enquiry.id}`,
+        kind: 'enquiry' as const,
+        title: enquiry.functionName,
+        subtitle: `${enquiry.customer?.name || 'Lead'} • ${toSafeNumber(enquiry.expectedGuests)} guests`,
+        timeLabel: enquiry.functionTime || '--:--',
+        top: ((clampedStart - timelineStart) / timelineSpan) * timelineHeight,
+        height: Math.max(((end - clampedStart) / timelineSpan) * timelineHeight, 64),
+        borderColor: '#f59e0b',
+        background: 'rgba(245, 158, 11, 0.12)',
+        textColor: '#92400e',
+        source: 'software' as const,
+        enquiryId: enquiry.id,
+      };
+    });
+
+    const googleTimeline = selectedGoogleEvents.map((event) => {
+      const { startMinutes, endMinutes } = googleEventRangeMinutes(event);
+      const clampedStart = clamp(startMinutes, timelineStart, timelineEnd - 30);
+      const clampedEnd = clamp(endMinutes, clampedStart + 30, timelineEnd);
+      return {
+        id: `google-${event.id}`,
+        kind: 'google' as const,
+        title: event.title,
+        subtitle: event.venueName,
+        timeLabel: googleEventTimeLabel(event),
+        top: ((clampedStart - timelineStart) / timelineSpan) * timelineHeight,
+        height: Math.max(((clampedEnd - clampedStart) / timelineSpan) * timelineHeight, 64),
+        borderColor: '#38bdf8',
+        background: 'rgba(56, 189, 248, 0.12)',
+        textColor: '#075985',
+        source: (event.origin === 'software' ? 'software' : 'google') as 'software' | 'google',
+      };
+    });
+
+    return [...bookingsTimeline, ...enquiriesTimeline, ...googleTimeline].sort((a, b) => a.top - b.top);
+  }, [selectedBookings, selectedEnquiries, selectedGoogleEvents]);
+  const mobileTimelineSlots = [
+    { label: '08 AM', minutes: 8 * 60 },
+    { label: '10 AM', minutes: 10 * 60 },
+    { label: '12 PM', minutes: 12 * 60 },
+    { label: '02 PM', minutes: 14 * 60 },
+    { label: '04 PM', minutes: 16 * 60 },
+    { label: '06 PM', minutes: 18 * 60 },
+    { label: '08 PM', minutes: 20 * 60 },
+  ];
+  const mobileCurrentTimeTop = useMemo(() => {
+    if (selectedDate !== todayKey) return null;
+    const now = new Date();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    if (minutes < 8 * 60 || minutes > 20 * 60) return null;
+    return ((minutes - 8 * 60) / (12 * 60)) * 560;
+  }, [selectedDate, todayKey]);
+  const weekSlotMatrix = useMemo(() => {
+    const base = weekDays.map((day) => {
+      const dayKey = formatDateKey(day);
+      const buckets: Record<
+        ServiceSlot,
+        Array<
+          | { type: 'booking'; row: BookingCalendarRow }
+          | { type: 'enquiry'; row: EnquiryCalendarRow }
+          | { type: 'google'; row: GoogleCalendarEventRow }
+        >
+      > = {
+        breakfast: [],
+        lunch: [],
+        hiTea: [],
+        dinner: [],
+      };
+
+      (bookingsByDate.get(dayKey) || []).forEach((row) => {
+        buckets[resolveServiceSlot(bookingSortMinutes(row))].push({ type: 'booking', row });
+      });
+      (enquiriesByDate.get(dayKey) || []).forEach((row) => {
+        buckets[resolveServiceSlot(parseClockToMinutes(row.functionTime || ''))].push({
+          type: 'enquiry',
+          row,
+        });
+      });
+      (googleEventsByDate.get(dayKey) || []).forEach((row) => {
+        buckets[resolveServiceSlot(googleEventSortMinutes(row))].push({ type: 'google', row });
+      });
+
+      return { day, dayKey, buckets };
+    });
+
+    return base;
+  }, [weekDays, bookingsByDate, enquiriesByDate, googleEventsByDate]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1444,8 +1656,8 @@ export default function CalendarPage() {
 
       {displayMode === 'calendar' && (
         <>
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="card xl:col-span-2">
+          <div className="space-y-6">
+            <div className="card">
               {loading ? (
                 <div className="py-8">
                   <CalendarSkeleton />
@@ -1455,12 +1667,12 @@ export default function CalendarPage() {
                   {viewMode === 'month' && (
                     <>
                       <div className="hidden md:block overflow-x-auto">
-                        <div className="min-w-[680px] space-y-2">
+                        <div className="min-w-[760px] space-y-3">
                           <div className="grid grid-cols-7 gap-2">
                             {weekdayLabels.map((label) => (
                               <div
                                 key={label}
-                                className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500 py-2"
+                                className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] py-3 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-4)]"
                               >
                                 {label}
                               </div>
@@ -1491,21 +1703,28 @@ export default function CalendarPage() {
                                   label: booking.functionName,
                                   kind: 'booking' as const,
                                   status: booking.status,
+                                  hall: getPrimaryHallName(booking),
+                                  minutes: bookingSortMinutes(booking),
                                 })),
                                 ...dayEnquiries.map((enquiry) => ({
                                   id: enquiry.id,
                                   label: enquiry.functionName,
                                   kind: 'enquiry' as const,
                                   status: enquiry.status,
+                                  hall: enquiry.customer?.name || 'Enquiry',
+                                  minutes: parseClockToMinutes(enquiry.functionTime || ''),
                                 })),
                                 ...dayGoogleEvents.map((event) => ({
                                   id: event.id,
                                   label: event.title,
                                   kind: 'google' as const,
                                   status: event.status,
+                                  hall: event.venueName,
+                                  minutes: googleEventSortMinutes(event),
                                 })),
                               ];
-                              const visibleEvents = eventBars.slice(0, 3);
+                              const sortedEvents = [...eventBars].sort((a, b) => a.minutes - b.minutes);
+                              const visibleEvents = sortedEvents.slice(0, 3);
                               const overflowCount = Math.max(eventBars.length - visibleEvents.length, 0);
 
                               return (
@@ -1513,63 +1732,79 @@ export default function CalendarPage() {
                                   key={dayKey}
                                   type="button"
                                   onClick={() => setSelectedDate(dayKey)}
-                                  className={`rounded-xl border p-2 text-left min-h-[96px] sm:min-h-[126px] transition relative overflow-hidden ${isSelected
+                                  className={`rounded-[20px] border p-3 text-left min-h-[156px] transition relative overflow-hidden ${isSelected
                                       ? 'border-primary-400 bg-primary-50 shadow-sm'
-                                      : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50'
-                                    } ${isCurrentMonth ? '' : 'bg-gray-50 opacity-75'}`}
+                                      : 'border-[var(--border)] bg-[var(--surface)] hover:border-primary-200 hover:bg-primary-50'
+                                    } ${isCurrentMonth ? '' : 'opacity-65 bg-[var(--surface-2)]'}`}
+                                  style={{
+                                    boxShadow: isSelected ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
+                                  }}
                                 >
-                                  <div className="flex items-center justify-between relative z-10">
-                                    <span
-                                      className={`text-sm font-semibold ${isCurrentMonth ? 'text-gray-900' : 'text-gray-500'
-                                        }`}
-                                    >
+                                  <div className="flex items-start justify-between relative z-10">
+                                    <span className={`text-sm font-bold ${isCurrentMonth ? 'text-[var(--text-1)]' : 'text-[var(--text-4)]'}`}>
                                       {day.getDate()}
                                     </span>
                                     {isToday && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">
+                                      <span className="rounded-full bg-primary-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-white">
                                         Today
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="mt-2 space-y-1.5 relative z-10">
+                                  <div className="mt-3 space-y-2 relative z-10">
                                     {visibleEvents.map((event) => {
                                       const isCancelled = event.kind === 'booking' && event.status === 'cancelled';
-                                      const colors: Record<string, { bg: string; text: string }> = {
-                                        booking: { bg: 'var(--teal-500)', text: '#ffffff' },
-                                        enquiry: { bg: '#f59e0b', text: '#1f2937' },
-                                        google: { bg: '#38bdf8', text: '#0f172a' },
-                                      };
-                                      const color = colors[event.kind];
+                                      const palette = getLocationPalette(event.hall);
+                                      const bandStyle =
+                                        event.kind === 'booking'
+                                          ? {
+                                            background: palette.soft,
+                                            borderLeft: `4px solid ${palette.border}`,
+                                            color: palette.text,
+                                          }
+                                          : event.kind === 'enquiry'
+                                            ? {
+                                              background: 'rgba(245, 158, 11, 0.12)',
+                                              borderLeft: '4px solid #f59e0b',
+                                              color: '#92400e',
+                                            }
+                                            : {
+                                              background: 'rgba(56, 189, 248, 0.12)',
+                                              borderLeft: '4px solid #38bdf8',
+                                              color: '#0f172a',
+                                            };
                                       return (
                                         <div
                                           key={`${event.kind}-${event.id}`}
                                           title={event.label}
                                           style={{
-                                            padding: '2px 6px',
-                                            borderRadius: 999,
+                                            padding: '6px 8px',
+                                            borderRadius: 10,
                                             fontSize: 10,
-                                            lineHeight: '12px',
-                                            background: color.bg,
-                                            color: color.text,
-                                            whiteSpace: 'nowrap',
+                                            lineHeight: '13px',
+                                            whiteSpace: 'normal',
                                             overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
                                             opacity: isCancelled ? 0.5 : 1,
                                             textDecoration: isCancelled ? 'line-through' : 'none',
+                                            ...bandStyle,
                                           }}
                                         >
-                                          {event.label}
+                                          <span style={{ display: 'block', fontSize: 9, opacity: 0.72, marginBottom: 2 }}>
+                                            {compactLocationLabel(event.hall)}
+                                          </span>
+                                          <span style={{ display: 'block', fontWeight: 700 }}>
+                                            {compactFunctionLabel(event.label, 20)}
+                                          </span>
                                         </div>
                                       );
                                     })}
                                     {overflowCount > 0 && (
-                                      <span className="text-[10px] text-[var(--text-4)]">
+                                      <span className="text-[10px] font-semibold text-[var(--text-4)]">
                                         +{overflowCount} more
                                       </span>
                                     )}
                                   </div>
-                                  <div className="mt-2 text-[10px] text-[var(--text-4)] relative z-10">
+                                  <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-[var(--text-4)] relative z-10">
                                     {dayGuestCount > 0 ? (
                                       <span>
                                         {dayGuestCount.toLocaleString()} guests
@@ -1577,6 +1812,11 @@ export default function CalendarPage() {
                                       </span>
                                     ) : (
                                       <span>No bookings</span>
+                                    )}
+                                    {activeDayBookings.length > 0 && (
+                                      <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-[var(--text-3)]">
+                                        {activeDayBookings.length} booked
+                                      </span>
                                     )}
                                   </div>
                                 </button>
@@ -1586,134 +1826,448 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Mobile Agenda Weekly Strip */}
-                      <div className="md:hidden">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3 px-1">Selected Week</p>
-                        <div className="flex items-center gap-3 overflow-x-auto pb-4 snap-x snap-mandatory mx-[-16px] px-4" style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
-                          {mobileWeekDays.map((day) => {
+                      <div className="md:hidden rounded-[22px] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-xs)]">
+                        <div className="mb-3 grid grid-cols-7 text-center">
+                          {weekdayLabels.map((label) => (
+                            <div
+                              key={`mobile-${label}`}
+                              className="py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-4)]"
+                            >
+                              {label}
+                            </div>
+                          ))}
+                          {calendarDays.map((day) => {
                             const dayKey = formatDateKey(day);
-                            const isSelected = dayKey === selectedDate;
+                            const dayBookings = bookingsByDate.get(dayKey) || [];
+                            const dayEnquiries = enquiriesByDate.get(dayKey) || [];
+                            const dayGoogle = googleEventsByDate.get(dayKey) || [];
                             const isToday = dayKey === todayKey;
-                            const hasBookings = (bookingsByDate.get(dayKey)?.length || 0) > 0;
-                            const hasEnquiries = (enquiriesByDate.get(dayKey)?.length || 0) > 0;
+                            const isSelected = dayKey === selectedDate;
+                            const isCurrentMonth = day.getMonth() === viewDate.getMonth();
+                            const dots = [
+                              dayBookings.length > 0 ? 'bg-[var(--teal-500)]' : '',
+                              dayEnquiries.length > 0 ? 'bg-amber-500' : '',
+                              dayGoogle.length > 0 ? 'bg-sky-500' : '',
+                            ].filter(Boolean);
 
                             return (
                               <button
-                                key={dayKey}
+                                key={`mobile-grid-${dayKey}`}
                                 type="button"
                                 onClick={() => setSelectedDate(dayKey)}
-                                className={`flex flex-col items-center justify-center min-w-[64px] h-[76px] rounded-2xl border transition-all snap-start ${isSelected
-                                    ? 'border-primary-500 bg-primary-600 text-white shadow-md'
-                                    : isToday
-                                      ? 'border-primary-200 bg-primary-50 text-gray-900'
-                                      : 'border-gray-200 bg-white text-gray-600'
-                                  }`}
+                                className="relative flex h-14 flex-col items-center justify-start pt-2"
                               >
-                                <span className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${isSelected ? 'text-primary-100' : 'text-gray-500'}`}>
-                                  {day.toLocaleDateString('en-IN', { weekday: 'short' })}
-                                </span>
-                                <span className="text-lg font-bold">
-                                  {day.getDate()}
-                                </span>
-                                <div className="flex gap-1 mt-1.5 h-1.5">
-                                  {hasBookings && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'}`} />}
-                                  {hasEnquiries && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-amber-400'}`} />}
+                                {isSelected && !isToday && (
+                                  <span className="absolute inset-0 m-1 rounded-lg bg-primary-50 ring-1 ring-primary-200" />
+                                )}
+                                {isToday ? (
+                                  <span className="relative z-10 flex size-6 items-center justify-center rounded-full bg-[var(--teal-500)] text-sm font-bold text-white">
+                                    {day.getDate()}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`relative z-10 text-sm ${isSelected ? 'font-bold text-[var(--teal-700)]' : 'font-medium'} ${isCurrentMonth ? 'text-[var(--text-1)]' : 'text-[var(--text-4)]'}`}
+                                  >
+                                    {day.getDate()}
+                                  </span>
+                                )}
+                                <div className="relative z-10 mt-1 flex gap-0.5">
+                                  {dots.slice(0, 3).map((dotClass, index) => (
+                                    <div key={`${dayKey}-dot-${index}`} className={`size-1 rounded-full ${dotClass}`} />
+                                  ))}
                                 </div>
                               </button>
                             );
                           })}
                         </div>
-                        <div className="mt-2 p-4 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-between">
-                          <p className="text-xs text-primary-800 font-medium">Viewing agenda for selected day below</p>
-                          <svg className="w-5 h-5 text-primary-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                          </svg>
+
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)]">
+                          <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+                            <h2 className="font-bold text-[var(--teal-700)]">{selectedDateLabel}</h2>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-4)]">
+                              {selectedBookings.length + selectedEnquiries.length + selectedGoogleEvents.length} events
+                            </span>
+                          </div>
+                          <div className="space-y-px pb-1">
+                            {dayEvents.length === 0 ? (
+                              <div className="px-4 py-6 text-sm text-[var(--text-4)]">No events scheduled.</div>
+                            ) : (
+                              dayEvents.slice(0, 4).map((entry) => (
+                                <button
+                                  key={`month-mobile-${entry.id}`}
+                                  type="button"
+                                  onClick={() => {
+                                    if (entry.kind === 'booking' && entry.bookingId) {
+                                      void openBookingDetails(entry.bookingId);
+                                      return;
+                                    }
+                                    if (entry.kind === 'enquiry') {
+                                      const enquiryId = entry.id.replace('enquiry-', '');
+                                      openEnquiryDetails(enquiryId);
+                                    }
+                                  }}
+                                  className="group flex w-full gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-4 text-left last:border-b-0"
+                                >
+                                  <div
+                                    className={`w-1.5 self-stretch rounded-full ${entry.kind === 'booking'
+                                        ? 'bg-[var(--teal-500)]'
+                                        : entry.kind === 'enquiry'
+                                          ? 'bg-amber-500'
+                                          : 'bg-sky-500'
+                                      }`}
+                                  />
+                                  <div className="flex-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <h3 className="text-base font-semibold text-[var(--text-1)]">{entry.title}</h3>
+                                      <ChevronRight className="h-4 w-4 text-[var(--text-4)]" />
+                                    </div>
+                                    <div className="mt-1 flex flex-col gap-1 text-sm text-[var(--text-3)]">
+                                      <span>{entry.time}</span>
+                                      <span>{entry.subtitle}</span>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
                         </div>
                       </div>
                     </>
                   )}
 
                   {viewMode === 'week' && (
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[920px] grid grid-cols-7 gap-3">
-                        {weekDays.map((day) => {
-                          const dayKey = formatDateKey(day);
-                          const dayBookings = bookingsByDate.get(dayKey) || [];
-                          const dayEnquiries = enquiriesByDate.get(dayKey) || [];
-                          const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
-                          const isSelected = dayKey === selectedDate;
-                          const isToday = dayKey === todayKey;
+                    <>
+                    <div className="md:hidden space-y-4">
+                      <div className="overflow-x-auto pb-1" style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+                        <div className="flex min-w-max border-b border-[var(--border)]">
+                          {weekSlotMatrix.map(({ day, dayKey }) => {
+                            const isSelected = dayKey === selectedDate;
+                            return (
+                              <button
+                                key={`mobile-week-${dayKey}`}
+                                type="button"
+                                onClick={() => setSelectedDate(dayKey)}
+                                className={`flex min-w-[72px] flex-col items-center border-b-2 px-4 py-3 ${isSelected ? 'border-[var(--teal-500)] bg-[var(--teal-50)] text-[var(--teal-700)]' : 'border-transparent text-[var(--text-4)]'}`}
+                              >
+                                <span className="text-[11px] font-bold uppercase tracking-[0.12em]">
+                                  {day.toLocaleDateString('en-IN', { weekday: 'short' })}
+                                </span>
+                                <span className="text-lg font-bold">{day.getDate()}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                          return (
-                            <button
-                              key={dayKey}
-                              type="button"
-                              onClick={() => setSelectedDate(dayKey)}
-                              className={`rounded-xl border p-3 text-left align-top min-h-[280px] ${isSelected
-                                  ? 'border-primary-400 bg-primary-50'
-                                  : 'border-gray-200 hover:border-primary-200 hover:bg-primary-50'
-                                }`}
-                            >
-                              <p className="text-xs uppercase tracking-wide text-gray-500">
-                                {day.toLocaleDateString('en-IN', { weekday: 'short' })}
-                              </p>
-                              <p className="text-base font-semibold text-gray-900 mt-0.5">
-                                {day.toLocaleDateString('en-IN', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                })}
+                      <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)]">
+                        <div className="flex px-4 py-4 gap-3 overflow-x-auto" style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+                          <div className="flex min-w-[120px] flex-1 flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-4)]">Bookings</p>
+                            <p className="text-2xl font-bold text-[var(--text-1)]">{selectedBookings.length}</p>
+                          </div>
+                          <div className="flex min-w-[120px] flex-1 flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-4)]">Revenue</p>
+                            <p className="text-2xl font-bold text-[var(--text-1)]">₹{selectedBookings.reduce((sum, booking) => sum + toSafeNumber(booking.grandTotal), 0).toLocaleString('en-IN')}</p>
+                          </div>
+                          <div className="flex min-w-[120px] flex-1 flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-4)]">Utilization</p>
+                            <p className="text-2xl font-bold text-[var(--text-1)]">{hallWiseSchedule.length}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex">
+                          <div className="w-16 flex-shrink-0 border-r border-[var(--border)] bg-[var(--surface-2)] py-2 text-[10px] font-bold uppercase text-[var(--text-4)]">
+                            {mobileTimelineSlots.map((slot, index) => (
+                              <div key={`mobile-week-slot-${slot.label}`} className={`h-20 flex items-start justify-center pt-1 ${index === 2 ? 'text-[var(--teal-700)]' : ''}`}>
+                                {slot.label}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="relative h-[560px] flex-1 border-l border-[var(--border)] bg-[var(--surface)]">
+                            <div className="absolute inset-0">
+                              {mobileTimelineSlots.map((slot, index) => (
+                                <div
+                                  key={`mobile-week-grid-${slot.label}`}
+                                  className={`h-20 border-b border-[var(--border)] ${index === mobileTimelineSlots.length - 1 ? 'border-b-0' : ''}`}
+                                />
+                              ))}
+                            </div>
+                            {mobileCurrentTimeTop !== null && (
+                              <div
+                                className="pointer-events-none absolute left-0 right-0 z-10 flex items-center"
+                                style={{ top: mobileCurrentTimeTop }}
+                              >
+                                <div className="ml-[-4px] size-2 rounded-full bg-red-500" />
+                                <div className="h-px flex-1 bg-red-500/50" />
+                              </div>
+                            )}
+                            <div className="relative h-full p-2">
+                              {mobileTimelineEntries.map((entry) => (
+                                <button
+                                  key={`mobile-week-entry-${entry.id}`}
+                                  type="button"
+                                  onClick={() => {
+                                    if (entry.bookingId) {
+                                      void openBookingDetails(entry.bookingId);
+                                      return;
+                                    }
+                                    if (entry.enquiryId) {
+                                      openEnquiryDetails(entry.enquiryId);
+                                    }
+                                  }}
+                                  className="absolute left-2 right-2 rounded-r-lg border-l-4 px-3 py-2 text-left shadow-sm"
+                                  style={{
+                                    top: entry.top,
+                                    height: entry.height,
+                                    borderLeftColor: entry.borderColor,
+                                    background: entry.background,
+                                  }}
+                                >
+                                  <div className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: entry.textColor }}>
+                                    {entry.timeLabel}
+                                  </div>
+                                  <div className="mt-1 text-xs font-bold text-[var(--text-1)]">{entry.title}</div>
+                                  <div className="mt-1 text-[10px] text-[var(--text-3)]">{entry.subtitle}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="hidden md:block overflow-x-auto">
+                      <div className="min-w-[1080px] overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)]">
+                        <div className="grid grid-cols-[104px_repeat(7,minmax(0,1fr))] border-b border-[var(--border)] bg-[var(--surface-2)]">
+                          <div className="flex items-center justify-center border-r border-[var(--border)] px-3 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-4)]">
+                            Slot
+                          </div>
+                          {weekSlotMatrix.map(({ day, dayKey }) => {
+                            const isSelected = dayKey === selectedDate;
+                            const isToday = dayKey === todayKey;
+                            return (
+                              <button
+                                key={dayKey}
+                                type="button"
+                                onClick={() => setSelectedDate(dayKey)}
+                                className={`border-r border-[var(--border)] px-3 py-3 text-center last:border-r-0 ${isSelected ? 'bg-primary-50' : ''}`}
+                              >
+                                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-4)]">
+                                  {day.toLocaleDateString('en-IN', { weekday: 'short' })}
+                                </div>
+                                <div className="mt-1 text-lg font-bold text-[var(--text-1)]">
+                                  {day.toLocaleDateString('en-IN', { day: '2-digit' })}
+                                </div>
+                                <div className="text-[11px] text-[var(--text-4)]">
+                                  {day.toLocaleDateString('en-IN', { month: 'short' })}
+                                </div>
                                 {isToday && (
-                                  <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">
+                                  <span className="mt-2 inline-flex rounded-full bg-primary-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white">
                                     Today
                                   </span>
                                 )}
-                              </p>
-                              <div className="mt-3 space-y-2">
-                                {dayBookings.slice(0, 4).map((booking) => (
-                                  <button
-                                    key={booking.id}
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void openBookingDetails(booking.id);
-                                    }}
-                                    className="rounded-md bg-emerald-100 text-emerald-900 px-2 py-1 text-xs truncate"
-                                  >
-                                    {bookingTimeLabel(booking)} {getPrimaryHallName(booking)} •{' '}
-                                    {booking.functionName}
-                                  </button>
-                                ))}
-                                {dayEnquiries.slice(0, 4).map((enquiry) => (
-                                  <button
-                                    key={enquiry.id}
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      openEnquiryDetails(enquiry.id);
-                                    }}
-                                    className="rounded-md bg-amber-100 text-amber-900 px-2 py-1 text-xs truncate text-left"
-                                  >
-                                    {enquiry.functionTime || '--:--'} {enquiry.functionName}
-                                  </button>
-                                ))}
-                                {dayGoogleEvents.slice(0, 4).map((event) => (
-                                  <div
-                                    key={event.id}
-                                    className="rounded-md bg-sky-100 text-sky-900 px-2 py-1 text-xs truncate"
-                                  >
-                                    {googleEventTimeLabel(event)} {event.venueName} • {event.title}
-                                  </div>
-                                ))}
-                              </div>
-                            </button>
-                          );
-                        })}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {(Object.keys(SERVICE_SLOT_LABELS) as ServiceSlot[]).map((slotKey) => (
+                          <div
+                            key={slotKey}
+                            className="grid grid-cols-[104px_repeat(7,minmax(0,1fr))] border-b border-[var(--border)] last:border-b-0"
+                          >
+                            <div className="flex items-start justify-center border-r border-[var(--border)] bg-[var(--surface-2)] px-3 py-4 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--text-4)]">
+                              {SERVICE_SLOT_LABELS[slotKey]}
+                            </div>
+                            {weekSlotMatrix.map(({ dayKey, buckets }) => {
+                              const entries = buckets[slotKey];
+                              const isSelected = dayKey === selectedDate;
+                              return (
+                                <button
+                                  key={`${dayKey}-${slotKey}`}
+                                  type="button"
+                                  onClick={() => setSelectedDate(dayKey)}
+                                  className={`min-h-[132px] border-r border-[var(--border)] px-2 py-2 text-left align-top last:border-r-0 ${isSelected ? 'bg-primary-50/70' : 'bg-[var(--surface)]'}`}
+                                >
+                                  {entries.length === 0 ? (
+                                    <div className="flex h-full min-h-[112px] items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-[11px] font-medium text-[var(--text-4)]">
+                                      Available
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {entries.slice(0, 2).map((entry) => {
+                                        if (entry.type === 'booking') {
+                                          const palette = getLocationPalette(getPrimaryHallName(entry.row));
+                                          return (
+                                            <button
+                                              key={entry.row.id}
+                                              type="button"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                void openBookingDetails(entry.row.id);
+                                              }}
+                                              className="w-full rounded-xl px-2.5 py-2 text-left"
+                                              style={{
+                                                background: palette.soft,
+                                                borderLeft: `4px solid ${palette.border}`,
+                                              }}
+                                            >
+                                              <div className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: palette.text }}>
+                                                {bookingTimeLabel(entry.row)}
+                                              </div>
+                                              <div className="mt-1 text-xs font-bold text-[var(--text-1)]">
+                                                {compactFunctionLabel(entry.row.functionName, 18)}
+                                              </div>
+                                              <div className="mt-1 text-[11px] text-[var(--text-3)]">
+                                                {compactLocationLabel(getPrimaryHallName(entry.row))}
+                                              </div>
+                                            </button>
+                                          );
+                                        }
+                                        if (entry.type === 'enquiry') {
+                                          return (
+                                            <button
+                                              key={entry.row.id}
+                                              type="button"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                openEnquiryDetails(entry.row.id);
+                                              }}
+                                              className="w-full rounded-xl border-l-4 border-amber-400 bg-amber-50 px-2.5 py-2 text-left"
+                                            >
+                                              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-amber-700">
+                                                {entry.row.functionTime || '--:--'}
+                                              </div>
+                                              <div className="mt-1 text-xs font-bold text-amber-900">
+                                                {compactFunctionLabel(entry.row.functionName, 18)}
+                                              </div>
+                                              <div className="mt-1 text-[11px] text-amber-800">
+                                                Lead enquiry
+                                              </div>
+                                            </button>
+                                          );
+                                        }
+                                        return (
+                                          <div
+                                            key={entry.row.id}
+                                            className="w-full rounded-xl border-l-4 border-sky-400 bg-sky-50 px-2.5 py-2 text-left"
+                                          >
+                                            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-sky-700">
+                                              {googleEventTimeLabel(entry.row)}
+                                            </div>
+                                            <div className="mt-1 text-xs font-bold text-sky-900">
+                                              {compactFunctionLabel(entry.row.title, 18)}
+                                            </div>
+                                            <div className="mt-1 text-[11px] text-sky-800">
+                                              {compactLocationLabel(entry.row.venueName)}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                      {entries.length > 2 && (
+                                        <div className="px-1 text-[10px] font-semibold text-[var(--text-4)]">
+                                          +{entries.length - 2} more
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
                       </div>
                     </div>
+                    </>
                   )}
 
                   {viewMode === 'day' && (
                     <div className="space-y-3">
+                      <div className="md:hidden space-y-4">
+                        <div className="flex gap-4 overflow-x-auto pb-1" style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+                          <div className="flex min-w-[140px] flex-1 flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-4)]">Bookings</p>
+                            <p className="text-2xl font-bold text-[var(--text-1)]">{selectedBookings.length}</p>
+                          </div>
+                          <div className="flex min-w-[140px] flex-1 flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-4)]">Revenue</p>
+                            <p className="text-2xl font-bold text-[var(--text-1)]">₹{selectedBookings.reduce((sum, booking) => sum + toSafeNumber(booking.grandTotal), 0).toLocaleString('en-IN')}</p>
+                          </div>
+                          <div className="flex min-w-[140px] flex-1 flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-4)]">Events</p>
+                            <p className="text-2xl font-bold text-[var(--text-1)]">{dayEvents.length}</p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)]">
+                          <div className="flex">
+                            <div className="w-16 flex-shrink-0 border-r border-[var(--border)] bg-[var(--surface-2)] py-2 text-[10px] font-bold uppercase text-[var(--text-4)]">
+                              {mobileTimelineSlots.map((slot, index) => (
+                                <div key={`mobile-day-slot-${slot.label}`} className={`h-20 flex items-start justify-center pt-1 ${index === 2 ? 'text-[var(--teal-700)]' : ''}`}>
+                                  {slot.label}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="relative h-[560px] flex-1 border-l border-[var(--border)] bg-[var(--surface)]">
+                              <div className="absolute inset-0">
+                                {mobileTimelineSlots.map((slot, index) => (
+                                  <div
+                                    key={`mobile-day-grid-${slot.label}`}
+                                    className={`h-20 border-b border-[var(--border)] ${index === mobileTimelineSlots.length - 1 ? 'border-b-0' : ''}`}
+                                  />
+                                ))}
+                              </div>
+                              {mobileCurrentTimeTop !== null && (
+                                <div
+                                  className="pointer-events-none absolute left-0 right-0 z-10 flex items-center"
+                                  style={{ top: mobileCurrentTimeTop }}
+                                >
+                                  <div className="ml-[-4px] size-2 rounded-full bg-red-500" />
+                                  <div className="h-px flex-1 bg-red-500/50" />
+                                </div>
+                              )}
+                              <div className="relative h-full p-2">
+                                {mobileTimelineEntries.length === 0 ? (
+                                  <div className="flex h-full items-center justify-center text-sm text-[var(--text-4)]">
+                                    No events scheduled.
+                                  </div>
+                                ) : (
+                                  mobileTimelineEntries.map((entry) => (
+                                    <button
+                                      key={`mobile-day-entry-${entry.id}`}
+                                      type="button"
+                                      onClick={() => {
+                                        if (entry.bookingId) {
+                                          void openBookingDetails(entry.bookingId);
+                                          return;
+                                        }
+                                        if (entry.enquiryId) {
+                                          openEnquiryDetails(entry.enquiryId);
+                                        }
+                                      }}
+                                      className="absolute left-2 right-2 rounded-r-lg border-l-4 px-3 py-2 text-left shadow-sm"
+                                      style={{
+                                        top: entry.top,
+                                        height: entry.height,
+                                        borderLeftColor: entry.borderColor,
+                                        background: entry.background,
+                                      }}
+                                    >
+                                      <div className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: entry.textColor }}>
+                                        {entry.timeLabel}
+                                      </div>
+                                      <div className="mt-1 text-xs font-bold text-[var(--text-1)]">{entry.title}</div>
+                                      <div className="mt-1 text-[10px] text-[var(--text-3)]">{entry.subtitle}</div>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="hidden md:block">
                       <p className="text-sm font-semibold text-gray-900">{selectedDateLabel}</p>
                       {dayEvents.length === 0 ? (
                         <div className="empty-state" style={{ padding: '20px 12px' }}>
@@ -1769,6 +2323,7 @@ export default function CalendarPage() {
                           </button>
                         ))
                       )}
+                      </div>
                     </div>
                   )}
                 </>
@@ -1778,7 +2333,7 @@ export default function CalendarPage() {
             <div
               key={selectedDate}
               ref={dayPanelRef}
-              className="card xl:sticky xl:top-24 h-fit day-panel-enter"
+              className="card day-panel-enter"
             >
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>

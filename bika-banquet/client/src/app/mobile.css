@@ -1,5 +1,15 @@
 /* Native Mobile Style Overrides */
 
+/* ── OVERRIDE IONIC SCROLL FREEZING ──────────────────────────────── */
+/* Ionic's core.css aggressively locks HTML/Body scrolling because it
+   expects the app to use <IonContent>. Since we are bypassing IonApp/IonContent
+   to preserve the Next.js Tailwind DOM layout, we must force the browser
+   to re-enable natural page scrolling on mobile devices. */
+html, body {
+  overflow-y: auto !important;
+  touch-action: auto !important;
+}
+
 /* iOS Liquid Glass Effect (Capacitor + Ionic) */
 .ios ion-card {
   --background: rgba(255, 255, 255, 0.25);
