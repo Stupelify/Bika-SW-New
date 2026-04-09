@@ -670,6 +670,50 @@ export default function CalendarPage() {
   const [printBookings, setPrintBookings] = useState<BookingDetail[]>([]);
   const dayPanelRef = useRef<HTMLDivElement | null>(null);
 
+  // ── Sidebar filter state ──────────────────────────────────────────────────
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('cal_sidebar_open') !== 'false';
+  });
+  // null = all halls visible (default until halls load)
+  const [selectedHallIds, setSelectedHallIds] = useState<Set<string> | null>(null);
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(
+    () => new Set(['confirmed', 'enquiry', 'pencil', 'quotation', 'pending'])
+  );
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('cal_sidebar_open', String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Initialise selectedHallIds once halls load (select all by default)
+  useEffect(() => {
+    if (halls.length > 0 && selectedHallIds === null) {
+      setSelectedHallIds(new Set(halls.map((h) => h.id)));
+    }
+  }, [halls, selectedHallIds]);
+
+  const toggleHall = useCallback((hallId: string) => {
+    setSelectedHallIds((prev) => {
+      const base = prev ?? new Set(halls.map((h) => h.id));
+      const next = new Set(base);
+      if (next.has(hallId)) next.delete(hallId); else next.add(hallId);
+      return next;
+    });
+  }, [halls]);
+
+  const toggleStatus = useCallback((status: string) => {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status); else next.add(status);
+      return next;
+    });
+  }, []);
+  // ── End sidebar filter state ──────────────────────────────────────────────
+
   const closeBookingDetails = useCallback(() => {
     setIsBookingDetailsOpen(false);
   }, []);
@@ -796,38 +840,61 @@ export default function CalendarPage() {
 
   const filteredBookings = useMemo(() => {
     if (sourceFilter === 'google') return [];
-    if (!searchQuery) return bookings;
-    return bookings.filter((entry) =>
-      [
-        entry.functionName,
-        entry.functionType,
-        entry.status,
-        entry.customer?.name || '',
-        entry.customer?.phone || '',
-        getBookingHallNames(entry).join(' '),
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(searchQuery)
-    );
-  }, [bookings, searchQuery, sourceFilter]);
+    return bookings.filter((entry) => {
+      // Search filter
+      if (searchQuery) {
+        const haystack = [
+          entry.functionName,
+          entry.functionType,
+          entry.status,
+          entry.customer?.name || '',
+          entry.customer?.phone || '',
+          getBookingHallNames(entry).join(' '),
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(searchQuery)) return false;
+      }
+      // Hall filter
+      if (selectedHallIds !== null) {
+        const hallNames = getBookingHallNames(entry);
+        const bookingHallIds = (entry.halls || [])
+          .map((h) => h.hall?.id || h.hallId || '')
+          .filter(Boolean);
+        const hasSelectedHall =
+          bookingHallIds.some((id) => selectedHallIds.has(id)) ||
+          (bookingHallIds.length === 0 && selectedHallIds.size > 0); // unassigned always shows
+        if (!hasSelectedHall && hallNames.length > 0) return false;
+      }
+      // Status filter
+      const effectiveStatus = entry.isQuotation ? 'quotation' : (entry.status || 'confirmed').toLowerCase();
+      if (!selectedStatuses.has(effectiveStatus) && !selectedStatuses.has('confirmed')) {
+        // Allow if any overlap
+        if (effectiveStatus === 'confirmed' && !selectedStatuses.has('confirmed')) return false;
+        if (effectiveStatus === 'quotation' && !selectedStatuses.has('quotation')) return false;
+      }
+      return true;
+    });
+  }, [bookings, searchQuery, sourceFilter, selectedHallIds, selectedStatuses]);
 
   const filteredEnquiries = useMemo(() => {
     if (sourceFilter === 'google') return [];
-    if (!searchQuery) return enquiries;
-    return enquiries.filter((entry) =>
-      [
-        entry.functionName,
-        entry.functionType,
-        entry.status,
-        entry.customer?.name || '',
-        entry.customer?.phone || '',
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(searchQuery)
-    );
-  }, [enquiries, searchQuery, sourceFilter]);
+    return enquiries.filter((entry) => {
+      if (searchQuery) {
+        const haystack = [
+          entry.functionName,
+          entry.functionType,
+          entry.status,
+          entry.customer?.name || '',
+          entry.customer?.phone || '',
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(searchQuery)) return false;
+      }
+      // Status filter — map enquiry statuses
+      const isPencil = entry.isPencilBooked;
+      const effectiveStatus = isPencil ? 'pencil' : 'enquiry';
+      if (!selectedStatuses.has(effectiveStatus) && !selectedStatuses.has('enquiry')) return false;
+      return true;
+    });
+  }, [enquiries, searchQuery, sourceFilter, selectedStatuses]);
 
   const filteredGoogleEvents = useMemo(() => {
     if (sourceFilter === 'software') return [];
@@ -1095,6 +1162,42 @@ export default function CalendarPage() {
     dayPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [selectedDate, viewMode, displayMode]);
 
+  // ── Per-hall stats for sidebar ───────────────────────────────────────────
+  const hallStats = useMemo(() => {
+    const activeBookings = bookings.filter((b) => b.status !== 'cancelled');
+    const maxBookings = halls.reduce((max, hall) => {
+      const count = activeBookings.filter((b) =>
+        (b.halls || []).some((h) => h.hall?.id === hall.id)
+      ).length;
+      return Math.max(max, count);
+    }, 1);
+    return halls.map((hall) => {
+      const count = activeBookings.filter((b) =>
+        (b.halls || []).some((h) => h.hall?.id === hall.id)
+      ).length;
+      const palette = getLocationPalette(hall.name);
+      return { ...hall, count, palette, pct: Math.round((count / maxBookings) * 100) };
+    });
+  }, [halls, bookings]);
+
+  // Group hall stats by banquet/location
+  const hallStatsByLocation = useMemo(() => {
+    const groups = new Map<string, typeof hallStats>();
+    hallStats.forEach((hall) => {
+      const location = hall.banquetName?.trim() || 'Unassigned';
+      const bucket = groups.get(location) || [];
+      bucket.push(hall);
+      groups.set(location, bucket);
+    });
+    // Sort: named locations first, Unassigned last
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === 'Unassigned') return 1;
+      if (b === 'Unassigned') return -1;
+      return a.localeCompare(b);
+    });
+  }, [hallStats]);
+  // ── End per-hall stats ────────────────────────────────────────────────────
+
   const summary = useMemo(() => {
     const activeBookings = filteredBookings.filter((entry) => entry.status !== 'cancelled');
     const cancelledBookings = filteredBookings.filter((entry) => entry.status === 'cancelled')
@@ -1109,6 +1212,34 @@ export default function CalendarPage() {
       0
     );
 
+    // Hall utilization: unique booked hall-days / total hall-days available this month
+    const totalHalls = halls.length || 1;
+    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+    const totalHallDays = totalHalls * daysInMonth;
+    const bookedHallDays = new Set(
+      activeBookings.flatMap((entry) =>
+        getBookingHallNames(entry).map((h) => `${dateToKey(entry.functionDate)}::${h}`)
+      )
+    ).size;
+    const hallUtilization = totalHallDays > 0
+      ? Math.min(100, Math.round((bookedHallDays / totalHallDays) * 100))
+      : 0;
+
+    // Peak day: the date with the most active bookings
+    const countByDay = new Map<string, number>();
+    activeBookings.forEach((entry) => {
+      const key = dateToKey(entry.functionDate);
+      countByDay.set(key, (countByDay.get(key) || 0) + 1);
+    });
+    let peakDayKey = '';
+    let peakDayCount = 0;
+    countByDay.forEach((count, key) => {
+      if (count > peakDayCount) { peakDayCount = count; peakDayKey = key; }
+    });
+    const peakDayLabel = peakDayKey
+      ? parseDateKey(peakDayKey).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+      : '--';
+
     return {
       bookings: activeBookings.length,
       cancelledBookings,
@@ -1117,8 +1248,11 @@ export default function CalendarPage() {
       confirmedBookings,
       monthlyRevenue,
       guestVolume,
+      hallUtilization,
+      peakDayLabel,
+      peakDayCount,
     };
-  }, [filteredBookings, filteredEnquiries, filteredGoogleEvents]);
+  }, [filteredBookings, filteredEnquiries, filteredGoogleEvents, halls, viewDate]);
 
   const agenda = useMemo<AgendaEntry[]>(() => {
     const bookingItems: AgendaEntry[] = filteredBookings.map((entry) => ({
@@ -1410,6 +1544,13 @@ export default function CalendarPage() {
     [bookingDetails]
   );
 
+  const STATUS_FILTERS = [
+    { key: 'confirmed', label: 'Confirmed', color: '#10b981', icon: '✓' },
+    { key: 'quotation', label: 'Quotation', color: '#6366f1', icon: '◎' },
+    { key: 'enquiry',   label: 'Enquiry',   color: '#f59e0b', icon: '?' },
+    { key: 'pencil',    label: 'Pencil',    color: '#6b7280', icon: '✏' },
+  ] as const;
+
   return (
     <div className="space-y-6">
       <div>
@@ -1418,6 +1559,264 @@ export default function CalendarPage() {
           Track software events and imported Google venue events with clear source tags.
         </p>
       </div>
+
+      {/* ── Sidebar + Main layout ── */}
+      <div className="flex gap-0 items-start">
+
+        {/* ── Collapsible Sidebar ── */}
+        <aside
+          className={`shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${
+            sidebarOpen ? 'w-64' : 'w-12'
+          }`}
+        >
+          <div
+            className={`rounded-2xl border border-gray-200 bg-white shadow-sm flex flex-col h-full ${
+              sidebarOpen ? 'p-4' : 'p-2'
+            }`}
+          >
+            {/* Toggle button */}
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              className="mb-3 flex items-center justify-center w-8 h-8 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition self-end shrink-0"
+            >
+              <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${sidebarOpen ? '' : 'rotate-180'}`} />
+            </button>
+
+            {sidebarOpen ? (
+              <div className="flex flex-col gap-5 overflow-y-auto no-scrollbar flex-1">
+
+                {/* Halls section — grouped by location */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Halls</p>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedHallIds(new Set(halls.map((h) => h.id)))}
+                        className="text-[9px] font-semibold text-indigo-600 hover:underline"
+                      >All</button>
+                      <span className="text-gray-300 text-[9px]">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedHallIds(new Set())}
+                        className="text-[9px] font-semibold text-gray-400 hover:underline"
+                      >None</button>
+                    </div>
+                  </div>
+
+                  {hallStatsByLocation.length === 0 && (
+                    <p className="text-[11px] text-gray-400 italic">No halls configured</p>
+                  )}
+
+                  <div className="space-y-4">
+                    {hallStatsByLocation.map(([locationName, locationHalls]) => {
+                      const locationHallIds = locationHalls.map((h) => h.id);
+                      const allChecked = locationHallIds.every(
+                        (id) => selectedHallIds === null || selectedHallIds.has(id)
+                      );
+                      const someChecked = locationHallIds.some(
+                        (id) => selectedHallIds === null || selectedHallIds.has(id)
+                      );
+                      const toggleLocation = () => {
+                        setSelectedHallIds((prev) => {
+                          const base = prev ?? new Set(halls.map((h) => h.id));
+                          const next = new Set(base);
+                          if (allChecked) {
+                            locationHallIds.forEach((id) => next.delete(id));
+                          } else {
+                            locationHallIds.forEach((id) => next.add(id));
+                          }
+                          return next;
+                        });
+                      };
+
+                      return (
+                        <div key={locationName}>
+                          {/* Location group header */}
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <button
+                              type="button"
+                              onClick={toggleLocation}
+                              title={allChecked ? `Deselect all halls in ${locationName}` : `Select all halls in ${locationName}`}
+                              className={`h-3.5 w-3.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
+                                allChecked
+                                  ? 'bg-indigo-500 border-indigo-500 text-white'
+                                  : someChecked
+                                    ? 'bg-indigo-200 border-indigo-400'
+                                    : 'bg-white border-gray-300'
+                              }`}
+                              style={{ fontSize: 8 }}
+                            >
+                              {(allChecked || someChecked) && (
+                                <span style={{ lineHeight: 1 }}>{allChecked ? '✓' : '−'}</span>
+                              )}
+                            </button>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 truncate flex-1">
+                              {locationName}
+                            </span>
+                            <span className="text-[9px] text-gray-400 tabular-nums shrink-0">
+                              {locationHalls.reduce((s, h) => s + h.count, 0)}
+                            </span>
+                          </div>
+
+                          {/* Halls in this location */}
+                          <div className="space-y-2.5 pl-1">
+                            {locationHalls.map((hall) => {
+                              const checked = selectedHallIds === null || selectedHallIds.has(hall.id);
+                              return (
+                                <label key={hall.id} className="flex flex-col gap-1 cursor-pointer group">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => toggleHall(hall.id)}
+                                      className="h-3.5 w-3.5 rounded border-gray-300 shrink-0"
+                                      style={{ accentColor: hall.palette.solid }}
+                                    />
+                                    <span
+                                      className="w-2 h-2 rounded-full shrink-0"
+                                      style={{ background: hall.palette.solid }}
+                                    />
+                                    <span className={`text-xs font-medium truncate flex-1 transition-colors ${
+                                      checked ? 'text-gray-800' : 'text-gray-400'
+                                    }`}>
+                                      {hall.name}
+                                    </span>
+                                    <span
+                                      className="text-[10px] font-bold tabular-nums shrink-0"
+                                      style={{ color: hall.count > 0 ? hall.palette.text : '#9ca3af' }}
+                                    >
+                                      {hall.count}
+                                    </span>
+                                  </div>
+                                  {/* Mini utilization bar */}
+                                  <div className="ml-[22px] h-1 rounded-full bg-gray-100 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500"
+                                      style={{
+                                        width: `${hall.pct}%`,
+                                        background: hall.palette.solid,
+                                        opacity: checked ? 1 : 0.3,
+                                      }}
+                                    />
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-gray-100" />
+
+                {/* Status section */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Status</p>
+                  <div className="space-y-2.5">
+                    {STATUS_FILTERS.map(({ key, label, color, icon }) => {
+                      const checked = selectedStatuses.has(key);
+                      return (
+                        <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleStatus(key)}
+                            className="h-3.5 w-3.5 rounded border-gray-300 shrink-0"
+                            style={{ accentColor: color }}
+                          />
+                          <span
+                            className="flex h-5 w-5 items-center justify-center rounded-md text-[11px] font-bold shrink-0"
+                            style={{
+                              background: checked ? `${color}18` : '#f3f4f6',
+                              color: checked ? color : '#9ca3af',
+                            }}
+                          >
+                            {icon}
+                          </span>
+                          <span className={`text-xs font-medium transition-colors ${
+                            checked ? 'text-gray-800' : 'text-gray-400'
+                          }`}>
+                            {label}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-gray-100" />
+
+                {/* Active filters summary */}
+                {selectedHallIds !== null && selectedHallIds.size < halls.length && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-1">Filtered</p>
+                    <p className="text-[11px] text-amber-800">
+                      {selectedHallIds.size} of {halls.length} halls visible
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHallIds(new Set(halls.map((h) => h.id)))}
+                      className="mt-1.5 text-[10px] font-semibold text-amber-700 hover:text-amber-900 underline"
+                    >
+                      Show all halls
+                    </button>
+                  </div>
+                )}
+
+              </div>
+            ) : (
+              /* Collapsed state — colored dots only */
+              <div className="flex flex-col items-center gap-2 mt-1">
+                {hallStats.map((hall) => {
+                  const checked = selectedHallIds === null || selectedHallIds.has(hall.id);
+                  return (
+                    <button
+                      key={hall.id}
+                      type="button"
+                      title={`${hall.name} (${hall.count})`}
+                      onClick={() => toggleHall(hall.id)}
+                      className="w-5 h-5 rounded-full border-2 transition-all"
+                      style={{
+                        background: checked ? hall.palette.solid : 'transparent',
+                        borderColor: hall.palette.solid,
+                        opacity: checked ? 1 : 0.45,
+                      }}
+                    />
+                  );
+                })}
+                <div className="my-1 w-4 border-t border-gray-200" />
+                {STATUS_FILTERS.map(({ key, color, icon }) => {
+                  const checked = selectedStatuses.has(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      title={key}
+                      onClick={() => toggleStatus(key)}
+                      className="w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center transition-all"
+                      style={{
+                        background: checked ? `${color}20` : '#f3f4f6',
+                        color: checked ? color : '#d1d5db',
+                      }}
+                    >
+                      {icon}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* ── Main calendar area ── */}
+        <div className="flex-1 min-w-0 space-y-4 pl-4">
 
       <div className="card">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
@@ -1602,55 +2001,113 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Bookings</p>
-          <div className="flex items-center justify-between mt-1">
-            <p className="text-2xl font-semibold text-gray-900">
-              {summary.bookings.toLocaleString()}
+      {/* ── KPI Strip ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Bookings */}
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Bookings</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{summary.bookings.toLocaleString('en-IN')}</p>
+            </div>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
+              <CalendarCheck className="w-5 h-5 text-emerald-700" />
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-emerald-100">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all duration-700"
+                style={{ width: `${summary.bookings > 0 ? Math.min(100, (summary.confirmedBookings / summary.bookings) * 100) : 0}%` }}
+              />
+            </div>
+            <span className="text-[10px] font-semibold text-emerald-700 whitespace-nowrap">
+              {summary.confirmedBookings} confirmed
+            </span>
+          </div>
+          {summary.cancelledBookings > 0 && (
+            <span className="mt-2 inline-block rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+              {summary.cancelledBookings} cancelled
+            </span>
+          )}
+        </div>
+
+        {/* Revenue */}
+        <div className="relative overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-4 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600">Revenue</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                ₹{summary.monthlyRevenue >= 100000
+                  ? `${(summary.monthlyRevenue / 100000).toFixed(1)}L`
+                  : summary.monthlyRevenue.toLocaleString('en-IN')}
+              </p>
+            </div>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-100">
+              <IndianRupee className="w-5 h-5 text-violet-700" />
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <Users className="w-3 h-3 text-violet-400" />
+            <span className="text-[11px] text-gray-500">
+              {summary.guestVolume.toLocaleString('en-IN')} total guests
+            </span>
+          </div>
+        </div>
+
+        {/* Hall Utilization */}
+        <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Hall Utilization</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{summary.hallUtilization}%</p>
+            </div>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+              <Building2 className="w-5 h-5 text-amber-700" />
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="h-1.5 overflow-hidden rounded-full bg-amber-100">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  summary.hallUtilization >= 80 ? 'bg-red-500'
+                  : summary.hallUtilization >= 50 ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+                }`}
+                style={{ width: `${summary.hallUtilization}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-[10px] text-gray-500">
+              Peak: <span className="font-semibold text-gray-700">{summary.peakDayLabel}</span>
+              {summary.peakDayCount > 0 && ` (${summary.peakDayCount} bookings)`}
             </p>
-            {summary.cancelledBookings > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                Cancelled {summary.cancelledBookings}
-              </span>
+          </div>
+        </div>
+
+        {/* Enquiries */}
+        <div className="relative overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-sky-600">Enquiries</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{summary.enquiries.toLocaleString('en-IN')}</p>
+            </div>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-100">
+              <PhoneCall className="w-5 h-5 text-sky-700" />
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            {googleImportEnabled && (
+              <>
+                <Globe2 className="w-3 h-3 text-sky-400" />
+                <span className="text-[11px] text-gray-500">
+                  {summary.googleEvents} Google events
+                </span>
+              </>
+            )}
+            {!googleImportEnabled && (
+              <span className="text-[11px] text-gray-400">Google import off</span>
             )}
           </div>
-          <CalendarCheck className="w-4 h-4 text-primary-700 mt-3" />
-        </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Confirmed</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            {summary.confirmedBookings.toLocaleString()}
-          </p>
-          <CalendarDays className="w-4 h-4 text-emerald-700 mt-3" />
-        </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Enquiries</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            {summary.enquiries.toLocaleString()}
-          </p>
-          <PhoneCall className="w-4 h-4 text-amber-700 mt-3" />
-        </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Google Events</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            {summary.googleEvents.toLocaleString()}
-          </p>
-          <Globe2 className="w-4 h-4 text-sky-700 mt-3" />
-        </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Guest Volume</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            {summary.guestVolume.toLocaleString()}
-          </p>
-          <Users className="w-4 h-4 text-sky-700 mt-3" />
-        </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Active Revenue</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            ₹{summary.monthlyRevenue.toLocaleString('en-IN')}
-          </p>
-          <IndianRupee className="w-4 h-4 text-violet-700 mt-3" />
         </div>
       </div>
 
@@ -1727,6 +2184,19 @@ export default function CalendarPage() {
                               const visibleEvents = sortedEvents.slice(0, 3);
                               const overflowCount = Math.max(eventBars.length - visibleEvents.length, 0);
 
+                              // Heatmap: tint cell based on active booking count
+                              const heatTint = isCurrentMonth && !isSelected
+                                ? activeDayBookings.length >= 4
+                                  ? 'rgba(239,68,68,0.07)'   // red-ish: very busy
+                                  : activeDayBookings.length === 3
+                                    ? 'rgba(245,158,11,0.09)' // amber: busy
+                                    : activeDayBookings.length === 2
+                                      ? 'rgba(234,179,8,0.07)'  // yellow: moderate
+                                      : activeDayBookings.length === 1
+                                        ? 'rgba(16,185,129,0.07)' // green: light
+                                        : undefined
+                                : undefined;
+
                               return (
                                 <button
                                   key={dayKey}
@@ -1734,10 +2204,11 @@ export default function CalendarPage() {
                                   onClick={() => setSelectedDate(dayKey)}
                                   className={`rounded-[20px] border p-3 text-left min-h-[156px] transition relative overflow-hidden ${isSelected
                                       ? 'border-primary-400 bg-primary-50 shadow-sm'
-                                      : 'border-[var(--border)] bg-[var(--surface)] hover:border-primary-200 hover:bg-primary-50'
-                                    } ${isCurrentMonth ? '' : 'opacity-65 bg-[var(--surface-2)]'}`}
+                                      : 'border-[var(--border)] hover:border-primary-200 hover:bg-primary-50'
+                                    } ${isCurrentMonth ? '' : 'opacity-65'}`}
                                   style={{
                                     boxShadow: isSelected ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
+                                    backgroundColor: isSelected ? undefined : (heatTint ?? 'var(--surface)'),
                                   }}
                                 >
                                   <div className="flex items-start justify-between relative z-10">
@@ -1807,7 +2278,7 @@ export default function CalendarPage() {
                                   <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-[var(--text-4)] relative z-10">
                                     {dayGuestCount > 0 ? (
                                       <span>
-                                        {dayGuestCount.toLocaleString()} guests
+                                        {dayGuestCount.toLocaleString('en-IN')} guests
                                         {dayHallCount > 0 ? ` • ${dayHallCount} halls` : ''}
                                       </span>
                                     ) : (
@@ -1824,6 +2295,22 @@ export default function CalendarPage() {
                             })}
                           </div>
                         </div>
+                      </div>
+
+                      {/* Heatmap legend */}
+                      <div className="hidden md:flex items-center gap-3 mt-2 px-1">
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Density</span>
+                        {[
+                          { color: 'rgba(16,185,129,0.18)', label: '1 booking' },
+                          { color: 'rgba(234,179,8,0.22)', label: '2 bookings' },
+                          { color: 'rgba(245,158,11,0.28)', label: '3 bookings' },
+                          { color: 'rgba(239,68,68,0.22)', label: '4+' },
+                        ].map(({ color, label }) => (
+                          <span key={label} className="flex items-center gap-1.5">
+                            <span className="inline-block h-3 w-5 rounded" style={{ background: color, border: '1px solid rgba(0,0,0,0.07)' }} />
+                            <span className="text-[10px] text-gray-500">{label}</span>
+                          </span>
+                        ))}
                       </div>
 
                       <div className="md:hidden rounded-[22px] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-xs)]">
@@ -3024,7 +3511,7 @@ export default function CalendarPage() {
                     Halls: {getBookingHallNames(booking as BookingCalendarRow).join(', ') || 'Unassigned'}
                   </div>
                   <div style={{ fontSize: 12, marginTop: 4 }}>
-                    Guests: {toSafeNumber(booking.expectedGuests).toLocaleString()} • Phone:{' '}
+                    Guests: {toSafeNumber(booking.expectedGuests).toLocaleString('en-IN')} • Phone:{' '}
                     {booking.customer?.phone || '-'}
                   </div>
                   <div style={{ fontSize: 12, marginTop: 6 }}>
@@ -3045,6 +3532,9 @@ export default function CalendarPage() {
           )}
         </div>
       </div>
+
+        </div>{/* end main calendar area */}
+      </div>{/* end sidebar + main flex row */}
     </div>
   );
 }

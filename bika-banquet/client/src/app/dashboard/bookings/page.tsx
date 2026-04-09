@@ -112,6 +112,8 @@ interface ItemOption {
   itemType?: {
     id: string;
     name: string;
+    order?: number | null;
+    displayOrder?: number | null;
   };
 }
 
@@ -126,6 +128,8 @@ interface TemplateMenuOption {
       itemType?: {
         id: string;
         name: string;
+        order?: number | null;
+        displayOrder?: number | null;
       };
     };
   }>;
@@ -486,6 +490,62 @@ export default function BookingsPage() {
     whatsappNumber?: string;
   }>({});
   const [amountSyncMode, setAmountSyncMode] = useState<AmountSyncMode>('discountPercent');
+
+  // ── Hall clash detection ──────────────────────────────────────────────────
+  const [hallClashWarnings, setHallClashWarnings] = useState<Array<{
+    bookingId: string;
+    functionName: string;
+    functionType: string;
+    startTime: string | null;
+    endTime: string | null;
+    functionTime: string | null;
+    clashingHalls: Array<{ id: string; name: string }>;
+  }>>([]);
+
+  // Collect all selected hallIds across all enabled packs
+  const selectedHallIds = useMemo(() => {
+    const ids = new Set<string>();
+    (Object.keys(formData.packs) as PackKey[]).forEach((k) => {
+      const row = formData.packs[k];
+      if (row.enabled) row.hallIds.forEach((id) => ids.add(id));
+    });
+    return Array.from(ids);
+  }, [formData.packs]);
+
+  // Debounced availability check — fires when date or halls change
+  const availabilityCheckKey = `${formData.functionDate}|${selectedHallIds.sort().join(',')}`;
+  const availabilityCheckKeyRef = useRef(availabilityCheckKey);
+  availabilityCheckKeyRef.current = availabilityCheckKey;
+
+  useEffect(() => {
+    if (!formData.functionDate || selectedHallIds.length === 0) {
+      setHallClashWarnings([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      if (availabilityCheckKeyRef.current !== availabilityCheckKey) return;
+      try {
+        const params = {
+          hallIds: selectedHallIds.join(','),
+          date: formData.functionDate,
+          ...(editingBookingId ? { excludeBookingId: editingBookingId } : {}),
+        };
+        const res = await api.checkBookingAvailability(params);
+        const data = res.data?.data;
+        if (data && !data.available) {
+          setHallClashWarnings(data.clashes || []);
+        } else {
+          setHallClashWarnings([]);
+        }
+      } catch {
+        setHallClashWarnings([]);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availabilityCheckKey, editingBookingId]);
+  // ── End hall clash detection ──────────────────────────────────────────────
+
   const isReadOnlyBooking = useMemo(
     () => Boolean(editingBookingId && editingBookingStatus === 'completed'),
     [editingBookingId, editingBookingStatus]
@@ -1036,7 +1096,25 @@ export default function BookingsPage() {
       existing.push(item);
       map.set(group, existing);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    map.forEach((grouped, groupName) => {
+      map.set(
+        groupName,
+        [...grouped].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      );
+    });
+    const getGroupSortValue = (grouped: ItemOption[]) => {
+      const first = grouped.find((item) => item.itemType?.id);
+      const order = first?.itemType?.order;
+      const displayOrder = first?.itemType?.displayOrder;
+      if (typeof order === 'number' && Number.isFinite(order)) return order;
+      if (typeof displayOrder === 'number' && Number.isFinite(displayOrder)) return displayOrder;
+      return Number.MAX_SAFE_INTEGER;
+    };
+    return Array.from(map.entries()).sort(([aName, aItems], [bName, bItems]) => {
+      const orderCompare = getGroupSortValue(aItems) - getGroupSortValue(bItems);
+      if (orderCompare !== 0) return orderCompare;
+      return aName.localeCompare(bName);
+    });
   }, [filteredMenuItems]);
 
   const selectedMenuItemsByGroup = useMemo(() => {
@@ -1051,7 +1129,25 @@ export default function BookingsPage() {
       bucket.push(item);
       map.set(group, bucket);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    map.forEach((grouped, groupName) => {
+      map.set(
+        groupName,
+        [...grouped].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      );
+    });
+    const getGroupSortValue = (grouped: ItemOption[]) => {
+      const first = grouped.find((item) => item.itemType?.id);
+      const order = first?.itemType?.order;
+      const displayOrder = first?.itemType?.displayOrder;
+      if (typeof order === 'number' && Number.isFinite(order)) return order;
+      if (typeof displayOrder === 'number' && Number.isFinite(displayOrder)) return displayOrder;
+      return Number.MAX_SAFE_INTEGER;
+    };
+    return Array.from(map.entries()).sort(([aName, aItems], [bName, bItems]) => {
+      const orderCompare = getGroupSortValue(aItems) - getGroupSortValue(bItems);
+      if (orderCompare !== 0) return orderCompare;
+      return aName.localeCompare(bName);
+    });
   }, [activeMenuPackRow, items]);
 
   const getItemPoints = useCallback((item?: ItemOption | null): number => {
@@ -2465,6 +2561,36 @@ export default function BookingsPage() {
                     required
                   />
                 </div>
+
+                {/* Hall clash warning banner */}
+                {hallClashWarnings.length > 0 && (
+                  <div className="col-span-full mt-1 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 text-amber-600 shrink-0" aria-hidden>⚠️</span>
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800">
+                          Hall timing clash detected on this date
+                        </p>
+                        <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
+                          {hallClashWarnings.map((clash) => (
+                            <li key={clash.bookingId}>
+                              <span className="font-medium">{clash.functionName}</span>
+                              {clash.functionType ? ` (${clash.functionType})` : ''}
+                              {(clash.startTime && clash.endTime)
+                                ? ` · ${clash.startTime}–${clash.endTime}`
+                                : clash.functionTime ? ` · ${clash.functionTime}` : ''}
+                              {' — '}
+                              {clash.clashingHalls.map((h) => h.name).join(', ')}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="mt-1 text-xs text-amber-600">
+                          Saving will be blocked if the halls and times overlap.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -2600,11 +2726,11 @@ export default function BookingsPage() {
                   <div className="space-y-1 border-t border-gray-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800">
                     <div className="flex items-center justify-between">
                       <span>Total Payments</span>
-                      <span>₹{totalPayments.toLocaleString()}</span>
+                      <span>₹{totalPayments.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Total Bill Amount</span>
-                      <span>₹{totalBillAmount.toLocaleString()}</span>
+                      <span>₹{totalBillAmount.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
@@ -4826,7 +4952,7 @@ export default function BookingsPage() {
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
-                        ₹{(booking.grandTotal || 0).toLocaleString()}
+                        ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                         <td className="py-4 px-4 text-right">

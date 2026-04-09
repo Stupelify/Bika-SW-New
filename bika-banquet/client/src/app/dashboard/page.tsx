@@ -807,7 +807,7 @@ export default function DashboardPage() {
               <CalendarCheck className="w-4 h-4" />
             </span>
           </div>
-          <p className="kpi-value num">{analytics.summary.bookingsInRange.toLocaleString()}</p>
+          <p className="kpi-value num">{analytics.summary.bookingsInRange.toLocaleString('en-IN')}</p>
           <div className="mt-2 flex items-center justify-between gap-3">
             {renderDelta(bookingsDelta)}
             <Sparkline values={monthlyBookingSeries} color="#86efac" />
@@ -1022,70 +1022,70 @@ export default function DashboardPage() {
           <Link href="/dashboard/menu" className="resource-tile">
             <p className="text-xs text-gray-500">Item Types</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.itemTypes.toLocaleString()}
+              {resourceCounts.itemTypes.toLocaleString('en-IN')}
             </p>
             <Layers className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/menu" className="resource-tile">
             <p className="text-xs text-gray-500">Items</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.items.toLocaleString()}
+              {resourceCounts.items.toLocaleString('en-IN')}
             </p>
             <UtensilsCrossed className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/menu" className="resource-tile">
             <p className="text-xs text-gray-500">Template Menu</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.templateMenus.toLocaleString()}
+              {resourceCounts.templateMenus.toLocaleString('en-IN')}
             </p>
             <ListChecks className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/enquiries" className="resource-tile">
             <p className="text-xs text-gray-500">Enquiry</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.enquiries.toLocaleString()}
+              {resourceCounts.enquiries.toLocaleString('en-IN')}
             </p>
             <PhoneCall className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/halls" className="resource-tile">
             <p className="text-xs text-gray-500">Hall</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.halls.toLocaleString()}
+              {resourceCounts.halls.toLocaleString('en-IN')}
             </p>
             <Building2 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/customers" className="resource-tile">
             <p className="text-xs text-gray-500">Manage Customers</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.customers.toLocaleString()}
+              {resourceCounts.customers.toLocaleString('en-IN')}
             </p>
             <Users className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/halls" className="resource-tile">
             <p className="text-xs text-gray-500">Banquet</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.banquets.toLocaleString()}
+              {resourceCounts.banquets.toLocaleString('en-IN')}
             </p>
             <Landmark className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/settings" className="resource-tile">
             <p className="text-xs text-gray-500">Manage Users</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.users.toLocaleString()}
+              {resourceCounts.users.toLocaleString('en-IN')}
             </p>
             <UserCircle2 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/bookings" className="resource-tile">
             <p className="text-xs text-gray-500">Booking</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.bookings.toLocaleString()}
+              {resourceCounts.bookings.toLocaleString('en-IN')}
             </p>
             <CalendarCheck className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/settings" className="resource-tile">
             <p className="text-xs text-gray-500">Manage Roles</p>
             <p className="text-xl font-semibold text-gray-900 mt-1 num">
-              {resourceCounts.roles.toLocaleString()}
+              {resourceCounts.roles.toLocaleString('en-IN')}
             </p>
             <BarChart3 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>

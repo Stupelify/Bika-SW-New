@@ -845,7 +845,7 @@ export default function VendorsPage() {
                       <tr key={supply.id}>
                         <td className="capitalize">{supply.productType}</td>
                         <td>{supply.productType === 'ingredient' ? supply.ingredient?.name : supply.item?.name}</td>
-                        <td>INR {Number(supply.price || 0).toLocaleString()}</td>
+                        <td>INR {Number(supply.price || 0).toLocaleString('en-IN')}</td>
                         <td>{supply.unit}</td>
                         <td className="text-right">
                           <div className="flex items-center justify-end gap-2">

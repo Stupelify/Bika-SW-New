@@ -345,22 +345,22 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
             <div className="card">
               <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Total customers</p>
-              <p className="kpi-value">{report.summary.totalCustomers.toLocaleString()}</p>
+              <p className="kpi-value">{report.summary.totalCustomers.toLocaleString('en-IN')}</p>
               <Users className="w-5 h-5 text-blue-500" />
             </div>
             <div className="card">
               <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Total bookings</p>
-              <p className="kpi-value">{report.summary.totalBookings.toLocaleString()}</p>
+              <p className="kpi-value">{report.summary.totalBookings.toLocaleString('en-IN')}</p>
               <CalendarDays className="w-5 h-5 text-emerald-500" />
             </div>
             <div className="card">
               <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Bookings in range</p>
-              <p className="kpi-value">{report.summary.bookingsInRange.toLocaleString()}</p>
+              <p className="kpi-value">{report.summary.bookingsInRange.toLocaleString('en-IN')}</p>
               <BarChart3 className="w-5 h-5 text-amber-500" />
             </div>
             <div className="card">
               <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Revenue in range</p>
-              <p className="kpi-value">₹{report.summary.totalRevenue.toLocaleString()}</p>
+              <p className="kpi-value">₹{report.summary.totalRevenue.toLocaleString('en-IN')}</p>
               <IndianRupee className="w-5 h-5 text-violet-500" />
             </div>
           </div>
@@ -548,7 +548,7 @@ export default function ReportsPage() {
                         >
                           <span>{row.hallName}</span>
                           <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>
-                            {row.bookings.toLocaleString()}
+                            {row.bookings.toLocaleString('en-IN')}
                           </span>
                         </div>
                         <div

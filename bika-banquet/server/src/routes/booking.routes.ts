@@ -13,6 +13,7 @@ import {
   finalizeBookingVersion,
   partyOverBooking,
   getBookingHistory,
+  checkHallAvailability,
 } from '../controllers/booking.controller';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -29,6 +30,8 @@ router.post(
   createBooking
 );
 router.get('/', requirePermission('view_booking', 'manage_bookings'), getBookings);
+// Must be before /:id routes
+router.get('/check-availability', requirePermission('view_booking', 'manage_bookings'), checkHallAvailability);
 router.get('/:id', requirePermission('view_booking', 'manage_bookings'), getBookingById);
 router.get('/:id/menu-pdf', requirePermission('view_booking', 'manage_bookings'), downloadBookingMenuPdf);
 router.put(

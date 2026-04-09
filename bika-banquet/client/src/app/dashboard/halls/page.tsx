@@ -280,8 +280,8 @@ function HallsPageContent() {
     try {
       setLoading(true);
       const [banquetsRes, hallsRes] = await Promise.all([
-        canViewBanquet ? api.getBanquets({ page: 1, limit: 2000 }) : Promise.resolve(null),
-        canViewHall ? api.getHalls({ page: 1, limit: 2000 }) : Promise.resolve(null),
+        canViewBanquet ? api.getBanquets({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canViewHall ? api.getHalls({ page: 1, limit: 5000 }) : Promise.resolve(null),
       ]);
       const banquetRows = banquetsRes?.data?.data?.banquets || [];
       setBanquets(banquetRows);
@@ -967,7 +967,7 @@ function HallsPageContent() {
                         </td>
                         <td className="py-3 px-2 text-sm text-gray-700">
                           {hall.basePrice
-                            ? `INR ${hall.basePrice.toLocaleString()}`
+                            ? `INR ${hall.basePrice.toLocaleString('en-IN')}`
                             : hall.rate || '-'}
                         </td>
                         <td className="py-3 px-2 text-right">

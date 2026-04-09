@@ -161,6 +161,49 @@ cd client && npm run dev
 - Backend API: http://localhost:5000/api
 - Login: admin@bikabanquet.com / admin123
 
+### Hot Reload Development
+
+Use this when you want changes to go live immediately without rebuilding Docker images.
+
+1. Start a dedicated local Postgres container on `localhost:5433`
+```bash
+npm run dev:db
+```
+
+2. Create local-only env files
+```bash
+cp server/.env.local.example server/.env.local
+cp client/.env.local.example client/.env.local
+```
+
+3. Start watched frontend + backend processes
+```bash
+npm run dev
+```
+
+What you get:
+- frontend hot reload at `http://localhost:3000`
+- backend auto-restart at `http://localhost:5001/api`
+- separate dev database on `localhost:5433`
+
+Useful helpers:
+```bash
+# stop the dev database
+npm run dev:db:down
+
+# watch only the dev database logs
+npm run dev:db:logs
+
+# one command to start db + watched app processes
+npm run dev:with-db
+```
+
+Notes:
+- this dev setup does not touch the running production-style Docker stack
+- `server/.env.local` is loaded by the backend dev process
+- `client/.env.local` is loaded automatically by Next.js dev mode
+- changes to Prisma schema still need the usual Prisma generate/migrate flow
+
 ## 🐳 Docker Development
 
 ```bash

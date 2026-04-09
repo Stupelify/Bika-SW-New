@@ -1742,7 +1742,7 @@ function MenuPageContent() {
                     itemVendors.map((supply) => (
                       <tr key={supply.id}>
                         <td>{supply.vendor?.name || '-'}</td>
-                        <td>INR {Number(supply.price || 0).toLocaleString()}</td>
+                        <td>INR {Number(supply.price || 0).toLocaleString('en-IN')}</td>
                         <td>{supply.unit}</td>
                         <td className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -2198,7 +2198,7 @@ function MenuPageContent() {
                                 {group.label || '-'}
                               </td>
                               <td className="py-3 px-2 text-sm text-gray-700">
-                                {item.cost ? `INR ${item.cost.toLocaleString()}` : '-'}
+                                {item.cost ? `INR ${item.cost.toLocaleString('en-IN')}` : '-'}
                               </td>
                               <td className="py-3 px-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
@@ -2385,7 +2385,7 @@ function MenuPageContent() {
                       <td className="py-3 px-2 text-sm text-gray-900">{template.name}</td>
                       <td className="py-3 px-2 text-sm text-gray-700">{template.category || 'General'}</td>
                       <td className="py-3 px-2 text-sm text-gray-700">
-                        INR {(template.ratePerPlate || 0).toLocaleString()}
+                        INR {(template.ratePerPlate || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-2 text-sm text-gray-700">
                         {(template.itemCount ?? template.items?.length) || 0}

@@ -331,15 +331,15 @@ export default function PaymentsPage() {
                     </div>
                     <div className="mobile-card-row">
                       <span className="mobile-card-label">Total</span>
-                      <span className="mobile-card-value">₹{(booking.grandTotal || 0).toLocaleString()}</span>
+                      <span className="mobile-card-value">₹{(booking.grandTotal || 0).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="mobile-card-row">
                       <span className="mobile-card-label">Received</span>
-                      <span className="mobile-card-value" style={{ color: '#15803d' }}>₹{(booking.advanceReceived || 0).toLocaleString()}</span>
+                      <span className="mobile-card-value" style={{ color: '#15803d' }}>₹{(booking.advanceReceived || 0).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="mobile-card-row">
                       <span className="mobile-card-label">Balance</span>
-                      <span className="mobile-card-amount">₹{(booking.balanceAmount || 0).toLocaleString()}</span>
+                      <span className="mobile-card-amount">₹{(booking.balanceAmount || 0).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="mobile-card-row">
                       <span className="mobile-card-label">Entries</span>
@@ -483,13 +483,13 @@ export default function PaymentsPage() {
                         {formatDateDDMMYYYY(booking.functionDate)}
                       </td>
                       <td className="py-3 px-3 text-right text-sm text-gray-700">
-                        INR {(booking.grandTotal || 0).toLocaleString()}
+                        INR {(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-3 text-right text-sm text-gray-700">
-                        INR {(booking.advanceReceived || 0).toLocaleString()}
+                        INR {(booking.advanceReceived || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-3 text-right text-sm font-medium text-gray-900">
-                        INR {(booking.balanceAmount || 0).toLocaleString()}
+                        INR {(booking.balanceAmount || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-3 text-right text-sm text-gray-700">
                         {booking._count?.payments || 0}

@@ -88,7 +88,7 @@ export default function MobileBookingCard({
             <div className="mobile-card-row" style={{ marginTop: 6 }}>
                 <span className="mobile-card-label">Amount</span>
                 <span className="mobile-card-amount">
-                    ₹{(booking.grandTotal || 0).toLocaleString()}
+                    ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
                 </span>
             </div>
 

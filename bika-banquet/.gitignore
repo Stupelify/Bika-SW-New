@@ -71,6 +71,7 @@ server/uploads/
 # Docker
 docker/certbot/conf/*
 docker/certbot/www/*
+docker-compose.dev.yml
 
 # Prisma
 server/prisma/migrations/*/migration.sql
@@ -78,3 +79,8 @@ server/prisma/migrations/*/migration.sql
 # Misc
 .vercel
 .turbo
+
+# Local development helpers
+client/.env.local.example
+server/.env.local.example
+server/src/dev.ts

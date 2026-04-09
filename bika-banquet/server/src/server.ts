@@ -11,7 +11,8 @@ import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import logger from './utils/logger';
 
-// Load environment variables
+// Load local dev overrides first, then fall back to the tracked .env file.
+dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const app: Application = express();

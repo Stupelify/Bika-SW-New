@@ -7,7 +7,7 @@ import { sendSuccess, sendError, sendNotFound } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { normalizeCaseFields, normalizeCaseInArrayObjects } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
-import { resolveEventDateTimes } from '../utils/dateTime';
+import { resolveEventDateTimes, parseTimeToHoursMinutes } from '../utils/dateTime';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import {
@@ -327,6 +327,189 @@ async function assertSingleBanquetHallSelection(
   if (banquetIds.size > 1) {
     throw new Error('Selected halls must belong to the same banquet');
   }
+}
+
+/**
+ * Asserts that none of the given halls are already booked on the same date
+ * with an overlapping time window. Cancelled bookings are ignored.
+ * When excludeBookingId is provided (update flow), that booking is skipped.
+ */
+async function assertNoHallClash(
+  tx: Prisma.TransactionClient,
+  hallIds: string[],
+  functionDate: Date | string,
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
+  excludeBookingId?: string
+): Promise<void> {
+  if (hallIds.length === 0) return;
+
+  const date = new Date(functionDate);
+  if (Number.isNaN(date.getTime())) return;
+
+  // Build the day boundaries in UTC (dates are stored as UTC midnight)
+  const dayStart = new Date(date);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setUTCHours(23, 59, 59, 999);
+
+  // Fetch existing confirmed/completed bookings on the same date that share a hall
+  const clashing = await tx.booking.findMany({
+    where: {
+      ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
+      isLatest: true,
+      status: { notIn: ['cancelled'] },
+      functionDate: { gte: dayStart, lte: dayEnd },
+      halls: { some: { hallId: { in: hallIds } } },
+    },
+    select: {
+      id: true,
+      functionName: true,
+      startTime: true,
+      endTime: true,
+      functionTime: true,
+      startDateTime: true,
+      endDateTime: true,
+      halls: { select: { hall: { select: { id: true, name: true } } } },
+    },
+  });
+
+  if (clashing.length === 0) return;
+
+  // If we have time info on both the new booking and an existing one, do a
+  // proper overlap check. If times are missing, any same-day same-hall booking
+  // is treated as a clash (conservative / safe default).
+  const newStart = startTime ? parseTimeToMinutes(startTime) : null;
+  const newEnd   = endTime   ? parseTimeToMinutes(endTime)   : null;
+
+  const actualClashes = clashing.filter((existing) => {
+    const existStart = existing.startTime ? parseTimeToMinutes(existing.startTime) : null;
+    const existEnd   = existing.endTime   ? parseTimeToMinutes(existing.endTime)   : null;
+
+    // Shared hall check
+    const sharedHallNames = existing.halls
+      .filter((bh) => hallIds.includes(bh.hall.id))
+      .map((bh) => bh.hall.name);
+    if (sharedHallNames.length === 0) return false;
+
+    // If either side has no time info → conservative clash
+    if (newStart === null || newEnd === null || existStart === null || existEnd === null) {
+      return true;
+    }
+
+    // Standard interval overlap: A starts before B ends AND A ends after B starts
+    const effectiveNewEnd   = newEnd   > newStart   ? newEnd   : newEnd   + 24 * 60; // overnight
+    const effectiveExistEnd = existEnd > existStart ? existEnd : existEnd + 24 * 60;
+    return newStart < effectiveExistEnd && effectiveNewEnd > existStart;
+  });
+
+  if (actualClashes.length === 0) return;
+
+  const clashDescriptions = actualClashes.map((b) => {
+    const timeRange = b.startTime && b.endTime
+      ? ` (${b.startTime}–${b.endTime})`
+      : b.functionTime ? ` (${b.functionTime})` : '';
+    const hallNames = b.halls
+      .filter((bh) => hallIds.includes(bh.hall.id))
+      .map((bh) => bh.hall.name)
+      .join(', ');
+    return `"${b.functionName}"${timeRange} in hall(s): ${hallNames}`;
+  });
+
+  throw new Error(
+    `Hall timing clash detected with existing booking(s): ${clashDescriptions.join(' | ')}. ` +
+    'Please choose a different hall or time slot.'
+  );
+}
+
+/** Convert "HH:MM" or "HH:MM:SS" or "H:MM AM/PM" to minutes-since-midnight */
+function parseTimeToMinutes(time: string): number | null {
+  if (!time) return null;
+  const parsed = parseTimeToHoursMinutes(time);
+  if (!parsed) return null;
+  return parsed.hours * 60 + parsed.minutes;
+}
+
+/**
+ * GET /bookings/check-hall-availability
+ * Query params: hallIds (comma-separated), date (ISO string),
+ *               startTime, endTime, excludeBookingId (optional)
+ * Returns: { available: boolean, clashes: [...] }
+ */
+export async function checkHallAvailability(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const { hallIds: hallIdsRaw, date, startTime, endTime, excludeBookingId } = req.query as Record<string, string>;
+
+  if (!hallIdsRaw || !date) {
+    sendError(res, 'hallIds and date are required', 400);
+    return;
+  }
+
+  const hallIds = hallIdsRaw.split(',').map((id) => id.trim()).filter(Boolean);
+  if (hallIds.length === 0) {
+    sendSuccess(res, { available: true, clashes: [] });
+    return;
+  }
+
+  const parsedDate = new Date(date);
+  if (Number.isNaN(parsedDate.getTime())) {
+    sendError(res, 'Invalid date', 400);
+    return;
+  }
+
+  const dayStart = new Date(parsedDate);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(parsedDate);
+  dayEnd.setUTCHours(23, 59, 59, 999);
+
+  const clashing = await prisma.booking.findMany({
+    where: {
+      ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
+      isLatest: true,
+      status: { notIn: ['cancelled'] },
+      functionDate: { gte: dayStart, lte: dayEnd },
+      halls: { some: { hallId: { in: hallIds } } },
+    },
+    select: {
+      id: true,
+      functionName: true,
+      functionType: true,
+      startTime: true,
+      endTime: true,
+      functionTime: true,
+      status: true,
+      halls: { select: { hall: { select: { id: true, name: true } } } },
+    },
+  });
+
+  const newStart = startTime ? parseTimeToMinutes(startTime) : null;
+  const newEnd   = endTime   ? parseTimeToMinutes(endTime)   : null;
+
+  const clashes = clashing.filter((existing) => {
+    const existStart = existing.startTime ? parseTimeToMinutes(existing.startTime) : null;
+    const existEnd   = existing.endTime   ? parseTimeToMinutes(existing.endTime)   : null;
+    const sharedHalls = existing.halls.filter((bh) => hallIds.includes(bh.hall.id));
+    if (sharedHalls.length === 0) return false;
+    if (newStart === null || newEnd === null || existStart === null || existEnd === null) return true;
+    const effectiveNewEnd   = newEnd   > newStart   ? newEnd   : newEnd   + 24 * 60;
+    const effectiveExistEnd = existEnd > existStart ? existEnd : existEnd + 24 * 60;
+    return newStart < effectiveExistEnd && effectiveNewEnd > existStart;
+  }).map((b) => ({
+    bookingId: b.id,
+    functionName: b.functionName,
+    functionType: b.functionType,
+    startTime: b.startTime,
+    endTime: b.endTime,
+    functionTime: b.functionTime,
+    status: b.status,
+    clashingHalls: b.halls
+      .filter((bh) => hallIds.includes(bh.hall.id))
+      .map((bh) => ({ id: bh.hall.id, name: bh.hall.name })),
+  }));
+
+  sendSuccess(res, { available: clashes.length === 0, clashes });
 }
 
 const MENU_BACKGROUND_IMAGE_URL =
@@ -1238,6 +1421,13 @@ export async function createBooking(
     // Start transaction
     const booking = await prisma.$transaction(async (tx) => {
       await assertSingleBanquetHallSelection(tx, hallRowsInput);
+      await assertNoHallClash(
+        tx,
+        hallRowsInput.map((h) => h.hallId),
+        data.functionDate,
+        data.startTime,
+        data.endTime
+      );
       const bookingDateTimes = resolveEventDateTimes(
         data.functionDate,
         data.startTime,
@@ -2360,6 +2550,17 @@ export async function updateBooking(
         await assertSingleBanquetHallSelection(tx, hallRowsInput);
       }
       const effectiveFunctionDate = data.functionDate || existingBooking.functionDate;
+      const effectiveHallIds = hallRowsInput
+        ? hallRowsInput.map((h) => h.hallId)
+        : (existingBooking as any).halls?.map((bh: any) => bh.hallId) ?? [];
+      await assertNoHallClash(
+        tx,
+        effectiveHallIds,
+        effectiveFunctionDate,
+        data.startTime !== undefined ? data.startTime : existingBooking.startTime,
+        data.endTime   !== undefined ? data.endTime   : existingBooking.endTime,
+        id  // exclude the booking being updated
+      );
       const effectiveStartTime =
         data.startTime !== undefined ? data.startTime : existingBooking.startTime;
       const effectiveEndTime =

@@ -9,6 +9,10 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:db": "docker start bika-banquet-dev-db >/dev/null 2>&1 || docker compose -p bika-banquet-dev -f docker-compose.dev.yml up -d db",
+    "dev:db:down": "docker stop bika-banquet-dev-db",
+    "dev:db:logs": "docker logs -f bika-banquet-dev-db",
+    "dev:with-db": "npm run dev:db && npm run dev",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build": "npm run build:server && npm run build:client",

@@ -429,7 +429,7 @@ function SettingsPageContent() {
         permissionSet.has('add_role');
 
       const [usersRes, rolesRes, permissionsRes] = await Promise.all([
-        canReadUsers ? api.getUsers({ page: 1, limit: 200 }) : Promise.resolve(null),
+        canReadUsers ? api.getUsers({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canReadRoles ? api.getRoles() : Promise.resolve(null),
         canReadPermissions ? api.getPermissions() : Promise.resolve(null),
       ]);
@@ -1257,7 +1257,7 @@ function SettingsPageContent() {
                     <div>
                       <p className="text-sm font-medium text-gray-900">{permission.name}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {(permission._count?.roles || 0).toLocaleString()} linked roles
+                        {(permission._count?.roles || 0).toLocaleString('en-IN')} linked roles
                       </p>
                     </div>
                     {canDeletePermissions && (

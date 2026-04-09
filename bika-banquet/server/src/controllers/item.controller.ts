@@ -145,6 +145,8 @@ export async function getItems(req: Request, res: Response): Promise<void> {
             select: {
               id: true,
               name: true,
+              order: true,
+              displayOrder: true,
             },
           },
           _count: {

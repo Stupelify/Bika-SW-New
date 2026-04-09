@@ -29,7 +29,10 @@
   --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.05), 0 2px 4px rgba(15, 23, 42, 0.04);
 
   --ring: rgba(13, 148, 136, 0.18);
-  --sidebar-w: 232px;
+  --sidebar-w: 208px;
+  --sidebar-collapsed-w: 64px;
+  --shell-pad-x: clamp(12px, 1vw, 18px);
+  --shell-pad-y: clamp(14px, 1.4vw, 22px);
   --bottom-nav-h: 60px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -1291,6 +1294,15 @@
      Extra 16 px so the last card / row is never hidden behind the nav. */
   .has-bottom-nav {
     padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 44px);
+  }
+
+  /* Hide scrollbar but keep scroll functionality */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 

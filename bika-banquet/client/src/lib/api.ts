@@ -85,6 +85,8 @@ export const api = {
   getBookingHistory: (id: string) => apiClient.get(`/bookings/${id}/history`),
   cancelBooking: (id: string) => apiClient.post(`/bookings/${id}/cancel`),
   addPayment: (id: string, data: any) => apiClient.post(`/bookings/${id}/payments`, data),
+  checkBookingAvailability: (params?: any) =>
+    apiClient.get('/bookings/check-availability', { params }),
 
   // Banquets
   getBanquets: (params?: any) => apiClient.get('/banquets', { params }),
