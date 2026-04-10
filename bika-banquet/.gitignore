@@ -79,6 +79,7 @@ server/prisma/migrations/*/migration.sql
 # Misc
 .vercel
 .turbo
+tsconfig.tsbuildinfo
 
 # Local development helpers
 client/.env.local.example

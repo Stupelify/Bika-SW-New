@@ -9,6 +9,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        bg: 'var(--bg)',
+        surface: {
+          DEFAULT: 'var(--surface)',
+          2: 'var(--surface-2)',
+          3: 'var(--surface-3)',
+        },
+        text: {
+          1: 'var(--text-1)',
+          2: 'var(--text-2)',
+          3: 'var(--text-3)',
+          4: 'var(--text-4)',
+        },
+        border: {
+          DEFAULT: 'var(--border)',
+          2: 'var(--border-2)',
+        },
         primary: {
           50: '#f0fdfa',
           100: '#ccfbf1',
