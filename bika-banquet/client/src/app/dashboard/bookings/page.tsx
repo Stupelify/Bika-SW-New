@@ -51,6 +51,8 @@ import {
   validatePhoneNumberForCountry,
 } from '@/lib/customerFormOptions';
 import MobileBookingCard from '@/components/MobileBookingCard';
+import BookingCard from '@/components/BookingCard';
+import BookingWizard from '@/components/wizard/BookingWizard';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -478,6 +480,9 @@ export default function BookingsPage() {
     direction: 'desc',
   });
   const [currentPage, setCurrentPage] = useState(1);
+  // view mode: 'table' (default on desktop) or 'cards'
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [showWizard, setShowWizard] = useState(false);
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
   const [inlineCustomerFormData, setInlineCustomerFormData] = useState<InlineCustomerFormData>(
     initialInlineCustomerFormData
@@ -2382,7 +2387,7 @@ export default function BookingsPage() {
         </div>
         {canAddBooking && (
           <button
-            onClick={openCreateBooking}
+            onClick={() => setShowWizard(true)}
             className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Plus className="w-4 h-4" />
@@ -4681,40 +4686,76 @@ export default function BookingsPage() {
       </FormPromptModal>
 
       <div className="card">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-            placeholder="Overall search across all booking columns..."
-            className="input pl-10 pr-10"
-          />
-          {globalSearch && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={clearSearch}
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-4)',
-                display: 'flex',
-                alignItems: 'center',
-                padding: 2,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="relative" style={{ flex: 1 }}>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Search bookings…"
+              className="input pl-10 pr-10"
+            />
+            {globalSearch && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={clearSearch}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 2,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {/* View toggle — hidden on mobile where we always use cards */}
+          <div
+            aria-label="Toggle view"
+            role="group"
+            className="hidden md:flex"
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              overflow: 'hidden',
+              flexShrink: 0,
+            }}
+          >
+            {(['cards', 'table'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                aria-pressed={viewMode === mode}
+                title={mode === 'cards' ? 'Card view' : 'Table view'}
+                style={{
+                  padding: '6px 12px',
+                  border: 'none',
+                  background: viewMode === mode ? 'var(--teal-600)' : 'transparent',
+                  color: viewMode === mode ? 'white' : 'var(--text-3)',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {mode === 'cards' ? '⊞ Cards' : '≡ Table'}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="mt-3 md:hidden">
           <label className="label">Search by date</label>
@@ -4742,7 +4783,7 @@ export default function BookingsPage() {
           </div>
         ) : (
           <>
-            {/* Mobile card view */}
+            {/* Mobile card view — always shown on small screens */}
             <div className="md:hidden">
               {filteredBookings.length === 0 ? (
                 <div className="empty-state" style={{ padding: '24px 16px' }}>
@@ -4788,8 +4829,63 @@ export default function BookingsPage() {
               )}
             </div>
 
+            {/* Desktop card grid view */}
+            {viewMode === 'cards' && (
+              <div className="hidden md:block">
+                {filteredBookings.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '32px 16px' }}>
+                    <div className="empty-state-icon">
+                      <CalendarCheck size={22} />
+                    </div>
+                    <p className="empty-state-title">
+                      {(globalSearch || Object.values(columnSearch).some(Boolean))
+                        ? 'No bookings match your search'
+                        : 'No bookings yet'}
+                    </p>
+                    <p className="empty-state-desc">
+                      {(globalSearch || Object.values(columnSearch).some(Boolean))
+                        ? 'Try a different keyword.'
+                        : 'Add your first booking to get started.'}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                        gap: 16,
+                        padding: '4px 0',
+                      }}
+                    >
+                      {paginatedBookings.map((booking) => (
+                        <BookingCard
+                          key={booking.id}
+                          booking={booking}
+                          canExportMenuPdf={canExportMenuPdf}
+                          canEditBooking={canEditBooking}
+                          canDeleteBooking={canDeleteBooking}
+                          onExportPdf={(b) => openMenuPdfModal(b)}
+                          onEdit={(id) => openEditBooking(id)}
+                          onDelete={(id) => handleDeleteBooking(id)}
+                        />
+                      ))}
+                    </div>
+                    <TablePagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      totalItems={filteredBookings.length}
+                      pageSize={BOOKINGS_PAGE_SIZE}
+                      itemLabel="bookings"
+                      onPageChange={setCurrentPage}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Desktop table view */}
-            <div className="hidden md:block table-shell">
+            <div className={viewMode === 'table' ? 'hidden md:block table-shell' : 'hidden'}>
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-gray-200">
@@ -5002,7 +5098,7 @@ export default function BookingsPage() {
 
       {canAddBooking && (
         <FloatingActionButton
-          onClick={() => setShowCreateForm(true)}
+          onClick={() => setShowWizard(true)}
           label="New Booking"
         />
       )}
@@ -5127,6 +5223,22 @@ export default function BookingsPage() {
           </div>
         </form>
       </FormPromptModal>
+
+      {/* BookingWizard — used for NEW bookings on desktop */}
+      {canAddBooking && (
+        <BookingWizard
+          open={showWizard}
+          onClose={() => setShowWizard(false)}
+          onSuccess={async () => { await loadBookings(); }}
+          customers={customers}
+          banquets={banquets}
+          halls={halls}
+          items={items}
+          templateMenus={templateMenus}
+          canAddCustomer={canAddCustomer}
+          onAddCustomer={openQuickCustomerForm}
+        />
+      )}
     </div>
   );
 }
