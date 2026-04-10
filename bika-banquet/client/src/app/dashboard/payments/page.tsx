@@ -3,8 +3,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { CreditCard, Plus, Save, Search } from 'lucide-react';
+import { CreditCard, Plus, Save, Search, Filter } from 'lucide-react';
 import FormPromptModal from '@/components/FormPromptModal';
+import FilterPanel from '@/components/FilterPanel';
+import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
@@ -61,6 +63,7 @@ export default function PaymentsPage() {
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [sort, setSort] = useState<SortState>({ key: 'booking', direction: 'asc' });
+  const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [paymentForm, setPaymentForm] = useState(initialPaymentForm);
 
@@ -288,14 +291,25 @@ export default function PaymentsPage() {
             <h2 className="text-lg font-semibold">Payments table</h2>
           </div>
         </div>
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            className="input pl-10"
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-            placeholder="Overall search across all payment columns..."
-          />
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              className="input pl-10"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Overall search across all payment columns..."
+            />
+          </div>
+          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
+            <Filter className="w-5 h-5 md:mr-2" />
+            <span className="hidden md:inline">Filters</span>
+            {Object.values(columnSearch).filter(Boolean).length > 0 && (
+               <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
+                 {Object.values(columnSearch).filter(Boolean).length}
+               </span>
+            )}
+          </button>
         </div>
 
         {loading ? (
@@ -303,13 +317,35 @@ export default function PaymentsPage() {
             <TableSkeleton rows={8} />
           </div>
         ) : filteredBookings.length === 0 ? (
-          <div className="empty-state" style={{ padding: '32px 16px' }}>
-            <div className="empty-state-icon">
-              <CreditCard size={22} />
-            </div>
-            <p className="empty-state-title">No bookings found</p>
-            <p className="empty-state-desc">Try adjusting the filters or date range.</p>
-          </div>
+          <EmptyState
+            icon={globalSearch ? Search : CreditCard}
+            variant={
+              globalSearch
+                ? 'search'
+                : Object.values(columnSearch).some(Boolean)
+                  ? 'filter'
+                  : 'page'
+            }
+            title={
+              globalSearch
+                ? 'No payments match your search'
+                : Object.values(columnSearch).some(Boolean)
+                  ? 'No matches'
+                  : 'No bookings found'
+            }
+            description={
+              globalSearch || Object.values(columnSearch).some(Boolean)
+                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
+                : 'Try adjusting the filters or date range.'
+            }
+            action={
+              globalSearch
+                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
+                : Object.values(columnSearch).some(Boolean)
+                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
+                  : undefined
+            }
+          />
         ) : (
           <>
             {/* Mobile card view */}
@@ -406,69 +442,6 @@ export default function PaymentsPage() {
                       className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
                     />
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                    <th className="py-2 px-3">
-                      <input
-                        className="input h-9"
-                        placeholder="Search booking"
-                        value={columnSearch.booking}
-                        onChange={(e) =>
-                          setColumnSearch((prev) => ({ ...prev, booking: e.target.value }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-3">
-                      <input
-                        type="date"
-                        className="input h-9"
-                        placeholder="Search date"
-                        value={columnSearch.eventDate}
-                        onChange={(e) =>
-                          setColumnSearch((prev) => ({ ...prev, eventDate: e.target.value }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-3">
-                      <input
-                        className="input h-9 text-right"
-                        placeholder="Search total"
-                        value={columnSearch.total}
-                        onChange={(e) =>
-                          setColumnSearch((prev) => ({ ...prev, total: e.target.value }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-3">
-                      <input
-                        className="input h-9 text-right"
-                        placeholder="Search received"
-                        value={columnSearch.received}
-                        onChange={(e) =>
-                          setColumnSearch((prev) => ({ ...prev, received: e.target.value }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-3">
-                      <input
-                        className="input h-9 text-right"
-                        placeholder="Search balance"
-                        value={columnSearch.balance}
-                        onChange={(e) =>
-                          setColumnSearch((prev) => ({ ...prev, balance: e.target.value }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-3">
-                      <input
-                        className="input h-9 text-right"
-                        placeholder="Search entries"
-                        value={columnSearch.entries}
-                        onChange={(e) =>
-                          setColumnSearch((prev) => ({ ...prev, entries: e.target.value }))
-                        }
-                      />
-                    </th>
-                  </tr>
                 </thead>
                 <tbody>
                   {paginatedBookings.map((booking) => (
@@ -510,6 +483,40 @@ export default function PaymentsPage() {
           </>
         )}
       </div>
+
+      <FilterPanel
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        activeCount={Object.values(columnSearch).filter(Boolean).length}
+        onClearAll={() => setColumnSearch(initialColumnSearch)}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="label">Booking</label>
+            <input className="input" placeholder="Search booking" value={columnSearch.booking} onChange={(e) => setColumnSearch((prev) => ({ ...prev, booking: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Event Date</label>
+            <input className="input" type="date" value={columnSearch.eventDate} onChange={(e) => setColumnSearch((prev) => ({ ...prev, eventDate: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Total</label>
+            <input className="input" placeholder="Search total" value={columnSearch.total} onChange={(e) => setColumnSearch((prev) => ({ ...prev, total: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Received</label>
+            <input className="input" placeholder="Search received" value={columnSearch.received} onChange={(e) => setColumnSearch((prev) => ({ ...prev, received: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Balance</label>
+            <input className="input" placeholder="Search balance" value={columnSearch.balance} onChange={(e) => setColumnSearch((prev) => ({ ...prev, balance: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Entries</label>
+            <input className="input" placeholder="Search entries" value={columnSearch.entries} onChange={(e) => setColumnSearch((prev) => ({ ...prev, entries: e.target.value }))} />
+          </div>
+        </div>
+      </FilterPanel>
     </div>
   );
 }

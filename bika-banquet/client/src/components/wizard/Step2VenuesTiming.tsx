@@ -1,6 +1,7 @@
 'use client';
 
 import { BanquetOption, HallOption, PACK_COLORS, PACK_LABELS, PackFormRow, PackKey, WizardFormData } from './types';
+import Combobox from '@/components/Combobox';
 
 interface Props {
   data: WizardFormData;
@@ -131,16 +132,12 @@ function PackRow({
             <>
               <div>
                 <label className="wizard-label">Banquet</label>
-                <select
+                <Combobox
                   value={row.banquetId}
-                  onChange={(e) => onChange({ banquetId: e.target.value, hallIds: [] })}
-                  className="wizard-input"
-                >
-                  <option value="">Select banquet…</option>
-                  {banquets.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => onChange({ banquetId: val, hallIds: [] })}
+                  options={banquets.map((b) => ({ value: b.id, label: b.name }))}
+                  placeholder="Select banquet…"
+                />
               </div>
 
               <div>

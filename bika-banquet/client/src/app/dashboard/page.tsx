@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { KpiCardSkeleton } from '@/components/Skeletons';
+import KpiCard from '@/components/KpiCard';
+import EmptyState from '@/components/EmptyState';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -669,13 +671,12 @@ export default function DashboardPage() {
 
   if (!data) {
     return (
-      <div className="empty-state">
-        <div className="empty-state-icon">
-          <BarChart3 size={22} />
-        </div>
-        <p className="empty-state-title">No data available</p>
-        <p className="empty-state-desc">Try changing the date range.</p>
-      </div>
+      <EmptyState
+        icon={BarChart3}
+        variant="page"
+        title="No data available"
+        description="Try changing the date range."
+      />
     );
   }
 
@@ -785,65 +786,38 @@ export default function DashboardPage() {
       </AdaptiveCard>
 
       <div className="kpi-grid">
-        <div className="kpi-card">
-          <div className="kpi-label">
-            <span>Total Revenue</span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
-              <IndianRupee className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="kpi-value num">
-            {formatCurrency(analytics.summary.totalRevenue).replace('.00', '')}
-          </p>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            {renderDelta(revenueDelta)}
-            <Sparkline values={monthlyRevenueSeries} color="#34d399" />
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">
-            <span>Total Bookings</span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-              <CalendarCheck className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="kpi-value num">{analytics.summary.bookingsInRange.toLocaleString('en-IN')}</p>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            {renderDelta(bookingsDelta)}
-            <Sparkline values={monthlyBookingSeries} color="#86efac" />
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">
-            <span>Pencil Bookings</span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-              <AlertTriangle className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="kpi-value num">{data.pencilBookings}</p>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            {renderDelta(pencilDelta)}
-            <Sparkline
-              values={[...monthlyBookingSeries.slice(-6), Math.max(1, data.pencilBookings)]}
-              color="#f59e0b"
-            />
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">
-            <span>Avg. Booking Value</span>
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-500">
-              <DollarSign className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="kpi-value num">
-            {formatCurrency(data.averageBookingValue).replace('.00', '')}
-          </p>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            {renderDelta(averageDelta)}
-            <Sparkline values={monthlyAverageSeries} color="#60a5fa" />
-          </div>
-        </div>
+        <KpiCard
+          label="Total Revenue"
+          icon={IndianRupee}
+          value={analytics.summary.totalRevenue}
+          format="currency"
+          delta={{ value: revenueDelta, label: 'Trend' }}
+          sparkline={monthlyRevenueSeries}
+        />
+        <KpiCard
+          label="Total Bookings"
+          icon={CalendarCheck}
+          value={analytics.summary.bookingsInRange}
+          format="number"
+          delta={{ value: bookingsDelta, label: 'Trend' }}
+          sparkline={monthlyBookingSeries}
+        />
+        <KpiCard
+          label="Pencil Bookings"
+          icon={AlertTriangle}
+          value={data.pencilBookings}
+          format="number"
+          delta={{ value: pencilDelta, label: 'Trend' }}
+          sparkline={[...monthlyBookingSeries.slice(-6), Math.max(1, data.pencilBookings)]}
+        />
+        <KpiCard
+          label="Avg. Booking Value"
+          icon={DollarSign}
+          value={data.averageBookingValue}
+          format="currency"
+          delta={{ value: averageDelta, label: 'Trend' }}
+          sparkline={monthlyAverageSeries}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -860,13 +834,12 @@ export default function DashboardPage() {
           </div>
           <div className="panel-body space-y-0">
             {hallSections.top.length === 0 ? (
-              <div className="empty-state" style={{ padding: '32px 16px' }}>
-                <div className="empty-state-icon">
-                  <Building2 size={22} />
-                </div>
-                <p className="empty-state-title">No data available</p>
-                <p className="empty-state-desc">Try changing the date range.</p>
-              </div>
+              <EmptyState
+                icon={Building2}
+                variant="page"
+                title="No data available"
+                description="Try changing the date range."
+              />
             ) : (
               hallSections.top.map((hall, index) => (
                 <div
@@ -904,13 +877,12 @@ export default function DashboardPage() {
           </div>
           <div className="panel-body">
             {monthlyTrend.length === 0 ? (
-              <div className="empty-state" style={{ padding: '32px 16px' }}>
-                <div className="empty-state-icon">
-                  <BarChart3 size={22} />
-                </div>
-                <p className="empty-state-title">No data available</p>
-                <p className="empty-state-desc">Try changing the date range.</p>
-              </div>
+              <EmptyState
+                icon={BarChart3}
+                variant="page"
+                title="No data available"
+                description="Try changing the date range."
+              />
             ) : (
               <BarChart data={monthlyRevenueData} height={200} />
             )}
@@ -926,13 +898,12 @@ export default function DashboardPage() {
           </div>
           <div className="panel-body">
             {data.topFunctions.length === 0 ? (
-              <div className="empty-state" style={{ padding: '32px 16px' }}>
-                <div className="empty-state-icon">
-                  <BarChart3 size={22} />
-                </div>
-                <p className="empty-state-title">No data available</p>
-                <p className="empty-state-desc">Try changing the date range.</p>
-              </div>
+              <EmptyState
+                icon={BarChart3}
+                variant="page"
+                title="No data available"
+                description="Try changing the date range."
+              />
             ) : (
               <>
                 <div
@@ -1105,13 +1076,12 @@ export default function DashboardPage() {
         </div>
         <div className="panel-body space-y-3">
           {data.recentBookings.length === 0 ? (
-            <div className="empty-state" style={{ padding: '32px 16px' }}>
-              <div className="empty-state-icon">
-                <CalendarCheck size={22} />
-              </div>
-              <p className="empty-state-title">No data available</p>
-              <p className="empty-state-desc">Try changing the date range.</p>
-            </div>
+            <EmptyState
+              icon={CalendarCheck}
+              variant="page"
+              title="No recent bookings"
+              description="Bookings created recently will appear here."
+            />
           ) : (
             data.recentBookings.map((booking) => (
               <div

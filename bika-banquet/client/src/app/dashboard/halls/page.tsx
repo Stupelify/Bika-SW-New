@@ -9,6 +9,7 @@ import FormPromptModal from '@/components/FormPromptModal';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
+import HallCard from '@/components/HallCard';
 import {
   SortState,
   TableColumnConfig,
@@ -98,6 +99,7 @@ function HallsPageContent() {
 
   const [banquets, setBanquets] = useState<Banquet[]>([]);
   const [halls, setHalls] = useState<Hall[]>([]);
+  const [weeklyBookings, setWeeklyBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingBanquet, setSavingBanquet] = useState(false);
   const [savingHall, setSavingHall] = useState(false);
@@ -279,13 +281,19 @@ function HallsPageContent() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [banquetsRes, hallsRes] = await Promise.all([
+      const today = new Date();
+      const fromDate = today.toISOString().split('T')[0];
+      const toDate = new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const [banquetsRes, hallsRes, bookingsRes] = await Promise.all([
         canViewBanquet ? api.getBanquets({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canViewHall ? api.getHalls({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canViewHall ? api.getBookings({ fromDate, toDate, limit: 1000 }) : Promise.resolve(null),
       ]);
       const banquetRows = banquetsRes?.data?.data?.banquets || [];
       setBanquets(banquetRows);
       setHalls(hallsRes?.data?.data?.halls || []);
+      setWeeklyBookings(bookingsRes?.data?.data?.bookings || []);
       if (banquetRows.length > 0) {
         setHallForm((prev) => ({ ...prev, banquetId: prev.banquetId || banquetRows[0].id }));
       }
@@ -880,120 +888,21 @@ function HallsPageContent() {
                 <p className="empty-state-desc">Add a hall to make it available for bookings.</p>
               </div>
             ) : (
-              <div className="table-shell">
-                <table className="data-table">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <SortableHeader
-                        label="Hall"
-                        sortKey="name"
-                        sort={hallSort}
-                        onSort={(key) => setHallSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
-                      />
-                      <SortableHeader
-                        label="Capacity"
-                        sortKey="capacity"
-                        sort={hallSort}
-                        onSort={(key) => setHallSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
-                      />
-                      <SortableHeader
-                        label="Pricing"
-                        sortKey="pricing"
-                        sort={hallSort}
-                        onSort={(key) => setHallSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
-                      />
-                      <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">
-                        Actions
-                      </th>
-                    </tr>
-                    <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                      <th className="py-2 px-2">
-                        <input
-                          className="input h-9"
-                          placeholder="Search hall"
-                          value={hallColumnSearch.name}
-                          onChange={(e) =>
-                            setHallColumnSearch((prev) => ({
-                              ...prev,
-                              name: e.target.value,
-                            }))
-                          }
-                        />
-                      </th>
-                      <th className="py-2 px-2">
-                        <input
-                          className="input h-9"
-                          placeholder="Search capacity"
-                          value={hallColumnSearch.capacity}
-                          onChange={(e) =>
-                            setHallColumnSearch((prev) => ({
-                              ...prev,
-                              capacity: e.target.value,
-                            }))
-                          }
-                        />
-                      </th>
-                      <th className="py-2 px-2">
-                        <input
-                          className="input h-9"
-                          placeholder="Search pricing"
-                          value={hallColumnSearch.pricing}
-                          onChange={(e) =>
-                            setHallColumnSearch((prev) => ({
-                              ...prev,
-                              pricing: e.target.value,
-                            }))
-                          }
-                        />
-                      </th>
-                      <th className="py-2 px-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedHalls.map((hall) => (
-                      <tr key={hall.id} className="border-b border-gray-100">
-                        <td className="py-3 px-2">
-                          <p className="text-sm text-gray-900">{hall.name}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {hall.banquet?.name || 'No banquet'}
-                          </p>
-                        </td>
-                        <td className="py-3 px-2 text-sm text-gray-700">
-                          {hall.capacity}
-                          {hall.floatingCapacity ? ` / ${hall.floatingCapacity}` : ''}
-                        </td>
-                        <td className="py-3 px-2 text-sm text-gray-700">
-                          {hall.basePrice
-                            ? `INR ${hall.basePrice.toLocaleString('en-IN')}`
-                            : hall.rate || '-'}
-                        </td>
-                        <td className="py-3 px-2 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {canEditHall && (
-                              <button
-                                className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                                onClick={() => openEditHall(hall)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                            )}
-                            {canDeleteHall && (
-                              <button
-                                className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                                onClick={() => deleteHall(hall.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="table-shell" style={{ border: 'none', background: 'transparent', padding: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', paddingBottom: '16px' }}>
+                  {paginatedHalls.map((hall) => (
+                    <HallCard
+                      key={hall.id}
+                      hall={hall as any}
+                      startDate={new Date()}
+                      bookings={weeklyBookings}
+                      canEdit={canEditHall}
+                      canDelete={canDeleteHall}
+                      onEdit={() => openEditHall(hall)}
+                      onDelete={() => deleteHall(hall.id)}
+                    />
+                  ))}
+                </div>
                 <TablePagination
                   currentPage={hallPage}
                   totalPages={hallTotalPages}

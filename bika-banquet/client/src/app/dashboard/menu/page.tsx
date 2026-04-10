@@ -3,9 +3,11 @@
 import { FormEvent, Fragment, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { ChevronDown, Edit, Layers, ListChecks, Save, Search, Soup, Trash2 } from 'lucide-react';
+import { ChevronDown, Edit, Layers, ListChecks, Save, Search, Soup, Trash2, Filter } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
+import FilterPanel from '@/components/FilterPanel';
+import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
@@ -215,6 +217,9 @@ function MenuPageContent() {
   const [templateColumnSearch, setTemplateColumnSearch] = useState(
     initialTemplateColumnSearch
   );
+  const [showTypeFilters, setShowTypeFilters] = useState(false);
+  const [showItemFilters, setShowItemFilters] = useState(false);
+  const [showTemplateFilters, setShowTemplateFilters] = useState(false);
   const [templateItemSearch, setTemplateItemSearch] = useState('');
   const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([]);
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
@@ -1918,17 +1923,60 @@ function MenuPageContent() {
               </button>
             )}
           </div>
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              className="input pl-9"
-              value={itemTypeGlobalSearch}
-              onChange={(e) => setItemTypeGlobalSearch(e.target.value)}
-              placeholder="Overall search in item types..."
-            />
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                className="input pl-9"
+                value={itemTypeGlobalSearch}
+                onChange={(e) => setItemTypeGlobalSearch(e.target.value)}
+                placeholder="Overall search in item types..."
+              />
+            </div>
+            <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowTypeFilters(true)}>
+              <Filter className="w-5 h-5 md:mr-2" />
+              <span className="hidden md:inline">Filters</span>
+              {Object.values(itemTypeColumnSearch).filter(Boolean).length > 0 && (
+                 <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
+                   {Object.values(itemTypeColumnSearch).filter(Boolean).length}
+                 </span>
+              )}
+            </button>
           </div>
           {loading ? (
             <TableSkeleton rows={5} />
+          ) : filteredItemTypes.length === 0 ? (
+            <EmptyState
+              icon={itemTypesGlobalSearch ? Search : Layers}
+              variant={
+                itemTypesGlobalSearch
+                  ? 'search'
+                  : Object.values(itemTypesColumnSearch).some(Boolean)
+                    ? 'filter'
+                    : 'page'
+              }
+              title={
+                itemTypesGlobalSearch
+                  ? 'No types match your search'
+                  : Object.values(itemTypesColumnSearch).some(Boolean)
+                    ? 'No matches'
+                    : 'No item types found'
+              }
+              description={
+                itemTypesGlobalSearch || Object.values(itemTypesColumnSearch).some(Boolean)
+                  ? `"${itemTypesGlobalSearch || Object.values(itemTypesColumnSearch).find(Boolean)}" returned no results.`
+                  : 'Start by creating categories for your menu items.'
+              }
+              action={
+                itemTypesGlobalSearch
+                  ? { label: 'Clear search', onClick: () => setItemTypesGlobalSearch('') }
+                  : Object.values(itemTypesColumnSearch).some(Boolean)
+                    ? { label: 'Clear filters', onClick: () => setItemTypesColumnSearch(initialItemTypesColumnSearch) }
+                    : canAddItemType
+                      ? { label: 'Add Type', onClick: openCreateType }
+                      : undefined
+              }
+            />
           ) : (
             <div className="table-shell">
               <table className="data-table">
@@ -1958,48 +2006,6 @@ function MenuPageContent() {
                     <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">
                       Actions
                     </th>
-                  </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search type"
-                        value={itemTypeColumnSearch.name}
-                        onChange={(e) =>
-                          setItemTypeColumnSearch((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search order"
-                        value={itemTypeColumnSearch.order}
-                        onChange={(e) =>
-                          setItemTypeColumnSearch((prev) => ({
-                            ...prev,
-                            order: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search item count"
-                        value={itemTypeColumnSearch.itemCount}
-                        onChange={(e) =>
-                          setItemTypeColumnSearch((prev) => ({
-                            ...prev,
-                            itemCount: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -2066,17 +2072,60 @@ function MenuPageContent() {
               </button>
             )}
           </div>
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              className="input pl-9"
-              value={itemsGlobalSearch}
-              onChange={(e) => setItemsGlobalSearch(e.target.value)}
-              placeholder="Overall search in items..."
-            />
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                className="input pl-9"
+                value={itemsGlobalSearch}
+                onChange={(e) => setItemsGlobalSearch(e.target.value)}
+                placeholder="Overall search in items..."
+              />
+            </div>
+            <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowItemFilters(true)}>
+              <Filter className="w-5 h-5 md:mr-2" />
+              <span className="hidden md:inline">Filters</span>
+              {Object.values(itemsColumnSearch).filter(Boolean).length > 0 && (
+                 <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
+                   {Object.values(itemsColumnSearch).filter(Boolean).length}
+                 </span>
+              )}
+            </button>
           </div>
           {loading ? (
             <TableSkeleton rows={5} />
+          ) : filteredItems.length === 0 ? (
+            <EmptyState
+              icon={itemsGlobalSearch ? Search : Soup}
+              variant={
+                itemsGlobalSearch
+                  ? 'search'
+                  : Object.values(itemsColumnSearch).some(Boolean)
+                    ? 'filter'
+                    : 'page'
+              }
+              title={
+                itemsGlobalSearch
+                  ? 'No items match your search'
+                  : Object.values(itemsColumnSearch).some(Boolean)
+                    ? 'No matches'
+                    : 'No items found'
+              }
+              description={
+                itemsGlobalSearch || Object.values(itemsColumnSearch).some(Boolean)
+                  ? `"${itemsGlobalSearch || Object.values(itemsColumnSearch).find(Boolean)}" returned no results.`
+                  : 'Add dishes to build your menu database.'
+              }
+              action={
+                itemsGlobalSearch
+                  ? { label: 'Clear search', onClick: () => setItemsGlobalSearch('') }
+                  : Object.values(itemsColumnSearch).some(Boolean)
+                    ? { label: 'Clear filters', onClick: () => setItemsColumnSearch(initialItemsColumnSearch) }
+                    : canAddItem
+                      ? { label: 'Add Item', onClick: openCreateItem }
+                      : undefined
+              }
+            />
           ) : (
             <div className="table-shell">
               <table className="data-table">
@@ -2107,46 +2156,6 @@ function MenuPageContent() {
                       Actions
                     </th>
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search item"
-                        value={itemsColumnSearch.name}
-                        onChange={(e) =>
-                          setItemsColumnSearch((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search type"
-                        value={itemsColumnSearch.type}
-                        onChange={(e) =>
-                          setItemsColumnSearch((prev) => ({
-                            ...prev,
-                            type: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search cost"
-                        value={itemsColumnSearch.cost}
-                        onChange={(e) =>
-                          setItemsColumnSearch((prev) => ({
-                            ...prev,
-                            cost: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
                     <th className="py-2 px-2" />
                   </tr>
                 </thead>
@@ -2275,17 +2284,60 @@ function MenuPageContent() {
               </button>
             )}
           </div>
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              className="input pl-9"
-              value={templateGlobalSearch}
-              onChange={(e) => setTemplateGlobalSearch(e.target.value)}
-              placeholder="Overall search in template menus..."
-            />
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                className="input pl-9"
+                value={templateGlobalSearch}
+                onChange={(e) => setTemplateGlobalSearch(e.target.value)}
+                placeholder="Overall search in template menus..."
+              />
+            </div>
+            <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowTemplateFilters(true)}>
+              <Filter className="w-5 h-5 md:mr-2" />
+              <span className="hidden md:inline">Filters</span>
+              {Object.values(templateColumnSearch).filter(Boolean).length > 0 && (
+                 <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
+                   {Object.values(templateColumnSearch).filter(Boolean).length}
+                 </span>
+              )}
+            </button>
           </div>
           {loading ? (
             <TableSkeleton rows={5} />
+          ) : filteredTemplateMenus.length === 0 ? (
+            <EmptyState
+              icon={templateGlobalSearch ? Search : ListChecks}
+              variant={
+                templateGlobalSearch
+                  ? 'search'
+                  : Object.values(templateColumnSearch).some(Boolean)
+                    ? 'filter'
+                    : 'page'
+              }
+              title={
+                templateGlobalSearch
+                  ? 'No templates match your search'
+                  : Object.values(templateColumnSearch).some(Boolean)
+                    ? 'No matches'
+                    : 'No templates found'
+              }
+              description={
+                templateGlobalSearch || Object.values(templateColumnSearch).some(Boolean)
+                  ? `"${templateGlobalSearch || Object.values(templateColumnSearch).find(Boolean)}" returned no results.`
+                  : 'Create predefined plate packs for quick booking.'
+              }
+              action={
+                templateGlobalSearch
+                  ? { label: 'Clear search', onClick: () => setTemplateGlobalSearch('') }
+                  : Object.values(templateColumnSearch).some(Boolean)
+                    ? { label: 'Clear filters', onClick: () => setTemplateColumnSearch(initialTemplateColumnSearch) }
+                    : canAddTemplate
+                      ? { label: 'Add Template', onClick: openCreateTemplate }
+                      : undefined
+              }
+            />
           ) : (
             <div className="table-shell">
               <table className="data-table">
@@ -2323,59 +2375,6 @@ function MenuPageContent() {
                       Actions
                     </th>
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search name"
-                        value={templateColumnSearch.name}
-                        onChange={(e) =>
-                          setTemplateColumnSearch((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search category"
-                        value={templateColumnSearch.category}
-                        onChange={(e) =>
-                          setTemplateColumnSearch((prev) => ({
-                            ...prev,
-                            category: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search rate"
-                        value={templateColumnSearch.ratePerPlate}
-                        onChange={(e) =>
-                          setTemplateColumnSearch((prev) => ({
-                            ...prev,
-                            ratePerPlate: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
-                    <th className="py-2 px-2">
-                      <input
-                        className="input h-9"
-                        placeholder="Search item count"
-                        value={templateColumnSearch.itemCount}
-                        onChange={(e) =>
-                          setTemplateColumnSearch((prev) => ({
-                            ...prev,
-                            itemCount: e.target.value,
-                          }))
-                        }
-                      />
-                    </th>
                     <th className="py-2 px-2" />
                   </tr>
                 </thead>
@@ -2428,6 +2427,82 @@ function MenuPageContent() {
           )}
         </div>
       </div>
+
+      {activeMenuSection === 'itemType' && (
+        <FilterPanel
+          open={showTypeFilters}
+          onClose={() => setShowTypeFilters(false)}
+          activeCount={Object.values(itemTypeColumnSearch).filter(Boolean).length}
+          onClearAll={() => setItemTypeColumnSearch(initialTypeColumnSearch)}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="label">Type</label>
+              <input className="input" placeholder="Search type" value={itemTypeColumnSearch.name} onChange={(e) => setItemTypeColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Order</label>
+              <input className="input" placeholder="Search order" value={itemTypeColumnSearch.order} onChange={(e) => setItemTypeColumnSearch(prev => ({ ...prev, order: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Item Count</label>
+              <input className="input" placeholder="Search item count" value={itemTypeColumnSearch.itemCount} onChange={(e) => setItemTypeColumnSearch(prev => ({ ...prev, itemCount: e.target.value }))} />
+            </div>
+          </div>
+        </FilterPanel>
+      )}
+
+      {activeMenuSection === 'item' && (
+        <FilterPanel
+          open={showItemFilters}
+          onClose={() => setShowItemFilters(false)}
+          activeCount={Object.values(itemsColumnSearch).filter(Boolean).length}
+          onClearAll={() => setItemsColumnSearch(initialItemColumnSearch)}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="label">Name</label>
+              <input className="input" placeholder="Search item name" value={itemsColumnSearch.name} onChange={(e) => setItemsColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Type</label>
+              <input className="input" placeholder="Search type" value={itemsColumnSearch.type} onChange={(e) => setItemsColumnSearch(prev => ({ ...prev, type: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Cost</label>
+              <input className="input" placeholder="Search cost" value={itemsColumnSearch.cost} onChange={(e) => setItemsColumnSearch(prev => ({ ...prev, cost: e.target.value }))} />
+            </div>
+          </div>
+        </FilterPanel>
+      )}
+
+      {activeMenuSection === 'template' && (
+        <FilterPanel
+          open={showTemplateFilters}
+          onClose={() => setShowTemplateFilters(false)}
+          activeCount={Object.values(templateColumnSearch).filter(Boolean).length}
+          onClearAll={() => setTemplateColumnSearch(initialTemplateColumnSearch)}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="label">Name</label>
+              <input className="input" placeholder="Search name" value={templateColumnSearch.name} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Category</label>
+              <input className="input" placeholder="Search category" value={templateColumnSearch.category} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, category: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Rate Per Plate</label>
+              <input className="input" placeholder="Search rate" value={templateColumnSearch.ratePerPlate} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, ratePerPlate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Item Count</label>
+              <input className="input" placeholder="Search count" value={templateColumnSearch.itemCount} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, itemCount: e.target.value }))} />
+            </div>
+          </div>
+        </FilterPanel>
+      )}
     </div>
   );
 }

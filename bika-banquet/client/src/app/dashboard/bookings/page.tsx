@@ -18,10 +18,13 @@ import {
   Star,
   Trash2,
   Users,
+  Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import FormPromptModal from '@/components/FormPromptModal';
+import FilterPanel from '@/components/FilterPanel';
+import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
@@ -475,6 +478,7 @@ export default function BookingsPage() {
   const [globalSearch, setGlobalSearch] = useState('');
   const debouncedGlobalSearch = useDebounce(globalSearch, 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
+  const [showFilters, setShowFilters] = useState(false);
   const [sort, setSort] = useState<SortState>({
     key: 'functionDate',
     direction: 'desc',
@@ -4722,6 +4726,15 @@ export default function BookingsPage() {
               </button>
             )}
           </div>
+          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
+            <Filter className="w-5 h-5 md:mr-2" />
+            <span className="hidden md:inline">Filters</span>
+            {Object.values(columnSearch).filter(Boolean).length > 0 && (
+               <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
+                 {Object.values(columnSearch).filter(Boolean).length}
+               </span>
+            )}
+          </button>
           {/* View toggle — hidden on mobile where we always use cards */}
           <div
             aria-label="Toggle view"
@@ -4781,29 +4794,43 @@ export default function BookingsPage() {
           <div className="py-6">
             <TableSkeleton rows={8} />
           </div>
+        ) : filteredBookings.length === 0 ? (
+          <EmptyState
+            icon={globalSearch ? Search : CalendarCheck}
+            variant={
+              globalSearch
+                ? 'search'
+                : Object.values(columnSearch).some(Boolean)
+                  ? 'filter'
+                  : 'page'
+            }
+            title={
+              globalSearch
+                ? 'No bookings match your search'
+                : Object.values(columnSearch).some(Boolean)
+                  ? 'No matches'
+                  : 'No bookings found'
+            }
+            description={
+              globalSearch || Object.values(columnSearch).some(Boolean)
+                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
+                : 'Create a booking to start tracking events.'
+            }
+            action={
+              globalSearch
+                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
+                : Object.values(columnSearch).some(Boolean)
+                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
+                  : canAddBooking
+                    ? { label: 'New Booking', onClick: () => setShowWizard(true) }
+                    : undefined
+            }
+          />
         ) : (
           <>
             {/* Mobile card view — always shown on small screens */}
             <div className="md:hidden">
-              {filteredBookings.length === 0 ? (
-                <div className="empty-state" style={{ padding: '24px 16px' }}>
-                  <div className="empty-state-icon">
-                    <CalendarCheck size={22} />
-                  </div>
-                  <p className="empty-state-title">
-                    {(globalSearch || Object.values(columnSearch).some(Boolean))
-                      ? 'No bookings match your search'
-                      : 'No bookings found'}
-                  </p>
-                  <p className="empty-state-desc">
-                    {(globalSearch || Object.values(columnSearch).some(Boolean))
-                      ? 'Try another keyword or clear the filters.'
-                      : 'Create a booking to start tracking events.'}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="mobile-card-list">
+              <div className="mobile-card-list">
                     {paginatedBookings.map((booking) => (
                       <MobileBookingCard
                         key={booking.id}
@@ -4825,32 +4852,12 @@ export default function BookingsPage() {
                     itemLabel="bookings"
                     onPageChange={setCurrentPage}
                   />
-                </>
-              )}
             </div>
 
             {/* Desktop card grid view */}
             {viewMode === 'cards' && (
               <div className="hidden md:block">
-                {filteredBookings.length === 0 ? (
-                  <div className="empty-state" style={{ padding: '32px 16px' }}>
-                    <div className="empty-state-icon">
-                      <CalendarCheck size={22} />
-                    </div>
-                    <p className="empty-state-title">
-                      {(globalSearch || Object.values(columnSearch).some(Boolean))
-                        ? 'No bookings match your search'
-                        : 'No bookings yet'}
-                    </p>
-                    <p className="empty-state-desc">
-                      {(globalSearch || Object.values(columnSearch).some(Boolean))
-                        ? 'Try a different keyword.'
-                        : 'Add your first booking to get started.'}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div
+                <div
                       style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -4879,8 +4886,6 @@ export default function BookingsPage() {
                       itemLabel="bookings"
                       onPageChange={setCurrentPage}
                     />
-                  </>
-                )}
               </div>
             )}
 
@@ -4931,90 +4936,11 @@ export default function BookingsPage() {
                         Actions
                       </th>
                     )}
-                  </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search function"
-                        value={columnSearch.functionName}
-                        onChange={(e) => handleColumnSearch('functionName', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search customer"
-                        value={columnSearch.customer}
-                        onChange={(e) => handleColumnSearch('customer', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        type="date"
-                        className="input h-9"
-                        placeholder="Search date"
-                        value={columnSearch.functionDate}
-                        onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search guests"
-                        value={columnSearch.expectedGuests}
-                        onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search status"
-                        value={columnSearch.status}
-                        onChange={(e) => handleColumnSearch('status', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9 text-right"
-                        placeholder="Search amount"
-                        value={columnSearch.grandTotal}
-                        onChange={(e) => handleColumnSearch('grandTotal', e.target.value)}
-                      />
-                    </th>
-                    {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                      <th className="py-2 px-4" />
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredBookings.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={
-                          (canExportMenuPdf || canEditBooking || canDeleteBooking) ? 7 : 6
-                        }
-                        className="py-8"
-                      >
-                        <div className="empty-state" style={{ padding: '20px 16px' }}>
-                          <div className="empty-state-icon">
-                            <CalendarCheck size={22} />
-                          </div>
-                          <p className="empty-state-title">
-                            {(globalSearch || Object.values(columnSearch).some(Boolean))
-                              ? 'No bookings match your search'
-                              : 'No bookings found'}
-                          </p>
-                          <p className="empty-state-desc">
-                            {(globalSearch || Object.values(columnSearch).some(Boolean))
-                              ? 'Try another keyword or clear the filters.'
-                              : 'Create a booking to start tracking events.'}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedBookings.map((booking) => (
+                  {paginatedBookings.map((booking) => (
                       <tr
                         key={booking.id}
                         className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
@@ -5080,7 +5006,7 @@ export default function BookingsPage() {
                       )}
                       </tr>
                     ))
-                  )}
+                  }
                 </tbody>
               </table>
               <TablePagination
@@ -5239,6 +5165,40 @@ export default function BookingsPage() {
           onAddCustomer={openQuickCustomerForm}
         />
       )}
+
+      <FilterPanel
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        activeCount={Object.values(columnSearch).filter(Boolean).length}
+        onClearAll={() => setColumnSearch(initialColumnSearch)}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="label">Function</label>
+            <input className="input" placeholder="Search function" value={columnSearch.functionName} onChange={(e) => handleColumnSearch('functionName', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Customer</label>
+            <input className="input" placeholder="Search customer" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Date</label>
+            <input type="date" className="input" value={columnSearch.functionDate} onChange={(e) => handleColumnSearch('functionDate', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Guests</label>
+            <input className="input" placeholder="Search guests" value={columnSearch.expectedGuests} onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <input className="input" placeholder="Search status" value={columnSearch.status} onChange={(e) => handleColumnSearch('status', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Amount</label>
+            <input className="input" placeholder="Search amount" value={columnSearch.grandTotal} onChange={(e) => handleColumnSearch('grandTotal', e.target.value)} />
+          </div>
+        </div>
+      </FilterPanel>
     </div>
   );
 }

@@ -14,12 +14,16 @@ import {
   Edit,
   Trash2,
   Star,
+  Filter,
 } from 'lucide-react';
 import Link from 'next/link';
 import FormPromptModal from '@/components/FormPromptModal';
 import FloatingActionButton from '@/components/FloatingActionButton';
+import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import { TableSkeleton } from '@/components/Skeletons';
+import FilterPanel from '@/components/FilterPanel';
+import Combobox from '@/components/Combobox';
 import {
   SortState,
   TableColumnConfig,
@@ -151,6 +155,7 @@ export default function CustomersPage() {
     whatsappNumber?: string;
   }>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
 
   const tableColumns = useMemo<TableColumnConfig<CustomerRow>[]>(
     () => [
@@ -619,10 +624,9 @@ export default function CustomersPage() {
                     Phone Number <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-[180px,1fr] gap-2">
-                    <select
+                    <Combobox
                       value={formData.phoneCountryIso}
-                      onChange={(e) => {
-                        const nextIso = e.target.value;
+                      onChange={(nextIso) => {
                         const digits = getExpectedPhoneDigits(nextIso);
                         setPhoneFieldErrors((prev) => ({ ...prev, phone: undefined }));
                         setFormData((prev) => ({
@@ -634,14 +638,11 @@ export default function CustomersPage() {
                             : nextIso,
                         }));
                       }}
-                      className="input"
-                    >
-                      {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                        <option key={option.iso2} value={option.iso2}>
-                          {option.flag} {option.country} ({option.code})
-                        </option>
-                      ))}
-                    </select>
+                      options={COUNTRY_DIAL_CODE_OPTIONS.map((option) => ({
+                        value: option.iso2,
+                        label: `${option.flag} ${option.country} (${option.code})`,
+                      }))}
+                    />
                     <input
                       value={formData.phone}
                       onChange={(e) => {
@@ -670,10 +671,9 @@ export default function CustomersPage() {
                 <div className="md:col-span-4">
                   <label className="label">2nd Phone No.</label>
                   <div className="grid grid-cols-[180px,1fr] gap-2">
-                    <select
+                    <Combobox
                       value={formData.alterPhoneCountryIso}
-                      onChange={(e) => {
-                        const nextIso = e.target.value;
+                      onChange={(nextIso) => {
                         const digits = getExpectedPhoneDigits(nextIso);
                         setPhoneFieldErrors((prev) => ({ ...prev, alterPhone: undefined }));
                         setFormData((prev) => ({
@@ -682,17 +682,11 @@ export default function CustomersPage() {
                           alterPhone: prev.alterPhone.slice(0, digits),
                         }));
                       }}
-                      className="input"
-                    >
-                      {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                        <option
-                          key={`alt-${option.iso2}`}
-                          value={option.iso2}
-                        >
-                          {option.flag} {option.country} ({option.code})
-                        </option>
-                      ))}
-                    </select>
+                      options={COUNTRY_DIAL_CODE_OPTIONS.map((option) => ({
+                        value: option.iso2,
+                        label: `${option.flag} ${option.country} (${option.code})`,
+                      }))}
+                    />
                     <input
                       value={formData.alterPhone}
                       onChange={(e) => {
@@ -717,20 +711,14 @@ export default function CustomersPage() {
                 </div>
                 <div className="md:col-span-4">
                   <label className="label">Caste</label>
-                  <select
+                  <Combobox
                     value={formData.caste}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, caste: e.target.value }))
+                    onChange={(val) =>
+                      setFormData((prev) => ({ ...prev, caste: val }))
                     }
-                    className="input"
-                  >
-                    <option value="">Select caste</option>
-                    {CASTE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                    options={CASTE_OPTIONS.map((opt) => ({ value: opt, label: opt }))}
+                    placeholder="None"
+                  />
                 </div>
                 <div className="md:col-span-4">
                   <label className="label">Email</label>
@@ -779,10 +767,9 @@ export default function CustomersPage() {
                       WhatsApp Number <span className="text-red-500">*</span>
                     </label>
                     <div className="grid grid-cols-[180px,1fr] gap-2">
-                      <select
+                      <Combobox
                         value={formData.whatsappCountryIso}
-                        onChange={(e) => {
-                          const nextIso = e.target.value;
+                        onChange={(nextIso) => {
                           const digits = getExpectedPhoneDigits(nextIso);
                           setPhoneFieldErrors((prev) => ({
                             ...prev,
@@ -794,17 +781,11 @@ export default function CustomersPage() {
                             whatsappNumber: prev.whatsappNumber.slice(0, digits),
                           }));
                         }}
-                        className="input"
-                      >
-                        {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                          <option
-                            key={`wa-${option.iso2}`}
-                            value={option.iso2}
-                          >
-                            {option.flag} {option.country} ({option.code})
-                          </option>
-                        ))}
-                      </select>
+                        options={COUNTRY_DIAL_CODE_OPTIONS.map((option) => ({
+                          value: option.iso2,
+                          label: `${option.flag} ${option.country} (${option.code})`,
+                        }))}
+                      />
                       <input
                         value={formData.whatsappNumber}
                         onChange={(e) => {
@@ -846,19 +827,14 @@ export default function CustomersPage() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-4">
                   <label className="label">Country</label>
-                  <select
+                  <Combobox
                     value={formData.country}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, country: e.target.value }))
+                    onChange={(val) =>
+                      setFormData((prev) => ({ ...prev, country: val }))
                     }
-                    className="input"
-                  >
-                    {COUNTRY_OPTIONS.map((country) => (
-                      <option key={country} value={country}>
-                        {country}
-                      </option>
-                    ))}
-                  </select>
+                    options={COUNTRY_OPTIONS.map((country) => ({ value: country, label: country }))}
+                    placeholder="Select country"
+                  />
                 </div>
                 <div className="md:col-span-4">
                   <label className="label">PIN Code</label>
@@ -984,39 +960,30 @@ export default function CustomersPage() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-4">
                   <label className="label">Referred By</label>
-                  <select
+                  <Combobox
                     value={formData.referredById}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       setFormData((prev) => ({
                         ...prev,
-                        referredById: e.target.value,
+                        referredById: val,
                       }))
                     }
-                    className="input"
-                  >
-                    <option value="">Select customer</option>
-                    {referrerOptions.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name} ({customer.phoneCountryCode || '+91'} {customer.phone})
-                      </option>
-                    ))}
-                  </select>
+                    options={referrerOptions.map((customer) => ({
+                      value: customer.id,
+                      label: `${customer.name} (${customer.phoneCountryCode || '+91'} ${customer.phone})`,
+                    }))}
+                    placeholder="Select customer"
+                  />
                 </div>
                 <div className="md:col-span-4">
                   <label className="label">Priority</label>
-                  <select
+                  <Combobox
                     value={formData.priority}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, priority: e.target.value }))
+                    onChange={(val) =>
+                      setFormData((prev) => ({ ...prev, priority: val }))
                     }
-                    className="input"
-                  >
-                    {PRIORITY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={PRIORITY_OPTIONS}
+                  />
                 </div>
                 <div className="md:col-span-4">
                   <label className="label">Rating</label>
@@ -1093,17 +1060,18 @@ export default function CustomersPage() {
       </FormPromptModal>
 
       <div className="card">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-            placeholder="Overall search across all customer columns..."
-            className="input pl-10 pr-10"
-          />
-          {globalSearch && (
-            <button
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Overall search across all customer columns..."
+              className="input pl-10 pr-10"
+            />
+            {globalSearch && (
+              <button
               type="button"
               aria-label="Clear search"
               onClick={clearSearch}
@@ -1127,6 +1095,16 @@ export default function CustomersPage() {
               </svg>
             </button>
           )}
+          </div>
+          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
+            <Filter className="w-5 h-5 md:mr-2" />
+            <span className="hidden md:inline">Filters</span>
+            {Object.values(columnSearch).filter(Boolean).length > 0 && (
+               <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
+                 {Object.values(columnSearch).filter(Boolean).length}
+               </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -1144,30 +1122,37 @@ export default function CustomersPage() {
             <TableSkeleton rows={8} />
           </div>
         ) : filteredCustomers.length === 0 ? (
-          <div className="text-center py-6">
-            {(globalSearch || Object.values(columnSearch).some(Boolean)) ? (
-              <div className="empty-state" style={{ padding: '24px 16px' }}>
-                <div className="empty-state-icon">
-                  <Search size={22} />
-                </div>
-                <p className="empty-state-title">No customers match your search</p>
-                <p className="empty-state-desc">
-                  &ldquo;{globalSearch || Object.values(columnSearch).find(Boolean)}&rdquo; returned no results.
-                </p>
-                <button type="button" onClick={clearSearch} className="btn btn-secondary">
-                  Clear search
-                </button>
-              </div>
-            ) : (
-              <div className="empty-state" style={{ padding: '24px 16px' }}>
-                <div className="empty-state-icon">
-                  <Users size={22} />
-                </div>
-                <p className="empty-state-title">No customers found</p>
-                <p className="empty-state-desc">Add your first customer to get started.</p>
-              </div>
-            )}
-          </div>
+          <EmptyState
+            icon={globalSearch ? Search : Users}
+            variant={
+              globalSearch
+                ? 'search'
+                : Object.values(columnSearch).some(Boolean)
+                  ? 'filter'
+                  : 'page'
+            }
+            title={
+              globalSearch
+                ? 'No customers match your search'
+                : Object.values(columnSearch).some(Boolean)
+                  ? 'No matches'
+                  : 'No customers found'
+            }
+            description={
+              globalSearch || Object.values(columnSearch).some(Boolean)
+                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
+                : 'Add your first customer to get started.'
+            }
+            action={
+              globalSearch
+                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
+                : Object.values(columnSearch).some(Boolean)
+                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
+                  : canAddCustomer
+                    ? { label: 'New Customer', onClick: openCreatePrompt }
+                    : undefined
+            }
+          />
         ) : (
           <>
             {/* Mobile card view */}
@@ -1318,50 +1303,6 @@ export default function CustomersPage() {
                       Actions
                     </th>
                   </tr>
-                  <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search name"
-                        value={columnSearch.name}
-                        onChange={(e) => handleColumnSearch('name', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search contact"
-                        value={columnSearch.contact}
-                        onChange={(e) => handleColumnSearch('contact', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search location"
-                        value={columnSearch.location}
-                        onChange={(e) => handleColumnSearch('location', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        className="input h-9"
-                        placeholder="Search stats"
-                        value={columnSearch.stats}
-                        onChange={(e) => handleColumnSearch('stats', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4">
-                      <input
-                        type="date"
-                        className="input h-9"
-                        placeholder="Search date"
-                        value={columnSearch.createdAt}
-                        onChange={(e) => handleColumnSearch('createdAt', e.target.value)}
-                      />
-                    </th>
-                    <th className="py-2 px-4" />
-                  </tr>
                 </thead>
                 <tbody>
                   {paginatedCustomers.map((customer) => (
@@ -1483,6 +1424,36 @@ export default function CustomersPage() {
           label="New Customer"
         />
       )}
+
+      <FilterPanel
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        activeCount={Object.values(columnSearch).filter(Boolean).length}
+        onClearAll={() => setColumnSearch({ name: '', contact: '', location: '', stats: '', createdAt: '' })}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="label">Name</label>
+            <input className="input" placeholder="Search name" value={columnSearch.name} onChange={(e) => handleColumnSearch('name', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Contact</label>
+            <input className="input" placeholder="Search contact" value={columnSearch.contact} onChange={(e) => handleColumnSearch('contact', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Location</label>
+            <input className="input" placeholder="Search location" value={columnSearch.location} onChange={(e) => handleColumnSearch('location', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Stats</label>
+            <input className="input" placeholder="Search stats" value={columnSearch.stats} onChange={(e) => handleColumnSearch('stats', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Created Date</label>
+            <input type="date" className="input" value={columnSearch.createdAt} onChange={(e) => handleColumnSearch('createdAt', e.target.value)} />
+          </div>
+        </div>
+      </FilterPanel>
     </div>
   );
 }

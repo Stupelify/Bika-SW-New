@@ -1,6 +1,7 @@
 'use client';
 
 import { AdditionalItem, PackKey, PaymentRow, WizardFormData } from './types';
+import Combobox from '@/components/Combobox';
 
 interface Props {
   data: WizardFormData;
@@ -290,15 +291,12 @@ export default function Step4PricingPayments({ data, onChange, totalBillAmount }
               alignItems: 'center',
             }}
           >
-            <select
+            <Combobox
               value={payment.mode}
-              onChange={(e) => patchPayment(idx, { mode: e.target.value })}
-              className="wizard-input"
-            >
-              {PAYMENT_MODES.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+              onChange={(val) => patchPayment(idx, { mode: val })}
+              options={PAYMENT_MODES.map((m) => ({ value: m, label: m }))}
+              placeholder="Mode"
+            />
             <input
               type="text"
               value={payment.narration}
