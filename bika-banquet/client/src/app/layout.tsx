@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Manrope, Space_Grotesk } from 'next/font/google';
+import { Manrope, Instrument_Serif } from 'next/font/google';
 import './globals.css';
 import './mobile.css';
 import { Toaster } from 'sonner';
@@ -11,9 +11,11 @@ const manrope = Manrope({
   display: 'swap',
 });
 
-const spaceGrotesk = Space_Grotesk({
+const instrumentSerif = Instrument_Serif({
+  weight: ['400'],
+  style: ['normal', 'italic'],
   subsets: ['latin'],
-  variable: '--font-space-grotesk',
+  variable: '--font-display',
   display: 'swap',
 });
 
@@ -50,7 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} ${spaceGrotesk.variable}`}>
+      <body className={`${manrope.variable} ${instrumentSerif.variable}`}>
         <IonicProvider>{children}</IonicProvider>
         <Toaster position="top-right" richColors />
       </body>

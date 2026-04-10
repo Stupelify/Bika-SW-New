@@ -2,6 +2,7 @@
 
 import { CalendarDays, Edit, FileText, Trash2, Users } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import StatusBadge from '@/components/StatusBadge';
 
 interface Booking {
     id: string;
@@ -37,15 +38,6 @@ export default function MobileBookingCard({
     onEdit,
     onDelete,
 }: MobileBookingCardProps) {
-    const statusClass = booking.isQuotation
-        ? 'status-quotation'
-        : booking.status === 'cancelled'
-            ? 'status-cancelled'
-            : booking.status === 'pending'
-                ? 'status-pending'
-                : 'status-confirmed';
-
-    const statusLabel = booking.isQuotation ? 'Quotation' : booking.status;
     const hasActions = canExportMenuPdf || canEditBooking || canDeleteBooking;
 
     return (
@@ -55,10 +47,7 @@ export default function MobileBookingCard({
                     <div className="mobile-card-title">{booking.functionName}</div>
                     <div className="mobile-card-subtitle">{booking.functionType}</div>
                 </div>
-                <span className={`status-pill ${statusClass}`}>
-                    <span className="status-dot" />
-                    {statusLabel}
-                </span>
+                <StatusBadge status={booking.isQuotation ? 'quotation' : booking.status} />
             </div>
 
             <div className="mobile-card-row">

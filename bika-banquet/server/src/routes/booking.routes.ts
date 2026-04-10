@@ -3,6 +3,7 @@ import {
   createBooking,
   getBookings,
   getBookingById,
+  getBookingCount,
   updateBooking,
   cancelBooking,
   deleteBooking,
@@ -31,6 +32,7 @@ router.post(
 );
 router.get('/', requirePermission('view_booking', 'manage_bookings'), getBookings);
 // Must be before /:id routes
+router.get('/count', requirePermission('view_booking', 'manage_bookings'), getBookingCount);
 router.get('/check-availability', requirePermission('view_booking', 'manage_bookings'), checkHallAvailability);
 router.get('/:id', requirePermission('view_booking', 'manage_bookings'), getBookingById);
 router.get('/:id/menu-pdf', requirePermission('view_booking', 'manage_bookings'), downloadBookingMenuPdf);

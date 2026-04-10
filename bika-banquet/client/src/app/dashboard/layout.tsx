@@ -50,12 +50,25 @@ interface NavigationItem {
   children?: NavigationChild[];
 }
 
-const navigation: NavigationItem[] = [
+// PRIMARY operational nav — shown prominently
+const primaryNavigation: NavigationItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
     permissions: ['view_dashboard'],
+  },
+  {
+    name: 'Bookings',
+    href: '/dashboard/bookings',
+    icon: CalendarCheck,
+    permissions: ['view_booking', 'manage_bookings'],
+  },
+  {
+    name: 'Calendar',
+    href: '/dashboard/calendar',
+    icon: CalendarDays,
+    permissions: ['view_calendar', 'view_booking', 'view_enquiry', 'manage_bookings', 'manage_enquiries'],
   },
   {
     name: 'Customers',
@@ -70,17 +83,15 @@ const navigation: NavigationItem[] = [
     permissions: ['view_enquiry', 'manage_enquiries'],
   },
   {
-    name: 'Bookings',
-    href: '/dashboard/bookings',
-    icon: CalendarCheck,
-    permissions: ['view_booking', 'manage_bookings'],
+    name: 'Payments',
+    href: '/dashboard/payments',
+    icon: DollarSign,
+    permissions: ['manage_payments'],
   },
-  {
-    name: 'Calendar',
-    href: '/dashboard/calendar',
-    icon: CalendarDays,
-    permissions: ['view_calendar', 'view_booking', 'view_enquiry', 'manage_bookings', 'manage_enquiries'],
-  },
+];
+
+// SECONDARY admin/config nav — de-emphasised below divider
+const secondaryNavigation: NavigationItem[] = [
   {
     name: 'Venues',
     href: '/dashboard/halls',
@@ -131,12 +142,6 @@ const navigation: NavigationItem[] = [
         permissions: ['view_item', 'manage_menu'],
       },
     ],
-  },
-  {
-    name: 'Payments',
-    href: '/dashboard/payments',
-    icon: DollarSign,
-    permissions: ['manage_payments'],
   },
   {
     name: 'Reports',
@@ -193,6 +198,9 @@ const navigation: NavigationItem[] = [
     ],
   },
 ];
+
+// Combined for existing usages that expect a flat array
+const navigation: NavigationItem[] = [...primaryNavigation, ...secondaryNavigation];
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -339,6 +347,8 @@ function DashboardLayoutContent({
   const [paletteCustomers, setPaletteCustomers] = useState<
     Array<{ id: string; name: string; subtitle?: string; href?: string }>
   >([]);
+  const [pendingEnquiries, setPendingEnquiries] = useState(0);
+  const [outstandingPayments, setOutstandingPayments] = useState(0);
 
   const sectionParam = searchParams.get('section');
 
@@ -356,8 +366,8 @@ function DashboardLayoutContent({
     );
   };
 
-  const visibleNavigation = useMemo(() => {
-    return navigation
+  const visiblePrimary = useMemo(() => {
+    return primaryNavigation
       .filter((item) =>
         hasAccessForRequiredPermissions(user?.permissions, item.permissions)
       )
@@ -368,6 +378,24 @@ function DashboardLayoutContent({
         ),
       }));
   }, [user?.permissions]);
+
+  const visibleSecondary = useMemo(() => {
+    return secondaryNavigation
+      .filter((item) =>
+        hasAccessForRequiredPermissions(user?.permissions, item.permissions)
+      )
+      .map((item) => ({
+        ...item,
+        children: (item.children || []).filter((child) =>
+          hasAccessForRequiredPermissions(user?.permissions, child.permissions)
+        ),
+      }));
+  }, [user?.permissions]);
+
+  const visibleNavigation = useMemo(
+    () => [...visiblePrimary, ...visibleSecondary],
+    [visiblePrimary, visibleSecondary]
+  );
 
   useEffect(() => {
     void loadUser();
@@ -423,6 +451,22 @@ function DashboardLayoutContent({
     setPaletteBookings(readList('bika_palette_bookings'));
     setPaletteCustomers(readList('bika_palette_customers'));
   }, [paletteOpen]);
+
+  // Task 6.3 — fetch pending counts for nav badges
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    Promise.all([
+      fetch(`${apiBase}/api/enquiries/count?status=pending`, { credentials: 'include' })
+        .then((r) => r.ok ? r.json() : { count: 0 })
+        .then((d) => setPendingEnquiries(d?.data?.count ?? d?.count ?? 0))
+        .catch(() => setPendingEnquiries(0)),
+      fetch(`${apiBase}/api/bookings/count?status=outstanding`, { credentials: 'include' })
+        .then((r) => r.ok ? r.json() : { count: 0 })
+        .then((d) => setOutstandingPayments(d?.data?.count ?? d?.count ?? 0))
+        .catch(() => setOutstandingPayments(0)),
+    ]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated && typeof window !== 'undefined') {
@@ -560,10 +604,17 @@ function DashboardLayoutContent({
       </div>
 
       <nav aria-label="Main navigation" style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-        {visibleNavigation.map((item) => {
+        {/* PRIMARY nav group */}
+        {visiblePrimary.map((item) => {
           const isActive = routeMatches(pathname, item.href);
           const hasChildren = Boolean(item.children && item.children.length > 0);
           const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
+          const badge =
+            item.name === 'Enquiries' && pendingEnquiries > 0
+              ? { count: pendingEnquiries, color: '#ef4444' }
+              : item.name === 'Payments' && outstandingPayments > 0
+              ? { count: outstandingPayments, color: '#f59e0b' }
+              : null;
 
           return (
             <div key={item.name} style={{ marginBottom: 2 }}>
@@ -629,10 +680,194 @@ function DashboardLayoutContent({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                      flex: isCollapsed ? undefined : 1,
                       width: isCollapsed ? '100%' : undefined,
                       opacity: 1,
                       textAlign: isCollapsed ? 'center' : 'left',
                       fontSize: isCollapsed ? 10 : undefined,
+                      lineHeight: isCollapsed ? 1.1 : undefined,
+                    }}
+                  >
+                    {item.name}
+                  </span>
+                  {badge && !isCollapsed && (
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        background: badge.color,
+                        color: 'white',
+                        borderRadius: 100,
+                        padding: '1px 5px',
+                        minWidth: 16,
+                        textAlign: 'center',
+                        lineHeight: '14px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {badge.count > 99 ? '99+' : badge.count}
+                    </span>
+                  )}
+                </Link>
+                {hasChildren && !isCollapsed && (
+                  <button
+                    type="button"
+                    aria-label={`Toggle ${item.name} submenu`}
+                    aria-expanded={isOpen}
+                    onClick={() =>
+                      setOpenGroups((prev) => ({
+                        ...prev,
+                        [item.name]: !isOpen,
+                      }))
+                    }
+                    style={{
+                      padding: '7px 8px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: isActive ? 'var(--teal-600)' : 'var(--text-4)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    <ChevronDown
+                      aria-hidden="true"
+                      style={{
+                        width: 14,
+                        height: 14,
+                        transition: 'transform 0.2s',
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      }}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {hasChildren && isOpen && (
+                <div
+                  style={{
+                    marginLeft: isCollapsed ? 0 : 35,
+                    marginBottom: 4,
+                    display: isCollapsed ? 'none' : 'block',
+                  }}
+                >
+                  {item.children?.map((child) => {
+                    const childActive = isHrefActive(child.href);
+                    return (
+                      <Link
+                        key={`${item.name}-${child.name}`}
+                        href={child.href}
+                        style={{
+                          display: 'block',
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          fontSize: 12.5,
+                          fontWeight: childActive ? 600 : 450,
+                          color: childActive ? 'var(--teal-700)' : 'var(--text-3)',
+                          background: childActive ? 'var(--teal-100)' : 'transparent',
+                          textDecoration: 'none',
+                          marginBottom: 1,
+                          transition: 'background 0.15s, color 0.15s',
+                        }}
+                      >
+                        {child.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Divider between primary and secondary nav */}
+        {visibleSecondary.length > 0 && (
+          <div
+            style={{
+              height: 1,
+              background: 'var(--border)',
+              margin: '8px 4px',
+            }}
+          />
+        )}
+
+        {/* SECONDARY nav group — de-emphasised admin/config items */}
+        {visibleSecondary.map((item) => {
+          const isActive = routeMatches(pathname, item.href);
+          const hasChildren = Boolean(item.children && item.children.length > 0);
+          const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
+
+          return (
+            <div key={item.name} style={{ marginBottom: 2 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0,
+                  borderRadius: 10,
+                  marginBottom: 1,
+                  background: isActive ? 'var(--teal-50)' : 'transparent',
+                  position: 'relative',
+                }}
+              >
+                {isActive && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: '22%',
+                      bottom: '22%',
+                      width: 3,
+                      background: 'var(--teal-500)',
+                      borderRadius: '0 3px 3px 0',
+                    }}
+                  />
+                )}
+                <Link
+                  href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
+                  title={isCollapsed ? item.name : undefined}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexDirection: isCollapsed ? 'column' : 'row',
+                    justifyContent: isCollapsed ? 'center' : 'flex-start',
+                    gap: isCollapsed ? 0 : 9,
+                    padding: isCollapsed ? '8px 6px' : '6px 10px',
+                    fontSize: 12.5,
+                    fontWeight: isActive ? 600 : 450,
+                    color: isActive ? 'var(--teal-700)' : 'var(--text-3)',
+                    textDecoration: 'none',
+                    borderRadius: 10,
+                    minWidth: 0,
+                    transition: 'color 0.15s',
+                  }}
+                >
+                  <item.icon
+                    style={{
+                      width: 15,
+                      height: 15,
+                      opacity: isActive ? 0.9 : 0.7,
+                      flexShrink: 0,
+                      color: isActive ? 'var(--teal-600)' : 'currentColor',
+                      marginBottom: isCollapsed ? 4 : 0,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className="sidebar-label sidebar-nav-label"
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      width: isCollapsed ? '100%' : undefined,
+                      opacity: 1,
+                      textAlign: isCollapsed ? 'center' : 'left',
+                      fontSize: isCollapsed ? 10 : 12.5,
                       lineHeight: isCollapsed ? 1.1 : undefined,
                     }}
                   >
@@ -691,9 +926,9 @@ function DashboardLayoutContent({
                         href={child.href}
                         style={{
                           display: 'block',
-                          padding: '6px 10px',
+                          padding: '5px 10px',
                           borderRadius: 8,
-                          fontSize: 12.5,
+                          fontSize: 12,
                           fontWeight: childActive ? 600 : 450,
                           color: childActive ? 'var(--teal-700)' : 'var(--text-3)',
                           background: childActive ? 'var(--teal-100)' : 'transparent',
@@ -1037,8 +1272,6 @@ function DashboardLayoutContent({
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
-        recentBookings={paletteBookings}
-        customers={paletteCustomers}
       />
     </div>
   );

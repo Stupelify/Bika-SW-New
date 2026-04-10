@@ -12,6 +12,18 @@ import {
   syncEnquiryEventToGoogleCalendar,
 } from '../services/googleCalendar.service';
 
+export async function getEnquiryCount(req: Request, res: Response): Promise<void> {
+  try {
+    const status = req.query.status as string | undefined;
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    const count = await prisma.enquiry.count({ where });
+    sendSuccess(res, { count });
+  } catch (error) {
+    sendError(res, 'Failed to get enquiry count');
+  }
+}
+
 export const createEnquirySchema = z.object({
   body: z.object({
     customerId: idSchema('customer ID'),

@@ -1731,6 +1731,28 @@ export async function createBooking(
 }
 
 /**
+ * Count bookings — lightweight endpoint for nav badges
+ * ?status=outstanding → confirmed bookings with dueAmountValue > 0
+ * ?status=<any>       → bookings matching that status
+ */
+export async function getBookingCount(req: Request, res: Response): Promise<void> {
+  try {
+    const status = req.query.status as string | undefined;
+    const where: any = { isLatest: true };
+    if (status === 'outstanding') {
+      where.status = { in: ['confirmed', 'pending'] };
+      where.dueAmountValue = { gt: 0 };
+    } else if (status) {
+      where.status = status;
+    }
+    const count = await prisma.booking.count({ where });
+    sendSuccess(res, { count });
+  } catch (error) {
+    sendError(res, 'Failed to get booking count');
+  }
+}
+
+/**
  * Get all bookings with filters
  */
 export async function getBookings(req: Request, res: Response): Promise<void> {

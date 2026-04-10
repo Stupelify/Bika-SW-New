@@ -19,6 +19,7 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import StatusBadge from '@/components/StatusBadge';
 
 interface Enquiry {
   id: string;
@@ -835,15 +836,9 @@ export default function EnquiriesPage() {
                         <div className="mobile-card-subtitle">{enquiry.functionType}</div>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
-                          {enquiry.status}
-                        </span>
-                        {enquiry.quotationSent && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">Quotation</span>
-                        )}
-                        {enquiry.isPencilBooked && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">Pencil</span>
-                        )}
+                        <StatusBadge status={enquiry.status} />
+                        {enquiry.quotationSent && <StatusBadge status="quotation" />}
+                        {enquiry.isPencilBooked && <StatusBadge status="pencil" />}
                       </div>
                     </div>
                     <div className="mobile-card-row">
@@ -1013,19 +1008,9 @@ export default function EnquiriesPage() {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex flex-wrap gap-2">
-                          <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
-                            {enquiry.status}
-                          </span>
-                          {enquiry.quotationSent && (
-                            <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
-                              Quotation
-                            </span>
-                          )}
-                          {enquiry.isPencilBooked && (
-                            <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">
-                              Pencil
-                            </span>
-                          )}
+                          <StatusBadge status={enquiry.status} />
+                          {enquiry.quotationSent && <StatusBadge status="quotation" />}
+                          {enquiry.isPencilBooked && <StatusBadge status="pencil" />}
                         </div>
                       </td>
                       <td className="py-4 px-4 text-right">

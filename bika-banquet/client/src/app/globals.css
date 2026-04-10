@@ -388,7 +388,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    opacity: 0;
+    opacity: 0.35;
     transition: opacity 0.15s;
   }
 
