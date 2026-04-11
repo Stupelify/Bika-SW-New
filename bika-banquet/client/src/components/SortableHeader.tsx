@@ -16,7 +16,7 @@ export default function SortableHeader({
   sortKey,
   sort,
   onSort,
-  className = 'text-left py-3 px-4 text-sm font-semibold text-gray-700',
+  className = 'text-left py-3 px-4 text-sm font-semibold text-[var(--text-2)]',
 }: SortableHeaderProps) {
   const isActive = sort.key === sortKey;
 
@@ -29,7 +29,7 @@ export default function SortableHeader({
       >
         <span>{label}</span>
         {!isActive ? (
-          <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
+          <ArrowUpDown className="w-3.5 h-3.5 text-[var(--text-4)]" />
         ) : sort.direction === 'asc' ? (
           <ArrowUpAZ className="w-3.5 h-3.5 text-primary-700" />
         ) : (

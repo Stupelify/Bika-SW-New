@@ -657,8 +657,8 @@ function SettingsPageContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings & Access</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-2xl font-bold text-[var(--text-1)]">Settings & Access</h1>
+        <p className="text-[var(--text-2)] mt-1">
           Manage users, roles and permissions with role-based access control.
         </p>
       </div>
@@ -690,9 +690,9 @@ function SettingsPageContent() {
             />
           </div>
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-gray-900">Permissions</p>
+            <p className="text-sm font-semibold text-[var(--text-1)]">Permissions</p>
             {!canManageRolePermissions || !canViewPermissions ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-[var(--text-4)]">
                 Role permissions can be assigned later by users with permission access.
               </p>
             ) : permissionGroups.length === 0 ? (
@@ -711,10 +711,10 @@ function SettingsPageContent() {
                     newRolePermissionIds.includes(id)
                   );
                   return (
-                    <div key={group.key} className="rounded-xl border border-gray-200 p-3">
+                    <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-gray-900">{group.label}</p>
-                        <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                        <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
+                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
                           <input
                             type="checkbox"
                             checked={groupSelected}
@@ -734,7 +734,7 @@ function SettingsPageContent() {
                           const permissionId = permission.id;
                           const label = formatAction(parsePermissionName(permission.name).action);
                           return (
-                            <label key={permissionId} className="flex items-center gap-2 text-sm text-gray-700">
+                            <label key={permissionId} className="flex items-center gap-2 text-sm text-[var(--text-2)]">
                               <input
                                 type="checkbox"
                                 checked={newRolePermissionIds.includes(permissionId)}
@@ -905,7 +905,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'access'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200'
+                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Access Mapping
@@ -918,7 +918,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'users'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200'
+                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Users
@@ -931,7 +931,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'roles'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200'
+                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Roles
@@ -944,7 +944,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'permissions'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200'
+                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Permissions
@@ -958,7 +958,7 @@ function SettingsPageContent() {
         !canAccessRolesSection &&
         !canAccessPermissionsSection && (
         <div className="card py-12 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--text-2)]">
             You do not have permission to view settings sections.
           </p>
         </div>
@@ -972,10 +972,10 @@ function SettingsPageContent() {
         <div className="card space-y-4">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-primary-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Assign roles to user</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Assign roles to user</h2>
           </div>
           {!canViewUsers || !canViewRoles ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--text-4)]">
               Assigning roles requires both `view_user` and `view_role` permissions.
             </p>
           ) : (
@@ -997,7 +997,7 @@ function SettingsPageContent() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {roles.map((role) => (
-                  <label key={role.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <label key={role.id} className="flex items-center gap-2 text-sm text-[var(--text-2)]">
                     <input
                       type="checkbox"
                       checked={selectedRoleIds.includes(role.id)}
@@ -1017,7 +1017,7 @@ function SettingsPageContent() {
                 </button>
               </div>
               {!canAssignRoles && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--text-4)]">
                   You can view user-role mapping but cannot modify it.
                 </p>
               )}
@@ -1028,10 +1028,10 @@ function SettingsPageContent() {
         <div className="card space-y-4">
           <div className="flex items-center gap-2">
             <Settings2 className="w-4 h-4 text-primary-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Assign permissions to role</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Assign permissions to role</h2>
           </div>
           {!canViewRoles || !canViewPermissions ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--text-4)]">
               Managing role permissions requires both `view_role` and `view_permission`.
             </p>
           ) : (
@@ -1067,10 +1067,10 @@ function SettingsPageContent() {
                       selectedPermissionIds.includes(id)
                     );
                     return (
-                      <div key={group.key} className="rounded-xl border border-gray-200 p-3">
+                      <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
                         <div className="flex items-center justify-between mb-3">
-                          <p className="text-sm font-semibold text-gray-900">{group.label}</p>
-                          <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                          <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
+                          <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
                             <input
                               type="checkbox"
                               checked={groupSelected}
@@ -1090,7 +1090,7 @@ function SettingsPageContent() {
                             const permissionId = permission.id;
                             const label = formatAction(parsePermissionName(permission.name).action);
                             return (
-                              <label key={permissionId} className="flex items-center gap-2 text-sm text-gray-700">
+                              <label key={permissionId} className="flex items-center gap-2 text-sm text-[var(--text-2)]">
                                 <input
                                   type="checkbox"
                                   checked={selectedPermissionIds.includes(permissionId)}
@@ -1122,7 +1122,7 @@ function SettingsPageContent() {
                 </button>
               </div>
               {!canManageRolePermissions && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--text-4)]">
                   You can view role permissions but cannot modify them.
                 </p>
               )}
@@ -1138,7 +1138,7 @@ function SettingsPageContent() {
       >
         <div className={`card ${activeSettingsSection === 'users' && canAccessUsersSection ? '' : 'hidden'}`}>
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Users</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Users</h2>
             {canAddUsers && (
               <button
                 type="button"
@@ -1153,24 +1153,24 @@ function SettingsPageContent() {
           {loading ? (
             <TableSkeleton rows={5} />
           ) : !canViewUsers ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--text-4)]">
               You can create or delete users, but you do not have permission to view user records.
             </p>
           ) : (
             <div className="space-y-3">
               {users.map((user) => (
-                <div key={user.id} className="border border-gray-200 rounded-lg p-3">
+                <div key={user.id} className="border border-[var(--border)] rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{user.name || 'Unnamed user'}</p>
-                      <p className="text-xs text-gray-500 mt-1">{user.email}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-sm font-medium text-[var(--text-1)]">{user.name || 'Unnamed user'}</p>
+                      <p className="text-xs text-[var(--text-4)] mt-1">{user.email}</p>
+                      <p className="text-xs text-[var(--text-4)] mt-1">
                         {(user.userRoles || []).map((ur) => ur.role.name).join(', ') || 'No roles'}
                       </p>
                     </div>
                     {canDeleteUsers && (
                       <button
-                        className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                         onClick={() => removeUser(user.id)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1185,7 +1185,7 @@ function SettingsPageContent() {
 
         <div className={`card ${activeSettingsSection === 'roles' && canAccessRolesSection ? '' : 'hidden'}`}>
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Roles</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Roles</h2>
             {canAddRoles && (
               <button
                 type="button"
@@ -1200,23 +1200,23 @@ function SettingsPageContent() {
           {loading ? (
             <TableSkeleton rows={5} />
           ) : !canViewRoles ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--text-4)]">
               You can create or delete roles, but you do not have permission to view role records.
             </p>
           ) : (
             <div className="space-y-3">
               {roles.map((role) => (
-                <div key={role.id} className="border border-gray-200 rounded-lg p-3">
+                <div key={role.id} className="border border-[var(--border)] rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{role.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-sm font-medium text-[var(--text-1)]">{role.name}</p>
+                      <p className="text-xs text-[var(--text-4)] mt-1">
                         {role.permissions?.length || 0} permissions • {role._count?.userRoles || 0} users
                       </p>
                     </div>
                     {canDeleteRoles && (
                       <button
-                        className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                         onClick={() => removeRole(role.id)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1231,7 +1231,7 @@ function SettingsPageContent() {
 
         <div className={`card ${activeSettingsSection === 'permissions' && canAccessPermissionsSection ? '' : 'hidden'}`}>
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Permissions</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Permissions</h2>
             {canAddPermissions && (
               <button
                 type="button"
@@ -1246,23 +1246,23 @@ function SettingsPageContent() {
           {loading ? (
             <TableSkeleton rows={5} />
           ) : !canViewPermissions ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--text-4)]">
               You can manage permission definitions, but you do not have permission to view permission records.
             </p>
           ) : (
             <div className="space-y-3">
               {permissions.map((permission) => (
-                <div key={permission.id} className="border border-gray-200 rounded-lg p-3">
+                <div key={permission.id} className="border border-[var(--border)] rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{permission.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-sm font-medium text-[var(--text-1)]">{permission.name}</p>
+                      <p className="text-xs text-[var(--text-4)] mt-1">
                         {(permission._count?.roles || 0).toLocaleString('en-IN')} linked roles
                       </p>
                     </div>
                     {canDeletePermissions && (
                       <button
-                        className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                         onClick={() => removePermission(permission.id)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1282,7 +1282,7 @@ function SettingsPageContent() {
 function SettingsPageFallback() {
   return (
     <div className="card py-12 text-center">
-      <p className="text-sm text-gray-600">Loading settings workspace...</p>
+      <p className="text-sm text-[var(--text-2)]">Loading settings workspace...</p>
     </div>
   );
 }

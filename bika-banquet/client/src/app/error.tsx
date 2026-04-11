@@ -14,7 +14,7 @@ export default function GlobalError({
         <p className="page-subtitle mt-2">
           An unexpected error occurred. Please try again.
         </p>
-        <p className="text-xs text-gray-400 mt-2">{error?.message}</p>
+        <p className="text-xs text-[var(--text-4)] mt-2">{error?.message}</p>
         <div className="form-actions mt-6">
           <button className="btn btn-secondary" onClick={() => reset()}>
             Try again

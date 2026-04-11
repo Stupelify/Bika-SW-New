@@ -124,6 +124,8 @@ function HallsPageContent() {
     direction: 'asc',
   });
   const [banquetPage, setBanquetPage] = useState(1);
+  const [showBanquetFilters, setShowBanquetFilters] = useState(false);
+  const [showHallFilters, setShowHallFilters] = useState(false);
   const [hallPage, setHallPage] = useState(1);
   const [activeVenueSection, setActiveVenueSection] = useState<VenueSection>('banquet');
   const sectionParam = searchParams.get('section');
@@ -457,8 +459,8 @@ function HallsPageContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Venues</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-2xl font-bold text-[var(--text-1)]">Venues</h1>
+        <p className="text-[var(--text-2)] mt-1">
           Maintain banquet properties and hall inventory in separate tables.
         </p>
       </div>
@@ -622,8 +624,8 @@ function HallsPageContent() {
             </div>
             <div className="md:col-span-2">
               <label className="label">Hall Image</label>
-              <label className="block rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-4 hover:border-primary-300 transition cursor-pointer">
-                <div className="text-sm text-gray-600">
+              <label className="block rounded-2xl border-2 border-dashed border-[var(--border-2)] bg-[var(--surface-2)] p-4 hover:border-primary-300 transition cursor-pointer">
+                <div className="text-sm text-[var(--text-2)]">
                   {hallForm.photoFileName
                     ? `Selected: ${hallForm.photoFileName}`
                     : 'Drag and drop or select image file'}
@@ -668,7 +670,7 @@ function HallsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeVenueSection === 'banquet' && canViewBanquet
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Banquet
@@ -680,7 +682,7 @@ function HallsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeVenueSection === 'hall' && canViewHall
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Hall
@@ -694,7 +696,7 @@ function HallsPageContent() {
         {activeVenueSection === 'banquet' ? (
           <>
             <div className="page-head mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Banquet table</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Banquet table</h2>
               {canAddBanquet && (
                 <button
                   type="button"
@@ -707,15 +709,52 @@ function HallsPageContent() {
               )}
             </div>
 
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                className="input pl-9"
-                value={banquetGlobalSearch}
-                onChange={(e) => setBanquetGlobalSearch(e.target.value)}
-                placeholder="Overall search in banquet table..."
-              />
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
+                <input
+                  className="input pl-9 w-full"
+                  value={banquetGlobalSearch}
+                  onChange={(e) => setBanquetGlobalSearch(e.target.value)}
+                  placeholder="Overall search in banquet table..."
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary inline-flex items-center gap-2"
+                onClick={() => setShowBanquetFilters(true)}
+              >
+                <Filter className="w-4 h-4" />
+                Filter
+                {Object.values(banquetColumnSearch).filter(Boolean).length > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center bg-primary-100 text-primary-700 text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] rounded-full">
+                    {Object.values(banquetColumnSearch).filter(Boolean).length}
+                  </span>
+                )}
+              </button>
             </div>
+
+            <FilterPanel
+              open={showBanquetFilters}
+              onClose={() => setShowBanquetFilters(false)}
+              activeCount={Object.values(banquetColumnSearch).filter(Boolean).length}
+              onClearAll={() => setBanquetColumnSearch(initialBanquetColumnSearch)}
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Name</label>
+                  <input className="input" placeholder="Search name" value={banquetColumnSearch.name} onChange={(e) => setBanquetColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Location</label>
+                  <input className="input" placeholder="Search location" value={banquetColumnSearch.location} onChange={(e) => setBanquetColumnSearch(prev => ({ ...prev, location: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Halls</label>
+                  <input className="input" placeholder="Search halls" value={banquetColumnSearch.halls} onChange={(e) => setBanquetColumnSearch(prev => ({ ...prev, halls: e.target.value }))} />
+                </div>
+              </div>
+            </FilterPanel>
 
             {!canViewBanquet ? (
               <p className="text-sm text-amber-700">No permission to view banquet table.</p>
@@ -733,92 +772,50 @@ function HallsPageContent() {
               <div className="table-shell">
                 <table className="data-table">
                   <thead>
-                    <tr className="border-b border-gray-200">
+                    <tr className="border-b border-[var(--border)]">
                       <SortableHeader
                         label="Name"
                         sortKey="name"
                         sort={banquetSort}
                         onSort={(key) => setBanquetSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
+                        className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                       />
                       <SortableHeader
                         label="Location"
                         sortKey="location"
                         sort={banquetSort}
                         onSort={(key) => setBanquetSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
+                        className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                       />
                       <SortableHeader
                         label="Halls"
                         sortKey="halls"
                         sort={banquetSort}
                         onSort={(key) => setBanquetSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
+                        className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                       />
-                      <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">
+                      <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
                         Actions
                       </th>
-                    </tr>
-                    <tr className="table-search-row border-b border-gray-100 bg-gray-50">
-                      <th className="py-2 px-2">
-                        <input
-                          className="input h-9"
-                          placeholder="Search name"
-                          value={banquetColumnSearch.name}
-                          onChange={(e) =>
-                            setBanquetColumnSearch((prev) => ({
-                              ...prev,
-                              name: e.target.value,
-                            }))
-                          }
-                        />
-                      </th>
-                      <th className="py-2 px-2">
-                        <input
-                          className="input h-9"
-                          placeholder="Search location"
-                          value={banquetColumnSearch.location}
-                          onChange={(e) =>
-                            setBanquetColumnSearch((prev) => ({
-                              ...prev,
-                              location: e.target.value,
-                            }))
-                          }
-                        />
-                      </th>
-                      <th className="py-2 px-2">
-                        <input
-                          className="input h-9"
-                          placeholder="Search halls"
-                          value={banquetColumnSearch.halls}
-                          onChange={(e) =>
-                            setBanquetColumnSearch((prev) => ({
-                              ...prev,
-                              halls: e.target.value,
-                            }))
-                          }
-                        />
-                      </th>
-                      <th className="py-2 px-2" />
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedBanquets.map((banquet) => (
-                      <tr key={banquet.id} className="border-b border-gray-100">
-                        <td className="py-3 px-2 text-sm text-gray-900">{banquet.name}</td>
-                        <td className="py-3 px-2 text-sm text-gray-700">
+                      <tr key={banquet.id} className="border-b border-[var(--border)]">
+                        <td className="py-3 px-2 text-sm text-[var(--text-1)]">{banquet.name}</td>
+                        <td className="py-3 px-2 text-sm text-[var(--text-2)]">
                           {[banquet.location, banquet.city, banquet.state]
                             .filter(Boolean)
                             .join(', ')}
                         </td>
-                        <td className="py-3 px-2 text-sm text-gray-700">
+                        <td className="py-3 px-2 text-sm text-[var(--text-2)]">
                           {banquet.halls?.length || 0}
                         </td>
                         <td className="py-3 px-2 text-right">
                           <div className="flex items-center justify-end gap-2">
                             {canEditBanquet && (
                               <button
-                                className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                                 onClick={() => openEditBanquet(banquet)}
                               >
                                 <Edit className="w-4 h-4" />
@@ -826,7 +823,7 @@ function HallsPageContent() {
                             )}
                             {canDeleteBanquet && (
                               <button
-                                className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                                 onClick={() => deleteBanquet(banquet.id)}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -852,7 +849,7 @@ function HallsPageContent() {
         ) : (
           <>
             <div className="page-head mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Hall table</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Hall table</h2>
               {canAddHall && (
                 <button
                   type="button"
@@ -865,15 +862,52 @@ function HallsPageContent() {
               )}
             </div>
 
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                className="input pl-9"
-                value={hallGlobalSearch}
-                onChange={(e) => setHallGlobalSearch(e.target.value)}
-                placeholder="Overall search in hall table..."
-              />
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
+                <input
+                  className="input pl-9 w-full"
+                  value={hallGlobalSearch}
+                  onChange={(e) => setHallGlobalSearch(e.target.value)}
+                  placeholder="Overall search in hall table..."
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary inline-flex items-center gap-2"
+                onClick={() => setShowHallFilters(true)}
+              >
+                <Filter className="w-4 h-4" />
+                Filter
+                {Object.values(hallColumnSearch).filter(Boolean).length > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center bg-primary-100 text-primary-700 text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] rounded-full">
+                    {Object.values(hallColumnSearch).filter(Boolean).length}
+                  </span>
+                )}
+              </button>
             </div>
+
+            <FilterPanel
+              open={showHallFilters}
+              onClose={() => setShowHallFilters(false)}
+              activeCount={Object.values(hallColumnSearch).filter(Boolean).length}
+              onClearAll={() => setHallColumnSearch(initialHallColumnSearch)}
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Name</label>
+                  <input className="input" placeholder="Search name" value={hallColumnSearch.name} onChange={(e) => setHallColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Capacity</label>
+                  <input className="input" placeholder="Search capacity" value={hallColumnSearch.capacity} onChange={(e) => setHallColumnSearch(prev => ({ ...prev, capacity: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Pricing</label>
+                  <input className="input" placeholder="Search pricing" value={hallColumnSearch.pricing} onChange={(e) => setHallColumnSearch(prev => ({ ...prev, pricing: e.target.value }))} />
+                </div>
+              </div>
+            </FilterPanel>
 
             {!canViewHall ? (
               <p className="text-sm text-amber-700">No permission to view hall table.</p>
@@ -924,7 +958,7 @@ function HallsPageContent() {
 function HallsPageFallback() {
   return (
     <div className="card py-12 text-center">
-      <p className="text-sm text-gray-600">Loading venue workspace...</p>
+      <p className="text-sm text-[var(--text-2)]">Loading venue workspace...</p>
     </div>
   );
 }

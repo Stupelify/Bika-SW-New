@@ -413,8 +413,8 @@ export default function IngredientsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Ingredients</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-2xl font-bold text-[var(--text-1)]">Ingredients</h1>
+        <p className="text-[var(--text-2)] mt-1">
           Track raw ingredients, default units and vendor pricing per ingredient.
         </p>
       </div>
@@ -468,16 +468,16 @@ export default function IngredientsPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white">
-            <div className="px-3 py-2 border-b border-gray-200">
-              <p className="text-sm font-semibold text-gray-800">Link Vendors While Creating</p>
-              <p className="text-xs text-gray-500 mt-0.5">
+          <div className="rounded-xl border border-[var(--border)] bg-white">
+            <div className="px-3 py-2 border-b border-[var(--border)]">
+              <p className="text-sm font-semibold text-[var(--text-1)]">Link Vendors While Creating</p>
+              <p className="text-xs text-[var(--text-4)] mt-0.5">
                 Select vendors and set price/unit now.
               </p>
             </div>
-            <div className="px-3 py-2 border-b border-gray-100">
+            <div className="px-3 py-2 border-b border-[var(--border)]">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
                 <input
                   className="input h-9 pl-9"
                   placeholder="Search vendors..."
@@ -504,7 +504,7 @@ export default function IngredientsPage() {
                       key={`ingredient-vendor-draft-${vendor.id}`}
                       className="px-3 py-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_120px_120px] gap-2 items-center"
                     >
-                      <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
                         <input
                           type="checkbox"
                           checked={selected}
@@ -541,7 +541,7 @@ export default function IngredientsPage() {
                         </>
                       ) : (
                         <>
-                          <span className="text-xs text-gray-400">Not selected</span>
+                          <span className="text-xs text-[var(--text-4)]">Not selected</span>
                           <span />
                         </>
                       )}
@@ -593,7 +593,7 @@ export default function IngredientsPage() {
                 <tbody>
                   {suppliers.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="text-center py-4 text-sm text-gray-500">
+                      <td colSpan={4} className="text-center py-4 text-sm text-[var(--text-4)]">
                         No vendor mapping for this ingredient yet.
                       </td>
                     </tr>
@@ -606,14 +606,14 @@ export default function IngredientsPage() {
                         <td className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                               onClick={() => editSupply(supply)}
                               type="button"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                               onClick={() => deleteSupply(supply.id)}
                               type="button"
                             >
@@ -707,7 +707,7 @@ export default function IngredientsPage() {
           </div>
           <div className="panel-body space-y-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
               <input
                 className="input pl-9"
                 value={search}
@@ -733,7 +733,7 @@ export default function IngredientsPage() {
                   <tbody>
                     {filteredIngredients.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-6 text-sm text-gray-500">
+                        <td colSpan={5} className="text-center py-6 text-sm text-[var(--text-4)]">
                           No ingredients found.
                         </td>
                       </tr>
@@ -758,7 +758,7 @@ export default function IngredientsPage() {
                               </button>
                               {canEdit && (
                                 <button
-                                  className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                  className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                                   onClick={() => {
                                     void openEditIngredient(ingredient);
                                   }}
@@ -769,7 +769,7 @@ export default function IngredientsPage() {
                               )}
                               {canDelete && (
                                 <button
-                                  className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                  className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                                   onClick={() => removeIngredient(ingredient.id)}
                                   type="button"
                                 >

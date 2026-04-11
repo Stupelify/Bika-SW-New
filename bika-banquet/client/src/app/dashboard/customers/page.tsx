@@ -566,8 +566,8 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-          <p className="text-gray-600 mt-1">Manage your customer database</p>
+          <h1 className="text-2xl font-bold text-[var(--text-1)]">Customers</h1>
+          <p className="text-[var(--text-2)] mt-1">Manage your customer database</p>
         </div>
         {canAddCustomer && (
           <button
@@ -600,7 +600,7 @@ export default function CustomersPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-7" noValidate>
             <section className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Personal Details</h3>
+              <h3 className="text-lg font-semibold text-[var(--text-1)]">Personal Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-4">
                   <label className="label">
@@ -663,7 +663,7 @@ export default function CustomersPage() {
                   {phoneFieldErrors.phone && (
                     <p className="mt-1 text-xs text-red-600">{phoneFieldErrors.phone}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-[var(--text-4)]">
                     {getDialCodeOption(formData.phoneCountryIso).country} numbers must be{' '}
                     {primaryPhoneDigits} digits.
                   </p>
@@ -705,7 +705,7 @@ export default function CustomersPage() {
                   {phoneFieldErrors.alterPhone && (
                     <p className="mt-1 text-xs text-red-600">{phoneFieldErrors.alterPhone}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-[var(--text-4)]">
                     Optional. If entered, it must be exactly {secondaryPhoneDigits} digits.
                   </p>
                 </div>
@@ -737,10 +737,10 @@ export default function CustomersPage() {
                   )}
                 </div>
                 <div className="md:col-span-4 flex items-end">
-                  <label className="inline-flex items-center gap-2 text-sm text-gray-700 pb-2">
+                  <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)] pb-2">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="h-4 w-4 rounded border-[var(--border-2)] text-primary-600 focus:ring-primary-500"
                       checked={isWhatsappDifferent}
                       onChange={(e) => {
                         const checked = e.target.checked;
@@ -814,7 +814,7 @@ export default function CustomersPage() {
                         {phoneFieldErrors.whatsappNumber}
                       </p>
                     )}
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-[var(--text-4)]">
                       Must be exactly {whatsappPhoneDigits} digits.
                     </p>
                   </div>
@@ -823,7 +823,7 @@ export default function CustomersPage() {
             </section>
 
             <section className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Address</h3>
+              <h3 className="text-lg font-semibold text-[var(--text-1)]">Address</h3>
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-4">
                   <label className="label">Country</label>
@@ -900,7 +900,7 @@ export default function CustomersPage() {
             </section>
 
             <section className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Social Links</h3>
+              <h3 className="text-lg font-semibold text-[var(--text-1)]">Social Links</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div>
                   <label className="label">Facebook</label>
@@ -956,7 +956,7 @@ export default function CustomersPage() {
             </section>
 
             <section className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Other Details</h3>
+              <h3 className="text-lg font-semibold text-[var(--text-1)]">Other Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-4">
                   <label className="label">Referred By</label>
@@ -987,7 +987,7 @@ export default function CustomersPage() {
                 </div>
                 <div className="md:col-span-4">
                   <label className="label">Rating</label>
-                  <div className="h-11 flex items-center gap-1 rounded-xl border border-gray-200 px-3">
+                  <div className="h-11 flex items-center gap-1 rounded-xl border border-[var(--border)] px-3">
                     {[1, 2, 3, 4, 5].map((value) => {
                       const current = Number(formData.rating || '0');
                       const active = value <= current;
@@ -1014,7 +1014,7 @@ export default function CustomersPage() {
                     <button
                       type="button"
                       onClick={() => setFormData((prev) => ({ ...prev, rating: '0' }))}
-                      className="ml-2 text-xs font-medium text-gray-500 hover:text-gray-700"
+                      className="ml-2 text-xs font-medium text-[var(--text-4)] hover:text-[var(--text-2)]"
                     >
                       Clear
                     </button>
@@ -1062,7 +1062,7 @@ export default function CustomersPage() {
       <div className="card">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
             <input
               type="text"
               value={globalSearch}
@@ -1232,7 +1232,7 @@ export default function CustomersPage() {
               </div>
               {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-[var(--text-2)]">
                     Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
                     {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
                     {filteredCustomers.length} customers
@@ -1246,7 +1246,7 @@ export default function CustomersPage() {
                     >
                       Previous
                     </button>
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm text-[var(--text-2)]">
                       Page {currentPage} of {totalPages}
                     </span>
                     <button
@@ -1268,7 +1268,7 @@ export default function CustomersPage() {
             <div className="hidden md:block table-shell">
               <table className="data-table">
                 <thead>
-                  <tr className="border-b border-gray-200">
+                  <tr className="border-b border-[var(--border)]">
                     <SortableHeader
                       label="Name"
                       sortKey="name"
@@ -1299,7 +1299,7 @@ export default function CustomersPage() {
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
                       Actions
                     </th>
                   </tr>
@@ -1308,41 +1308,41 @@ export default function CustomersPage() {
                   {paginatedCustomers.map((customer) => (
                     <tr
                       key={customer.id}
-                      className="border-b border-gray-100 hover:bg-gray-50"
+                      className="border-b border-[var(--border)] hover:bg-[var(--surface-2)]"
                     >
                       <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">{customer.name}</p>
+                        <p className="font-medium text-[var(--text-1)]">{customer.name}</p>
                       </td>
                       <td className="py-4 px-4">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
                             <Phone className="w-4 h-4" />
                             {(customer.phoneCountryCode || '+91') + ' ' + customer.phone}
                           </div>
                           {customer.email && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
                               <Mail className="w-4 h-4" />
                               {customer.email}
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         {customer.city && customer.state
                           ? `${customer.city}, ${customer.state}`
                           : '-'}
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex gap-3 text-sm">
-                          <span className="text-gray-600">
+                          <span className="text-[var(--text-2)]">
                             {customer._count?.enquiries ?? 0} enquiries
                           </span>
-                          <span className="text-gray-600">
+                          <span className="text-[var(--text-2)]">
                             {customer._count?.bookings ?? 0} bookings
                           </span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         {formatDateDDMMYYYY(customer.createdAt)}
                       </td>
                       <td className="py-4 px-4">
@@ -1350,7 +1350,7 @@ export default function CustomersPage() {
                           {canViewCustomer && (
                             <Link
                               href={`/dashboard/customers/${customer.id}`}
-                              className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                              className="p-2 text-[var(--text-2)] hover:text-primary-600 hover:bg-primary-50 rounded-lg"
                               title="View"
                             >
                               <Eye className="w-4 h-4" />
@@ -1360,7 +1360,7 @@ export default function CustomersPage() {
                             <button
                               type="button"
                               onClick={() => void openEditPrompt(customer.id)}
-                              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-[var(--text-2)] hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                               title="Edit"
                             >
                               <Edit className="w-4 h-4" />
@@ -1369,7 +1369,7 @@ export default function CustomersPage() {
                           {canDeleteCustomer && (
                             <button
                               onClick={() => handleDelete(customer.id)}
-                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-[var(--text-2)] hover:text-red-600 hover:bg-red-50 rounded-lg"
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1383,7 +1383,7 @@ export default function CustomersPage() {
               </table>
               {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-[var(--text-2)]">
                     Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
                     {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
                     {filteredCustomers.length} customers
@@ -1397,7 +1397,7 @@ export default function CustomersPage() {
                     >
                       Previous
                     </button>
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm text-[var(--text-2)]">
                       Page {currentPage} of {totalPages}
                     </span>
                     <button

@@ -166,8 +166,8 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       <div className="page-head gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-[var(--text-1)]">Payments</h1>
+          <p className="text-[var(--text-2)] mt-1">
             Record collections and track balance against each booking.
           </p>
         </div>
@@ -286,14 +286,14 @@ export default function PaymentsPage() {
 
       <div className="card">
         <div className="page-head mb-4">
-          <div className="flex items-center gap-2 text-gray-900">
+          <div className="flex items-center gap-2 text-[var(--text-1)]">
             <CreditCard className="w-4 h-4 text-primary-600" />
             <h2 className="text-lg font-semibold">Payments table</h2>
           </div>
         </div>
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
             <input
               className="input pl-10"
               value={globalSearch}
@@ -398,73 +398,73 @@ export default function PaymentsPage() {
             <div className="hidden md:block table-shell">
               <table className="data-table">
                 <thead>
-                  <tr className="border-b border-gray-200">
+                  <tr className="border-b border-[var(--border)]">
                     <SortableHeader
                       label="Booking"
                       sortKey="booking"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-3 text-sm font-semibold text-gray-700"
+                      className="text-left py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Event date"
                       sortKey="eventDate"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-3 text-sm font-semibold text-gray-700"
+                      className="text-left py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Total"
                       sortKey="total"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Received"
                       sortKey="received"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Balance"
                       sortKey="balance"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Entries"
                       sortKey="entries"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-gray-700"
+                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
                     />
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedBookings.map((booking) => (
-                    <tr key={booking.id} className="border-b border-gray-100">
+                    <tr key={booking.id} className="border-b border-[var(--border)]">
                       <td className="py-3 px-3">
-                        <p className="text-sm text-gray-900">{booking.functionName}</p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-sm text-[var(--text-1)]">{booking.functionName}</p>
+                        <p className="text-xs text-[var(--text-4)] mt-1">
                           {booking.customer?.name} • {booking.customer?.phone}
                         </p>
                       </td>
-                      <td className="py-3 px-3 text-sm text-gray-700">
+                      <td className="py-3 px-3 text-sm text-[var(--text-2)]">
                         {formatDateDDMMYYYY(booking.functionDate)}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-gray-700">
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
                         INR {(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-gray-700">
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
                         INR {(booking.advanceReceived || 0).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm font-medium text-gray-900">
+                      <td className="py-3 px-3 text-right text-sm font-medium text-[var(--text-1)]">
                         INR {(booking.balanceAmount || 0).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-gray-700">
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
                         {booking._count?.payments || 0}
                       </td>
                     </tr>

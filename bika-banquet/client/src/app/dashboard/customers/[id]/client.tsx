@@ -64,8 +64,8 @@ export default function CustomerDetailPage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
-            <p className="text-gray-600 mt-1">Customer details and history</p>
+            <h1 className="text-2xl font-bold text-[var(--text-1)]">{customer.name}</h1>
+            <p className="text-[var(--text-2)] mt-1">Customer details and history</p>
           </div>
         </div>
         <Link
@@ -80,18 +80,18 @@ export default function CustomerDetailPage() {
       </div>
 
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact Info</h2>
+        <h2 className="text-lg font-semibold text-[var(--text-1)] mb-4">Contact Info</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div className="flex items-start gap-2 text-gray-700">
-            <Phone className="w-4 h-4 mt-0.5 text-gray-500" />
+          <div className="flex items-start gap-2 text-[var(--text-2)]">
+            <Phone className="w-4 h-4 mt-0.5 text-[var(--text-4)]" />
             <span>{customer.phone}</span>
           </div>
-          <div className="flex items-start gap-2 text-gray-700">
-            <Mail className="w-4 h-4 mt-0.5 text-gray-500" />
+          <div className="flex items-start gap-2 text-[var(--text-2)]">
+            <Mail className="w-4 h-4 mt-0.5 text-[var(--text-4)]" />
             <span>{customer.email || '-'}</span>
           </div>
-          <div className="flex items-start gap-2 text-gray-700 md:col-span-2">
-            <MapPin className="w-4 h-4 mt-0.5 text-gray-500" />
+          <div className="flex items-start gap-2 text-[var(--text-2)] md:col-span-2">
+            <MapPin className="w-4 h-4 mt-0.5 text-[var(--text-4)]" />
             <span>
               {customer.address || '-'}
               {customer.city || customer.state
@@ -104,7 +104,7 @@ export default function CustomerDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
+          <h2 className="text-lg font-semibold text-[var(--text-1)] mb-3">
             Recent Enquiries
           </h2>
           {customer.enquiries && customer.enquiries.length > 0 ? (
@@ -112,10 +112,10 @@ export default function CustomerDetailPage() {
               {customer.enquiries.map((enquiry) => (
                 <div
                   key={enquiry.id}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                  className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
                 >
-                  <span className="text-sm text-gray-800">{enquiry.functionName}</span>
-                  <span className="text-xs text-gray-500">{enquiry.status}</span>
+                  <span className="text-sm text-[var(--text-1)]">{enquiry.functionName}</span>
+                  <span className="text-xs text-[var(--text-4)]">{enquiry.status}</span>
                 </div>
               ))}
             </div>
@@ -131,7 +131,7 @@ export default function CustomerDetailPage() {
         </div>
 
         <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
+          <h2 className="text-lg font-semibold text-[var(--text-1)] mb-3">
             Recent Bookings
           </h2>
           {customer.bookings && customer.bookings.length > 0 ? (
@@ -139,10 +139,10 @@ export default function CustomerDetailPage() {
               {customer.bookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                  className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
                 >
-                  <span className="text-sm text-gray-800">{booking.functionName}</span>
-                  <span className="text-xs text-gray-500">{booking.status}</span>
+                  <span className="text-sm text-[var(--text-1)]">{booking.functionName}</span>
+                  <span className="text-xs text-[var(--text-4)]">{booking.status}</span>
                 </div>
               ))}
             </div>
@@ -159,8 +159,8 @@ export default function CustomerDetailPage() {
       </div>
 
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Notes</h2>
-        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+        <h2 className="text-lg font-semibold text-[var(--text-1)] mb-2">Notes</h2>
+        <p className="text-sm text-[var(--text-2)] whitespace-pre-wrap">
           {customer.notes || 'No notes added.'}
         </p>
       </div>

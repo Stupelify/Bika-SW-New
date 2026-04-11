@@ -179,8 +179,8 @@ export default function EditCustomerPage() {
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Edit Customer</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-[var(--text-1)]">Edit Customer</h1>
+          <p className="text-[var(--text-2)] mt-1">
             Update contact details and notes.
           </p>
         </div>
@@ -234,7 +234,7 @@ export default function EditCustomerPage() {
               />
             </div>
             {phoneError && <p className="mt-1 text-xs text-red-600">{phoneError}</p>}
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-[var(--text-4)]">
               {getDialCodeOption(formData.phoneCountryIso).country} numbers must be{' '}
               {phoneDigits} digits.
             </p>

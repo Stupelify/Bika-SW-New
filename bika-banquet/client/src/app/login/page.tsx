@@ -49,33 +49,33 @@ export default function LoginPage() {
             <p className="inline-flex rounded-full border border-primary-200 bg-white px-3 py-1 text-xs font-semibold text-primary-700">
               Hospitality Operations Suite
             </p>
-            <h1 className="mt-5 text-4xl md:text-5xl leading-tight font-display text-gray-900 text-balance">
+            <h1 className="mt-5 text-4xl md:text-5xl leading-tight font-display text-[var(--text-1)] text-balance">
               Bika Banquet
             </h1>
-            <p className="mt-3 text-base text-gray-600 max-w-2xl">
+            <p className="mt-3 text-base text-[var(--text-2)] max-w-2xl">
               Run enquiries, bookings, menus, payments and reporting from one modern command center.
             </p>
 
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-gray-200 bg-white/90 p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Workflows</p>
-                <p className="text-xl font-display text-gray-900 mt-2">9 modules</p>
+              <div className="rounded-xl border border-[var(--border)] bg-white/90 p-4">
+                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Workflows</p>
+                <p className="text-xl font-display text-[var(--text-1)] mt-2">9 modules</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white/90 p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Real-time</p>
-                <p className="text-xl font-display text-gray-900 mt-2">Live metrics</p>
+              <div className="rounded-xl border border-[var(--border)] bg-white/90 p-4">
+                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Real-time</p>
+                <p className="text-xl font-display text-[var(--text-1)] mt-2">Live metrics</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white/90 p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Team Access</p>
-                <p className="text-xl font-display text-gray-900 mt-2">RBAC ready</p>
+              <div className="rounded-xl border border-[var(--border)] bg-white/90 p-4">
+                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Team Access</p>
+                <p className="text-xl font-display text-[var(--text-1)] mt-2">RBAC ready</p>
               </div>
             </div>
           </div>
         </section>
 
         <div className="lg:col-span-2 card">
-          <h2 className="text-2xl font-display text-gray-900">Sign In</h2>
-          <p className="text-sm text-gray-600 mt-1">Access your operations dashboard.</p>
+          <h2 className="text-2xl font-display text-[var(--text-1)]">Sign In</h2>
+          <p className="text-sm text-[var(--text-2)] mt-1">Access your operations dashboard.</p>
 
           <form onSubmit={handleSubmit} className="space-y-5 mt-6">
             <div>

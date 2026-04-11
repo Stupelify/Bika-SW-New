@@ -2335,7 +2335,7 @@ export default function BookingsPage() {
           </label>
         ) : null}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-4)]" />
           <input
             className="input pl-10"
             placeholder={placeholder}
@@ -2355,9 +2355,9 @@ export default function BookingsPage() {
         </div>
 
         {isActive && (
-          <div className="absolute z-40 mt-1 w-full max-h-60 overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+          <div className="absolute z-40 mt-1 w-full max-h-60 overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg">
             {suggestions.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-gray-500">
+              <p className="px-3 py-2 text-xs text-[var(--text-4)]">
                 No customer found for this search.
               </p>
             ) : (
@@ -2365,12 +2365,12 @@ export default function BookingsPage() {
                 <button
                   key={`${field}-${customer.id}`}
                   type="button"
-                  className="w-full border-b border-gray-100 px-3 py-2 text-left hover:bg-primary-50 last:border-b-0"
+                  className="w-full border-b border-[var(--border)] px-3 py-2 text-left hover:bg-primary-50 last:border-b-0"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectCustomerSuggestion(field, customer)}
                 >
-                  <p className="text-sm font-medium text-gray-900">{customer.name}</p>
-                  <p className="text-xs text-gray-600">{customer.phone}</p>
+                  <p className="text-sm font-medium text-[var(--text-1)]">{customer.name}</p>
+                  <p className="text-xs text-[var(--text-2)]">{customer.phone}</p>
                 </button>
               ))
             )}
@@ -2384,8 +2384,8 @@ export default function BookingsPage() {
     <div className="space-y-6">
       <div className="page-head gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-[var(--text-1)]">Bookings</h1>
+          <p className="text-[var(--text-2)] mt-1">
             View booking records and quotation statuses.
           </p>
         </div>
@@ -2457,9 +2457,9 @@ export default function BookingsPage() {
               </div>
             )}
 
-            <section className="rounded-2xl border border-gray-300 p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <section className="rounded-2xl border border-[var(--border-2)] p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <h3 className="text-2xl font-semibold text-gray-900">Booking Details</h3>
+                <h3 className="text-2xl font-semibold text-[var(--text-1)]">Booking Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr,100px] gap-3">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
@@ -2496,7 +2496,7 @@ export default function BookingsPage() {
                   </div>
                 </div>
 
-                <label className="inline-flex items-center gap-2 text-base text-gray-700">
+                <label className="inline-flex items-center gap-2 text-base text-[var(--text-2)]">
                   <input
                     type="checkbox"
                     checked={formData.includeSecondCustomer}
@@ -2604,7 +2604,7 @@ export default function BookingsPage() {
               </div>
 
               <div className="space-y-3">
-                <h3 className="text-2xl font-semibold text-gray-900">Payment</h3>
+                <h3 className="text-2xl font-semibold text-[var(--text-1)]">Payment</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="label">Advance Required</label>
@@ -2648,7 +2648,7 @@ export default function BookingsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-gray-300 overflow-hidden">
+                <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
                   <div className="grid grid-cols-6 bg-slate-200 text-xs font-semibold text-slate-700 px-3 py-2">
                     <div>Mode</div>
                     <div>Narration</div>
@@ -2667,14 +2667,14 @@ export default function BookingsPage() {
                     </div>
                   </div>
                   {formData.payments.length === 0 ? (
-                    <div className="px-3 py-5 text-center text-sm text-gray-500">
+                    <div className="px-3 py-5 text-center text-sm text-[var(--text-4)]">
                       No payments added. Click the + button to add payment entries.
                     </div>
                   ) : (
                     formData.payments.map((payment, index) => (
                       <div
                         key={`payment-${index}`}
-                        className="grid grid-cols-1 md:grid-cols-6 gap-2 border-t border-gray-200 p-3"
+                        className="grid grid-cols-1 md:grid-cols-6 gap-2 border-t border-[var(--border)] p-3"
                       >
                         <input
                           className="input h-10"
@@ -2733,7 +2733,7 @@ export default function BookingsPage() {
                       </div>
                     ))
                   )}
-                  <div className="space-y-1 border-t border-gray-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800">
+                  <div className="space-y-1 border-t border-[var(--border)] bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800">
                     <div className="flex items-center justify-between">
                       <span>Total Payments</span>
                       <span>₹{totalPayments.toLocaleString('en-IN')}</span>
@@ -2745,8 +2745,8 @@ export default function BookingsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-gray-300 p-3">
-                  <p className="text-lg mb-2 font-semibold text-gray-900">Settlement Calculation</p>
+                <div className="rounded-xl border border-[var(--border-2)] p-3">
+                  <p className="text-lg mb-2 font-semibold text-[var(--text-1)]">Settlement Calculation</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="label">Discount Amount</label>
@@ -2809,7 +2809,7 @@ export default function BookingsPage() {
                           : 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
                         }`}
                     >
-                      <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2">
+                      <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-white px-3 py-2">
                         <div className="inline-flex items-center gap-2">
                           <label className="relative inline-flex cursor-pointer items-center">
                             <input
@@ -2824,9 +2824,9 @@ export default function BookingsPage() {
                                 updatePackRow(packKey, { enabled });
                               }}
                             />
-                            <span className="h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-primary-600 peer-focus:ring-2 peer-focus:ring-primary-200 peer-focus:ring-offset-1 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
+                            <span className="h-6 w-11 rounded-full bg-[var(--surface-3)] transition-colors peer-checked:bg-primary-600 peer-focus:ring-2 peer-focus:ring-primary-200 peer-focus:ring-offset-1 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
                           </label>
-                          <span className="text-base font-semibold text-gray-900">
+                          <span className="text-base font-semibold text-[var(--text-1)]">
                             {PACK_LABELS[packKey]}
                           </span>
                         </div>
@@ -2834,14 +2834,14 @@ export default function BookingsPage() {
 
                       <div
                         className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-gray-200 bg-white'
-                          : 'border-gray-200 bg-white opacity-80'
+                          ? 'border-[var(--border)] bg-white'
+                          : 'border-[var(--border)] bg-white opacity-80'
                           }`}
                       >
-                        <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                        <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-1)]">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            className="h-4 w-4 rounded border-[var(--border-2)] text-primary-600 focus:ring-primary-500"
                             checked={row.withHall}
                             disabled={!row.enabled}
                             onChange={(e) => {
@@ -2858,14 +2858,14 @@ export default function BookingsPage() {
 
                       <div
                         className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-gray-200 bg-white'
-                          : 'border-gray-200 bg-white opacity-80'
+                          ? 'border-[var(--border)] bg-white'
+                          : 'border-[var(--border)] bg-white opacity-80'
                           }`}
                       >
-                        <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                        <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-1)]">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            className="h-4 w-4 rounded border-[var(--border-2)] text-primary-600 focus:ring-primary-500"
                             checked={row.withCatering}
                             disabled={!row.enabled}
                             onChange={(e) =>
@@ -2909,7 +2909,7 @@ export default function BookingsPage() {
                         >
                           <div className="flex items-center justify-between">
                             <label className="label">Hall</label>
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-[var(--text-2)]">
                               {validSelectedHallIds.length} hall
                               {validSelectedHallIds.length === 1 ? '' : 's'} selected
                             </p>
@@ -2931,15 +2931,15 @@ export default function BookingsPage() {
                                   ? selectedHallNames.join(', ')
                                   : 'Select Halls *'}
                             </span>
-                            <span className="text-gray-500 text-xs">
+                            <span className="text-[var(--text-4)] text-xs">
                               {openHallPickerPack === packKey ? 'Close' : 'Select'}
                             </span>
                           </button>
 
                           {openHallPickerPack === packKey && (
-                            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg">
                               {filteredHalls.length === 0 ? (
-                                <p className="px-3 py-2 text-xs text-gray-500">
+                                <p className="px-3 py-2 text-xs text-[var(--text-4)]">
                                   No halls available for this banquet.
                                 </p>
                               ) : (
@@ -2948,7 +2948,7 @@ export default function BookingsPage() {
                                   return (
                                     <label
                                       key={hall.id}
-                                      className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-3 py-2 text-sm text-gray-800 last:border-b-0 hover:bg-gray-50"
+                                      className="flex cursor-pointer items-center gap-2 border-b border-[var(--border)] px-3 py-2 text-sm text-[var(--text-1)] last:border-b-0 hover:bg-[var(--surface-2)]"
                                     >
                                       <input
                                         type="checkbox"
@@ -3028,7 +3028,7 @@ export default function BookingsPage() {
                                 {hasMenuDiff && (
                                   <span className="ml-1 text-xs font-normal">
                                     {menuAdded > 0 && <span className="text-green-700">+{menuAdded}</span>}
-                                    {menuAdded > 0 && menuRemoved > 0 && <span className="text-gray-500"> / </span>}
+                                    {menuAdded > 0 && menuRemoved > 0 && <span className="text-[var(--text-4)]"> / </span>}
                                     {menuRemoved > 0 && <span className="text-red-700">−{menuRemoved}</span>}
                                   </span>
                                 )}
@@ -3037,7 +3037,7 @@ export default function BookingsPage() {
                             <div>
                               <label className="label mb-1 text-xs">Menu Points</label>
                               <input
-                                className="input bg-gray-50"
+                                className="input bg-[var(--surface-2)]"
                                 type="number"
                                 min={0}
                                 value={row.menuPoints}
@@ -3082,7 +3082,7 @@ export default function BookingsPage() {
                             <div>
                               <label className="label mb-1 text-xs">Amount</label>
                               <input
-                                className="input bg-gray-50"
+                                className="input bg-[var(--surface-2)]"
                                 type="number"
                                 min={0}
                                 value={formatComputedAmount(calculatePackAmount(row))}
@@ -3100,9 +3100,9 @@ export default function BookingsPage() {
               })}
             </section>
 
-            <section className="space-y-2 rounded-2xl border border-gray-200 bg-white p-4">
+            <section className="space-y-2 rounded-2xl border border-[var(--border)] bg-white p-4">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-base font-semibold text-gray-900">Amount Summary</h3>
+                <h3 className="text-base font-semibold text-[var(--text-1)]">Amount Summary</h3>
                 <button
                   type="button"
                   className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
@@ -3123,7 +3123,7 @@ export default function BookingsPage() {
 
               {enabledPackAmountRows.length === 0 &&
                 formData.additionalRequirements.length === 0 ? (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--text-4)]">
                   Enable a pack to view its amount rows.
                 </p>
               ) : null}
@@ -3136,7 +3136,7 @@ export default function BookingsPage() {
                   >
                     <label className="label">{entry.label} Amount</label>
                     <input
-                      className="input bg-gray-50 text-right"
+                      className="input bg-[var(--surface-2)] text-right"
                       type="number"
                       min={0}
                       value={formatComputedAmount(entry.amount)}
@@ -3207,7 +3207,7 @@ export default function BookingsPage() {
                   </div>
                 ))}
 
-                <div className="grid grid-cols-1 items-end gap-2 border-t border-gray-200 pt-2 md:grid-cols-3">
+                <div className="grid grid-cols-1 items-end gap-2 border-t border-[var(--border)] pt-2 md:grid-cols-3">
                   <div>
                     <label className="label">Discount %</label>
                     <input
@@ -3271,9 +3271,9 @@ export default function BookingsPage() {
 
                 <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-3">
                   <div className="md:col-start-3">
-                    <label className="label font-semibold text-gray-900">Total Amount</label>
+                    <label className="label font-semibold text-[var(--text-1)]">Total Amount</label>
                     <input
-                      className="input bg-gray-50 text-right font-semibold text-primary-700"
+                      className="input bg-[var(--surface-2)] text-right font-semibold text-primary-700"
                       type="number"
                       min={0}
                       value={formatComputedAmount(totalBillAmount)}
@@ -3293,9 +3293,9 @@ export default function BookingsPage() {
               />
             </div>
 
-            <section className="rounded-2xl border border-gray-300 bg-gray-50 p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Terms & Conditions</h3>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
+            <section className="rounded-2xl border border-[var(--border-2)] bg-[var(--surface-2)] p-4">
+              <h3 className="text-lg font-semibold text-[var(--text-1)] mb-2">Terms & Conditions</h3>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--text-2)]">
                 <li>
                   30% advance at booking. Balance payment to be completed at least 4 days
                   before the event.
@@ -3412,9 +3412,9 @@ export default function BookingsPage() {
           </form>
 
           {historicalVersions.length > 0 && (
-            <div className="mt-8 space-y-6 border-t border-gray-200 pt-8">
-              <h2 className="text-xl font-bold text-gray-900">Finalized Version History</h2>
-              <p className="text-sm text-gray-500 -mt-3">
+            <div className="mt-8 space-y-6 border-t border-[var(--border)] pt-8">
+              <h2 className="text-xl font-bold text-[var(--text-1)]">Finalized Version History</h2>
+              <p className="text-sm text-[var(--text-4)] -mt-3">
                 Previous immutable versions — always expanded so you can track every booking detail at each step.
               </p>
               {historicalVersions.map((hist: any, histIdx: number) => {
@@ -3504,21 +3504,21 @@ export default function BookingsPage() {
                   .filter(Boolean);
 
                 return (
-                  <div key={hist.id} className="rounded-xl border-2 border-gray-300 bg-white shadow-sm overflow-hidden">
+                  <div key={hist.id} className="rounded-xl border-2 border-[var(--border-2)] bg-white shadow-sm overflow-hidden">
                     {/* ── Version header ── */}
-                    <div className="flex items-center justify-between gap-3 bg-gray-100 px-5 py-3 border-b border-gray-200">
+                    <div className="flex items-center justify-between gap-3 bg-[var(--surface-2)] px-5 py-3 border-b border-[var(--border)]">
                       <div>
-                        <p className="text-sm font-bold text-gray-900">
+                        <p className="text-sm font-bold text-[var(--text-1)]">
                           Version {hist.versionNumber}
-                          <span className="ml-2 inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">
+                          <span className="ml-2 inline-flex items-center rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-xs font-medium text-[var(--text-2)]">
                             {hist.status}
                           </span>
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-[var(--text-4)] mt-0.5">
                           Finalized by <strong>{finalizedBy}</strong> on {formatDateTimeLabel(finalizedAt)}
                         </p>
                       </div>
-                      <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <Lock className="w-4 h-4 text-[var(--text-4)] flex-shrink-0" />
                     </div>
 
                     {/* ── Inter-version diff summary ── */}
@@ -3733,7 +3733,7 @@ export default function BookingsPage() {
 
                       {/* ── Packs ── */}
                       <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Packs</h4>
+                        <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1">Packs</h4>
                         {historyPacks.length === 0 ? (
                           <div className="empty-state" style={{ padding: '16px 12px' }}>
                             <div className="empty-state-icon">
@@ -3762,21 +3762,21 @@ export default function BookingsPage() {
                             return (
                               <div
                                 key={pack.id || `${hist.id}-${pack.packName}`}
-                                className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3"
+                                className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3"
                               >
                                 {/* Pack header row */}
                                 <div className="flex flex-wrap items-center gap-3">
-                                  <span className="text-sm font-bold text-gray-900">
+                                  <span className="text-sm font-bold text-[var(--text-1)]">
                                     {pack.packName}
                                     {pack.timeSlot ? ` (${pack.timeSlot})` : ''}
                                   </span>
                                   {pack.withHall !== undefined && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withHall ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withHall ? 'bg-blue-100 text-blue-700' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
                                       Hall {pack.withHall ? '✓' : '✗'}
                                     </span>
                                   )}
                                   {pack.withCatering !== undefined && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withCatering ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withCatering ? 'bg-green-100 text-green-700' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
                                       Catering {pack.withCatering ? '✓' : '✗'}
                                     </span>
                                   )}
@@ -3820,7 +3820,7 @@ export default function BookingsPage() {
 
                                 {/* Hall names */}
                                 {hallNames.length > 0 && (
-                                  <p className="text-xs text-gray-600">
+                                  <p className="text-xs text-[var(--text-2)]">
                                     <span className="font-medium">Halls: </span>
                                     {hallNames.join(', ')}
                                   </p>
@@ -3828,18 +3828,18 @@ export default function BookingsPage() {
 
                                 {/* Menu items */}
                                 <div>
-                                  <p className="text-xs font-medium text-gray-600 mb-1">Menu Items</p>
+                                  <p className="text-xs font-medium text-[var(--text-2)] mb-1">Menu Items</p>
                                   {menuItems.length === 0 ? (
-                                    <span className="text-xs text-gray-400">No menu items saved.</span>
+                                    <span className="text-xs text-[var(--text-4)]">No menu items saved.</span>
                                   ) : (
                                     <div className="flex flex-wrap gap-1.5">
                                       {menuItems.map((entry: any) => (
                                         <span
                                           key={`${pack.id}-${entry.itemId || entry.item?.id}`}
-                                          className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-xs text-gray-700"
+                                          className="inline-flex items-center rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-2)]"
                                         >
                                           {entry?.item?.itemType?.name
-                                            ? <><span className="text-gray-400 mr-1">{entry.item.itemType.name}:</span></>
+                                            ? <><span className="text-[var(--text-4)] mr-1">{entry.item.itemType.name}:</span></>
                                             : null}
                                           {entry?.item?.name || 'Item'}
                                         </span>
@@ -3856,21 +3856,21 @@ export default function BookingsPage() {
                       {/* ── Additional Requirements ── */}
                       {histAdditional.length > 0 && (
                         <div className="space-y-2">
-                          <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Additional Requirements</h4>
-                          <div className="rounded-lg border border-gray-200 overflow-hidden">
-                            <div className="grid grid-cols-[1fr,auto] bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
+                          <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1">Additional Requirements</h4>
+                          <div className="rounded-lg border border-[var(--border)] overflow-hidden">
+                            <div className="grid grid-cols-[1fr,auto] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text-2)]">
                               <div>Description</div>
                               <div className="text-right">Amount</div>
                             </div>
                             {histAdditional.map((item: any, idx: number) => (
-                              <div key={`hist-add-${hist.id}-${idx}`} className="grid grid-cols-[1fr,auto] px-3 py-2 text-sm border-t border-gray-100 bg-white">
-                                <span className="text-gray-800">{item?.description || '-'}</span>
-                                <span className="text-right font-medium text-gray-900">
+                              <div key={`hist-add-${hist.id}-${idx}`} className="grid grid-cols-[1fr,auto] px-3 py-2 text-sm border-t border-[var(--border)] bg-white">
+                                <span className="text-[var(--text-1)]">{item?.description || '-'}</span>
+                                <span className="text-right font-medium text-[var(--text-1)]">
                                   ₹{Number(item?.charges ?? item?.amount ?? 0).toLocaleString('en-IN')}
                                 </span>
                               </div>
                             ))}
-                            <div className="grid grid-cols-[1fr,auto] px-3 py-2 bg-gray-50 border-t border-gray-200 text-sm font-semibold text-gray-700">
+                            <div className="grid grid-cols-[1fr,auto] px-3 py-2 bg-[var(--surface-2)] border-t border-[var(--border)] text-sm font-semibold text-[var(--text-2)]">
                               <span>Additional Total</span>
                               <span className="text-right">₹{histTotalAdditional.toLocaleString('en-IN')}</span>
                             </div>
@@ -3880,7 +3880,7 @@ export default function BookingsPage() {
 
                       {/* ── Payments ── */}
                       <div className="space-y-2">
-                        <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1">Payments</h4>
+                        <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1">Payments</h4>
                         {histPayments.length === 0 ? (
                           <div className="empty-state" style={{ padding: '16px 12px' }}>
                             <div className="empty-state-icon">
@@ -3890,8 +3890,8 @@ export default function BookingsPage() {
                             <p className="empty-state-desc">Payments will appear here once logged.</p>
                           </div>
                         ) : (
-                          <div className="rounded-lg border border-gray-200 overflow-hidden">
-                            <div className="hidden md:grid md:grid-cols-5 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
+                          <div className="rounded-lg border border-[var(--border)] overflow-hidden">
+                            <div className="hidden md:grid md:grid-cols-5 bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text-2)]">
                               <div>Mode</div>
                               <div>Narration</div>
                               <div>Date</div>
@@ -3899,15 +3899,15 @@ export default function BookingsPage() {
                               <div className="text-right">Amount</div>
                             </div>
                             {histPayments.map((payment: any, idx: number) => (
-                              <div key={`hist-pay-${hist.id}-${idx}`} className="grid grid-cols-2 md:grid-cols-5 gap-1 px-3 py-2 text-sm border-t border-gray-100 bg-white">
-                                <span className="text-gray-800 font-medium">{payment?.method || payment?.paymentMethod || payment?.mode || '-'}</span>
-                                <span className="text-gray-600">{payment?.narration || '-'}</span>
-                                <span className="text-gray-600">{payment?.paymentDate ? formatDateDDMMYYYY(payment.paymentDate.slice(0, 10)) : payment?.date ? formatDateDDMMYYYY(payment.date) : '-'}</span>
-                                <span className="text-gray-600">{payment?.receiver?.name || payment?.receivedBy || '-'}</span>
-                                <span className="text-right font-semibold text-gray-900">₹{Number(payment?.amount ?? payment?.amountValue ?? 0).toLocaleString('en-IN')}</span>
+                              <div key={`hist-pay-${hist.id}-${idx}`} className="grid grid-cols-2 md:grid-cols-5 gap-1 px-3 py-2 text-sm border-t border-[var(--border)] bg-white">
+                                <span className="text-[var(--text-1)] font-medium">{payment?.method || payment?.paymentMethod || payment?.mode || '-'}</span>
+                                <span className="text-[var(--text-2)]">{payment?.narration || '-'}</span>
+                                <span className="text-[var(--text-2)]">{payment?.paymentDate ? formatDateDDMMYYYY(payment.paymentDate.slice(0, 10)) : payment?.date ? formatDateDDMMYYYY(payment.date) : '-'}</span>
+                                <span className="text-[var(--text-2)]">{payment?.receiver?.name || payment?.receivedBy || '-'}</span>
+                                <span className="text-right font-semibold text-[var(--text-1)]">₹{Number(payment?.amount ?? payment?.amountValue ?? 0).toLocaleString('en-IN')}</span>
                               </div>
                             ))}
-                            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-200 text-sm font-semibold text-gray-700">
+                            <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-2)] border-t border-[var(--border)] text-sm font-semibold text-[var(--text-2)]">
                               <span>Total Payments</span>
                               <span>₹{histTotalPayments.toLocaleString('en-IN')}</span>
                             </div>
@@ -3916,32 +3916,32 @@ export default function BookingsPage() {
                       </div>
 
                       {/* ── Amount Summary ── */}
-                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-3">Amount Summary</h4>
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-2">
+                        <h4 className="text-sm font-semibold text-[var(--text-1)] mb-3">Amount Summary</h4>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                           <div>
-                            <span className="text-xs text-gray-500 block">Total Bill</span>
-                            <span className="font-semibold text-gray-900">₹{histTotalBill.toLocaleString('en-IN')}</span>
+                            <span className="text-xs text-[var(--text-4)] block">Total Bill</span>
+                            <span className="font-semibold text-[var(--text-1)]">₹{histTotalBill.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
-                            <span className="text-xs text-gray-500 block">Discount ({histDiscountPercent.toFixed(2)}%)</span>
+                            <span className="text-xs text-[var(--text-4)] block">Discount ({histDiscountPercent.toFixed(2)}%)</span>
                             <span className="font-semibold text-red-700">−₹{histDiscountAmount.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
-                            <span className="text-xs text-gray-500 block">Final Amount</span>
+                            <span className="text-xs text-[var(--text-4)] block">Final Amount</span>
                             <span className="font-bold text-green-800 text-base">₹{histFinalAmount.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
-                            <span className="text-xs text-gray-500 block">Advance Required</span>
-                            <span className="font-semibold text-gray-900">₹{histAdvanceRequired.toLocaleString('en-IN')}</span>
+                            <span className="text-xs text-[var(--text-4)] block">Advance Required</span>
+                            <span className="font-semibold text-[var(--text-1)]">₹{histAdvanceRequired.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
-                            <span className="text-xs text-gray-500 block">Due Amount</span>
-                            <span className="font-semibold text-gray-900">₹{histDueAmount.toLocaleString('en-IN')}</span>
+                            <span className="text-xs text-[var(--text-4)] block">Due Amount</span>
+                            <span className="font-semibold text-[var(--text-1)]">₹{histDueAmount.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
-                            <span className="text-xs text-gray-500 block">Payments Received</span>
-                            <span className="font-semibold text-gray-900">₹{histTotalPayments.toLocaleString('en-IN')}</span>
+                            <span className="text-xs text-[var(--text-4)] block">Payments Received</span>
+                            <span className="font-semibold text-[var(--text-1)]">₹{histTotalPayments.toLocaleString('en-IN')}</span>
                           </div>
                         </div>
                       </div>
@@ -3949,8 +3949,8 @@ export default function BookingsPage() {
                       {/* ── Notes ── */}
                       {histNotes && (
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-1 mb-2">Notes</h4>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap rounded-lg bg-amber-50 border border-amber-100 p-3">{histNotes}</p>
+                          <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1 mb-2">Notes</h4>
+                          <p className="text-sm text-[var(--text-2)] whitespace-pre-wrap rounded-lg bg-amber-50 border border-amber-100 p-3">{histNotes}</p>
                         </div>
                       )}
                     </div>
@@ -3970,7 +3970,7 @@ export default function BookingsPage() {
       >
         <form onSubmit={handleQuickCustomerSubmit} className="space-y-7" noValidate>
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Personal Details</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-1)]">Personal Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-4">
                 <label className="label">
@@ -4037,7 +4037,7 @@ export default function BookingsPage() {
                 {inlineCustomerPhoneErrors.phone && (
                   <p className="mt-1 text-xs text-red-600">{inlineCustomerPhoneErrors.phone}</p>
                 )}
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-[var(--text-4)]">
                   {getDialCodeOption(inlineCustomerFormData.phoneCountryIso).country} numbers must be{' '}
                   {inlinePrimaryPhoneDigits} digits.
                 </p>
@@ -4083,7 +4083,7 @@ export default function BookingsPage() {
                 {inlineCustomerPhoneErrors.alterPhone && (
                   <p className="mt-1 text-xs text-red-600">{inlineCustomerPhoneErrors.alterPhone}</p>
                 )}
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-[var(--text-4)]">
                   Optional. If entered, it must be exactly {inlineSecondaryPhoneDigits} digits.
                 </p>
               </div>
@@ -4121,10 +4121,10 @@ export default function BookingsPage() {
                 )}
               </div>
               <div className="md:col-span-4 flex items-end">
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700 pb-2">
+                <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)] pb-2">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    className="h-4 w-4 rounded border-[var(--border-2)] text-primary-600 focus:ring-primary-500"
                     checked={isInlineWhatsappDifferent}
                     onChange={(e) => {
                       const checked = e.target.checked;
@@ -4202,7 +4202,7 @@ export default function BookingsPage() {
                       {inlineCustomerPhoneErrors.whatsappNumber}
                     </p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-[var(--text-4)]">
                     Must be exactly {inlineWhatsappPhoneDigits} digits.
                   </p>
                 </div>
@@ -4211,7 +4211,7 @@ export default function BookingsPage() {
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Address</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-1)]">Address</h3>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-4">
                 <label className="label">Country</label>
@@ -4293,7 +4293,7 @@ export default function BookingsPage() {
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Social Links</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-1)]">Social Links</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               <div>
                 <label className="label">Facebook</label>
@@ -4349,7 +4349,7 @@ export default function BookingsPage() {
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Other Details</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-1)]">Other Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-4">
                 <label className="label">Referred By</label>
@@ -4389,7 +4389,7 @@ export default function BookingsPage() {
               </div>
               <div className="md:col-span-4">
                 <label className="label">Rating</label>
-                <div className="h-11 flex items-center gap-1 rounded-xl border border-gray-200 px-3">
+                <div className="h-11 flex items-center gap-1 rounded-xl border border-[var(--border)] px-3">
                   {[1, 2, 3, 4, 5].map((value) => {
                     const current = Number(inlineCustomerFormData.rating || '0');
                     const active = value <= current;
@@ -4419,7 +4419,7 @@ export default function BookingsPage() {
                     onClick={() =>
                       setInlineCustomerFormData((prev) => ({ ...prev, rating: '0' }))
                     }
-                    className="ml-2 text-xs font-medium text-gray-500 hover:text-gray-700"
+                    className="ml-2 text-xs font-medium text-[var(--text-4)] hover:text-[var(--text-2)]"
                   >
                     Clear
                   </button>
@@ -4488,13 +4488,13 @@ export default function BookingsPage() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-[var(--text-4)]">
                 Selecting a template imports all template items; you can still add or remove items.
               </p>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <div className="rounded-xl border border-gray-200 p-3">
+              <div className="rounded-xl border border-[var(--border)] p-3">
                 <input
                   className="input mb-3"
                   placeholder="Search items..."
@@ -4502,7 +4502,7 @@ export default function BookingsPage() {
                   onChange={(e) => setMenuItemSearch(e.target.value)}
                 />
                 <div
-                  className="max-h-[360px] overflow-y-auto rounded-lg border border-gray-200"
+                  className="max-h-[360px] overflow-y-auto rounded-lg border border-[var(--border)]"
                   style={{ contain: 'content', overscrollBehavior: 'contain' }}
                 >
                   {groupedMenuItems.length === 0 ? (
@@ -4516,7 +4516,7 @@ export default function BookingsPage() {
                   ) : (
                     groupedMenuItems.map(([group, grouped]) => (
                       <div key={group}>
-                        <div className="px-3 py-2 text-sm font-semibold text-gray-800 bg-primary-50 border-b border-gray-200">
+                        <div className="px-3 py-2 text-sm font-semibold text-[var(--text-1)] bg-primary-50 border-b border-[var(--border)]">
                           {group}
                         </div>
                         {grouped.map((item) => {
@@ -4527,8 +4527,8 @@ export default function BookingsPage() {
                             return (
                               <label
                                 key={`${menuEditorPack}-${item.id}`}
-                                className={`cv-auto flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 ${
-                                  _isAdded ? 'bg-green-50 text-green-900' : _isRemoved ? 'bg-red-50 text-red-900' : 'text-gray-700'
+                                className={`cv-auto flex items-center gap-2 px-3 py-2 text-sm border-b border-[var(--border)] last:border-b-0 ${
+                                  _isAdded ? 'bg-green-50 text-green-900' : _isRemoved ? 'bg-red-50 text-red-900' : 'text-[var(--text-2)]'
                                 }`}
                               >
                                 <input
@@ -4548,8 +4548,8 @@ export default function BookingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-gray-200 p-3">
-                <p className="text-sm font-semibold text-gray-800 mb-2">Selected Items</p>
+              <div className="rounded-xl border border-[var(--border)] p-3">
+                <p className="text-sm font-semibold text-[var(--text-1)] mb-2">Selected Items</p>
                 {activeMenuPackRow.menuItemIds.length === 0 ? (
                   <div className="empty-state" style={{ padding: '20px 12px' }}>
                     <div className="empty-state-icon">
@@ -4565,7 +4565,7 @@ export default function BookingsPage() {
                   >
                     {selectedMenuItemsByGroup.map(([group, grouped]) => (
                       <div key={`selected-group-${group}`} className="space-y-2">
-                        <p className="text-sm font-semibold text-gray-800">{group}</p>
+                        <p className="text-sm font-semibold text-[var(--text-1)]">{group}</p>
                         <div className="flex flex-wrap gap-2">
                           {grouped.map((item) => {
                               const _sPDK = menuEditorPack ? PACK_LABELS[menuEditorPack].toLowerCase() : '';
@@ -4576,7 +4576,7 @@ export default function BookingsPage() {
                                 <span
                                   key={`selected-${menuEditorPack}-${item.id}`}
                                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${
-                                    _sAdded ? 'border-green-400 bg-green-50 text-green-900' : _sRemoved ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white'
+                                    _sAdded ? 'border-green-400 bg-green-50 text-green-900' : _sRemoved ? 'border-red-400 bg-red-50 text-red-900' : 'border-[var(--border-2)] bg-white'
                                   }`}
                                 >
                                   {_sAdded && <span className="text-green-600 font-bold text-xs">+</span>}
@@ -4665,9 +4665,9 @@ export default function BookingsPage() {
             </button>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden min-h-[500px]">
+          <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden min-h-[500px]">
             {menuPdfSetupLoading ? (
-              <div className="h-[500px] grid place-items-center text-sm text-gray-600">
+              <div className="h-[500px] grid place-items-center text-sm text-[var(--text-2)]">
                 Loading menu options...
               </div>
             ) : menuPdfLoading ? (
@@ -4681,7 +4681,7 @@ export default function BookingsPage() {
                 className="w-full h-[70vh]"
               />
             ) : (
-              <div className="h-[500px] grid place-items-center text-sm text-gray-500">
+              <div className="h-[500px] grid place-items-center text-sm text-[var(--text-4)]">
                 Select a menu pack to generate preview.
               </div>
             )}
@@ -4692,7 +4692,7 @@ export default function BookingsPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="relative" style={{ flex: 1 }}>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
             <input
               type="text"
               value={globalSearch}
@@ -4893,7 +4893,7 @@ export default function BookingsPage() {
             <div className={viewMode === 'table' ? 'hidden md:block table-shell' : 'hidden'}>
               <table className="data-table">
                 <thead>
-                  <tr className="border-b border-gray-200">
+                  <tr className="border-b border-[var(--border)]">
                     <SortableHeader
                       label="Function"
                       sortKey="functionName"
@@ -4929,10 +4929,10 @@ export default function BookingsPage() {
                       sortKey="grandTotal"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-4 text-sm font-semibold text-gray-700"
+                      className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
                     />
                     {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
                         Actions
                       </th>
                     )}
@@ -4943,29 +4943,29 @@ export default function BookingsPage() {
                   {paginatedBookings.map((booking) => (
                       <tr
                         key={booking.id}
-                        className="cv-auto-row border-b border-gray-100 hover:bg-gray-50"
+                        className="cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)]"
                       >
                       <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">{booking.functionName}</p>
-                        <p className="text-xs text-gray-500 mt-1">{booking.functionType}</p>
+                        <p className="font-medium text-[var(--text-1)]">{booking.functionName}</p>
+                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.functionType}</p>
                       </td>
                       <td className="py-4 px-4">
-                        <p className="text-sm text-gray-900">{booking.customer?.name}</p>
-                        <p className="text-xs text-gray-500 mt-1">{booking.customer?.phone}</p>
+                        <p className="text-sm text-[var(--text-1)]">{booking.customer?.name}</p>
+                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.customer?.phone}</p>
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-700">
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         {formatDateDDMMYYYY(booking.functionDate)}
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-700">
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         <span className="inline-flex items-center gap-1">
-                          <Users className="w-4 h-4 text-gray-500" />
+                          <Users className="w-4 h-4 text-[var(--text-4)]" />
                           {booking.expectedGuests}
                         </span>
                       </td>
                       <td className="py-4 px-4">
                         <StatusBadge status={booking.isQuotation ? 'quotation' : booking.status} />
                       </td>
-                      <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
+                      <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)]">
                         ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
@@ -4974,7 +4974,7 @@ export default function BookingsPage() {
                             {canExportMenuPdf && (
                               <button
                                 type="button"
-                                className="p-2 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
                                 onClick={() => openMenuPdfModal(booking)}
                                 title="Preview menu PDF"
                               >
@@ -4984,7 +4984,7 @@ export default function BookingsPage() {
                             {canEditBooking && (
                               <button
                                 type="button"
-                                className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                                 onClick={() => openEditBooking(booking.id)}
                                 title="Edit booking"
                               >
@@ -4994,7 +4994,7 @@ export default function BookingsPage() {
                             {canDeleteBooking && (
                               <button
                                 type="button"
-                                className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                                 onClick={() => handleDeleteBooking(booking.id)}
                                 title="Delete booking"
                               >
@@ -5047,11 +5047,11 @@ export default function BookingsPage() {
 
           <div className="space-y-4">
             {activePartyOverBooking?.packs?.map((pack: any) => (
-              <div key={pack.id} className="p-3 border border-gray-200 rounded-lg space-y-2">
+              <div key={pack.id} className="p-3 border border-[var(--border)] rounded-lg space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h5 className="font-medium text-gray-900">{pack.packName}</h5>
-                    <p className="text-xs text-gray-500">
+                    <h5 className="font-medium text-[var(--text-1)]">{pack.packName}</h5>
+                    <p className="text-xs text-[var(--text-4)]">
                       Confirmed Pax: {pack.packCount || pack.noOfPack} @ ₹{pack.ratePerPlate}/plate
                     </p>
                   </div>
@@ -5070,7 +5070,7 @@ export default function BookingsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">Extra Plates Used</label>
+                    <label className="text-xs text-[var(--text-4)] block mb-1">Extra Plates Used</label>
                     <input
                       type="number"
                       min={0}
@@ -5085,7 +5085,7 @@ export default function BookingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">Rate / Extra Plate (₹)</label>
+                    <label className="text-xs text-[var(--text-4)] block mb-1">Rate / Extra Plate (₹)</label>
                     <input
                       type="number"
                       min={0}
@@ -5130,7 +5130,7 @@ export default function BookingsPage() {
             );
           })()}
 
-          <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
+          <div className="pt-4 border-t border-[var(--border)] flex justify-end gap-3">
             <button
               type="button"
               className="btn btn-secondary"

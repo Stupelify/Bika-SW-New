@@ -441,8 +441,8 @@ export default function EnquiriesPage() {
     <div className="space-y-6">
       <div className="page-head gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Enquiries</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-[var(--text-1)]">Enquiries</h1>
+          <p className="text-[var(--text-2)] mt-1">
             Capture leads, track conversion and monitor pending follow-ups.
           </p>
         </div>
@@ -552,9 +552,9 @@ export default function EnquiriesPage() {
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-gray-800 mb-2">Quotation Required?</p>
+            <p className="text-sm font-semibold text-[var(--text-1)] mb-2">Quotation Required?</p>
             <div className="flex items-center gap-6">
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
                 <input
                   type="radio"
                   name="quotationRequired"
@@ -565,7 +565,7 @@ export default function EnquiriesPage() {
                 />
                 Yes
               </label>
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
                 <input
                   type="radio"
                   name="quotationRequired"
@@ -580,13 +580,13 @@ export default function EnquiriesPage() {
           </div>
 
           <section className="space-y-3">
-            <h3 className="text-lg font-semibold text-gray-900">Name of Pack</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-1)]">Name of Pack</h3>
             {(Object.keys(PACK_LABELS) as PackKey[]).map((packKey) => (
               <div
                 key={packKey}
-                className="grid grid-cols-1 md:grid-cols-[220px,1fr,1fr] gap-3 rounded-xl border border-gray-200 p-3"
+                className="grid grid-cols-1 md:grid-cols-[220px,1fr,1fr] gap-3 rounded-xl border border-[var(--border)] p-3"
               >
-                <label className="inline-flex items-center gap-2 text-sm text-gray-800">
+                <label className="inline-flex items-center gap-2 text-sm text-[var(--text-1)]">
                   <input
                     type="checkbox"
                     checked={formData.packs[packKey].enabled}
@@ -679,9 +679,9 @@ export default function EnquiriesPage() {
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-gray-800 mb-2">Pencil Booking</p>
+            <p className="text-sm font-semibold text-[var(--text-1)] mb-2">Pencil Booking</p>
             <div className="flex items-center gap-6">
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
                 <input
                   type="radio"
                   name="pencilBooking"
@@ -692,7 +692,7 @@ export default function EnquiriesPage() {
                 />
                 Yes
               </label>
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
                 <input
                   type="radio"
                   name="pencilBooking"
@@ -741,7 +741,7 @@ export default function EnquiriesPage() {
       <div className="card">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
             <input
               className="input pl-10 pr-10"
               value={globalSearch}
@@ -922,7 +922,7 @@ export default function EnquiriesPage() {
             <div className="hidden md:block table-shell">
               <table className="data-table">
                 <thead>
-                  <tr className="border-b border-gray-200">
+                  <tr className="border-b border-[var(--border)]">
                     <SortableHeader
                       label="Function"
                       sortKey="functionName"
@@ -953,31 +953,31 @@ export default function EnquiriesPage() {
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedEnquiries.map((enquiry) => (
-                    <tr key={enquiry.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={enquiry.id} className="border-b border-[var(--border)] hover:bg-[var(--surface-2)]">
                       <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">{enquiry.functionName}</p>
-                        <p className="text-xs text-gray-500 mt-1">{enquiry.functionType}</p>
+                        <p className="font-medium text-[var(--text-1)]">{enquiry.functionName}</p>
+                        <p className="text-xs text-[var(--text-4)] mt-1">{enquiry.functionType}</p>
                       </td>
                       <td className="py-4 px-4">
-                        <p className="text-sm text-gray-900">{enquiry.customer?.name}</p>
-                        <p className="text-xs text-gray-500 mt-1">{enquiry.customer?.phone}</p>
+                        <p className="text-sm text-[var(--text-1)]">{enquiry.customer?.name}</p>
+                        <p className="text-xs text-[var(--text-4)] mt-1">{enquiry.customer?.phone}</p>
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-700">
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         <span className="inline-flex items-center gap-1">
-                          <CalendarDays className="w-4 h-4 text-gray-400" />
+                          <CalendarDays className="w-4 h-4 text-[var(--text-4)]" />
                           {formatDateDDMMYYYY(enquiry.functionDate)}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-700">
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         <span className="inline-flex items-center gap-1">
-                          <Users className="w-4 h-4 text-gray-400" />
+                          <Users className="w-4 h-4 text-[var(--text-4)]" />
                           {enquiry.expectedGuests}
                         </span>
                       </td>
@@ -993,7 +993,7 @@ export default function EnquiriesPage() {
                           {canEditEnquiry && (
                             <button
                               onClick={() => openEditPrompt(enquiry)}
-                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                               title="Edit enquiry"
                             >
                               <Edit className="w-4 h-4" />
@@ -1002,7 +1002,7 @@ export default function EnquiriesPage() {
                           {canDeleteEnquiry && (
                             <button
                               onClick={() => handleDelete(enquiry.id)}
-                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                               title="Delete enquiry"
                             >
                               <Trash2 className="w-4 h-4" />

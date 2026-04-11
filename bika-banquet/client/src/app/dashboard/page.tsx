@@ -9,11 +9,9 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { KpiCardSkeleton } from '@/components/Skeletons';
 import KpiCard from '@/components/KpiCard';
 import EmptyState from '@/components/EmptyState';
+import Combobox from '@/components/Combobox';
 import {
   AlertTriangle,
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
   BarChart3,
   Building2,
   CalendarCheck,
@@ -293,43 +291,6 @@ function buildContinuousMonthlyTrend(
   }
 
   return rows.slice(-maxMonths);
-}
-
-function Sparkline({
-  values,
-  color = '#14b8a6',
-}: {
-  values: number[];
-  color?: string;
-}) {
-  const width = 64;
-  const height = 24;
-  const safeValues = values.length >= 2 ? values : [0, ...(values.length ? values : [0])];
-  const min = Math.min(...safeValues);
-  const max = Math.max(...safeValues);
-  const range = Math.max(max - min, 1);
-  const step = safeValues.length > 1 ? width / (safeValues.length - 1) : width;
-
-  const points = safeValues
-    .map((value, index) => {
-      const x = Number((index * step).toFixed(2));
-      const y = Number((height - ((value - min) / range) * height).toFixed(2));
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <svg className="sparkline num" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 function formatYAxisValue(value: number): string {
@@ -664,7 +625,7 @@ export default function DashboardPage() {
   if (user && !canViewDashboard) {
     return (
       <AdaptiveCard className="py-16 text-center">
-        <p className="text-gray-600">You do not have access to view the dashboard.</p>
+        <p className="text-[var(--text-2)]">You do not have access to view the dashboard.</p>
       </AdaptiveCard>
     );
   }
@@ -719,22 +680,6 @@ export default function DashboardPage() {
     value: toSafeNumber(entry.revenue),
   }));
 
-  const renderDelta = (value: number) => {
-    const positive = value > 0;
-    const negative = value < 0;
-    const cls = positive ? 'delta-up' : negative ? 'delta-down' : 'delta-neutral';
-    return (
-      <span className={`kpi-delta num ${cls}`}>
-        {positive ? (
-          <ArrowUpRight className="w-3 h-3" />
-        ) : negative ? (
-          <ArrowDownRight className="w-3 h-3" />
-        ) : null}
-        {`${Math.abs(value).toFixed(1)}%`}
-      </span>
-    );
-  };
-
   return (
     <div className="space-y-5">
       <AdaptiveCard>
@@ -750,17 +695,18 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="filter-bar xl:justify-end">
-            <select
-              className="input sm:w-[138px]"
+            <Combobox
+              className="sm:w-[138px]"
               value={range}
-              onChange={(e) => setRange(e.target.value)}
-            >
-              <option value="1m">Last 1 month</option>
-              <option value="3m">Last 3 months</option>
-              <option value="6m">Last 6 months</option>
-              <option value="1y">Last 1 year</option>
-              <option value="all">All time</option>
-            </select>
+              onChange={setRange}
+              options={[
+                { value: '1m', label: 'Last 1 month' },
+                { value: '3m', label: 'Last 3 months' },
+                { value: '6m', label: 'Last 6 months' },
+                { value: '1y', label: 'Last 1 year' },
+                { value: 'all', label: 'All time' },
+              ]}
+            />
             <input
               type="date"
               className="input sm:w-[150px] num"
@@ -991,71 +937,71 @@ export default function DashboardPage() {
         </div>
         <div className="panel-body grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           <Link href="/dashboard/menu" className="resource-tile">
-            <p className="text-xs text-gray-500">Item Types</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Item Types</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.itemTypes.toLocaleString('en-IN')}
             </p>
             <Layers className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/menu" className="resource-tile">
-            <p className="text-xs text-gray-500">Items</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Items</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.items.toLocaleString('en-IN')}
             </p>
             <UtensilsCrossed className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/menu" className="resource-tile">
-            <p className="text-xs text-gray-500">Template Menu</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Template Menu</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.templateMenus.toLocaleString('en-IN')}
             </p>
             <ListChecks className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/enquiries" className="resource-tile">
-            <p className="text-xs text-gray-500">Enquiry</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Enquiry</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.enquiries.toLocaleString('en-IN')}
             </p>
             <PhoneCall className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/halls" className="resource-tile">
-            <p className="text-xs text-gray-500">Hall</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Hall</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.halls.toLocaleString('en-IN')}
             </p>
             <Building2 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/customers" className="resource-tile">
-            <p className="text-xs text-gray-500">Manage Customers</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Manage Customers</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.customers.toLocaleString('en-IN')}
             </p>
             <Users className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/halls" className="resource-tile">
-            <p className="text-xs text-gray-500">Banquet</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Banquet</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.banquets.toLocaleString('en-IN')}
             </p>
             <Landmark className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/settings" className="resource-tile">
-            <p className="text-xs text-gray-500">Manage Users</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Manage Users</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.users.toLocaleString('en-IN')}
             </p>
             <UserCircle2 className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/bookings" className="resource-tile">
-            <p className="text-xs text-gray-500">Booking</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Booking</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.bookings.toLocaleString('en-IN')}
             </p>
             <CalendarCheck className="w-4 h-4 text-primary-600 mt-2" />
           </Link>
           <Link href="/dashboard/settings" className="resource-tile">
-            <p className="text-xs text-gray-500">Manage Roles</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 num">
+            <p className="text-xs text-[var(--text-4)]">Manage Roles</p>
+            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
               {resourceCounts.roles.toLocaleString('en-IN')}
             </p>
             <BarChart3 className="w-4 h-4 text-primary-600 mt-2" />
@@ -1086,22 +1032,22 @@ export default function DashboardPage() {
             data.recentBookings.map((booking) => (
               <div
                 key={booking.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-gray-100 last:border-0"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-[var(--border)] last:border-0"
               >
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 break-words">
+                  <p className="text-sm font-semibold text-[var(--text-1)] break-words">
                     {booking.functionName}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1 break-words">
+                  <p className="text-xs text-[var(--text-4)] mt-1 break-words">
                     {booking.customer?.name || 'Unknown customer'} •{' '}
                     {booking.customer?.phone || 'N/A'}
                   </p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <p className="text-sm text-gray-900">
+                  <p className="text-sm text-[var(--text-1)]">
                     {formatDateDDMMYYYY(booking.functionDate)}
                   </p>
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-[var(--text-2)] mt-1">
                     {formatCurrency(toSafeNumber(booking.grandTotal))}
                   </p>
                 </div>

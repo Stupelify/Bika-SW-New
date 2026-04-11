@@ -1554,8 +1554,8 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-2xl font-bold text-[var(--text-1)]">Calendar</h1>
+        <p className="text-[var(--text-2)] mt-1">
           Track software events and imported Google venue events with clear source tags.
         </p>
       </div>
@@ -1570,7 +1570,7 @@ export default function CalendarPage() {
           }`}
         >
           <div
-            className={`rounded-2xl border border-gray-200 bg-white shadow-sm flex flex-col h-full ${
+            className={`rounded-2xl border border-[var(--border)] bg-white shadow-sm flex flex-col h-full ${
               sidebarOpen ? 'p-4' : 'p-2'
             }`}
           >
@@ -1579,7 +1579,7 @@ export default function CalendarPage() {
               type="button"
               onClick={toggleSidebar}
               title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-              className="mb-3 flex items-center justify-center w-8 h-8 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition self-end shrink-0"
+              className="mb-3 flex items-center justify-center w-8 h-8 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface-2)] text-[var(--text-4)] hover:text-[var(--text-1)] transition self-end shrink-0"
             >
               <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${sidebarOpen ? '' : 'rotate-180'}`} />
             </button>
@@ -1590,7 +1590,7 @@ export default function CalendarPage() {
                 {/* Halls section — grouped by location */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Halls</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-4)]">Halls</p>
                     <div className="flex gap-1.5">
                       <button
                         type="button"
@@ -1601,13 +1601,13 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedHallIds(new Set())}
-                        className="text-[9px] font-semibold text-gray-400 hover:underline"
+                        className="text-[9px] font-semibold text-[var(--text-4)] hover:underline"
                       >None</button>
                     </div>
                   </div>
 
                   {hallStatsByLocation.length === 0 && (
-                    <p className="text-[11px] text-gray-400 italic">No halls configured</p>
+                    <p className="text-[11px] text-[var(--text-4)] italic">No halls configured</p>
                   )}
 
                   <div className="space-y-4">
@@ -1645,7 +1645,7 @@ export default function CalendarPage() {
                                   ? 'bg-indigo-500 border-indigo-500 text-white'
                                   : someChecked
                                     ? 'bg-indigo-200 border-indigo-400'
-                                    : 'bg-white border-gray-300'
+                                    : 'bg-white border-[var(--border-2)]'
                               }`}
                               style={{ fontSize: 8 }}
                             >
@@ -1653,10 +1653,10 @@ export default function CalendarPage() {
                                 <span style={{ lineHeight: 1 }}>{allChecked ? '✓' : '−'}</span>
                               )}
                             </button>
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 truncate flex-1">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-4)] truncate flex-1">
                               {locationName}
                             </span>
-                            <span className="text-[9px] text-gray-400 tabular-nums shrink-0">
+                            <span className="text-[9px] text-[var(--text-4)] tabular-nums shrink-0">
                               {locationHalls.reduce((s, h) => s + h.count, 0)}
                             </span>
                           </div>
@@ -1672,7 +1672,7 @@ export default function CalendarPage() {
                                       type="checkbox"
                                       checked={checked}
                                       onChange={() => toggleHall(hall.id)}
-                                      className="h-3.5 w-3.5 rounded border-gray-300 shrink-0"
+                                      className="h-3.5 w-3.5 rounded border-[var(--border-2)] shrink-0"
                                       style={{ accentColor: hall.palette.solid }}
                                     />
                                     <span
@@ -1680,7 +1680,7 @@ export default function CalendarPage() {
                                       style={{ background: hall.palette.solid }}
                                     />
                                     <span className={`text-xs font-medium truncate flex-1 transition-colors ${
-                                      checked ? 'text-gray-800' : 'text-gray-400'
+                                      checked ? 'text-[var(--text-1)]' : 'text-[var(--text-4)]'
                                     }`}>
                                       {hall.name}
                                     </span>
@@ -1692,7 +1692,7 @@ export default function CalendarPage() {
                                     </span>
                                   </div>
                                   {/* Mini utilization bar */}
-                                  <div className="ml-[22px] h-1 rounded-full bg-gray-100 overflow-hidden">
+                                  <div className="ml-[22px] h-1 rounded-full bg-[var(--surface-2)] overflow-hidden">
                                     <div
                                       className="h-full rounded-full transition-all duration-500"
                                       style={{
@@ -1713,11 +1713,11 @@ export default function CalendarPage() {
                 </div>
 
                 {/* Divider */}
-                <div className="border-t border-gray-100" />
+                <div className="border-t border-[var(--border)]" />
 
                 {/* Status section */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Status</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-4)] mb-3">Status</p>
                   <div className="space-y-2.5">
                     {STATUS_FILTERS.map(({ key, label, color, icon }) => {
                       const checked = selectedStatuses.has(key);
@@ -1727,7 +1727,7 @@ export default function CalendarPage() {
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleStatus(key)}
-                            className="h-3.5 w-3.5 rounded border-gray-300 shrink-0"
+                            className="h-3.5 w-3.5 rounded border-[var(--border-2)] shrink-0"
                             style={{ accentColor: color }}
                           />
                           <span
@@ -1740,7 +1740,7 @@ export default function CalendarPage() {
                             {icon}
                           </span>
                           <span className={`text-xs font-medium transition-colors ${
-                            checked ? 'text-gray-800' : 'text-gray-400'
+                            checked ? 'text-[var(--text-1)]' : 'text-[var(--text-4)]'
                           }`}>
                             {label}
                           </span>
@@ -1751,7 +1751,7 @@ export default function CalendarPage() {
                 </div>
 
                 {/* Divider */}
-                <div className="border-t border-gray-100" />
+                <div className="border-t border-[var(--border)]" />
 
                 {/* Active filters summary */}
                 {selectedHallIds !== null && selectedHallIds.size < halls.length && (
@@ -1791,7 +1791,7 @@ export default function CalendarPage() {
                     />
                   );
                 })}
-                <div className="my-1 w-4 border-t border-gray-200" />
+                <div className="my-1 w-4 border-t border-[var(--border)]" />
                 {STATUS_FILTERS.map(({ key, color, icon }) => {
                   const checked = selectedStatuses.has(key);
                   return (
@@ -1843,7 +1843,7 @@ export default function CalendarPage() {
               <ChevronLeft className="w-4 h-4" />
             </button>
             <div className="w-full sm:w-auto sm:min-w-[220px] text-center">
-              <p className="text-lg font-semibold text-gray-900">{viewLabel}</p>
+              <p className="text-lg font-semibold text-[var(--text-1)]">{viewLabel}</p>
             </div>
             <button
               type="button"
@@ -1892,8 +1892,8 @@ export default function CalendarPage() {
                 />
               )}
             </button>
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
-              <span className="text-xs font-semibold text-gray-600 whitespace-nowrap">Go to</span>
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2">
+              <span className="text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Go to</span>
               <input
                 type="date"
                 className="input h-8 min-h-0 border-0 p-0 text-sm shadow-none focus:shadow-none"
@@ -1902,7 +1902,7 @@ export default function CalendarPage() {
                 aria-label="Jump to date"
               />
             </div>
-            <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden">
+            <div className="inline-flex rounded-xl border border-[var(--border)] overflow-hidden">
               {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => (
                 <button
                   key={mode}
@@ -1913,14 +1913,14 @@ export default function CalendarPage() {
                   }}
                   className={`px-3 py-2 text-sm font-semibold capitalize transition ${viewMode === mode
                       ? 'bg-primary-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                      : 'bg-white text-[var(--text-2)] hover:bg-[var(--surface-2)]'
                     }`}
                 >
                   {mode}
                 </button>
               ))}
             </div>
-            <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden">
+            <div className="inline-flex rounded-xl border border-[var(--border)] overflow-hidden">
               {(
                 [
                   ['calendar', 'Calendar'],
@@ -1933,14 +1933,14 @@ export default function CalendarPage() {
                   onClick={() => setDisplayMode(mode)}
                   className={`px-3 py-2 text-sm font-semibold transition ${displayMode === mode
                       ? 'bg-slate-800 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                      : 'bg-white text-[var(--text-2)] hover:bg-[var(--surface-2)]'
                     }`}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden">
+            <div className="inline-flex rounded-xl border border-[var(--border)] overflow-hidden">
               {(
                 [
                   ['all', 'All'],
@@ -1954,7 +1954,7 @@ export default function CalendarPage() {
                   onClick={() => setSourceFilter(mode)}
                   className={`px-3 py-2 text-sm font-semibold transition ${sourceFilter === mode
                       ? 'bg-primary-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                      : 'bg-white text-[var(--text-2)] hover:bg-[var(--surface-2)]'
                     }`}
                 >
                   {label}
@@ -1965,7 +1965,7 @@ export default function CalendarPage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative w-full sm:min-w-[260px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
               <input
                 className="input pl-9"
                 value={search}
@@ -1991,7 +1991,7 @@ export default function CalendarPage() {
           <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
             Google
           </span>
-          <span className="text-gray-600">
+          <span className="text-[var(--text-2)]">
             {googleImportEnabled
               ? googleImportConfigured
                 ? `Google import active for ${googleSourceCount} venue calendars (read-only).`
@@ -2008,7 +2008,7 @@ export default function CalendarPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Bookings</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{summary.bookings.toLocaleString('en-IN')}</p>
+              <p className="mt-1 text-3xl font-bold text-[var(--text-1)]">{summary.bookings.toLocaleString('en-IN')}</p>
             </div>
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
               <CalendarCheck className="w-5 h-5 text-emerald-700" />
@@ -2037,7 +2037,7 @@ export default function CalendarPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600">Revenue</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
+              <p className="mt-1 text-3xl font-bold text-[var(--text-1)]">
                 ₹{summary.monthlyRevenue >= 100000
                   ? `${(summary.monthlyRevenue / 100000).toFixed(1)}L`
                   : summary.monthlyRevenue.toLocaleString('en-IN')}
@@ -2049,7 +2049,7 @@ export default function CalendarPage() {
           </div>
           <div className="mt-3 flex items-center gap-1.5">
             <Users className="w-3 h-3 text-violet-400" />
-            <span className="text-[11px] text-gray-500">
+            <span className="text-[11px] text-[var(--text-4)]">
               {summary.guestVolume.toLocaleString('en-IN')} total guests
             </span>
           </div>
@@ -2060,7 +2060,7 @@ export default function CalendarPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Hall Utilization</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{summary.hallUtilization}%</p>
+              <p className="mt-1 text-3xl font-bold text-[var(--text-1)]">{summary.hallUtilization}%</p>
             </div>
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
               <Building2 className="w-5 h-5 text-amber-700" />
@@ -2077,8 +2077,8 @@ export default function CalendarPage() {
                 style={{ width: `${summary.hallUtilization}%` }}
               />
             </div>
-            <p className="mt-1.5 text-[10px] text-gray-500">
-              Peak: <span className="font-semibold text-gray-700">{summary.peakDayLabel}</span>
+            <p className="mt-1.5 text-[10px] text-[var(--text-4)]">
+              Peak: <span className="font-semibold text-[var(--text-2)]">{summary.peakDayLabel}</span>
               {summary.peakDayCount > 0 && ` (${summary.peakDayCount} bookings)`}
             </p>
           </div>
@@ -2089,7 +2089,7 @@ export default function CalendarPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-sky-600">Enquiries</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{summary.enquiries.toLocaleString('en-IN')}</p>
+              <p className="mt-1 text-3xl font-bold text-[var(--text-1)]">{summary.enquiries.toLocaleString('en-IN')}</p>
             </div>
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-100">
               <PhoneCall className="w-5 h-5 text-sky-700" />
@@ -2099,13 +2099,13 @@ export default function CalendarPage() {
             {googleImportEnabled && (
               <>
                 <Globe2 className="w-3 h-3 text-sky-400" />
-                <span className="text-[11px] text-gray-500">
+                <span className="text-[11px] text-[var(--text-4)]">
                   {summary.googleEvents} Google events
                 </span>
               </>
             )}
             {!googleImportEnabled && (
-              <span className="text-[11px] text-gray-400">Google import off</span>
+              <span className="text-[11px] text-[var(--text-4)]">Google import off</span>
             )}
           </div>
         </div>
@@ -2299,7 +2299,7 @@ export default function CalendarPage() {
 
                       {/* Heatmap legend */}
                       <div className="hidden md:flex items-center gap-3 mt-2 px-1">
-                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Density</span>
+                        <span className="text-[10px] font-semibold text-[var(--text-4)] uppercase tracking-wide">Density</span>
                         {[
                           { color: 'rgba(16,185,129,0.18)', label: '1 booking' },
                           { color: 'rgba(234,179,8,0.22)', label: '2 bookings' },
@@ -2308,7 +2308,7 @@ export default function CalendarPage() {
                         ].map(({ color, label }) => (
                           <span key={label} className="flex items-center gap-1.5">
                             <span className="inline-block h-3 w-5 rounded" style={{ background: color, border: '1px solid rgba(0,0,0,0.07)' }} />
-                            <span className="text-[10px] text-gray-500">{label}</span>
+                            <span className="text-[10px] text-[var(--text-4)]">{label}</span>
                           </span>
                         ))}
                       </div>
@@ -2755,7 +2755,7 @@ export default function CalendarPage() {
                       </div>
 
                       <div className="hidden md:block">
-                      <p className="text-sm font-semibold text-gray-900">{selectedDateLabel}</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)]">{selectedDateLabel}</p>
                       {dayEvents.length === 0 ? (
                         <div className="empty-state" style={{ padding: '20px 12px' }}>
                           <div className="empty-state-icon">
@@ -2787,7 +2787,7 @@ export default function CalendarPage() {
                               } ${entry.kind === 'booking' ? 'cursor-pointer transition text-left' : 'text-left'}`}
                           >
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-gray-900">{entry.title}</p>
+                              <p className="text-sm font-semibold text-[var(--text-1)]">{entry.title}</p>
                               <div className="flex items-center gap-2">
                                 <span
                                   className={`text-[10px] px-1.5 py-0.5 rounded-full ${entry.source === 'google'
@@ -2797,11 +2797,11 @@ export default function CalendarPage() {
                                 >
                                   {entry.source === 'google' ? 'Google' : 'Software'}
                                 </span>
-                                <span className="text-xs text-gray-700">{entry.time}</span>
+                                <span className="text-xs text-[var(--text-2)]">{entry.time}</span>
                               </div>
                             </div>
-                            <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
-                            <p className="text-xs text-gray-600 mt-1 capitalize">
+                            <p className="text-xs text-[var(--text-2)] mt-1">{entry.subtitle}</p>
+                            <p className="text-xs text-[var(--text-2)] mt-1 capitalize">
                               {entry.status}
                               {entry.kind === 'booking' && typeof entry.amount === 'number' && (
                                 <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
@@ -2824,8 +2824,8 @@ export default function CalendarPage() {
             >
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Selected Day</p>
-                  <h2 className="text-lg font-semibold text-gray-900 mt-1">{selectedDateLabel}</h2>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Selected Day</p>
+                  <h2 className="text-lg font-semibold text-[var(--text-1)] mt-1">{selectedDateLabel}</h2>
                 </div>
                 <button
                   type="button"
@@ -2849,7 +2849,7 @@ export default function CalendarPage() {
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-gray-900">Bookings</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)]">Bookings</p>
                       <span className="text-xs rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
                         {selectedBookings.length}
                       </span>
@@ -2869,10 +2869,10 @@ export default function CalendarPage() {
                             key={booking.id}
                             type="button"
                             onClick={() => void openBookingDetails(booking.id)}
-                            className="rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50 transition"
+                            className="rounded-lg border border-[var(--border)] bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50 transition"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-medium text-gray-900 truncate">{booking.functionName}</p>
+                              <p className="text-sm font-medium text-[var(--text-1)] truncate">{booking.functionName}</p>
                               <span
                                 className={`status-pill ${booking.isQuotation
                                     ? 'status-quotation'
@@ -2886,11 +2886,11 @@ export default function CalendarPage() {
                                 {booking.isQuotation ? 'quotation' : booking.status}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-600 mt-1">
+                            <p className="text-xs text-[var(--text-2)] mt-1">
                               {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
                               {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
                             </p>
-                            <p className="text-xs text-gray-600 mt-0.5">
+                            <p className="text-xs text-[var(--text-2)] mt-0.5">
                               {bookingTimeLabel(booking)} • ₹
                               {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
                             </p>
@@ -2902,7 +2902,7 @@ export default function CalendarPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-gray-900">Hall-wise Party Schedule</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)]">Hall-wise Party Schedule</p>
                       <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
                         {hallWiseSchedule.length}
                       </span>
@@ -2922,10 +2922,10 @@ export default function CalendarPage() {
                           return (
                             <div
                               key={group.hallName}
-                              className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2"
+                              className="rounded-lg border border-[var(--border)] bg-white p-2.5 space-y-2"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-medium text-gray-900 inline-flex items-center gap-1.5">
+                                <p className="text-sm font-medium text-[var(--text-1)] inline-flex items-center gap-1.5">
                                   <Building2 className="w-3.5 h-3.5 text-sky-700" />
                                   {group.hallName}
                                 </p>
@@ -2954,16 +2954,16 @@ export default function CalendarPage() {
                                     key={`${group.hallName}-${party.id}`}
                                     type="button"
                                     onClick={() => void openBookingDetails(party.id)}
-                                    className="w-full rounded-md bg-gray-50 px-2 py-1.5 text-left hover:bg-sky-50 transition"
+                                    className="w-full rounded-md bg-[var(--surface-2)] px-2 py-1.5 text-left hover:bg-sky-50 transition"
                                   >
-                                    <p className="text-xs font-semibold text-gray-900">{party.title}</p>
-                                    <p className="text-[11px] text-gray-600 mt-0.5">
+                                    <p className="text-xs font-semibold text-[var(--text-1)]">{party.title}</p>
+                                    <p className="text-[11px] text-[var(--text-2)] mt-0.5">
                                       {formatDateDDMMYYYY(party.date)} • {party.timeLabel}
                                     </p>
-                                    <p className="text-[11px] text-gray-600 mt-0.5">
+                                    <p className="text-[11px] text-[var(--text-2)] mt-0.5">
                                       {party.customerName} • {party.customerPhone} • {party.guests} guests
                                     </p>
-                                    <p className="text-[11px] text-gray-600 mt-0.5 capitalize">
+                                    <p className="text-[11px] text-[var(--text-2)] mt-0.5 capitalize">
                                       {party.status}
                                     </p>
                                   </button>
@@ -2978,7 +2978,7 @@ export default function CalendarPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-gray-900">Enquiries</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)]">Enquiries</p>
                       <span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">
                         {selectedEnquiries.length}
                       </span>
@@ -2996,20 +2996,20 @@ export default function CalendarPage() {
                         selectedEnquiries.map((enquiry) => {
                           const phone = enquiry.customer?.phone?.trim() || '';
                           return (
-                            <div key={enquiry.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                            <div key={enquiry.id} className="rounded-lg border border-[var(--border)] bg-white p-2.5">
                               <div className="flex items-center justify-between gap-2">
                                 <button
                                   type="button"
                                   onClick={() => openEnquiryDetails(enquiry.id)}
-                                  className="text-sm font-medium text-gray-900 truncate text-left hover:text-primary-700"
+                                  className="text-sm font-medium text-[var(--text-1)] truncate text-left hover:text-primary-700"
                                 >
                                   {enquiry.functionName}
                                 </button>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-2)] text-[var(--text-2)]">
                                   {enquiry.isPencilBooked ? 'pencil' : enquiry.status}
                                 </span>
                               </div>
-                              <p className="text-xs text-gray-600 mt-1">
+                              <p className="text-xs text-[var(--text-2)] mt-1">
                                 {enquiry.customer?.name || 'Lead'} • {enquiry.expectedGuests} guests
                               </p>
                               <div className="mt-2 flex items-center gap-2">
@@ -3022,7 +3022,7 @@ export default function CalendarPage() {
                                     Call
                                   </a>
                                 ) : (
-                                  <span className="text-[11px] text-gray-500">No phone on record</span>
+                                  <span className="text-[11px] text-[var(--text-4)]">No phone on record</span>
                                 )}
                                 <button
                                   type="button"
@@ -3041,7 +3041,7 @@ export default function CalendarPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-gray-900">Google Venue Events</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)]">Google Venue Events</p>
                       <span className="text-xs rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
                         {selectedGoogleEvents.length}
                       </span>
@@ -3057,18 +3057,18 @@ export default function CalendarPage() {
                         </div>
                       ) : (
                         selectedGoogleEvents.map((event) => (
-                          <div key={event.id} className="rounded-lg border border-gray-200 bg-white p-2.5">
+                          <div key={event.id} className="rounded-lg border border-[var(--border)] bg-white p-2.5">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
+                              <p className="text-sm font-medium text-[var(--text-1)] truncate">{event.title}</p>
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
                                 {event.origin === 'software' ? 'software mirror' : 'google'}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-600 mt-1">
+                            <p className="text-xs text-[var(--text-2)] mt-1">
                               {event.venueName}
                               {event.location ? ` • ${event.location}` : ''}
                             </p>
-                            <p className="text-xs text-gray-600 mt-0.5">
+                            <p className="text-xs text-[var(--text-2)] mt-0.5">
                               {googleEventTimeLabel(event)} •{' '}
                               <span className="capitalize">{event.status}</span>
                             </p>
@@ -3078,7 +3078,7 @@ export default function CalendarPage() {
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-gray-100 flex gap-2">
+                  <div className="pt-2 border-t border-[var(--border)] flex gap-2">
                     <Link href="/dashboard/bookings" className="btn btn-secondary flex-1 justify-center">
                       Bookings
                     </Link>
@@ -3093,7 +3093,7 @@ export default function CalendarPage() {
 
           <div className="card">
             <div className="panel-header">
-              <h2 className="text-lg font-semibold text-gray-900">Upcoming This Month</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Upcoming This Month</h2>
             </div>
             <div className="space-y-2">
               {agenda.length === 0 ? (
@@ -3117,14 +3117,14 @@ export default function CalendarPage() {
                         }
                       }
                     }}
-                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left ${entry.kind === 'booking'
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-white px-3 py-2.5 text-left ${entry.kind === 'booking'
                         ? 'hover:border-primary-300 hover:bg-primary-50 transition'
                         : 'cursor-default'
                       }`}
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900">{entry.title}</p>
+                        <p className="text-sm font-medium text-[var(--text-1)]">{entry.title}</p>
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded-full ${entry.source === 'google'
                               ? 'bg-sky-100 text-sky-800'
@@ -3134,16 +3134,16 @@ export default function CalendarPage() {
                           {entry.source === 'google' ? 'Google' : 'Software'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-600 mt-1">{entry.subtitle}</p>
+                      <p className="text-xs text-[var(--text-2)] mt-1">{entry.subtitle}</p>
                     </div>
                     <div className="text-left sm:text-right">
-                      <p className="text-xs text-gray-600">
+                      <p className="text-xs text-[var(--text-2)]">
                         {formatDateDDMMYYYY(entry.date)} •{' '}
                         <span className="capitalize">
                           {entry.kind === 'google' ? 'venue' : entry.kind}
                         </span>
                       </p>
-                      <p className="text-xs text-gray-700 mt-1">
+                      <p className="text-xs text-[var(--text-2)] mt-1">
                         <span className="capitalize">{entry.status}</span>
                         {entry.kind === 'booking' && typeof entry.amount === 'number' && (
                           <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
@@ -3162,22 +3162,22 @@ export default function CalendarPage() {
         <div className="card">
           <div className="panel-header">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Hall Booking Board</h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Hall Booking Board</h2>
+              <p className="text-sm text-[var(--text-2)] mt-1">
                 Timeline view for <span className="font-medium">{selectedDateLabel}</span>.{' '}
-                <span className="text-xs text-gray-500">(Range: {hallBoardRangeLabel})</span>
+                <span className="text-xs text-[var(--text-4)]">(Range: {hallBoardRangeLabel})</span>
               </p>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <div className="min-w-[980px] rounded-xl border border-gray-200 overflow-hidden">
-              <div className="grid grid-cols-[220px_repeat(3,1fr)] bg-gray-100 text-xs uppercase tracking-wide text-gray-600 font-semibold">
-                <div className="px-4 py-3 border-r border-gray-200">Hall / Banquet</div>
+            <div className="min-w-[980px] rounded-xl border border-[var(--border)] overflow-hidden">
+              <div className="grid grid-cols-[220px_repeat(3,1fr)] bg-[var(--surface-2)] text-xs uppercase tracking-wide text-[var(--text-2)] font-semibold">
+                <div className="px-4 py-3 border-r border-[var(--border)]">Hall / Banquet</div>
                 {hallBoardSegments.map((segment) => (
-                  <div key={segment.key} className="px-4 py-3 border-r border-gray-200 last:border-r-0">
+                  <div key={segment.key} className="px-4 py-3 border-r border-[var(--border)] last:border-r-0">
                     {segment.label}
-                    <span className="block text-[10px] text-gray-500 normal-case font-medium">
+                    <span className="block text-[10px] text-[var(--text-4)] normal-case font-medium">
                       {segment.range}
                     </span>
                   </div>
@@ -3198,12 +3198,12 @@ export default function CalendarPage() {
                   return (
                     <div
                       key={row.hallName}
-                      className={`grid grid-cols-[220px_repeat(3,1fr)] border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                      className={`grid grid-cols-[220px_repeat(3,1fr)] border-t border-[var(--border)] ${index % 2 === 0 ? 'bg-white' : 'bg-[var(--surface-2)]'
                         }`}
                     >
-                      <div className="px-4 py-4 border-r border-gray-100 text-sm font-semibold text-gray-900">
+                      <div className="px-4 py-4 border-r border-[var(--border)] text-sm font-semibold text-[var(--text-1)]">
                         {row.hallName}
-                        <p className="text-xs font-normal text-gray-500 mt-1">
+                        <p className="text-xs font-normal text-[var(--text-4)] mt-1">
                           {row.banquetName ? `Banquet: ${row.banquetName}` : 'Banquet: Unassigned'}
                         </p>
                       </div>
@@ -3215,7 +3215,7 @@ export default function CalendarPage() {
                         return (
                           <div
                             key={`${row.hallName}-${segment.key}`}
-                            className="px-3 py-3 border-r border-gray-100 last:border-r-0"
+                            className="px-3 py-3 border-r border-[var(--border)] last:border-r-0"
                           >
                             {segmentSlots.length === 0 ? (
                               <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
@@ -3290,20 +3290,20 @@ export default function CalendarPage() {
           onClick={closeBookingDetails}
         >
           <div
-            className="mx-auto h-full w-full max-w-3xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+            className="mx-auto h-full w-full max-w-3xl overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-5">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 sm:px-5">
               <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Booking Details</p>
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Booking Details</p>
+                <h3 className="text-base sm:text-lg font-semibold text-[var(--text-1)]">
                   {bookingDetails?.functionName || 'Loading...'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={closeBookingDetails}
-                className="rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-50"
+                className="rounded-lg border border-[var(--border)] p-2 text-[var(--text-2)] hover:bg-[var(--surface-2)]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -3315,68 +3315,68 @@ export default function CalendarPage() {
                   <CalendarSkeleton />
                 </div>
               ) : !bookingDetails ? (
-                <p className="text-sm text-gray-500">Unable to load booking details.</p>
+                <p className="text-sm text-[var(--text-4)]">Unable to load booking details.</p>
               ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Function</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Function</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)] mt-1">
                         {bookingDetails.functionType || '-'}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Date</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Date</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)] mt-1">
                         {formatDateDDMMYYYY(bookingDetails.functionDate)}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Time</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Time</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)] mt-1">
                         {bookingTimeLabel(bookingDetails)}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Status</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1 capitalize">
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Status</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)] mt-1 capitalize">
                         {bookingDetails.isQuotation
                           ? 'Quotation'
                           : bookingDetails.status || 'Pending'}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Customer</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-1">
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Customer</p>
+                      <p className="text-sm font-semibold text-[var(--text-1)] mt-1">
                         {bookingDetails.customer?.name || '-'}
                       </p>
-                      <p className="text-xs text-gray-600 mt-0.5">
+                      <p className="text-xs text-[var(--text-2)] mt-0.5">
                         {bookingDetails.customer?.phone || '-'}
                       </p>
                       {bookingDetails.customer?.email && (
-                        <p className="text-xs text-gray-600 mt-0.5">
+                        <p className="text-xs text-[var(--text-2)] mt-0.5">
                           {bookingDetails.customer.email}
                         </p>
                       )}
                     </div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Halls</p>
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Halls</p>
                       <div className="mt-1 space-y-1">
                         {bookingDetailsHallBanquetLines.map((line) => (
-                          <p key={line} className="text-sm font-semibold text-gray-900">
+                          <p key={line} className="text-sm font-semibold text-[var(--text-1)]">
                             {line}
                           </p>
                         ))}
                       </div>
-                      <p className="text-xs text-gray-600 mt-0.5">
+                      <p className="text-xs text-[var(--text-2)] mt-0.5">
                         {toSafeNumber(bookingDetails.expectedGuests)} guests • ₹
                         {toSafeNumber(bookingDetails.grandTotal).toLocaleString('en-IN')}
                       </p>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-gray-200 bg-white p-3">
-                    <p className="text-sm font-semibold text-gray-900">Menu/Pack Details</p>
+                  <div className="rounded-xl border border-[var(--border)] bg-white p-3">
+                    <p className="text-sm font-semibold text-[var(--text-1)]">Menu/Pack Details</p>
                     {bookingDetailsPacks.length === 0 ? (
                       <div className="empty-state" style={{ padding: '16px 12px' }}>
                         <div className="empty-state-icon">
@@ -3388,11 +3388,11 @@ export default function CalendarPage() {
                     ) : (
                       <div className="mt-2 space-y-2">
                         {bookingDetailsPacks.map((pack) => (
-                          <div key={pack.id} className="rounded-lg bg-gray-50 px-2.5 py-2">
-                            <p className="text-xs font-semibold text-gray-900">
+                          <div key={pack.id} className="rounded-lg bg-[var(--surface-2)] px-2.5 py-2">
+                            <p className="text-xs font-semibold text-[var(--text-1)]">
                               {pack.mealSlot?.name || pack.packName || 'Pack'}
                             </p>
-                            <p className="text-[11px] text-gray-600 mt-0.5">
+                            <p className="text-[11px] text-[var(--text-2)] mt-0.5">
                               {bookingTimeLabel(pack)} •{' '}
                               {toSafeNumber(pack.packCount ?? pack.noOfPack)} pax
                             </p>
@@ -3402,8 +3402,8 @@ export default function CalendarPage() {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-gray-200 bg-white p-3">
-                    <p className="text-sm font-semibold text-gray-900">Payments</p>
+                  <div className="rounded-xl border border-[var(--border)] bg-white p-3">
+                    <p className="text-sm font-semibold text-[var(--text-1)]">Payments</p>
                     {bookingDetailsPayments.length === 0 ? (
                       <div className="empty-state" style={{ padding: '16px 12px' }}>
                         <div className="empty-state-icon">
@@ -3415,19 +3415,19 @@ export default function CalendarPage() {
                     ) : (
                       <div className="mt-2 space-y-2">
                         {bookingDetailsPayments.map((payment) => (
-                          <div key={payment.id} className="rounded-lg bg-gray-50 px-2.5 py-2">
-                            <p className="text-xs font-semibold text-gray-900">
+                          <div key={payment.id} className="rounded-lg bg-[var(--surface-2)] px-2.5 py-2">
+                            <p className="text-xs font-semibold text-[var(--text-1)]">
                               {payment.method || 'Payment'} • ₹
                               {toSafeNumber(payment.amount).toLocaleString('en-IN')}
                             </p>
-                            <p className="text-[11px] text-gray-600 mt-0.5">
+                            <p className="text-[11px] text-[var(--text-2)] mt-0.5">
                               {payment.paymentDate
                                 ? formatDateDDMMYYYY(payment.paymentDate)
                                 : 'No date'}{' '}
                               • {payment.receiver?.name || 'Receiver not set'}
                             </p>
                             {payment.narration && (
-                              <p className="text-[11px] text-gray-600 mt-0.5">
+                              <p className="text-[11px] text-[var(--text-2)] mt-0.5">
                                 {payment.narration}
                               </p>
                             )}
@@ -3438,10 +3438,10 @@ export default function CalendarPage() {
                   </div>
 
                   {(bookingDetailsAdditionalItems.length > 0 || bookingDetails.notes) && (
-                    <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
+                    <div className="rounded-xl border border-[var(--border)] bg-white p-3 space-y-2">
                       {bookingDetailsAdditionalItems.length > 0 && (
                         <div>
-                          <p className="text-sm font-semibold text-gray-900">
+                          <p className="text-sm font-semibold text-[var(--text-1)]">
                             Additional Requirements
                           </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -3458,8 +3458,8 @@ export default function CalendarPage() {
                       )}
                       {bookingDetails.notes && (
                         <div>
-                          <p className="text-sm font-semibold text-gray-900">Notes</p>
-                          <p className="text-xs text-gray-600 mt-1">{bookingDetails.notes}</p>
+                          <p className="text-sm font-semibold text-[var(--text-1)]">Notes</p>
+                          <p className="text-xs text-[var(--text-2)] mt-1">{bookingDetails.notes}</p>
                         </div>
                       )}
                     </div>

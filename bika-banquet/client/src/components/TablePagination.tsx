@@ -26,7 +26,7 @@ export default function TablePagination({
 
   return (
     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-[var(--text-2)]">
         Showing {startItem}-{endItem} of {totalItems} {itemLabel}
       </p>
       <div className="flex items-center gap-2">
@@ -38,7 +38,7 @@ export default function TablePagination({
         >
           Previous
         </button>
-        <span className="text-sm text-gray-700">
+        <span className="text-sm text-[var(--text-2)]">
           Page {currentPage} of {totalPages}
         </span>
         <button

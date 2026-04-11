@@ -56,14 +56,14 @@ export default function FormPromptModal({
         aria-label="Close form prompt backdrop"
       />
       <div
-        className={`relative z-10 w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-gray-200 bg-white shadow-xl transform-gpu`}
+        className={`relative z-10 w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-white shadow-xl transform-gpu`}
       >
-        <div className="sticky top-0 z-10 bg-white/95 border-b border-gray-200 px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-display font-semibold text-gray-900">{title}</h2>
+        <div className="sticky top-0 z-10 bg-white/95 border-b border-[var(--border)] px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-display font-semibold text-[var(--text-1)]">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-gray-700 border border-transparent hover:border-gray-200"
+            className="p-2 rounded-lg text-[var(--text-4)] hover:bg-white hover:text-[var(--text-2)] border border-transparent hover:border-[var(--border)]"
             aria-label="Close form prompt"
           >
             <X className="w-4 h-4" />

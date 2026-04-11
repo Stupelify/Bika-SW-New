@@ -498,8 +498,8 @@ export default function VendorsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Vendors</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-2xl font-bold text-[var(--text-1)]">Vendors</h1>
+        <p className="text-[var(--text-2)] mt-1">
           Maintain vendor list and map supplies for ingredients and items with pricing.
         </p>
       </div>
@@ -605,13 +605,13 @@ export default function VendorsPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-gray-200 bg-white">
-              <div className="px-3 py-2 border-b border-gray-200">
-                <p className="text-sm font-semibold text-gray-800">Ingredients Supplied</p>
+            <div className="rounded-xl border border-[var(--border)] bg-white">
+              <div className="px-3 py-2 border-b border-[var(--border)]">
+                <p className="text-sm font-semibold text-[var(--text-1)]">Ingredients Supplied</p>
               </div>
-              <div className="px-3 py-2 border-b border-gray-100">
+              <div className="px-3 py-2 border-b border-[var(--border)]">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
                   <input
                     className="input h-9 pl-9"
                     placeholder="Search ingredients..."
@@ -638,7 +638,7 @@ export default function VendorsPage() {
                         key={`ingredient-draft-${ingredient.id}`}
                         className="px-3 py-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_110px_110px] gap-2 items-center"
                       >
-                        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
                           <input
                             type="checkbox"
                             checked={selected}
@@ -685,7 +685,7 @@ export default function VendorsPage() {
                           </>
                         ) : (
                           <>
-                            <span className="text-xs text-gray-400">Not selected</span>
+                            <span className="text-xs text-[var(--text-4)]">Not selected</span>
                             <span />
                           </>
                         )}
@@ -696,13 +696,13 @@ export default function VendorsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white">
-              <div className="px-3 py-2 border-b border-gray-200">
-                <p className="text-sm font-semibold text-gray-800">Items Supplied</p>
+            <div className="rounded-xl border border-[var(--border)] bg-white">
+              <div className="px-3 py-2 border-b border-[var(--border)]">
+                <p className="text-sm font-semibold text-[var(--text-1)]">Items Supplied</p>
               </div>
-              <div className="px-3 py-2 border-b border-gray-100">
+              <div className="px-3 py-2 border-b border-[var(--border)]">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
                   <input
                     className="input h-9 pl-9"
                     placeholder="Search items..."
@@ -729,7 +729,7 @@ export default function VendorsPage() {
                         key={`item-draft-${item.id}`}
                         className="px-3 py-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_110px_110px] gap-2 items-center"
                       >
-                        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
                           <input
                             type="checkbox"
                             checked={selected}
@@ -770,7 +770,7 @@ export default function VendorsPage() {
                           </>
                         ) : (
                           <>
-                            <span className="text-xs text-gray-400">Not selected</span>
+                            <span className="text-xs text-[var(--text-4)]">Not selected</span>
                             <span />
                           </>
                         )}
@@ -836,7 +836,7 @@ export default function VendorsPage() {
                 <tbody>
                   {supplies.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-4 text-sm text-gray-500">
+                      <td colSpan={5} className="text-center py-4 text-sm text-[var(--text-4)]">
                         No supplies mapped yet.
                       </td>
                     </tr>
@@ -850,14 +850,14 @@ export default function VendorsPage() {
                         <td className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                               onClick={() => editSupply(supply)}
                               type="button"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                               onClick={() => deleteSupply(supply.id)}
                               type="button"
                             >
@@ -986,7 +986,7 @@ export default function VendorsPage() {
           </div>
           <div className="panel-body space-y-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
               <input
                 className="input pl-9"
                 value={search}
@@ -1013,7 +1013,7 @@ export default function VendorsPage() {
                   <tbody>
                     {filteredVendors.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-6 text-sm text-gray-500">
+                        <td colSpan={6} className="text-center py-6 text-sm text-[var(--text-4)]">
                           No vendors found.
                         </td>
                       </tr>
@@ -1022,7 +1022,7 @@ export default function VendorsPage() {
                         <tr key={vendor.id}>
                           <td>{vendor.name}</td>
                           <td>
-                            <div className="text-xs text-gray-600 space-y-0.5">
+                            <div className="text-xs text-[var(--text-2)] space-y-0.5">
                               <p>{vendor.contactPerson || '-'}</p>
                               <p>{vendor.phone || '-'}</p>
                             </div>
@@ -1040,7 +1040,7 @@ export default function VendorsPage() {
                               </button>
                               {canEdit && (
                                 <button
-                                  className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                  className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                                   onClick={() => {
                                     void openEditVendor(vendor);
                                   }}
@@ -1051,7 +1051,7 @@ export default function VendorsPage() {
                               )}
                               {canDelete && (
                                 <button
-                                  className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                  className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
                                   onClick={() => removeVendor(vendor.id)}
                                   type="button"
                                 >
