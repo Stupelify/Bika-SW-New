@@ -1,7 +1,6 @@
 'use client';
 
 import { ItemOption, PACK_COLORS, PACK_LABELS, PackFormRow, PackKey, TemplateMenuOption, WizardFormData } from './types';
-import Combobox from '@/components/Combobox';
 
 interface Props {
   data: WizardFormData;
@@ -98,12 +97,18 @@ function MenuPanel({
           )}
           <div>
             <label className="wizard-label">Template Menu</label>
-            <Combobox
+            <select
               value={row.templateMenuId}
-              onChange={(val) => applyTemplate(val)}
-              options={templateMenus.map((t) => ({ value: t.id, label: t.name }))}
-              placeholder="Custom (no template)"
-            />
+              onChange={(e) => applyTemplate(e.target.value)}
+              className="wizard-input"
+            >
+              <option value="">Custom (no template)</option>
+              {templateMenus.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

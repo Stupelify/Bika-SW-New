@@ -1124,8 +1124,8 @@ function MenuPageContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">Menu & Items</h1>
-        <p className="text-[var(--text-2)] mt-1">
+        <h1 className="text-2xl font-bold text-gray-900">Menu & Items</h1>
+        <p className="text-gray-600 mt-1">
           Manage item categories, individual dishes, ingredients, vendors and reusable template menus.
         </p>
       </div>
@@ -1289,8 +1289,8 @@ function MenuPageContent() {
             </div>
             <div className="md:col-span-2">
               <label className="label">Image</label>
-              <label className="block rounded-2xl border-2 border-dashed border-[var(--border-2)] bg-[var(--surface-2)] p-4 hover:border-primary-300 transition cursor-pointer">
-                <div className="text-sm text-[var(--text-2)]">
+              <label className="block rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-4 hover:border-primary-300 transition cursor-pointer">
+                <div className="text-sm text-gray-600">
                   {itemForm.photoFileName
                     ? `Selected: ${itemForm.photoFileName}`
                     : 'Drag and drop or select image file'}
@@ -1303,16 +1303,16 @@ function MenuPageContent() {
                 />
               </label>
             </div>
-            <div className="md:col-span-2 rounded-xl border border-[var(--border)] bg-white">
-              <div className="px-3 py-2 border-b border-[var(--border)]">
-                <p className="text-sm font-semibold text-[var(--text-1)]">Link Vendors</p>
-                <p className="text-xs text-[var(--text-4)] mt-0.5">
+            <div className="md:col-span-2 rounded-xl border border-gray-200 bg-white">
+              <div className="px-3 py-2 border-b border-gray-200">
+                <p className="text-sm font-semibold text-gray-800">Link Vendors</p>
+                <p className="text-xs text-gray-500 mt-0.5">
                   Search, select multiple vendors and set per-unit rates.
                 </p>
               </div>
-              <div className="px-3 py-2 border-b border-[var(--border)]">
+              <div className="px-3 py-2 border-b border-gray-100">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     className="input h-9 pl-9"
                     placeholder="Search vendors..."
@@ -1339,7 +1339,7 @@ function MenuPageContent() {
                         key={`item-vendor-draft-${vendor.id}`}
                         className="px-3 py-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_120px_120px] gap-2 items-center"
                       >
-                        <label className="inline-flex items-center gap-2 text-sm text-[var(--text-2)]">
+                        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                           <input
                             type="checkbox"
                             checked={selected}
@@ -1380,7 +1380,7 @@ function MenuPageContent() {
                           </>
                         ) : (
                           <>
-                            <span className="text-xs text-[var(--text-4)]">Not selected</span>
+                            <span className="text-xs text-gray-400">Not selected</span>
                             <span />
                           </>
                         )}
@@ -1480,14 +1480,14 @@ function MenuPageContent() {
               {templateForm.itemIds.length} selected
             </p>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <div className="border border-[var(--border)] rounded-xl p-3">
+              <div className="border border-gray-200 rounded-xl p-3">
                 <input
                   className="input mb-3"
                   placeholder="Search..."
                   value={templateItemSearch}
                   onChange={(e) => setTemplateItemSearch(e.target.value)}
                 />
-                <div className="max-h-[340px] overflow-y-auto rounded-lg border border-[var(--border)]">
+                <div className="max-h-[340px] overflow-y-auto rounded-lg border border-gray-200">
                   {groupedTemplateItems.length === 0 ? (
                     <div className="empty-state" style={{ padding: '20px 12px' }}>
                       <div className="empty-state-icon">
@@ -1499,13 +1499,13 @@ function MenuPageContent() {
                   ) : (
                     groupedTemplateItems.map(([group, grouped]) => (
                       <div key={group}>
-                        <div className="px-3 py-2 text-sm font-semibold text-[var(--text-1)] bg-primary-50 border-b border-[var(--border)]">
+                        <div className="px-3 py-2 text-sm font-semibold text-gray-800 bg-primary-50 border-b border-gray-200">
                           {group}
                         </div>
                         {grouped.map((item) => (
                           <label
                             key={item.id}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-2)] border-b border-[var(--border)] last:border-b-0"
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 border-b border-gray-100 last:border-b-0"
                           >
                             <input
                               type="checkbox"
@@ -1521,7 +1521,7 @@ function MenuPageContent() {
                 </div>
               </div>
 
-              <div className="border border-[var(--border)] rounded-xl p-3">
+              <div className="border border-gray-200 rounded-xl p-3">
                 <div className="max-h-[340px] overflow-y-auto space-y-3">
                   {selectedTemplateItemsByGroup.length === 0 ? (
                     <div className="empty-state" style={{ padding: '20px 12px' }}>
@@ -1534,12 +1534,12 @@ function MenuPageContent() {
                   ) : (
                     selectedTemplateItemsByGroup.map(([group, grouped]) => (
                       <div key={`selected-${group}`} className="space-y-2">
-                        <p className="text-sm font-semibold text-[var(--text-1)]">{group.toUpperCase()}</p>
+                        <p className="text-sm font-semibold text-gray-800">{group.toUpperCase()}</p>
                         <div className="flex flex-wrap gap-2">
                           {grouped.map((item) => (
                             <span
                               key={`chip-${item.id}`}
-                              className="inline-flex items-center gap-2 rounded-full border border-[var(--border-2)] bg-white px-3 py-1.5 text-sm"
+                              className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm"
                             >
                               {item.name}
                               <button
@@ -1614,7 +1614,7 @@ function MenuPageContent() {
                 <tbody>
                   {itemRecipes.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="text-center py-4 text-sm text-[var(--text-4)]">
+                      <td colSpan={4} className="text-center py-4 text-sm text-gray-500">
                         No ingredients mapped in this recipe.
                       </td>
                     </tr>
@@ -1628,14 +1628,14 @@ function MenuPageContent() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               type="button"
-                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                               onClick={() => editRecipe(recipe)}
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               type="button"
-                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                               onClick={() => removeRecipe(recipe.id)}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1739,7 +1739,7 @@ function MenuPageContent() {
                 <tbody>
                   {itemVendors.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="text-center py-4 text-sm text-[var(--text-4)]">
+                      <td colSpan={4} className="text-center py-4 text-sm text-gray-500">
                         No vendors linked to this item.
                       </td>
                     </tr>
@@ -1753,14 +1753,14 @@ function MenuPageContent() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               type="button"
-                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                               onClick={() => editItemVendor(supply)}
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               type="button"
-                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                               onClick={() => removeItemVendor(supply.id)}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1847,7 +1847,7 @@ function MenuPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeMenuSection === 'itemType' && canViewItemType && !isIngredientsPage && !isVendorsPage
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Item Types
@@ -1859,7 +1859,7 @@ function MenuPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeMenuSection === 'item' && canViewItem && !isIngredientsPage && !isVendorsPage
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Items
@@ -1871,7 +1871,7 @@ function MenuPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeMenuSection === 'template' && canViewTemplate && !isIngredientsPage && !isVendorsPage
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Template Menus
@@ -1883,7 +1883,7 @@ function MenuPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 isIngredientsPage && canViewItem
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Ingredients
@@ -1895,7 +1895,7 @@ function MenuPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 isVendorsPage && canViewItem
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Vendors
@@ -1911,7 +1911,7 @@ function MenuPageContent() {
           }`}
         >
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Item types</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Item types</h2>
             {canAddItemType && (
               <button
                 type="button"
@@ -1925,7 +1925,7 @@ function MenuPageContent() {
           </div>
           <div className="flex gap-2 mb-4">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 className="input pl-9"
                 value={itemTypeGlobalSearch}
@@ -1981,48 +1981,48 @@ function MenuPageContent() {
             <div className="table-shell">
               <table className="data-table">
                 <thead>
-                  <tr className="border-b border-[var(--border)]">
+                  <tr className="border-b border-gray-200">
                     <SortableHeader
                       label="Type"
                       sortKey="name"
                       sort={itemTypeSort}
                       onSort={(key) => setItemTypeSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
                       label="Order"
                       sortKey="order"
                       sort={itemTypeSort}
                       onSort={(key) => setItemTypeSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
                       label="Items"
                       sortKey="itemCount"
                       sort={itemTypeSort}
                       onSort={(key) => setItemTypeSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
-                    <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
+                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedItemTypes.map((itemType) => (
-                    <tr key={itemType.id} className="border-b border-[var(--border)]">
+                    <tr key={itemType.id} className="border-b border-gray-100">
                       <td className="py-3 px-2">
-                        <p className="text-sm text-[var(--text-1)]">{itemType.name}</p>
+                        <p className="text-sm text-gray-900">{itemType.name}</p>
                       </td>
-                      <td className="py-3 px-2 text-sm text-[var(--text-2)]">
+                      <td className="py-3 px-2 text-sm text-gray-700">
                         {itemType.order ?? itemType.displayOrder ?? 0}
                       </td>
-                      <td className="py-3 px-2 text-sm text-[var(--text-2)]">{itemType._count?.items || 0}</td>
+                      <td className="py-3 px-2 text-sm text-gray-700">{itemType._count?.items || 0}</td>
                       <td className="py-3 px-2 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {canEditItemType && (
                             <button
-                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                               onClick={() => openEditType(itemType)}
                             >
                               <Edit className="w-4 h-4" />
@@ -2030,7 +2030,7 @@ function MenuPageContent() {
                           )}
                           {canDeleteItemType && (
                             <button
-                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                               onClick={() => removeItemType(itemType.id)}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -2060,7 +2060,7 @@ function MenuPageContent() {
           }`}
         >
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Items</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Items</h2>
             {canAddItem && (
               <button
                 type="button"
@@ -2074,7 +2074,7 @@ function MenuPageContent() {
           </div>
           <div className="flex gap-2 mb-4">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 className="input pl-9"
                 value={itemsGlobalSearch}
@@ -2130,29 +2130,29 @@ function MenuPageContent() {
             <div className="table-shell">
               <table className="data-table">
                 <thead>
-                  <tr className="border-b border-[var(--border)]">
+                  <tr className="border-b border-gray-200">
                     <SortableHeader
                       label="Item"
                       sortKey="name"
                       sort={itemSort}
                       onSort={(key) => setItemSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
                       label="Type"
                       sortKey="type"
                       sort={itemSort}
                       onSort={(key) => setItemSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
                       label="Cost"
                       sortKey="cost"
                       sort={itemSort}
                       onSort={(key) => setItemSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
-                    <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
+                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">
                       Actions
                     </th>
                   </tr>
@@ -2164,11 +2164,11 @@ function MenuPageContent() {
                     const collapsed = Boolean(collapsedItemTypeGroups[group.key]);
                     return (
                       <Fragment key={`group-${group.key}`}>
-                        <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
+                        <tr className="border-b border-gray-200 bg-gray-50">
                           <td colSpan={4} className="py-2 px-2">
                             <button
                               type="button"
-                              className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[var(--surface-2)]"
+                              className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-gray-100"
                               onClick={() =>
                                 setCollapsedItemTypeGroups((prev) => ({
                                   ...prev,
@@ -2176,10 +2176,10 @@ function MenuPageContent() {
                                 }))
                               }
                             >
-                              <span className="text-sm font-semibold text-[var(--text-1)]">
+                              <span className="text-sm font-semibold text-gray-800">
                                 {group.label}
                               </span>
-                              <span className="inline-flex items-center gap-2 text-xs text-[var(--text-4)]">
+                              <span className="inline-flex items-center gap-2 text-xs text-gray-500">
                                 {group.rows.length} item{group.rows.length === 1 ? '' : 's'}
                                 <ChevronDown
                                   className={`w-4 h-4 transition-transform ${collapsed ? '' : 'rotate-180'}`}
@@ -2190,23 +2190,23 @@ function MenuPageContent() {
                         </tr>
                         {!collapsed &&
                           group.rows.map((item) => (
-                            <tr key={item.id} className="border-b border-[var(--border)]">
+                            <tr key={item.id} className="border-b border-gray-100">
                               <td className="py-3 px-2">
-                                <p className="text-sm text-[var(--text-1)]">{item.name}</p>
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-4)]">
+                                <p className="text-sm text-gray-900">{item.name}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                                   <span>{item.isVeg ? 'Veg' : 'Non-veg'}</span>
-                                  <span className="inline-flex items-center rounded-full bg-[var(--surface-2)] px-2 py-0.5">
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
                                     Recipe: {item._count?.itemRecipes || 0}
                                   </span>
-                                  <span className="inline-flex items-center rounded-full bg-[var(--surface-2)] px-2 py-0.5">
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
                                     Vendors: {item._count?.vendorSupplies || 0}
                                   </span>
                                 </div>
                               </td>
-                              <td className="py-3 px-2 text-sm text-[var(--text-2)]">
+                              <td className="py-3 px-2 text-sm text-gray-700">
                                 {group.label || '-'}
                               </td>
-                              <td className="py-3 px-2 text-sm text-[var(--text-2)]">
+                              <td className="py-3 px-2 text-sm text-gray-700">
                                 {item.cost ? `INR ${item.cost.toLocaleString('en-IN')}` : '-'}
                               </td>
                               <td className="py-3 px-2 text-right">
@@ -2229,7 +2229,7 @@ function MenuPageContent() {
                                   )}
                                   {canEditItem && (
                                     <button
-                                      className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                      className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                                       onClick={() => {
                                         void openEditItem(item);
                                       }}
@@ -2239,7 +2239,7 @@ function MenuPageContent() {
                                   )}
                                   {canDeleteItem && (
                                     <button
-                                      className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                      className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                                       onClick={() => removeItem(item.id)}
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -2272,7 +2272,7 @@ function MenuPageContent() {
           }`}
         >
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Template menus</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Template menus</h2>
             {canAddTemplate && (
               <button
                 type="button"
@@ -2286,7 +2286,7 @@ function MenuPageContent() {
           </div>
           <div className="flex gap-2 mb-4">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 className="input pl-9"
                 value={templateGlobalSearch}
@@ -2342,36 +2342,36 @@ function MenuPageContent() {
             <div className="table-shell">
               <table className="data-table">
                 <thead>
-                  <tr className="border-b border-[var(--border)]">
+                  <tr className="border-b border-gray-200">
                     <SortableHeader
                       label="Name"
                       sortKey="name"
                       sort={templateSort}
                       onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
                       label="Category"
                       sortKey="category"
                       sort={templateSort}
                       onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
                       label="Rate / Plate"
                       sortKey="ratePerPlate"
                       sort={templateSort}
                       onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
                       label="Items"
                       sortKey="itemCount"
                       sort={templateSort}
                       onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
+                      className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
-                    <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
+                    <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">
                       Actions
                     </th>
                   </tr>
@@ -2380,20 +2380,20 @@ function MenuPageContent() {
                 </thead>
                 <tbody>
                   {paginatedTemplateMenus.map((template) => (
-                    <tr key={template.id} className="border-b border-[var(--border)]">
-                      <td className="py-3 px-2 text-sm text-[var(--text-1)]">{template.name}</td>
-                      <td className="py-3 px-2 text-sm text-[var(--text-2)]">{template.category || 'General'}</td>
-                      <td className="py-3 px-2 text-sm text-[var(--text-2)]">
+                    <tr key={template.id} className="border-b border-gray-100">
+                      <td className="py-3 px-2 text-sm text-gray-900">{template.name}</td>
+                      <td className="py-3 px-2 text-sm text-gray-700">{template.category || 'General'}</td>
+                      <td className="py-3 px-2 text-sm text-gray-700">
                         INR {(template.ratePerPlate || 0).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-2 text-sm text-[var(--text-2)]">
+                      <td className="py-3 px-2 text-sm text-gray-700">
                         {(template.itemCount ?? template.items?.length) || 0}
                       </td>
                       <td className="py-3 px-2 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {canEditTemplate && (
                             <button
-                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                               onClick={() => {
                                 void openEditTemplate(template);
                               }}
@@ -2403,7 +2403,7 @@ function MenuPageContent() {
                           )}
                           {canDeleteTemplate && (
                             <button
-                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                               onClick={() => removeTemplateMenu(template.id)}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -2510,7 +2510,7 @@ function MenuPageContent() {
 function MenuPageFallback() {
   return (
     <div className="card py-12 text-center">
-      <p className="text-sm text-[var(--text-2)]">Loading menu workspace...</p>
+      <p className="text-sm text-gray-600">Loading menu workspace...</p>
     </div>
   );
 }
