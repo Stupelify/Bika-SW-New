@@ -9,6 +9,15 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
+// ── In-memory GET cache ───────────────────────────────────────────────────────
+const memCache = new Map<string, { data: unknown; exp: number }>();
+const GET_TTL = 120_000; // 2 minutes
+
+function cacheKey(url: string | undefined, params: unknown): string {
+  return `${url ?? ''}::${JSON.stringify(params ?? {})}`;
+}
+
+// Serve cached GET responses without hitting the network
 apiClient.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
@@ -17,13 +26,48 @@ apiClient.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
+
+    if (config.method?.toLowerCase() === 'get') {
+      const key = cacheKey(config.url, config.params);
+      const hit = memCache.get(key);
+      if (hit && hit.exp > Date.now()) {
+        config.adapter = () =>
+          Promise.resolve({
+            data: hit.data,
+            status: 200,
+            statusText: 'OK',
+            headers: {},
+            config,
+          });
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const method = response.config.method?.toLowerCase();
+
+    if (method === 'get') {
+      // Store successful GET responses
+      const key = cacheKey(response.config.url, response.config.params);
+      memCache.set(key, { data: response.data, exp: Date.now() + GET_TTL });
+    } else if (method && method !== 'get') {
+      // Invalidate cached entries for the same resource on any mutation
+      const url = response.config.url ?? '';
+      const segment = url.split('/')[1] ?? '';
+      if (segment) {
+        for (const k of memCache.keys()) {
+          if (k.includes(`/${segment}`)) memCache.delete(k);
+        }
+      }
+    }
+
+    return response;
+  },
   (error: AxiosError<any>) => {
     const requestUrl = String(error.config?.url || '');
     const isLoginRequest =
@@ -77,6 +121,8 @@ export const api = {
       params: packId ? { packId } : undefined,
       responseType: 'blob',
     }),
+  getBookingPdf: (id: string) =>
+    apiClient.get(`/bookings/${id}/booking-pdf`, { responseType: 'blob' }),
   finalizeBooking: (id: string) => apiClient.post(`/bookings/${id}/finalize`),
   partyOverBooking: (
     id: string,

@@ -82,6 +82,8 @@ services:
       - .env
     ports:
       - "3000:3000"
+    environment:
+      INTERNAL_SERVER_URL: http://server:5000
 
   # Nginx Reverse Proxy
   nginx:

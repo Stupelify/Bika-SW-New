@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import { httpCache } from '../middleware/cache.middleware';
 import {
   createBanquet,
   createBanquetSchema,
@@ -21,8 +22,8 @@ router.post(
   validate(createBanquetSchema),
   createBanquet
 );
-router.get('/', requirePermission('view_banquet', 'manage_halls'), getBanquets);
-router.get('/:id', requirePermission('view_banquet', 'manage_halls'), getBanquetById);
+router.get('/', requirePermission('view_banquet', 'manage_halls'), httpCache(60), getBanquets);
+router.get('/:id', requirePermission('view_banquet', 'manage_halls'), httpCache(60), getBanquetById);
 router.put(
   '/:id',
   requirePermission('edit_banquet', 'manage_halls'),

@@ -479,6 +479,7 @@ export default function BookingsPage() {
   const [editingBookingStatus, setEditingBookingStatus] = useState<string | null>(null);
   const [menuEditorPack, setMenuEditorPack] = useState<PackKey | null>(null);
   const [menuItemSearch, setMenuItemSearch] = useState('');
+  const [bookingPdfLoading, setBookingPdfLoading] = useState<string | null>(null); // stores bookingId while loading
   const [menuPdfBookingId, setMenuPdfBookingId] = useState<string | null>(null);
   const [menuPdfBookingName, setMenuPdfBookingName] = useState('');
   const [menuPdfPackOptions, setMenuPdfPackOptions] = useState<BookingMenuPackOption[]>([]);
@@ -2150,6 +2151,32 @@ export default function BookingsPage() {
     if (!menuPdfBookingId || !menuPdfPackId) return;
     void loadMenuPdfPreview(menuPdfBookingId, menuPdfPackId);
   }, [loadMenuPdfPreview, menuPdfBookingId, menuPdfPackId]);
+
+  const handleDownloadBookingPdf = useCallback(async (booking: Booking) => {
+    if (bookingPdfLoading) return;
+    try {
+      setBookingPdfLoading(booking.id);
+      const response = await api.getBookingPdf(booking.id);
+      const blob =
+        response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = (booking.functionName || booking.functionType || booking.customer?.name || 'booking')
+        .trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'booking';
+      link.href = url;
+      link.download = `${safeName}-booking-details.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to generate booking PDF');
+    } finally {
+      setBookingPdfLoading(null);
+    }
+  }, [bookingPdfLoading]);
 
   const handleSubmitBooking = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -5302,6 +5329,8 @@ export default function BookingsPage() {
                         canEditBooking={canEditBooking}
                         canDeleteBooking={canDeleteBooking}
                         onExportPdf={(b) => openMenuPdfModal(b)}
+                        onExportBookingPdf={(b) => handleDownloadBookingPdf(b)}
+                        bookingPdfLoading={bookingPdfLoading}
                         onEdit={(id) => openEditBooking(id)}
                         onDelete={(id) => handleDeleteBooking(id)}
                       />
@@ -5336,6 +5365,8 @@ export default function BookingsPage() {
                           canEditBooking={canEditBooking}
                           canDeleteBooking={canDeleteBooking}
                           onExportPdf={(b) => openMenuPdfModal(b)}
+                          onExportBookingPdf={(b) => handleDownloadBookingPdf(b)}
+                          bookingPdfLoading={bookingPdfLoading}
                           onEdit={(id) => openEditBooking(id)}
                           onDelete={(id) => handleDeleteBooking(id)}
                         />
@@ -5433,6 +5464,19 @@ export default function BookingsPage() {
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                         <td className="py-4 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {canExportMenuPdf && (
+                              <button
+                                type="button"
+                                className="p-2 text-[var(--text-4)] hover:text-teal-700 hover:bg-teal-50 rounded-lg disabled:opacity-50"
+                                onClick={() => handleDownloadBookingPdf(booking)}
+                                title="Download booking details PDF"
+                                disabled={bookingPdfLoading === booking.id}
+                              >
+                                {bookingPdfLoading === booking.id
+                                  ? <span className="w-4 h-4 block border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+                                  : <Download className="w-4 h-4" />}
+                              </button>
+                            )}
                             {canExportMenuPdf && (
                               <button
                                 type="button"

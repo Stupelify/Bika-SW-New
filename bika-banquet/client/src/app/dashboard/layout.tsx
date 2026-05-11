@@ -538,6 +538,7 @@ function DashboardLayoutContent({
         setSidebarOpen(true);
       }}
       aria-label={sidebarCollapsed ? 'Expand navigation' : 'Toggle navigation'}
+      className="header-icon-btn"
       style={{
         border: 'none',
         background: 'transparent',
@@ -990,6 +991,7 @@ function DashboardLayoutContent({
             onClick={handleLogout}
             aria-label="Log out"
             title={isCollapsed ? 'Log out' : undefined}
+            className="header-icon-btn"
             style={{
               border: 'none',
               background: 'none',
@@ -1228,6 +1230,7 @@ function DashboardLayoutContent({
           <button
             type="button"
             aria-label="Help"
+            className="header-icon-btn"
             style={{
               border: 'none',
               background: 'transparent',

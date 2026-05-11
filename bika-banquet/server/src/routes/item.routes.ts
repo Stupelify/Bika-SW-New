@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import { httpCache } from '../middleware/cache.middleware';
 import {
   createItemRecipe,
   createItemRecipeSchema,
@@ -33,8 +34,8 @@ router.post(
   validate(createItemSchema),
   createItem
 );
-router.get('/', requirePermission('view_item', 'manage_menu'), getItems);
-router.get('/:id/recipes', requirePermission('view_item', 'manage_menu'), getItemRecipes);
+router.get('/', requirePermission('view_item', 'manage_menu'), httpCache(60), getItems);
+router.get('/:id/recipes', requirePermission('view_item', 'manage_menu'), httpCache(60), getItemRecipes);
 router.post(
   '/:id/recipes',
   requirePermission('edit_item', 'manage_menu'),

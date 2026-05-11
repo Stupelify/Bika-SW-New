@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  Download,
   Edit,
   FileText,
   IndianRupee,
@@ -35,6 +36,8 @@ interface BookingCardProps {
   canEditBooking: boolean;
   canDeleteBooking: boolean;
   onExportPdf?: (booking: Booking) => void;
+  onExportBookingPdf?: (booking: Booking) => void;
+  bookingPdfLoading?: string | null;
   onEdit?: (bookingId: string) => void;
   onDelete?: (bookingId: string) => void;
 }
@@ -99,6 +102,8 @@ export default function BookingCard({
   canEditBooking,
   canDeleteBooking,
   onExportPdf,
+  onExportBookingPdf,
+  bookingPdfLoading,
   onEdit,
   onDelete,
 }: BookingCardProps) {
@@ -271,6 +276,31 @@ export default function BookingCard({
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {canExportMenuPdf && onExportBookingPdf && (
+            <button
+              type="button"
+              onClick={() => onExportBookingPdf(booking)}
+              title="Booking details PDF"
+              disabled={bookingPdfLoading === booking.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '5px 10px',
+                border: '1px solid var(--teal-300)',
+                background: 'var(--teal-50)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontSize: 12,
+                color: 'var(--teal-700)',
+                fontWeight: 600,
+                opacity: bookingPdfLoading === booking.id ? 0.6 : 1,
+              }}
+            >
+              <Download size={12} />
+              Booking
+            </button>
+          )}
           {canExportMenuPdf && onExportPdf && (
             <button
               type="button"
@@ -291,7 +321,7 @@ export default function BookingCard({
               }}
             >
               <FileText size={12} />
-              PDF
+              Menu
             </button>
           )}
           {canEditBooking && onEdit && (
