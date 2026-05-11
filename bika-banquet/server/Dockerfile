@@ -33,7 +33,7 @@ WORKDIR /app
 ENV PRISMA_CLI_BINARY_TARGETS=linux-arm64-openssl-3.0.x
 
 # Prisma runtime requires OpenSSL shared libraries
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
@@ -54,7 +54,7 @@ EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD node -e "require('http').get('http://localhost:5000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start the server
-CMD ["node", "dist/server.js"]
+CMD ["node_modules/.bin/pm2-runtime", "dist/server.js", "-i", "max"]

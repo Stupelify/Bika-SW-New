@@ -1203,6 +1203,27 @@ function DashboardLayoutContent({
             <SearchShortcut />
           </button>
 
+          <button
+            type="button"
+            aria-label="Quick search"
+            className="md:hidden"
+            onClick={() => setPaletteOpen(true)}
+            style={{
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text-3)',
+              borderRadius: 10,
+              width: 36,
+              height: 36,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <Search style={{ width: 16, height: 16 }} aria-hidden="true" />
+          </button>
+
           <ThemeToggle />
           <button
             type="button"

@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { PageSkeleton } from '@/components/Skeletons';
 import { ArrowLeft, Save } from 'lucide-react';
 import {
+  COUNTRY_OPTIONS,
   COUNTRY_DIAL_CODE_OPTIONS,
   DEFAULT_PHONE_COUNTRY_ISO,
   EMAIL_REGEX,
@@ -21,6 +22,9 @@ import {
   sanitizeNameInput,
   validatePhoneNumberForCountry,
 } from '@/lib/customerFormOptions';
+import { lookupIndianPincode } from '@/lib/pincodeLookup';
+import { INDIA_STATES } from '@/lib/indiaData';
+import { useDebounce } from '@/lib/useDebounce';
 
 interface CustomerFormData {
   name: string;
@@ -28,6 +32,8 @@ interface CustomerFormData {
   phone: string;
   email: string;
   priority: string;
+  country: string;
+  pincode: string;
   city: string;
   state: string;
   address: string;
@@ -40,6 +46,8 @@ const initialFormData: CustomerFormData = {
   phone: '',
   email: '',
   priority: '3',
+  country: 'India',
+  pincode: '',
   city: '',
   state: '',
   address: '',
@@ -54,11 +62,57 @@ export default function EditCustomerPage() {
   const [saving, setSaving] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [pincodeLookupLoading, setPincodeLookupLoading] = useState(false);
+  const [pincodeLookupError, setPincodeLookupError] = useState('');
   const phoneDigits = getExpectedPhoneDigits(formData.phoneCountryIso);
+  const debouncedPincode = useDebounce(formData.pincode, 350);
 
   useEffect(() => {
     void loadCustomer();
   }, [params.id]);
+
+  useEffect(() => {
+    const country = formData.country.trim().toLowerCase();
+    const pincode = digitsOnly(debouncedPincode);
+
+    if (country !== 'india' || !pincode || pincode.length !== 6) {
+      setPincodeLookupLoading(false);
+      setPincodeLookupError('');
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const runLookup = async () => {
+      try {
+        setPincodeLookupLoading(true);
+        setPincodeLookupError('');
+        const result = await lookupIndianPincode(pincode, controller.signal);
+
+        if (!result) {
+          setPincodeLookupError('Could not find city/state for this PIN code.');
+          return;
+        }
+
+        setFormData((prev) =>
+          digitsOnly(prev.pincode) === pincode
+            ? { ...prev, city: result.city, state: result.state }
+            : prev
+        );
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return;
+        setPincodeLookupError('PIN lookup failed. Enter city/state manually.');
+      } finally {
+        if (!controller.signal.aborted) {
+          setPincodeLookupLoading(false);
+        }
+      }
+    };
+
+    void runLookup();
+
+    return () => controller.abort();
+  }, [debouncedPincode, formData.country]);
 
   const loadCustomer = async () => {
     try {
@@ -74,6 +128,8 @@ export default function EditCustomerPage() {
           customer.priority !== null && customer.priority !== undefined
             ? String(customer.priority)
             : '3',
+        country: customer.country || 'India',
+        pincode: customer.pincode || '',
         city: customer.city || '',
         state: customer.state || '',
         address: customer.address || '',
@@ -100,6 +156,7 @@ export default function EditCustomerPage() {
     const name = formData.name.trim();
     const phone = digitsOnly(formData.phone);
     const email = formData.email.trim();
+    const pincode = digitsOnly(formData.pincode);
 
     if (!name || !phone) {
       toast.error('Name and phone are required');
@@ -125,6 +182,10 @@ export default function EditCustomerPage() {
       toast.error(message);
       return;
     }
+    if (pincode && (pincode.length < 4 || pincode.length > 10)) {
+      toast.error('PIN code must contain 4 to 10 digits');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -134,6 +195,8 @@ export default function EditCustomerPage() {
         phoneCountryCode: getPhoneCodeByIso(formData.phoneCountryIso),
         email: email || undefined,
         priority: formData.priority ? Number(formData.priority) : 3,
+        country: formData.country.trim() || undefined,
+        pincode: pincode || undefined,
         city: formData.city.trim() || undefined,
         state: formData.state.trim() || undefined,
         address: formData.address.trim() || undefined,
@@ -267,6 +330,42 @@ export default function EditCustomerPage() {
             </select>
           </div>
           <div>
+            <label className="label">Country</label>
+            <select
+              value={formData.country}
+              onChange={(e) => setField('country', e.target.value)}
+              className="input"
+            >
+              {COUNTRY_OPTIONS.map((country) => (
+                <option key={country} value={country}>
+                  {country}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">PIN Code</label>
+            <input
+              value={formData.pincode}
+              onChange={(e) => {
+                setPincodeLookupError('');
+                setField('pincode', digitsOnly(e.target.value));
+              }}
+              className="input"
+              placeholder="PIN code"
+              inputMode="numeric"
+              maxLength={10}
+            />
+            {formData.country.trim().toLowerCase() === 'india' && (
+              <p className="mt-1 text-xs text-[var(--text-4)]">
+                {pincodeLookupLoading
+                  ? 'Looking up city and state...'
+                  : 'Enter a 6-digit Indian PIN code to auto-fill city and state.'}
+              </p>
+            )}
+            {pincodeLookupError && <p className="mt-1 text-xs text-red-600">{pincodeLookupError}</p>}
+          </div>
+          <div>
             <label className="label">City</label>
             <input
               value={formData.city}
@@ -276,11 +375,24 @@ export default function EditCustomerPage() {
           </div>
           <div>
             <label className="label">State</label>
-            <input
-              value={formData.state}
-              onChange={(e) => setField('state', e.target.value)}
-              className="input"
-            />
+            {formData.country.trim().toLowerCase() === 'india' ? (
+              <select
+                value={formData.state}
+                onChange={(e) => setField('state', e.target.value)}
+                className="input"
+              >
+                <option value="">Select state</option>
+                {INDIA_STATES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={formData.state}
+                onChange={(e) => setField('state', e.target.value)}
+                className="input"
+              />
+            )}
           </div>
         </div>
 

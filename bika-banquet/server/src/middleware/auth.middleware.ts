@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/auth';
+import { verifyToken, TokenPayload } from '../utils/auth';
 import { sendUnauthorized, sendForbidden } from '../utils/response';
 import prisma from '../config/database';
 
@@ -9,6 +9,69 @@ export interface AuthRequest extends Request {
     email: string;
     roles: string[];
     permissions: string[];
+  };
+}
+
+function pathWithoutQuery(value: string | undefined): string {
+  return (value || '').split('?')[0];
+}
+
+function shouldValidateSession(req: Request): boolean {
+  const routePath = pathWithoutQuery(req.originalUrl || req.url);
+  return (
+    (req.method === 'POST' && routePath.endsWith('/auth/logout')) ||
+    (req.method === 'POST' && routePath.endsWith('/auth/change-password'))
+  );
+}
+
+function hasAdminRoleCheck(roles: string[]): boolean {
+  return roles.some((role) => role.trim().toLowerCase() === 'admin');
+}
+
+async function validateSessionAndResolveUser(
+  token: string
+): Promise<TokenPayload | null> {
+  const session = await prisma.session.findUnique({
+    where: { token },
+    include: {
+      user: {
+        include: {
+          userRoles: {
+            include: {
+              role: {
+                include: {
+                  permissions: {
+                    include: {
+                      permission: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!session || session.expiresAt < new Date()) {
+    return null;
+  }
+
+  const roles = session.user.userRoles.map((entry) => entry.role.name);
+  const permissions = [
+    ...new Set(
+      session.user.userRoles.flatMap((entry) =>
+        entry.role.permissions.map((permission) => permission.permission.name)
+      )
+    ),
+  ];
+
+  return {
+    userId: session.userId,
+    email: session.user.email,
+    roles,
+    permissions,
   };
 }
 
@@ -33,47 +96,28 @@ export async function authenticate(
     // Verify token
     const payload = verifyToken(token);
 
-    // Check if session exists and is valid
-    const session = await prisma.session.findUnique({
-      where: { token },
-      include: {
-        user: {
-          include: {
-            userRoles: {
-              include: {
-                role: {
-                  include: {
-                    permissions: {
-                      include: {
-                        permission: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+    const payloadToUse = shouldValidateSession(req)
+      ? await validateSessionAndResolveUser(token)
+      : {
+          userId: payload.userId,
+          email: payload.email,
+          roles: Array.isArray(payload.roles) ? payload.roles : [],
+          permissions: Array.isArray(payload.permissions)
+            ? payload.permissions
+            : [],
+        };
 
-    if (!session || session.expiresAt < new Date()) {
+    if (!payloadToUse) {
       sendUnauthorized(res, 'Session expired');
       return;
     }
 
-    // Extract roles and permissions
-    const roles = session.user.userRoles.map((ur) => ur.role.name);
-    const permissions = session.user.userRoles.flatMap((ur) =>
-      ur.role.permissions.map((rp) => rp.permission.name)
-    );
-
     // Attach user to request
     req.user = {
-      userId: session.userId,
-      email: session.user.email,
-      roles,
-      permissions: [...new Set(permissions)], // Remove duplicates
+      userId: payloadToUse.userId,
+      email: payloadToUse.email,
+      roles: payloadToUse.roles,
+      permissions: payloadToUse.permissions,
     };
 
     next();
@@ -86,12 +130,34 @@ export async function authenticate(
  * Check if user has required role
  */
 export function requireRole(...roles: string[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return sendUnauthorized(res);
     }
 
-    const hasRole = roles.some((role) => req.user!.roles.includes(role));
+    if (hasAdminRoleCheck(roles)) {
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.startsWith('Bearer ')
+        ? authHeader.substring(7)
+        : null;
+
+      if (!token) {
+        return sendUnauthorized(res, 'No token provided');
+      }
+
+      const refreshedUser = await validateSessionAndResolveUser(token);
+      if (!refreshedUser) {
+        return sendUnauthorized(res, 'Session expired');
+      }
+
+      req.user = refreshedUser;
+    }
+
+    const hasRole = roles.some((role) =>
+      req.user!.roles.some(
+        (userRole) => userRole.trim().toLowerCase() === role.trim().toLowerCase()
+      )
+    );
 
     if (!hasRole) {
       return sendForbidden(res, 'Insufficient permissions');

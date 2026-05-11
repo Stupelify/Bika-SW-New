@@ -1,23 +1,9 @@
 import type { Metadata, Viewport } from 'next';
-import { Manrope, Instrument_Serif } from 'next/font/google';
+import type { CSSProperties } from 'react';
 import './globals.css';
 import './mobile.css';
 import { Toaster } from 'sonner';
 import IonicProvider from '@/components/IonicProvider';
-
-const manrope = Manrope({
-  subsets: ['latin'],
-  variable: '--font-manrope',
-  display: 'swap',
-});
-
-const instrumentSerif = Instrument_Serif({
-  weight: ['400'],
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -52,7 +38,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} ${instrumentSerif.variable}`}>
+      <body
+        style={
+          {
+            '--font-manrope':
+              'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            '--font-display': '"Georgia", "Times New Roman", serif',
+          } as CSSProperties
+        }
+      >
         <IonicProvider>{children}</IonicProvider>
         <Toaster position="top-right" richColors />
       </body>

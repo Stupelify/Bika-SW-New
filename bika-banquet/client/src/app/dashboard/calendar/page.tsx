@@ -20,6 +20,8 @@ import {
 import { api } from '@/lib/api';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { CalendarSkeleton } from '@/components/Skeletons';
+import EmptyState from '@/components/EmptyState';
+import StatusBadge from '@/components/StatusBadge';
 
 interface BookingCalendarRow {
   id: string;
@@ -31,6 +33,10 @@ interface BookingCalendarRow {
   endTime?: string | null;
   expectedGuests: number;
   grandTotal: number;
+  paymentReceived?: number | string | null;
+  balanceAmount?: number | string | null;
+  dueAmount?: number | string | null;
+  versionNumber?: number | null;
   status: string;
   isQuotation: boolean;
   halls?: Array<{
@@ -309,6 +315,33 @@ function toSafeNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function resolveBookingStatus(entry: Pick<BookingCalendarRow, 'isQuotation' | 'status'>): string {
+  return entry.isQuotation ? 'quotation' : (entry.status || 'pending').toLowerCase();
+}
+
+function resolveEnquiryStatus(entry: Pick<EnquiryCalendarRow, 'isPencilBooked' | 'status'>): string {
+  return entry.isPencilBooked ? 'pencil' : (entry.status || 'enquiry').toLowerCase();
+}
+
+function getPaymentSnapshot(entry: BookingCalendarRow): {
+  total: number;
+  paid: number;
+  balance: number;
+  percent: number;
+  label: string;
+  tone: 'paid' | 'partial' | 'outstanding';
+} {
+  const total = toSafeNumber(entry.grandTotal);
+  const explicitPaid = toSafeNumber(entry.paymentReceived);
+  const explicitBalance = toSafeNumber(entry.balanceAmount ?? entry.dueAmount);
+  const paid = explicitPaid > 0 ? explicitPaid : Math.max(0, total - explicitBalance);
+  const balance = explicitBalance > 0 ? explicitBalance : Math.max(0, total - paid);
+  const percent = total > 0 ? clamp(Math.round((paid / total) * 100), 0, 100) : 0;
+  const tone = total > 0 && balance <= 0 ? 'paid' : paid > 0 ? 'partial' : 'outstanding';
+  const label = tone === 'paid' ? 'Paid' : tone === 'partial' ? 'Partial' : 'Outstanding';
+  return { total, paid, balance, percent, label, tone };
+}
+
 function formatDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -483,6 +516,40 @@ function findOverlaps(parties: HallScheduleParty[]) {
     }
   }
   return overlaps;
+}
+
+function findDayHallConflicts(bookingsForDay: BookingCalendarRow[]) {
+  const byHall = new Map<string, HallScheduleParty[]>();
+
+  bookingsForDay
+    .filter((booking) => resolveBookingStatus(booking) !== 'cancelled')
+    .forEach((booking) => {
+      const hallNames = getBookingHallNames(booking);
+      const effectiveHallNames = hallNames.length > 0 ? hallNames : ['Unassigned Hall'];
+      const { startMinutes, endMinutes } = resolveBookingTimeRange(booking);
+
+      effectiveHallNames.forEach((hallName) => {
+        const bucket = byHall.get(hallName) || [];
+        bucket.push({
+          id: booking.id,
+          title: booking.functionName,
+          date: booking.functionDate,
+          timeLabel: bookingTimeLabel(booking),
+          status: resolveBookingStatus(booking),
+          customerName: booking.customer?.name || 'Customer',
+          customerPhone: booking.customer?.phone || '--',
+          guests: toSafeNumber(booking.expectedGuests),
+          sortMinutes: bookingSortMinutes(booking),
+          startMinutes,
+          endMinutes,
+        });
+        byHall.set(hallName, bucket);
+      });
+    });
+
+  return Array.from(byHall.entries()).flatMap(([hallName, parties]) =>
+    findOverlaps(parties).map((overlap) => ({ hallName, ...overlap }))
+  );
 }
 
 function parseDateKey(key: string): Date {
@@ -865,12 +932,8 @@ export default function CalendarPage() {
         if (!hasSelectedHall && hallNames.length > 0) return false;
       }
       // Status filter
-      const effectiveStatus = entry.isQuotation ? 'quotation' : (entry.status || 'confirmed').toLowerCase();
-      if (!selectedStatuses.has(effectiveStatus) && !selectedStatuses.has('confirmed')) {
-        // Allow if any overlap
-        if (effectiveStatus === 'confirmed' && !selectedStatuses.has('confirmed')) return false;
-        if (effectiveStatus === 'quotation' && !selectedStatuses.has('quotation')) return false;
-      }
+      const effectiveStatus = resolveBookingStatus(entry);
+      if (!selectedStatuses.has(effectiveStatus)) return false;
       return true;
     });
   }, [bookings, searchQuery, sourceFilter, selectedHallIds, selectedStatuses]);
@@ -889,9 +952,8 @@ export default function CalendarPage() {
         if (!haystack.includes(searchQuery)) return false;
       }
       // Status filter — map enquiry statuses
-      const isPencil = entry.isPencilBooked;
-      const effectiveStatus = isPencil ? 'pencil' : 'enquiry';
-      if (!selectedStatuses.has(effectiveStatus) && !selectedStatuses.has('enquiry')) return false;
+      const effectiveStatus = resolveEnquiryStatus(entry);
+      if (!selectedStatuses.has(effectiveStatus)) return false;
       return true;
     });
   }, [enquiries, searchQuery, sourceFilter, selectedStatuses]);
@@ -980,6 +1042,18 @@ export default function CalendarPage() {
   const selectedBookings = bookingsByDate.get(selectedDate) || [];
   const selectedEnquiries = enquiriesByDate.get(selectedDate) || [];
   const selectedGoogleEvents = googleEventsByDate.get(selectedDate) || [];
+  const selectedDayConflicts = useMemo(
+    () => findDayHallConflicts(selectedBookings),
+    [selectedBookings]
+  );
+  const selectedDayRevenue = selectedBookings.reduce(
+    (sum, booking) => sum + toSafeNumber(booking.grandTotal),
+    0
+  );
+  const selectedDayGuests = selectedBookings.reduce(
+    (sum, booking) => sum + toSafeNumber(booking.expectedGuests),
+    0
+  );
   const noSelectedEvents =
     selectedBookings.length === 0 &&
     selectedEnquiries.length === 0 &&
@@ -1040,7 +1114,7 @@ export default function CalendarPage() {
     const timelineHeight = 560;
 
     const bookingsTimeline = selectedBookings
-      .filter((booking) => booking.status !== 'cancelled')
+      .filter((booking) => resolveBookingStatus(booking) !== 'cancelled')
       .map((booking) => {
         const { startMinutes, endMinutes } = resolveBookingTimeRange(booking);
         const palette = getLocationPalette(getPrimaryHallName(booking));
@@ -1155,6 +1229,70 @@ export default function CalendarPage() {
     return base;
   }, [weekDays, bookingsByDate, enquiriesByDate, googleEventsByDate]);
 
+  const weekHallGroups = useMemo(() => {
+    const visibleHallIds = selectedHallIds ?? new Set(halls.map((hall) => hall.id));
+    const hallRows = halls
+      .filter((hall) => visibleHallIds.has(hall.id))
+      .map((hall) => ({
+        hallId: hall.id,
+        hallName: hall.name,
+        banquetName: hall.banquetName?.trim() || 'Unassigned',
+        days: weekDays.map((day) => ({
+          dayKey: formatDateKey(day),
+          entries: [] as BookingCalendarRow[],
+          conflicts: 0,
+        })),
+      }));
+
+    const rowMap = new Map(hallRows.map((row) => [row.hallId, row]));
+
+    filteredBookings
+      .filter((booking) => resolveBookingStatus(booking) !== 'cancelled')
+      .forEach((booking) => {
+        const dayKey = dateToKey(booking.functionDate);
+        if (!dayKey) return;
+
+        const hallIds = (booking.halls || [])
+          .map((hallRow) => hallRow.hall?.id || hallRow.hallId || '')
+          .filter(Boolean);
+
+        hallIds.forEach((hallId) => {
+          const row = rowMap.get(hallId);
+          if (!row) return;
+          const cell = row.days.find((day) => day.dayKey === dayKey);
+          if (!cell) return;
+          cell.entries.push(booking);
+        });
+      });
+
+    hallRows.forEach((row) => {
+      row.days.forEach((day) => {
+        day.entries.sort((a, b) => bookingSortMinutes(a) - bookingSortMinutes(b));
+        day.conflicts = findDayHallConflicts(day.entries).filter(
+          (conflict) => conflict.hallName === row.hallName
+        ).length;
+      });
+    });
+
+    const grouped = new Map<string, typeof hallRows>();
+    hallRows.forEach((row) => {
+      const bucket = grouped.get(row.banquetName) || [];
+      bucket.push(row);
+      grouped.set(row.banquetName, bucket);
+    });
+
+    return Array.from(grouped.entries())
+      .sort(([left], [right]) => {
+        if (left === 'Unassigned') return 1;
+        if (right === 'Unassigned') return -1;
+        return left.localeCompare(right);
+      })
+      .map(([banquetName, rows]) => ({
+        banquetName,
+        rows: rows.sort((a, b) => a.hallName.localeCompare(b.hallName)),
+      }));
+  }, [filteredBookings, halls, selectedHallIds, weekDays]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.innerWidth >= 1024) return;
@@ -1164,7 +1302,7 @@ export default function CalendarPage() {
 
   // ── Per-hall stats for sidebar ───────────────────────────────────────────
   const hallStats = useMemo(() => {
-    const activeBookings = bookings.filter((b) => b.status !== 'cancelled');
+    const activeBookings = bookings.filter((b) => resolveBookingStatus(b) !== 'cancelled');
     const maxBookings = halls.reduce((max, hall) => {
       const count = activeBookings.filter((b) =>
         (b.halls || []).some((h) => h.hall?.id === hall.id)
@@ -1199,8 +1337,8 @@ export default function CalendarPage() {
   // ── End per-hall stats ────────────────────────────────────────────────────
 
   const summary = useMemo(() => {
-    const activeBookings = filteredBookings.filter((entry) => entry.status !== 'cancelled');
-    const cancelledBookings = filteredBookings.filter((entry) => entry.status === 'cancelled')
+    const activeBookings = filteredBookings.filter((entry) => resolveBookingStatus(entry) !== 'cancelled');
+    const cancelledBookings = filteredBookings.filter((entry) => resolveBookingStatus(entry) === 'cancelled')
       .length;
     const confirmedBookings = activeBookings.filter((entry) => !entry.isQuotation).length;
     const monthlyRevenue = activeBookings.reduce(
@@ -1408,7 +1546,7 @@ export default function CalendarPage() {
   }, [halls]);
 
   const hallBoardRows = useMemo<HallBoardRow[]>(() => {
-    const blockedBookings = filteredBookings.filter((entry) => entry.status !== 'cancelled');
+    const blockedBookings = filteredBookings.filter((entry) => resolveBookingStatus(entry) !== 'cancelled');
     const map = new Map<string, HallBoardRow>();
 
     halls.forEach((hall) => {
@@ -1546,9 +1684,11 @@ export default function CalendarPage() {
 
   const STATUS_FILTERS = [
     { key: 'confirmed', label: 'Confirmed', color: '#10b981', icon: '✓' },
+    { key: 'pending', label: 'Pending', color: '#f59e0b', icon: '•' },
     { key: 'quotation', label: 'Quotation', color: '#6366f1', icon: '◎' },
     { key: 'enquiry',   label: 'Enquiry',   color: '#f59e0b', icon: '?' },
     { key: 'pencil',    label: 'Pencil',    color: '#6b7280', icon: '✏' },
+    { key: 'cancelled', label: 'Cancelled', color: '#ef4444', icon: '×' },
   ] as const;
 
   return (
@@ -1556,7 +1696,7 @@ export default function CalendarPage() {
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-1)]">Calendar</h1>
         <p className="text-[var(--text-2)] mt-1">
-          Track software events and imported Google venue events with clear source tags.
+          Track bookings, enquiries, hall occupancy, conflicts, and venue events in one operations view.
         </p>
       </div>
 
@@ -1565,7 +1705,7 @@ export default function CalendarPage() {
 
         {/* ── Collapsible Sidebar ── */}
         <aside
-          className={`shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${
+          className={`hidden lg:block shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${
             sidebarOpen ? 'w-64' : 'w-12'
           }`}
         >
@@ -1816,7 +1956,7 @@ export default function CalendarPage() {
         </aside>
 
         {/* ── Main calendar area ── */}
-        <div className="flex-1 min-w-0 space-y-4 pl-4">
+        <div className="flex-1 min-w-0 space-y-4 pl-0 lg:pl-4">
 
       <div className="card">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
@@ -1924,7 +2064,7 @@ export default function CalendarPage() {
               {(
                 [
                   ['calendar', 'Calendar'],
-                  ['hallBoard', 'Hall Board'],
+                  ['hallBoard', 'Hall Timeline'],
                 ] as const
               ).map(([mode, label]) => (
                 <button
@@ -2142,8 +2282,18 @@ export default function CalendarPage() {
                               const dayEnquiries = enquiriesByDate.get(dayKey) || [];
                               const dayGoogleEvents = googleEventsByDate.get(dayKey) || [];
                               const activeDayBookings = dayBookings.filter(
-                                (booking) => booking.status !== 'cancelled'
+                                (booking) => resolveBookingStatus(booking) !== 'cancelled'
                               );
+                              const confirmedCount = activeDayBookings.filter(
+                                (booking) => resolveBookingStatus(booking) === 'confirmed'
+                              ).length;
+                              const pendingCount = activeDayBookings.filter(
+                                (booking) => resolveBookingStatus(booking) === 'pending'
+                              ).length;
+                              const quotationCount = activeDayBookings.filter(
+                                (booking) => resolveBookingStatus(booking) === 'quotation'
+                              ).length;
+                              const conflictCount = findDayHallConflicts(dayBookings).length;
                               const dayGuestCount = activeDayBookings.reduce(
                                 (sum, booking) => sum + toSafeNumber(booking.expectedGuests),
                                 0
@@ -2159,7 +2309,7 @@ export default function CalendarPage() {
                                   id: booking.id,
                                   label: booking.functionName,
                                   kind: 'booking' as const,
-                                  status: booking.status,
+                                  status: resolveBookingStatus(booking),
                                   hall: getPrimaryHallName(booking),
                                   minutes: bookingSortMinutes(booking),
                                 })),
@@ -2290,6 +2440,35 @@ export default function CalendarPage() {
                                       </span>
                                     )}
                                   </div>
+                                  {(confirmedCount > 0 || pendingCount > 0 || quotationCount > 0 || dayEnquiries.length > 0 || conflictCount > 0) && (
+                                    <div className="mt-2 flex flex-wrap gap-1 text-[10px] font-semibold relative z-10">
+                                      {confirmedCount > 0 && (
+                                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700">
+                                          {confirmedCount} confirmed
+                                        </span>
+                                      )}
+                                      {pendingCount > 0 && (
+                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
+                                          {pendingCount} pending
+                                        </span>
+                                      )}
+                                      {quotationCount > 0 && (
+                                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-700">
+                                          {quotationCount} quote
+                                        </span>
+                                      )}
+                                      {dayEnquiries.length > 0 && (
+                                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700">
+                                          {dayEnquiries.length} enquiry
+                                        </span>
+                                      )}
+                                      {conflictCount > 0 && (
+                                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">
+                                          {conflictCount} conflict
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                 </button>
                               );
                             })}
@@ -2524,12 +2703,13 @@ export default function CalendarPage() {
                     </div>
 
                     <div className="hidden md:block overflow-x-auto">
-                      <div className="min-w-[1080px] overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)]">
-                        <div className="grid grid-cols-[104px_repeat(7,minmax(0,1fr))] border-b border-[var(--border)] bg-[var(--surface-2)]">
-                          <div className="flex items-center justify-center border-r border-[var(--border)] px-3 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-4)]">
-                            Slot
+                      <div className="min-w-[1180px] overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)]">
+                        <div className="grid grid-cols-[220px_repeat(7,minmax(0,1fr))] border-b border-[var(--border)] bg-[var(--surface-2)]">
+                          <div className="flex items-center border-r border-[var(--border)] px-4 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-4)]">
+                            Banquet / Hall
                           </div>
-                          {weekSlotMatrix.map(({ day, dayKey }) => {
+                          {weekDays.map((day) => {
+                            const dayKey = formatDateKey(day);
                             const isSelected = dayKey === selectedDate;
                             const isToday = dayKey === todayKey;
                             return (
@@ -2558,111 +2738,116 @@ export default function CalendarPage() {
                           })}
                         </div>
 
-                        {(Object.keys(SERVICE_SLOT_LABELS) as ServiceSlot[]).map((slotKey) => (
-                          <div
-                            key={slotKey}
-                            className="grid grid-cols-[104px_repeat(7,minmax(0,1fr))] border-b border-[var(--border)] last:border-b-0"
-                          >
-                            <div className="flex items-start justify-center border-r border-[var(--border)] bg-[var(--surface-2)] px-3 py-4 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--text-4)]">
-                              {SERVICE_SLOT_LABELS[slotKey]}
-                            </div>
-                            {weekSlotMatrix.map(({ dayKey, buckets }) => {
-                              const entries = buckets[slotKey];
-                              const isSelected = dayKey === selectedDate;
-                              return (
-                                <button
-                                  key={`${dayKey}-${slotKey}`}
-                                  type="button"
-                                  onClick={() => setSelectedDate(dayKey)}
-                                  className={`min-h-[132px] border-r border-[var(--border)] px-2 py-2 text-left align-top last:border-r-0 ${isSelected ? 'bg-primary-50/70' : 'bg-[var(--surface)]'}`}
-                                >
-                                  {entries.length === 0 ? (
-                                    <div className="flex h-full min-h-[112px] items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-[11px] font-medium text-[var(--text-4)]">
-                                      Available
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {entries.slice(0, 2).map((entry) => {
-                                        if (entry.type === 'booking') {
-                                          const palette = getLocationPalette(getPrimaryHallName(entry.row));
-                                          return (
-                                            <button
-                                              key={entry.row.id}
-                                              type="button"
-                                              onClick={(event) => {
-                                                event.stopPropagation();
-                                                void openBookingDetails(entry.row.id);
-                                              }}
-                                              className="w-full rounded-xl px-2.5 py-2 text-left"
-                                              style={{
-                                                background: palette.soft,
-                                                borderLeft: `4px solid ${palette.border}`,
-                                              }}
-                                            >
-                                              <div className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: palette.text }}>
-                                                {bookingTimeLabel(entry.row)}
-                                              </div>
-                                              <div className="mt-1 text-xs font-bold text-[var(--text-1)]">
-                                                {compactFunctionLabel(entry.row.functionName, 18)}
-                                              </div>
-                                              <div className="mt-1 text-[11px] text-[var(--text-3)]">
-                                                {compactLocationLabel(getPrimaryHallName(entry.row))}
-                                              </div>
-                                            </button>
-                                          );
-                                        }
-                                        if (entry.type === 'enquiry') {
-                                          return (
-                                            <button
-                                              key={entry.row.id}
-                                              type="button"
-                                              onClick={(event) => {
-                                                event.stopPropagation();
-                                                openEnquiryDetails(entry.row.id);
-                                              }}
-                                              className="w-full rounded-xl border-l-4 border-amber-400 bg-amber-50 px-2.5 py-2 text-left"
-                                            >
-                                              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-amber-700">
-                                                {entry.row.functionTime || '--:--'}
-                                              </div>
-                                              <div className="mt-1 text-xs font-bold text-amber-900">
-                                                {compactFunctionLabel(entry.row.functionName, 18)}
-                                              </div>
-                                              <div className="mt-1 text-[11px] text-amber-800">
-                                                Lead enquiry
-                                              </div>
-                                            </button>
-                                          );
-                                        }
-                                        return (
-                                          <div
-                                            key={entry.row.id}
-                                            className="w-full rounded-xl border-l-4 border-sky-400 bg-sky-50 px-2.5 py-2 text-left"
-                                          >
-                                            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-sky-700">
-                                              {googleEventTimeLabel(entry.row)}
-                                            </div>
-                                            <div className="mt-1 text-xs font-bold text-sky-900">
-                                              {compactFunctionLabel(entry.row.title, 18)}
-                                            </div>
-                                            <div className="mt-1 text-[11px] text-sky-800">
-                                              {compactLocationLabel(entry.row.venueName)}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                      {entries.length > 2 && (
-                                        <div className="px-1 text-[10px] font-semibold text-[var(--text-4)]">
-                                          +{entries.length - 2} more
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </button>
-                              );
-                            })}
+                        {weekHallGroups.length === 0 ? (
+                          <div className="p-6">
+                            <EmptyState
+                              icon={Building2}
+                              title="No halls available"
+                              description="No visible halls match the current filters for this week."
+                              variant="page"
+                            />
                           </div>
-                        ))}
+                        ) : (
+                          weekHallGroups.map((group) => (
+                            <div key={group.banquetName} className="border-b border-[var(--border)] last:border-b-0">
+                              <div className="border-b border-[var(--border)] bg-[var(--bg)] px-4 py-3">
+                                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--text-4)]">
+                                  {group.banquetName}
+                                </p>
+                              </div>
+
+                              {group.rows.map((row, rowIndex) => (
+                                <div
+                                  key={row.hallId}
+                                  className={`grid grid-cols-[220px_repeat(7,minmax(0,1fr))] ${rowIndex < group.rows.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
+                                >
+                                  <div className="border-r border-[var(--border)] px-4 py-4 bg-[var(--surface)]">
+                                    <p className="text-sm font-semibold text-[var(--text-1)]">{row.hallName}</p>
+                                    <p className="mt-1 text-[11px] text-[var(--text-4)]">
+                                      {group.banquetName}
+                                    </p>
+                                  </div>
+
+                                  {row.days.map((day) => {
+                                    const isSelected = day.dayKey === selectedDate;
+                                    return (
+                                      <button
+                                        key={`${row.hallId}-${day.dayKey}`}
+                                        type="button"
+                                        onClick={() => setSelectedDate(day.dayKey)}
+                                        className={`min-h-[148px] border-r border-[var(--border)] px-2 py-2 text-left align-top last:border-r-0 ${isSelected ? 'bg-primary-50/70' : 'bg-[var(--surface)]'}`}
+                                      >
+                                        {day.entries.length === 0 ? (
+                                          <div className="flex h-full min-h-[126px] items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-[11px] font-medium text-[var(--text-4)]">
+                                            Available
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-2">
+                                            {day.conflicts > 0 && (
+                                              <div className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                                                {day.conflicts} conflict{day.conflicts === 1 ? '' : 's'}
+                                              </div>
+                                            )}
+                                            {day.entries.slice(0, 2).map((booking) => {
+                                              const payment = getPaymentSnapshot(booking);
+                                              return (
+                                                <button
+                                                  key={booking.id}
+                                                  type="button"
+                                                  onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    void openBookingDetails(booking.id);
+                                                  }}
+                                                  className="w-full rounded-xl px-2.5 py-2 text-left"
+                                                  style={{
+                                                    background: getLocationPalette(row.hallName).soft,
+                                                    borderLeft: `4px solid ${getLocationPalette(row.hallName).border}`,
+                                                  }}
+                                                >
+                                                  <div className="flex items-start justify-between gap-2">
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: getLocationPalette(row.hallName).text }}>
+                                                      {bookingTimeLabel(booking)}
+                                                    </div>
+                                                    <StatusBadge status={resolveBookingStatus(booking)} size="sm" />
+                                                  </div>
+                                                  <div className="mt-1 text-xs font-bold text-[var(--text-1)]">
+                                                    {compactFunctionLabel(booking.functionName, 20)}
+                                                  </div>
+                                                  <div className="mt-1 text-[11px] text-[var(--text-3)]">
+                                                    {booking.customer?.name || 'Customer'} • {toSafeNumber(booking.expectedGuests)} guests
+                                                  </div>
+                                                  {payment.total > 0 && (
+                                                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/70">
+                                                      <div
+                                                        className={`h-full rounded-full ${
+                                                          payment.tone === 'paid'
+                                                            ? 'bg-emerald-500'
+                                                            : payment.tone === 'partial'
+                                                              ? 'bg-amber-500'
+                                                              : 'bg-red-500'
+                                                        }`}
+                                                        style={{ width: `${payment.percent}%` }}
+                                                      />
+                                                    </div>
+                                                  )}
+                                                </button>
+                                              );
+                                            })}
+                                            {day.entries.length > 2 && (
+                                              <div className="px-1 text-[10px] font-semibold text-[var(--text-4)]">
+                                                +{day.entries.length - 2} more
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
                     </>
@@ -2801,8 +2986,8 @@ export default function CalendarPage() {
                               </div>
                             </div>
                             <p className="text-xs text-[var(--text-2)] mt-1">{entry.subtitle}</p>
-                            <p className="text-xs text-[var(--text-2)] mt-1 capitalize">
-                              {entry.status}
+                            <p className="text-xs text-[var(--text-2)] mt-1">
+                              <StatusBadge status={entry.status} size="sm" />
                               {entry.kind === 'booking' && typeof entry.amount === 'number' && (
                                 <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
                               )}
@@ -2826,6 +3011,22 @@ export default function CalendarPage() {
                 <div>
                   <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Selected Day</p>
                   <h2 className="text-lg font-semibold text-[var(--text-1)] mt-1">{selectedDateLabel}</h2>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 font-semibold text-[var(--text-2)]">
+                      {selectedBookings.length} bookings
+                    </span>
+                    <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 font-semibold text-[var(--text-2)]">
+                      {selectedDayGuests.toLocaleString('en-IN')} guests
+                    </span>
+                    <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 font-semibold text-[var(--text-2)]">
+                      ₹{selectedDayRevenue.toLocaleString('en-IN')}
+                    </span>
+                    {selectedDayConflicts.length > 0 && (
+                      <span className="rounded-full bg-red-100 px-2.5 py-1 font-semibold text-red-700">
+                        {selectedDayConflicts.length} hall conflict{selectedDayConflicts.length === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -2838,15 +3039,29 @@ export default function CalendarPage() {
               </div>
 
               {noSelectedEvents ? (
-                <div className="empty-state" style={{ padding: '32px 16px' }}>
-                  <div className="empty-state-icon">
-                    <CalendarDays size={22} />
-                  </div>
-                  <p className="empty-state-title">No events</p>
-                  <p className="empty-state-desc">Nothing scheduled for this date.</p>
-                </div>
+                <EmptyState
+                  icon={CalendarDays}
+                  title="No events scheduled"
+                  description="This day is open across bookings, enquiries, and synced venue calendars."
+                  variant="page"
+                />
               ) : (
                 <div className="space-y-4">
+                  {selectedDayConflicts.length > 0 && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                      <p className="font-semibold">Hall time conflicts need review</p>
+                      <div className="mt-1 space-y-1 text-xs">
+                        {selectedDayConflicts.slice(0, 3).map((conflict) => (
+                          <p key={`${conflict.hallName}-${conflict.first.id}-${conflict.second.id}`}>
+                            {conflict.hallName}: {conflict.first.timeLabel} {conflict.first.title} overlaps {conflict.second.timeLabel} {conflict.second.title}
+                          </p>
+                        ))}
+                        {selectedDayConflicts.length > 3 && (
+                          <p>+{selectedDayConflicts.length - 3} more conflicts</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-semibold text-[var(--text-1)]">Bookings</p>
@@ -2864,38 +3079,57 @@ export default function CalendarPage() {
                           <p className="empty-state-desc">Nothing booked for this date.</p>
                         </div>
                       ) : (
-                        selectedBookings.map((booking) => (
-                          <button
-                            key={booking.id}
-                            type="button"
-                            onClick={() => void openBookingDetails(booking.id)}
-                            className="rounded-lg border border-[var(--border)] bg-white p-2.5 text-left hover:border-primary-300 hover:bg-primary-50 transition"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-medium text-[var(--text-1)] truncate">{booking.functionName}</p>
-                              <span
-                                className={`status-pill ${booking.isQuotation
-                                    ? 'status-quotation'
-                                    : booking.status === 'confirmed'
-                                      ? 'status-confirmed'
-                                      : booking.status === 'cancelled'
-                                        ? 'status-cancelled'
-                                        : 'status-pending'
-                                  }`}
-                              >
-                                {booking.isQuotation ? 'quotation' : booking.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-[var(--text-2)] mt-1">
-                              {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
-                              {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
-                            </p>
-                            <p className="text-xs text-[var(--text-2)] mt-0.5">
-                              {bookingTimeLabel(booking)} • ₹
-                              {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
-                            </p>
-                          </button>
-                        ))
+                        selectedBookings.map((booking) => {
+                          const payment = getPaymentSnapshot(booking);
+                          return (
+                            <button
+                              key={booking.id}
+                              type="button"
+                              onClick={() => void openBookingDetails(booking.id)}
+                              className="rounded-lg border border-[var(--border)] bg-white p-3 text-left hover:border-primary-300 hover:bg-primary-50 transition"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-[var(--text-1)] truncate">{booking.functionName}</p>
+                                  {toSafeNumber(booking.versionNumber) > 1 && (
+                                    <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                      v{booking.versionNumber}
+                                    </span>
+                                  )}
+                                </div>
+                                <StatusBadge status={resolveBookingStatus(booking)} size="sm" />
+                              </div>
+                              <p className="text-xs text-[var(--text-2)] mt-2">
+                                {booking.customer?.name || 'Customer'} • {booking.expectedGuests} guests •{' '}
+                                {getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}
+                              </p>
+                              <p className="text-xs text-[var(--text-2)] mt-0.5">
+                                {bookingTimeLabel(booking)} • ₹
+                                {toSafeNumber(booking.grandTotal).toLocaleString('en-IN')}
+                              </p>
+                              {payment.total > 0 && (
+                                <div className="mt-2">
+                                  <div className="flex items-center justify-between text-[11px] font-medium text-[var(--text-3)]">
+                                    <span>{payment.label}</span>
+                                    <span>₹{payment.paid.toLocaleString('en-IN')} of ₹{payment.total.toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        payment.tone === 'paid'
+                                          ? 'bg-emerald-500'
+                                          : payment.tone === 'partial'
+                                            ? 'bg-amber-500'
+                                            : 'bg-red-500'
+                                      }`}
+                                      style={{ width: `${payment.percent}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -2963,9 +3197,9 @@ export default function CalendarPage() {
                                     <p className="text-[11px] text-[var(--text-2)] mt-0.5">
                                       {party.customerName} • {party.customerPhone} • {party.guests} guests
                                     </p>
-                                    <p className="text-[11px] text-[var(--text-2)] mt-0.5 capitalize">
-                                      {party.status}
-                                    </p>
+                                    <div className="mt-1">
+                                      <StatusBadge status={party.status} size="sm" />
+                                    </div>
                                   </button>
                                 ))}
                               </div>
@@ -3005,9 +3239,7 @@ export default function CalendarPage() {
                                 >
                                   {enquiry.functionName}
                                 </button>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-2)] text-[var(--text-2)]">
-                                  {enquiry.isPencilBooked ? 'pencil' : enquiry.status}
-                                </span>
+                                <StatusBadge status={resolveEnquiryStatus(enquiry)} size="sm" />
                               </div>
                               <p className="text-xs text-[var(--text-2)] mt-1">
                                 {enquiry.customer?.name || 'Lead'} • {enquiry.expectedGuests} guests
@@ -3144,7 +3376,7 @@ export default function CalendarPage() {
                         </span>
                       </p>
                       <p className="text-xs text-[var(--text-2)] mt-1">
-                        <span className="capitalize">{entry.status}</span>
+                        <StatusBadge status={entry.status} size="sm" />
                         {entry.kind === 'booking' && typeof entry.amount === 'number' && (
                           <span> • ₹{entry.amount.toLocaleString('en-IN')}</span>
                         )}
@@ -3162,9 +3394,9 @@ export default function CalendarPage() {
         <div className="card">
           <div className="panel-header">
             <div>
-              <h2 className="text-lg font-semibold text-[var(--text-1)]">Hall Booking Board</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Hall Timeline</h2>
               <p className="text-sm text-[var(--text-2)] mt-1">
-                Timeline view for <span className="font-medium">{selectedDateLabel}</span>.{' '}
+                Hall-first availability and conflict view for <span className="font-medium">{selectedDateLabel}</span>.{' '}
                 <span className="text-xs text-[var(--text-4)]">(Range: {hallBoardRangeLabel})</span>
               </p>
             </div>
@@ -3268,6 +3500,9 @@ export default function CalendarPage() {
                                       {slot.guests ? `${slot.guests} guests • ` : ''}
                                       {slot.source === 'google' ? 'Google' : 'Software'}
                                     </p>
+                                    <div className="mt-1.5">
+                                      <StatusBadge status={slot.status} size="sm" />
+                                    </div>
                                   </button>
                                 ))}
                               </div>
@@ -3339,11 +3574,12 @@ export default function CalendarPage() {
                     </div>
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
                       <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Status</p>
-                      <p className="text-sm font-semibold text-[var(--text-1)] mt-1 capitalize">
-                        {bookingDetails.isQuotation
-                          ? 'Quotation'
-                          : bookingDetails.status || 'Pending'}
-                      </p>
+                      <div className="mt-1">
+                        <StatusBadge
+                          status={bookingDetails.isQuotation ? 'quotation' : bookingDetails.status || 'pending'}
+                          size="sm"
+                        />
+                      </div>
                     </div>
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
                       <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Customer</p>

@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
+import path from 'path';
+import { Worker } from 'worker_threads';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import PDFDocument from 'pdfkit';
 import prisma from '../config/database';
 import { sendSuccess, sendError, sendNotFound } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -14,6 +15,8 @@ import {
   cancelBookingEventInGoogleCalendar,
   syncBookingEventToGoogleCalendar,
 } from '../services/googleCalendar.service';
+import { broadcastBookingEvent } from '../sse';
+import logger from '../utils/logger';
 
 // Validation schemas
 export const createBookingSchema = z.object({
@@ -75,7 +78,7 @@ export const createBookingSchema = z.object({
     })).optional(),
     additionalItems: z.array(z.object({
       description: z.string().min(1).max(200, 'Description must be at most 200 characters'),
-      charges: z.number(),
+      charges: z.number().min(0, 'Charges must be non-negative'),
       quantity: z.number().min(1).optional(),
     })).optional(),
     discountAmount: z.number().min(0).optional(),
@@ -173,7 +176,7 @@ export const updateBookingSchema = z.object({
               .string()
               .min(1)
               .max(200, 'Description must be at most 200 characters'),
-            charges: z.number(),
+            charges: z.number().min(0, 'Charges must be non-negative'),
             quantity: z.number().min(1).optional(),
           })
         )
@@ -261,6 +264,71 @@ function toStoredNumberString(value: number | undefined): string | undefined {
 
 function toJsonSnapshot(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+async function runSerializableBookingTransaction<T>(
+  operation: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      const isSerializationFailure =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2034';
+
+      if (!isSerializationFailure || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Serializable transaction failed');
+}
+
+function isHallClashConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2004' &&
+    String(error.message).includes('booking_halls_hall_time_range_excl')
+  );
+}
+
+function isRetryableSerializableError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2034'
+  );
+}
+
+function emitBookingCalendarSync(booking: {
+  id: string;
+  functionName: string;
+  functionDate: Date | string;
+}): void {
+  syncBookingEventToGoogleCalendar(booking).catch((err) =>
+    logger.error('Calendar sync failed (non-blocking)', {
+      bookingId: booking.id,
+      err,
+    })
+  );
+}
+
+function emitBookingCalendarCancel(bookingId: string): void {
+  cancelBookingEventInGoogleCalendar(bookingId).catch((err) =>
+    logger.error('Calendar sync failed (non-blocking)', {
+      bookingId,
+      err,
+    })
+  );
+}
+
+function emitBookingBroadcast(eventType: string, payload: Record<string, unknown>): void {
+  broadcastBookingEvent(eventType, payload);
 }
 
 type BookingHallInputRow = {
@@ -453,6 +521,12 @@ export async function checkHallAvailability(
     return;
   }
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!hallIds.every((id) => UUID_RE.test(id))) {
+    sendError(res, 'One or more hall IDs are invalid', 400);
+    return;
+  }
+
   const parsedDate = new Date(date);
   if (Number.isNaN(parsedDate.getTime())) {
     sendError(res, 'Invalid date', 400);
@@ -519,8 +593,8 @@ const MENU_LOGO_IMAGE_URL =
   process.env.MENU_PDF_LOGO_URL ||
   'https://assets.zyrosite.com/MBlLcEqY2yw3y2EF/1-2-removebg-scaled-e1752152009924-7iV2qZXAcVUCou9o.png';
 
-let cachedMenuBackgroundImage: Buffer | null | undefined;
-let cachedMenuLogoImage: Buffer | null | undefined;
+const IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const imageCache = new Map<string, { buffer: Buffer; cachedAt: number }>();
 
 interface PdfMenuPack {
   id: string;
@@ -534,42 +608,36 @@ interface PdfMenuPack {
   }>;
 }
 
-async function getMenuBackgroundImage(): Promise<Buffer | null> {
-  if (cachedMenuBackgroundImage !== undefined) {
-    return cachedMenuBackgroundImage;
+async function getCachedImage(cacheKey: string, url: string): Promise<Buffer | null> {
+  const cached = imageCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt <= IMAGE_CACHE_TTL_MS) {
+    return cached.buffer;
   }
 
   try {
-    const response = await fetch(MENU_BACKGROUND_IMAGE_URL);
+    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to download menu background (${response.status})`);
+      throw new Error(`Failed to download image (${response.status})`);
     }
-    const imageArrayBuffer = await response.arrayBuffer();
-    cachedMenuBackgroundImage = Buffer.from(imageArrayBuffer);
-  } catch (error) {
-    cachedMenuBackgroundImage = null;
-  }
 
-  return cachedMenuBackgroundImage;
+    const imageArrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(imageArrayBuffer);
+    imageCache.set(cacheKey, {
+      buffer,
+      cachedAt: Date.now(),
+    });
+    return buffer;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function getMenuBackgroundImage(): Promise<Buffer | null> {
+  return getCachedImage('menu-background', MENU_BACKGROUND_IMAGE_URL);
 }
 
 async function getMenuLogoImage(): Promise<Buffer | null> {
-  if (cachedMenuLogoImage !== undefined) {
-    return cachedMenuLogoImage;
-  }
-
-  try {
-    const response = await fetch(MENU_LOGO_IMAGE_URL);
-    if (!response.ok) {
-      throw new Error(`Failed to download menu logo (${response.status})`);
-    }
-    const imageArrayBuffer = await response.arrayBuffer();
-    cachedMenuLogoImage = Buffer.from(imageArrayBuffer);
-  } catch (error) {
-    cachedMenuLogoImage = null;
-  }
-
-  return cachedMenuLogoImage;
+  return getCachedImage('menu-logo', MENU_LOGO_IMAGE_URL);
 }
 
 function formatDateForPdf(value?: Date | string | null): string {
@@ -1273,6 +1341,11 @@ async function cloneBookingVersion(
     });
   }
 
+  // Payments intentionally NOT copied to the new version.
+  // Each booking version owns only the payments recorded during its own lifetime.
+  // The financial summary (paymentReceivedAmountValue) is already carried forward
+  // in the cloned booking row above, which preserves the "balance from prior version".
+
   const hydratedClone = await tx.booking.findUnique({
     where: { id: clonedBooking.id },
     include: BOOKING_RELATION_INCLUDE,
@@ -1419,7 +1492,7 @@ export async function createBooking(
     const hallRowsInput = normalizeBookingHallRows(data.halls);
 
     // Start transaction
-    const booking = await prisma.$transaction(async (tx) => {
+    const booking = await runSerializableBookingTransaction(async (tx) => {
       await assertSingleBanquetHallSelection(tx, hallRowsInput);
       await assertNoHallClash(
         tx,
@@ -1712,9 +1785,14 @@ export async function createBooking(
       });
     });
 
-    await syncBookingEventToGoogleCalendar(booking);
-
     sendSuccess(res, { booking }, 'Booking created successfully', 201);
+    emitBookingBroadcast('booking:created', {
+      id: booking.id,
+      status: booking.status,
+      functionDate: booking.functionDate,
+      functionType: booking.functionType,
+    });
+    emitBookingCalendarSync(booking);
   } catch (error: any) {
     console.error('Booking creation error:', error);
     if (error instanceof Error) {
@@ -1725,6 +1803,18 @@ export async function createBooking(
         sendError(res, error.message, 400);
         return;
       }
+    }
+    if (isHallClashConstraintError(error)) {
+      sendError(
+        res,
+        'Hall timing clash detected with an existing booking. Please choose a different hall or time slot.',
+        409
+      );
+      return;
+    }
+    if (isRetryableSerializableError(error)) {
+      sendError(res, 'Booking conflict detected. Please retry the request.', 409);
+      return;
     }
     sendError(res, 'Failed to create booking');
   }
@@ -1767,7 +1857,10 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
     const search = sanitizeSearchTerm(req.query.search);
     const fromDate = req.query.fromDate as string;
     const toDate = req.query.toDate as string;
-    const isQuotation = req.query.isQuotation === 'true';
+    // Only filter by isQuotation when the param is explicitly provided.
+    // The boolean conversion `=== 'true'` always produces false when the param
+    // is absent, which incorrectly excludes all quotation bookings by default.
+    const isQuotationRaw = req.query.isQuotation as string | undefined;
 
     // Build where clause
     const where: any = { isLatest: true };
@@ -1776,8 +1869,8 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
       where.status = status;
     }
 
-    if (isQuotation !== undefined) {
-      where.isQuotation = isQuotation;
+    if (isQuotationRaw !== undefined) {
+      where.isQuotation = isQuotationRaw === 'true';
     }
 
     if (search) {
@@ -1966,9 +2059,6 @@ export async function finalizeBookingVersion(
       };
     });
 
-    await cancelBookingEventInGoogleCalendar(id);
-    await syncBookingEventToGoogleCalendar(result.replica);
-
     sendSuccess(
       res,
       {
@@ -1977,6 +2067,14 @@ export async function finalizeBookingVersion(
       },
       'Booking finalized and new editable version created'
     );
+    emitBookingBroadcast('booking:updated', {
+      id: result.replica.id,
+      previousBookingId: id,
+      status: result.replica.status,
+      versionNumber: result.replica.versionNumber,
+    });
+    emitBookingCalendarCancel(id);
+    emitBookingCalendarSync(result.replica);
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'BOOKING_NOT_FOUND') {
@@ -2148,9 +2246,6 @@ export async function partyOverBooking(
       };
     });
 
-    await cancelBookingEventInGoogleCalendar(id);
-    await syncBookingEventToGoogleCalendar(result.completedReplica);
-
     sendSuccess(
       res,
       {
@@ -2159,6 +2254,14 @@ export async function partyOverBooking(
       },
       'Party over applied and booking chain locked'
     );
+    emitBookingBroadcast('booking:updated', {
+      id: result.completedReplica.id,
+      previousBookingId: id,
+      status: result.completedReplica.status,
+      versionNumber: result.completedReplica.versionNumber,
+    });
+    emitBookingCalendarCancel(id);
+    emitBookingCalendarSync(result.completedReplica);
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'BOOKING_NOT_FOUND') {
@@ -2293,6 +2396,37 @@ export async function getBookingHistory(
   } catch (error) {
     sendError(res, 'Failed to fetch booking history');
   }
+}
+
+async function generateBookingMenuPdfBuffer(payload: {
+  customerName: string;
+  customerPhone: string;
+  functionType: string;
+  functionDate: string;
+  functionTiming: string;
+  venue: string;
+  menuLabel: string;
+  selectedPacks: PdfMenuPack[];
+  imageBuffer: Buffer | null;
+  logoBuffer: Buffer | null;
+}): Promise<Buffer> {
+  const workerPath = path.resolve(__dirname, '../workers/pdfWorker.js');
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const worker = new Worker(workerPath, {
+      workerData: payload,
+    });
+
+    worker.once('message', (message: Buffer | Uint8Array) => {
+      resolve(Buffer.isBuffer(message) ? message : Buffer.from(message));
+    });
+    worker.once('error', reject);
+    worker.once('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`PDF worker stopped with exit code ${code}`));
+      }
+    });
+  });
 }
 
 /**
@@ -2455,19 +2589,9 @@ export async function downloadBookingMenuPdf(
       getMenuBackgroundImage(),
       getMenuLogoImage(),
     ]);
-    const pdfDoc = new PDFDocument({
-      size: 'A4',
-      margin: 0,
-      autoFirstPage: false,
-      compress: true,
-    });
-
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-
-    pdfDoc.pipe(res);
-
-    drawCoverPage(pdfDoc, imageBuffer, logoBuffer, {
+    const pdfBuffer = await generateBookingMenuPdfBuffer({
       customerName,
       customerPhone,
       functionType,
@@ -2475,10 +2599,12 @@ export async function downloadBookingMenuPdf(
       functionTiming,
       venue: venueText,
       menuLabel,
+      selectedPacks,
+      imageBuffer,
+      logoBuffer,
     });
-    drawMenuPages(pdfDoc, imageBuffer, selectedPacks);
 
-    pdfDoc.end();
+    res.end(pdfBuffer);
   } catch (error) {
     sendError(res, 'Failed to generate booking menu PDF');
   }
@@ -2540,41 +2666,43 @@ export async function updateBooking(
       return;
     }
 
-    // Create new version if not a quotation
+    // Create new version if not a quotation — deep-copy all relations via cloneBookingVersion
     if (!existingBooking.isQuotation && data.createNewVersion) {
-      // Mark current as not latest
-      await prisma.booking.update({
-        where: { id },
-        data: { isLatest: false },
+      const newVersion = await runSerializableBookingTransaction(async (tx) => {
+        // Mark current as not latest atomically with the clone
+        await tx.booking.update({
+          where: { id },
+          data: { isLatest: false },
+        });
+        return cloneBookingVersion(tx, id);
       });
-
-      // Create new version
-      const newVersion = await prisma.booking.create({
-        data: {
-          ...existingBooking,
-          id: undefined, // Let Prisma generate new ID
-          previousBookingId: id,
-          versionNumber: existingBooking.versionNumber + 1,
-          isLatest: true,
-          updatedAt: new Date(),
-        } as any,
-      });
-
-      await cancelBookingEventInGoogleCalendar(id);
-      await syncBookingEventToGoogleCalendar(newVersion);
 
       sendSuccess(res, { booking: newVersion }, 'New booking version created');
+      emitBookingBroadcast('booking:updated', {
+        id: newVersion.id,
+        previousBookingId: id,
+        status: newVersion.status,
+        versionNumber: newVersion.versionNumber,
+      });
+      emitBookingCalendarCancel(id);
+      emitBookingCalendarSync(newVersion);
       return;
     }
 
-    const booking = await prisma.$transaction(async (tx) => {
+    const booking = await runSerializableBookingTransaction(async (tx) => {
       if (hallRowsInput) {
         await assertSingleBanquetHallSelection(tx, hallRowsInput);
       }
+      const currentHallRows = hallRowsInput
+        ? null
+        : await tx.bookingHall.findMany({
+            where: { bookingId: id },
+            select: { hallId: true },
+          });
       const effectiveFunctionDate = data.functionDate || existingBooking.functionDate;
       const effectiveHallIds = hallRowsInput
         ? hallRowsInput.map((h) => h.hallId)
-        : (existingBooking as any).halls?.map((bh: any) => bh.hallId) ?? [];
+        : currentHallRows?.map((row) => row.hallId) ?? [];
       await assertNoHallClash(
         tx,
         effectiveHallIds,
@@ -2873,11 +3001,13 @@ export async function updateBooking(
       }
       discountAmount = toSafeMoney(discountAmount);
       const grandTotal = toSafeMoney(Math.max(0, totalAmount - discountAmount));
-      const paymentReceived =
-        readDualMoney(data, 'paymentReceivedAmountValue', 'paymentReceivedAmount') ??
-        existingBooking.paymentReceivedAmountValue ??
-        toOptionalSafeMoney(existingBooking.paymentReceivedAmount) ??
-        toSafeMoney(existingBooking.advanceReceived);
+      // Always derive paymentReceived from actual payment records — ignore any
+      // client-supplied value, which can drift when versions are cloned.
+      const paymentAgg = await tx.bookingPayments.aggregate({
+        where: { bookingId: id },
+        _sum: { amount: true },
+      });
+      const paymentReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
       const balanceAmount = toSafeMoney(grandTotal - paymentReceived);
       const totalBillAmountValue = totalAmount;
       const finalAmountValue =
@@ -2899,6 +3029,11 @@ export async function updateBooking(
           balanceAmount,
           dueAmount: toStoredNumberString(dueAmountValue) || toStoredNumberString(balanceAmount),
           dueAmountValue,
+          // Always write back the authoritative SUM so the stored value never
+          // drifts (e.g. after a version clone carries a stale value forward).
+          paymentReceivedAmount: toStoredNumberString(paymentReceived),
+          paymentReceivedAmountValue: paymentReceived,
+          advanceReceived: paymentReceived,
         },
       });
 
@@ -2936,9 +3071,14 @@ export async function updateBooking(
       return;
     }
 
-    await syncBookingEventToGoogleCalendar(booking);
-
     sendSuccess(res, { booking }, 'Booking updated successfully');
+    emitBookingBroadcast('booking:updated', {
+      id: booking.id,
+      status: booking.status,
+      functionDate: booking.functionDate,
+      functionType: booking.functionType,
+    });
+    emitBookingCalendarSync(booking);
   } catch (error) {
     if (error instanceof Error) {
       if (
@@ -2948,6 +3088,18 @@ export async function updateBooking(
         sendError(res, error.message, 400);
         return;
       }
+    }
+    if (isHallClashConstraintError(error)) {
+      sendError(
+        res,
+        'Hall timing clash detected with an existing booking. Please choose a different hall or time slot.',
+        409
+      );
+      return;
+    }
+    if (isRetryableSerializableError(error)) {
+      sendError(res, 'Booking conflict detected. Please retry the request.', 409);
+      return;
     }
     sendError(res, 'Failed to update booking');
   }
@@ -2982,9 +3134,12 @@ export async function cancelBooking(
       },
     });
 
-    await cancelBookingEventInGoogleCalendar(id);
-
     sendSuccess(res, { booking }, 'Booking cancelled successfully');
+    emitBookingBroadcast('booking:cancelled', {
+      id: booking.id,
+      status: booking.status,
+    });
+    emitBookingCalendarCancel(id);
   } catch (error: any) {
     if (error.code === 'P2025') {
       sendNotFound(res, 'Booking not found');
@@ -3020,9 +3175,8 @@ export async function deleteBooking(
       where: { id },
     });
 
-    await cancelBookingEventInGoogleCalendar(id);
-
     sendSuccess(res, null, 'Booking deleted successfully');
+    emitBookingCalendarCancel(id);
   } catch (error: any) {
     if (error?.code === 'P2025') {
       sendNotFound(res, 'Booking not found');
@@ -3031,6 +3185,61 @@ export async function deleteBooking(
     sendError(res, 'Failed to delete booking');
   }
 }
+
+const PAYMENT_METHODS = ['cash', 'card', 'upi', 'cheque', 'bank_transfer'] as const;
+
+export const addPaymentSchema = z.object({
+  params: z.object({ id: idSchema('booking ID') }),
+  body: z.object({
+    amount: z
+      .number({ invalid_type_error: 'Amount must be a number' })
+      .positive('Amount must be greater than zero'),
+    method: z
+      .enum(PAYMENT_METHODS, {
+        errorMap: () => ({
+          message: `Method must be one of: ${PAYMENT_METHODS.join(', ')}`,
+        }),
+      })
+      .optional()
+      .default('cash'),
+    reference: z.string().max(200, 'Reference must be at most 200 characters').optional(),
+    narration: z.string().max(500, 'Narration must be at most 500 characters').optional(),
+    paymentDate: z
+      .string()
+      .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+        message: 'Payment date must be a valid date',
+      })
+      .optional(),
+  }),
+});
+
+export const updatePaymentSchema = z.object({
+  params: z.object({
+    id: idSchema('booking ID'),
+    paymentId: idSchema('payment ID'),
+  }),
+  body: z.object({
+    amount: z
+      .number({ invalid_type_error: 'Amount must be a number' })
+      .positive('Amount must be greater than zero')
+      .optional(),
+    method: z
+      .enum(PAYMENT_METHODS, {
+        errorMap: () => ({
+          message: `Method must be one of: ${PAYMENT_METHODS.join(', ')}`,
+        }),
+      })
+      .optional(),
+    reference: z.string().max(200, 'Reference must be at most 200 characters').optional(),
+    narration: z.string().max(500, 'Narration must be at most 500 characters').optional(),
+    paymentDate: z
+      .string()
+      .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+        message: 'Payment date must be a valid date',
+      })
+      .optional(),
+  }),
+});
 
 /**
  * Add payment to booking
@@ -3050,6 +3259,33 @@ export async function addPayment(
     }
 
     const payment = await prisma.$transaction(async (tx) => {
+      // Verify booking exists and is mutable BEFORE creating the payment so we
+      // never leave an orphaned payment record on a non-latest or immutable booking.
+      const booking = await tx.booking.findFirst({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          isLatest: true,
+          finalAmountValue: true,
+          finalAmount: true,
+          grandTotal: true,
+        },
+      });
+
+      if (!booking) {
+        throw Object.assign(new Error('Booking not found'), { status: 404 });
+      }
+      if (!booking.isLatest) {
+        throw Object.assign(
+          new Error('Only latest booking versions can be modified'),
+          { status: 400 }
+        );
+      }
+      if (bookingIsImmutable(booking)) {
+        throw Object.assign(new Error(bookingImmutableMessage(booking)), { status: 400 });
+      }
+
       // Create payment
       const newPayment = await tx.bookingPayments.create({
         data: {
@@ -3063,53 +3299,141 @@ export async function addPayment(
         },
       });
 
-      // Update booking balance
-      const booking = await tx.booking.findFirst({
-        where: { id, isLatest: true },
+      // Authoritative sum: every payment record for this booking version.
+      // Never accumulate by adding to the stored value, which drifts across versions.
+      const paymentAgg = await tx.bookingPayments.aggregate({
+        where: { bookingId: id },
+        _sum: { amount: true },
       });
+      const updatedReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
 
-      if (booking) {
-        if (bookingIsImmutable(booking)) {
-          throw new Error(bookingImmutableMessage(booking));
-        }
-        const currentReceived =
-          booking.paymentReceivedAmountValue ??
-          toOptionalSafeMoney(booking.paymentReceivedAmount) ??
-          booking.advanceReceived;
-        const updatedReceived = toSafeMoney(currentReceived + normalizedAmount);
-        const currentFinal =
-          booking.finalAmountValue ??
-          toOptionalSafeMoney(booking.finalAmount) ??
-          booking.grandTotal;
-        const updatedDue = toSafeMoney(currentFinal - updatedReceived);
-        const updatedBalance = toSafeMoney(booking.balanceAmount - normalizedAmount);
+      const currentFinal =
+        booking.finalAmountValue ??
+        toOptionalSafeMoney(booking.finalAmount) ??
+        booking.grandTotal;
+      const updatedDue = toSafeMoney(Math.max(0, currentFinal - updatedReceived));
 
-        await tx.booking.update({
-          where: { id },
-          data: {
-            advanceReceived: toSafeMoney(booking.advanceReceived + normalizedAmount),
-            balanceAmount: updatedBalance,
-            paymentReceivedAmount: toStoredNumberString(updatedReceived),
-            paymentReceivedAmountValue: updatedReceived,
-            dueAmount: toStoredNumberString(updatedDue),
-            dueAmountValue: updatedDue,
-          },
-        });
-      }
+      await tx.booking.update({
+        where: { id },
+        data: {
+          advanceReceived: updatedReceived,
+          balanceAmount: updatedDue,
+          paymentReceivedAmount: toStoredNumberString(updatedReceived),
+          paymentReceivedAmountValue: updatedReceived,
+          dueAmount: toStoredNumberString(updatedDue),
+          dueAmountValue: updatedDue,
+        },
+      });
 
       return newPayment;
     });
 
     sendSuccess(res, { payment }, 'Payment added successfully', 201);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status === 404) {
+      sendError(res, error.message, 404);
+      return;
+    }
     if (
-      error instanceof Error &&
-      (error.message === 'Completed (party over) bookings are read-only' ||
-        error.message === 'Only latest booking versions can be modified')
+      error?.status === 400 ||
+      (error instanceof Error &&
+        (error.message === 'Completed (party over) bookings are read-only' ||
+          error.message === 'Only latest booking versions can be modified'))
     ) {
       sendError(res, error.message, 400);
       return;
     }
     sendError(res, 'Failed to add payment');
+  }
+}
+
+/**
+ * Correct an existing payment record (no hard deletes — ledger is append-only).
+ * PATCH /bookings/:id/payments/:paymentId
+ *
+ * Accepts: amount, method, narration (correction note), paymentDate, reference.
+ * After update the booking's paymentReceivedAmountValue is recalculated from the
+ * authoritative SUM of all payment records so it can never drift.
+ */
+export async function updatePayment(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { id, paymentId } = req.params;
+
+    if (!req.user) {
+      sendError(res, 'Unauthorized', 401);
+      return;
+    }
+
+    const { amount, method, narration, paymentDate, reference } = req.body;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Confirm the payment belongs to this booking.
+      const existing = await tx.bookingPayments.findFirst({
+        where: { id: paymentId, bookingId: id },
+      });
+      if (!existing) {
+        throw Object.assign(new Error('Payment not found'), { status: 404 });
+      }
+
+      const booking = await tx.booking.findFirst({ where: { id, isLatest: true } });
+      if (!booking) {
+        throw Object.assign(new Error('Booking not found'), { status: 404 });
+      }
+      if (bookingIsImmutable(booking)) {
+        throw Object.assign(new Error(bookingImmutableMessage(booking)), { status: 400 });
+      }
+
+      const updatedPayment = await tx.bookingPayments.update({
+        where: { id: paymentId },
+        data: {
+          ...(amount !== undefined && { amount: toSafeMoney(amount) }),
+          ...(method !== undefined && { method }),
+          ...(narration !== undefined && { narration }),
+          ...(paymentDate !== undefined && { paymentDate: new Date(paymentDate) }),
+          ...(reference !== undefined && { reference }),
+        },
+      });
+
+      // Recalculate from authoritative SUM — never accumulate.
+      const paymentAgg = await tx.bookingPayments.aggregate({
+        where: { bookingId: id },
+        _sum: { amount: true },
+      });
+      const updatedReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
+      const currentFinal =
+        booking.finalAmountValue ??
+        toOptionalSafeMoney(booking.finalAmount) ??
+        booking.grandTotal;
+      const updatedDue = toSafeMoney(Math.max(0, currentFinal - updatedReceived));
+
+      await tx.booking.update({
+        where: { id },
+        data: {
+          advanceReceived: updatedReceived,
+          balanceAmount: updatedDue,
+          paymentReceivedAmount: toStoredNumberString(updatedReceived),
+          paymentReceivedAmountValue: updatedReceived,
+          dueAmount: toStoredNumberString(updatedDue),
+          dueAmountValue: updatedDue,
+        },
+      });
+
+      return updatedPayment;
+    });
+
+    sendSuccess(res, { payment: result }, 'Payment updated successfully');
+  } catch (error: any) {
+    if (error?.status === 404) {
+      sendError(res, error.message, 404);
+      return;
+    }
+    if (error?.status === 400) {
+      sendError(res, error.message, 400);
+      return;
+    }
+    sendError(res, 'Failed to update payment');
   }
 }

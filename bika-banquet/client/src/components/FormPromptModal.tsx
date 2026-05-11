@@ -46,7 +46,7 @@ export default function FormPromptModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ overscrollBehavior: 'contain' }}
     >
       <button
@@ -56,20 +56,20 @@ export default function FormPromptModal({
         aria-label="Close form prompt backdrop"
       />
       <div
-        className={`relative z-10 w-full ${widthClass} max-h-[94vh] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-white shadow-xl transform-gpu`}
+        className={`relative z-10 w-full ${widthClass} max-h-[calc(100dvh-var(--safe-top))] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-surface shadow-xl transform-gpu`}
       >
-        <div className="sticky top-0 z-10 bg-white/95 border-b border-[var(--border)] px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
+        <div className="sticky top-0 z-10 bg-surface/95 border-b border-[var(--border)] px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-display font-semibold text-[var(--text-1)]">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-[var(--text-4)] hover:bg-white hover:text-[var(--text-2)] border border-transparent hover:border-[var(--border)]"
+            className="min-h-11 min-w-11 p-2 rounded-lg text-[var(--text-4)] hover:bg-surface-2 hover:text-[var(--text-2)] border border-transparent hover:border-[var(--border)]"
             aria-label="Close form prompt"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-4 sm:p-5">{children}</div>
+        <div className="p-4 sm:p-5 pb-[calc(1rem+var(--safe-bottom))]">{children}</div>
       </div>
     </div>,
     document.body

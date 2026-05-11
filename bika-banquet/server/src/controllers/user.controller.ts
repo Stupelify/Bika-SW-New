@@ -6,6 +6,7 @@ import { hashPassword } from '../utils/auth';
 import { toEntryCase } from '../utils/textCase';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
+import { AuthRequest } from '../middleware/auth.middleware';
 
 export const createUserSchema = z.object({
   body: z.object({
@@ -193,9 +194,17 @@ export async function createUser(req: Request, res: Response): Promise<void> {
   }
 }
 
-export async function deleteUser(req: Request, res: Response): Promise<void> {
+export async function deleteUser(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+
+    // Prevent an admin from deleting their own account, which would leave the
+    // system in an unrecoverable state if they are the last admin.
+    if (req.user?.userId === id) {
+      sendError(res, 'You cannot delete your own account.', 400);
+      return;
+    }
+
     await prisma.user.delete({
       where: { id },
     });

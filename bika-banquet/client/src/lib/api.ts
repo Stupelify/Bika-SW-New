@@ -85,6 +85,7 @@ export const api = {
   getBookingHistory: (id: string) => apiClient.get(`/bookings/${id}/history`),
   cancelBooking: (id: string) => apiClient.post(`/bookings/${id}/cancel`),
   addPayment: (id: string, data: any) => apiClient.post(`/bookings/${id}/payments`, data),
+  updatePayment: (id: string, paymentId: string, data: any) => apiClient.patch(`/bookings/${id}/payments/${paymentId}`, data),
   checkBookingAvailability: (params?: any) =>
     apiClient.get('/bookings/check-availability', { params }),
 

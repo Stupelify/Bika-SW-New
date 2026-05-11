@@ -39,8 +39,6 @@ model Customer {
   id            Int       @id @default(autoincrement())
   phone         String    @unique
   phoneVerified Boolean   @default(false)
-  otpCode       String? // hashed OTP
-  otpExpiresAt  DateTime?
 
   // Fields filled *after* verification
   name                  String?

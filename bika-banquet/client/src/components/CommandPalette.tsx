@@ -6,6 +6,7 @@ import {
   BarChart2,
   BookOpen,
   Calendar,
+  LucideIcon,
   MessageCircle,
   Plus,
   Search,
@@ -28,7 +29,7 @@ type SearchResult = {
 type QuickAction = {
   id: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  icon: LucideIcon;
   action: () => void;
 };
 
@@ -42,7 +43,7 @@ type CommandPaletteProps = {
 
 // ── Icon map per result type ───────────────────────────────────────────────────
 
-const TYPE_ICON: Record<SearchResultType, React.ComponentType<{ size?: number }>> = {
+const TYPE_ICON: Record<SearchResultType, LucideIcon> = {
   booking: BookOpen,
   customer: User,
   enquiry: MessageCircle,

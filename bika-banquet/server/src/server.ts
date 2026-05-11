@@ -4,11 +4,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { connectDatabase, disconnectDatabase } from './config/database';
+import { connectDatabase, disconnectDatabase, pingDatabase } from './config/database';
+import { initSseSubscriber } from './sse';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { getRedisClient } from './config/redis';
 import logger from './utils/logger';
 
 // Load local dev overrides first, then fall back to the tracked .env file.
@@ -152,9 +155,28 @@ function getAuthRateLimitKey(req: Request): string {
   return `login-ip:${extractIp(req)}`;
 }
 
+function createRateLimitStore(prefix: string) {
+  try {
+    const redisClient = getRedisClient();
+    if (!redisClient) {
+      return undefined;
+    }
+
+    return new RedisStore({
+      prefix,
+      sendCommand: (...args: string[]) =>
+        redisClient.call(args[0], ...args.slice(1)) as Promise<any>,
+    });
+  } catch (error) {
+    logger.error('Falling back to in-memory rate limiting', { error, prefix });
+    return undefined;
+  }
+}
+
 const apiLimiter = rateLimit({
   windowMs: (Number.isFinite(apiWindowMinutes) ? apiWindowMinutes : 15) * 60 * 1000,
   max: Number.parseInt(process.env.RATE_LIMIT_MAX || '2000', 10),
+  store: createRateLimitStore('rl:api:'),
   keyGenerator: getRateLimitKey,
   skip: (req) =>
     isTrustedIp(req) ||
@@ -164,17 +186,20 @@ const apiLimiter = rateLimit({
     req.path === '/auth/reset-password',
   standardHeaders: true,
   legacyHeaders: false,
+  passOnStoreError: true,
   message: 'Too many requests from this IP, please try again later.',
 });
 
 const authLimiter = rateLimit({
   windowMs: (Number.isFinite(authWindowMinutes) ? authWindowMinutes : 15) * 60 * 1000,
   max: Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX || '1000', 10),
+  store: createRateLimitStore('rl:auth:'),
   keyGenerator: getAuthRateLimitKey,
   skip: (req) => isTrustedIp(req),
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
+  passOnStoreError: true,
   message: 'Too many login attempts. Please try again shortly.',
 });
 
@@ -195,6 +220,24 @@ if (process.env.NODE_ENV === 'development') {
 // API routes
 app.use('/api', routes);
 
+app.get('/health', async (req, res) => {
+  try {
+    await pingDatabase();
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('Health check failed', { error });
+    res.status(503).json({
+      status: 'error',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Root route
 app.get('/', (req, res) => {
   res.json({
@@ -213,6 +256,10 @@ async function startServer() {
   try {
     // Connect to database
     await connectDatabase();
+
+    // Start SSE Redis subscriber (fan-out across PM2 workers).
+    // Safe no-op when Redis is not configured.
+    initSseSubscriber();
 
     // Start listening
     app.listen(PORT, () => {

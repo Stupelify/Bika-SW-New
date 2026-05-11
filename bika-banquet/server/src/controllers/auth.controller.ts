@@ -147,6 +147,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       userId: user.id,
       email: user.email,
       roles,
+      permissions,
     });
 
     // Create session

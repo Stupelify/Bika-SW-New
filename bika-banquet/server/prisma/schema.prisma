@@ -139,9 +139,6 @@ model Customer {
   twitter           String?
   linkedin          String?
   facebookProfile   String?
-  otpCode           String?
-  otpExpiry         DateTime?
-  otpExpiresAt      DateTime?
   isVerified        Boolean   @default(false)
   referredById      String?
   notes             String?

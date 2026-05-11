@@ -8,6 +8,8 @@ import FormPromptModal from '@/components/FormPromptModal';
 import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
+import { useAuthStore } from '@/store/authStore';
+import { hasAnyPermission } from '@/lib/permissions';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
 import {
@@ -35,14 +37,15 @@ interface BookingRow {
   };
 }
 
-const initialPaymentForm = {
+const getInitialPaymentForm = () => ({
   bookingId: '',
   amount: '',
   method: 'cash',
   reference: '',
   narration: '',
-  paymentDate: '',
-};
+  paymentDate: new Date().toISOString().split('T')[0],
+});
+const initialPaymentForm = getInitialPaymentForm();
 
 const initialColumnSearch = {
   booking: '',
@@ -56,6 +59,17 @@ const initialColumnSearch = {
 const PAYMENTS_PAGE_SIZE = 100;
 
 export default function PaymentsPage() {
+  const { user } = useAuthStore();
+  const permissionSet = useMemo(() => user?.permissions ?? [], [user?.permissions]);
+  const canViewPayments = useMemo(
+    () => hasAnyPermission(permissionSet, ['manage_payments', 'view_booking', 'manage_bookings']),
+    [permissionSet]
+  );
+  const canAddPayment = useMemo(
+    () => hasAnyPermission(permissionSet, ['manage_payments', 'edit_booking', 'manage_bookings']),
+    [permissionSet]
+  );
+
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,8 +115,12 @@ export default function PaymentsPage() {
   }, [currentPage, filteredBookings, totalPages]);
 
   useEffect(() => {
+    if (!canViewPayments) {
+      setLoading(false);
+      return;
+    }
     void loadBookings();
-  }, []);
+  }, [canViewPayments]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -150,7 +168,7 @@ export default function PaymentsPage() {
       toast.success('Payment added');
       setShowPaymentPrompt(false);
       setPaymentForm((prev) => ({
-        ...initialPaymentForm,
+        ...getInitialPaymentForm(),
         bookingId: prev.bookingId,
         method: prev.method,
       }));
@@ -171,15 +189,17 @@ export default function PaymentsPage() {
             Record collections and track balance against each booking.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-          onClick={() => setShowPaymentPrompt(true)}
-          disabled={bookings.length === 0}
-        >
-          <Plus className="w-4 h-4" />
-          Add Payment
-        </button>
+        {canAddPayment && (
+          <button
+            type="button"
+            className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+            onClick={() => setShowPaymentPrompt(true)}
+            disabled={bookings.length === 0}
+          >
+            <Plus className="w-4 h-4" />
+            Add Payment
+          </button>
+        )}
       </div>
 
       <FormPromptModal
@@ -312,7 +332,14 @@ export default function PaymentsPage() {
           </button>
         </div>
 
-        {loading ? (
+        {!canViewPayments ? (
+          <EmptyState
+            icon={CreditCard}
+            variant="page"
+            title="Access restricted"
+            description="You don't have permission to view payments. Contact your administrator."
+          />
+        ) : loading ? (
           <div className="py-6">
             <TableSkeleton rows={8} />
           </div>

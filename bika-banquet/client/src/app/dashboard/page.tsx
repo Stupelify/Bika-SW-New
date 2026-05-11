@@ -12,6 +12,7 @@ import EmptyState from '@/components/EmptyState';
 import Combobox from '@/components/Combobox';
 import {
   AlertTriangle,
+  ArrowRight,
   BarChart3,
   Building2,
   CalendarCheck,

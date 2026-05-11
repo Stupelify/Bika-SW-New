@@ -30,11 +30,12 @@ export default function FilterPanel({
         />
       ) : null}
       <aside
-        className={`fixed right-0 top-0 z-40 h-full w-80 border-l border-border bg-surface shadow-lg transition-transform duration-200 ease-out ${
+        className={`fixed right-0 top-0 z-40 h-full w-[min(100vw,22rem)] border-l border-border bg-surface shadow-lg transition-transform duration-200 ease-out ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
+        aria-hidden={!open}
       >
-        <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+        <div className="flex items-center gap-2 border-b border-border px-5 py-4 pt-[max(1rem,var(--safe-top))]">
           <h2 className="page-title text-[18px]">{title}</h2>
           {activeCount > 0 ? (
             <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-3">
@@ -47,12 +48,12 @@ export default function FilterPanel({
                 Clear all
               </button>
             ) : null}
-            <button type="button" onClick={onClose} className="text-text-4">
+            <button type="button" onClick={onClose} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-text-4">
               <X size={18} />
             </button>
           </div>
         </div>
-        <div className="h-[calc(100%-65px)] overflow-y-auto p-5">{children}</div>
+        <div className="h-[calc(100%-65px)] overflow-y-auto p-5 pb-[calc(1.25rem+var(--safe-bottom))]">{children}</div>
       </aside>
     </>
   );

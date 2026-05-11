@@ -38,6 +38,8 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import { lookupIndianPincode } from '@/lib/pincodeLookup';
+import { INDIA_STATES } from '@/lib/indiaData';
 import {
   CASTE_OPTIONS,
   COUNTRY_DIAL_CODE_OPTIONS,
@@ -55,7 +57,6 @@ import {
 } from '@/lib/customerFormOptions';
 import MobileBookingCard from '@/components/MobileBookingCard';
 import BookingCard from '@/components/BookingCard';
-import BookingWizard from '@/components/wizard/BookingWizard';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -170,11 +171,15 @@ interface BookingPackRow {
 }
 
 interface PaymentRow {
+  id?: string;      // present for payments already persisted in the DB
   mode: string;
   narration: string;
   date: string;
   receivedBy: string;
   amount: string;
+  // Snapshot of the values as they existed on last load — used to detect which
+  // existing payments were actually changed so we only PATCH those.
+  _original?: { mode: string; narration: string; date: string; receivedBy: string; amount: string };
 }
 
 interface AdditionalRequirementRow {
@@ -474,6 +479,8 @@ export default function BookingsPage() {
     useState<CustomerSearchField | null>(null);
   const hallPickerContainerRef = useRef<HTMLDivElement | null>(null);
   const actionSentinelRef = useRef<HTMLDivElement | null>(null);
+  // Snapshot of formData as last loaded from the server. Reset to this on server rejection.
+  const savedFormDataRef = useRef<BookingFormData | null>(null);
   const [showStickyActions, setShowStickyActions] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const debouncedGlobalSearch = useDebounce(globalSearch, 150);
@@ -486,7 +493,6 @@ export default function BookingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   // view mode: 'table' (default on desktop) or 'cards'
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
-  const [showWizard, setShowWizard] = useState(false);
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
   const [inlineCustomerFormData, setInlineCustomerFormData] = useState<InlineCustomerFormData>(
     initialInlineCustomerFormData
@@ -494,12 +500,32 @@ export default function BookingsPage() {
   const [inlineCustomerSaving, setInlineCustomerSaving] = useState(false);
   const [isInlineWhatsappDifferent, setIsInlineWhatsappDifferent] = useState(false);
   const [inlineCustomerEmailError, setInlineCustomerEmailError] = useState('');
+  const [inlineCustomerPincodeLookupLoading, setInlineCustomerPincodeLookupLoading] =
+    useState(false);
+  const [inlineCustomerPincodeLookupError, setInlineCustomerPincodeLookupError] = useState('');
   const [inlineCustomerPhoneErrors, setInlineCustomerPhoneErrors] = useState<{
     phone?: string;
     alterPhone?: string;
     whatsappNumber?: string;
   }>({});
   const [amountSyncMode, setAmountSyncMode] = useState<AmountSyncMode>('discountPercent');
+  // When true the user has explicitly typed a discount/final-amount value.
+  // The auto-recalc effect will NOT overwrite it when pack rates change.
+  const [discountManuallySet, setDiscountManuallySet] = useState(false);
+
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentDraft, setPaymentDraft] = useState<PaymentRow>({
+    amount: '',
+    mode: 'Cash',
+    date: new Date().toISOString().split('T')[0],
+    receivedBy: '',
+    narration: '',
+  });
+
+  const todayStr = () => new Date().toISOString().split('T')[0];
+
+  const debouncedInlineCustomerPincode = useDebounce(inlineCustomerFormData.pincode, 350);
 
   // ── Hall clash detection ──────────────────────────────────────────────────
   const [hallClashWarnings, setHallClashWarnings] = useState<Array<{
@@ -804,6 +830,7 @@ export default function BookingsPage() {
     [formData.payments]
   );
 
+
   const toNonNegativeNumber = useCallback((value: string): number => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return 0;
@@ -850,6 +877,16 @@ export default function BookingsPage() {
     () => totalPackAmount + totalAdditionalRequirementsAmount,
     [totalAdditionalRequirementsAmount, totalPackAmount]
   );
+
+  // Keep dueAmount in sync: always = finalAmount (or totalBillAmount) minus what's been paid.
+  // When there are no payments, due = full amount automatically.
+  useEffect(() => {
+    if (!showCreateForm) return;
+    const effectiveFinal =
+      parseFloat(formData.finalAmount || '0') || totalBillAmount;
+    const due = Math.max(0, effectiveFinal - totalPayments);
+    setFormData((prev) => ({ ...prev, dueAmount: due.toFixed(2) }));
+  }, [formData.finalAmount, totalPayments, totalBillAmount, showCreateForm]);
 
   const enabledPackAmountRows = useMemo(
     () =>
@@ -1248,7 +1285,10 @@ export default function BookingsPage() {
   }, [calculateMenuPoints, items, showCreateForm]);
 
   useEffect(() => {
-    if (!showCreateForm) return;
+    // Skip auto-recalc entirely if the user has manually set a discount/final
+    // amount. This prevents pack rate changes from silently overwriting what
+    // the user typed.
+    if (!showCreateForm || discountManuallySet) return;
     setFormData((prev) => {
       const sourceValue =
         amountSyncMode === 'discountPercent'
@@ -1269,7 +1309,7 @@ export default function BookingsPage() {
         ...nextValues,
       };
     });
-  }, [amountSyncMode, normalizeAmountSnapshot, showCreateForm, totalBillAmount]);
+  }, [amountSyncMode, discountManuallySet, normalizeAmountSnapshot, showCreateForm, totalBillAmount]);
 
   const addPaymentRow = () => {
     setFormData((prev) => ({
@@ -1277,9 +1317,9 @@ export default function BookingsPage() {
       payments: [
         ...prev.payments,
         {
-          mode: '',
+          mode: 'Cash',
           narration: '',
-          date: '',
+          date: todayStr(),
           receivedBy: '',
           amount: '',
         },
@@ -1300,9 +1340,50 @@ export default function BookingsPage() {
     }));
   };
 
+  const loadBookings = useCallback(async () => {
+    try {
+      if (!canViewBooking) {
+        setBookings([]);
+        return;
+      }
+      setLoading(true);
+      const response = await api.getBookings({
+        page: 1,
+        limit: 5000,
+      });
+      setBookings(response.data.data.bookings || []);
+    } catch (error) {
+      toast.error('Failed to load bookings');
+    } finally {
+      setLoading(false);
+    }
+  }, [canViewBooking]);
+
   useEffect(() => {
     void loadBookings();
-  }, [canViewBooking]);
+  }, [loadBookings]);
+
+  useEffect(() => {
+    if (!canViewBooking || typeof window === 'undefined') return;
+
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+    const eventSource = new EventSource(`${baseUrl}/events`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as { type?: string };
+        if (payload.type?.startsWith('booking:')) {
+          void loadBookings();
+        }
+      } catch (error) {
+        // Ignore malformed SSE payloads and keep the stream alive.
+      }
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [canViewBooking, loadBookings]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1337,6 +1418,72 @@ export default function BookingsPage() {
   }, [currentPage, totalPages]);
 
   useEffect(() => {
+    if (!showAddCustomerForm) return;
+
+    const country = inlineCustomerFormData.country.trim().toLowerCase();
+    const pincode = digitsOnly(debouncedInlineCustomerPincode);
+
+    if (country !== 'india') {
+      setInlineCustomerPincodeLookupLoading(false);
+      setInlineCustomerPincodeLookupError('');
+      return;
+    }
+
+    if (!pincode) {
+      setInlineCustomerPincodeLookupLoading(false);
+      setInlineCustomerPincodeLookupError('');
+      return;
+    }
+
+    if (pincode.length !== 6) {
+      setInlineCustomerPincodeLookupLoading(false);
+      setInlineCustomerPincodeLookupError('');
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const lookupPincode = async () => {
+      try {
+        setInlineCustomerPincodeLookupLoading(true);
+        setInlineCustomerPincodeLookupError('');
+
+        const result = await lookupIndianPincode(pincode, controller.signal);
+
+        if (!result) {
+          setInlineCustomerPincodeLookupError('Could not find city/state for this PIN code.');
+          return;
+        }
+
+        setInlineCustomerFormData((prev) =>
+          digitsOnly(prev.pincode) === pincode
+            ? {
+                ...prev,
+                city: result.city || prev.city,
+                state: result.state || prev.state,
+              }
+            : prev
+        );
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return;
+        setInlineCustomerPincodeLookupError('PIN lookup failed. Enter city/state manually.');
+      } finally {
+        if (!controller.signal.aborted) {
+          setInlineCustomerPincodeLookupLoading(false);
+        }
+      }
+    };
+
+    void lookupPincode();
+
+    return () => controller.abort();
+  }, [
+    debouncedInlineCustomerPincode,
+    inlineCustomerFormData.country,
+    showAddCustomerForm,
+  ]);
+
+  useEffect(() => {
     void loadLookups();
   }, [canAddBooking, canEditBooking]);
 
@@ -1352,6 +1499,8 @@ export default function BookingsPage() {
     setInlineCustomerFormData(initialInlineCustomerFormData);
     setIsInlineWhatsappDifferent(false);
     setInlineCustomerEmailError('');
+    setInlineCustomerPincodeLookupLoading(false);
+    setInlineCustomerPincodeLookupError('');
     setInlineCustomerPhoneErrors({});
   };
 
@@ -1600,25 +1749,6 @@ export default function BookingsPage() {
     }
   };
 
-  const loadBookings = async () => {
-    try {
-      if (!canViewBooking) {
-        setBookings([]);
-        return;
-      }
-      setLoading(true);
-      const response = await api.getBookings({
-        page: 1,
-        limit: 5000,
-      });
-      setBookings(response.data.data.bookings || []);
-    } catch (error) {
-      toast.error('Failed to load bookings');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
     setColumnSearch((prev) => ({ ...prev, [key]: value }));
   };
@@ -1649,6 +1779,7 @@ export default function BookingsPage() {
     });
     setActiveCustomerSearchField(null);
     setAmountSyncMode('discountPercent');
+    setDiscountManuallySet(false);
     setFormData(initialFormData);
     // Clear any active search so the freshly-saved booking is always visible
     // in the list (Bug: booking appeared to vanish because search was still active)
@@ -1670,6 +1801,7 @@ export default function BookingsPage() {
     });
     setActiveCustomerSearchField(null);
     setAmountSyncMode('discountPercent');
+    setDiscountManuallySet(false);
     setFormData(initialFormData);
     setShowCreateForm(true);
   };
@@ -1782,7 +1914,7 @@ export default function BookingsPage() {
 
       setEditingBookingId(bookingId);
       setEditingBookingStatus(booking.status || null);
-      setFormData({
+      const loadedFormData: BookingFormData = {
         ...initialFormData,
         customerId: booking.customerId || booking.customer?.id || '',
         includeSecondCustomer: Boolean(booking.secondCustomerId),
@@ -1820,18 +1952,31 @@ export default function BookingsPage() {
                 : '',
           }))
           .filter((entry: AdditionalRequirementRow) => entry.description || entry.amount),
-        payments: (booking.payments || []).map((payment: any) => ({
-          mode: payment.method || payment.paymentMethod || '',
-          narration: payment.narration || '',
-          date: payment.paymentDate ? payment.paymentDate.slice(0, 10) : '',
-          receivedBy: payment.receiver?.name || '',
-          amount:
+        payments: (booking.payments || []).map((payment: any) => {
+          const mode = payment.method || payment.paymentMethod || '';
+          const narration = payment.narration || '';
+          const date = payment.paymentDate ? payment.paymentDate.slice(0, 10) : '';
+          const receivedBy = payment.receiver?.name || '';
+          const amount =
             payment.amount !== null && payment.amount !== undefined
               ? String(payment.amount)
-              : '',
-        })),
+              : '';
+          return {
+            id: payment.id || undefined,
+            mode,
+            narration,
+            date,
+            receivedBy,
+            amount,
+            // Snapshot used to detect which fields actually changed so we only PATCH those.
+            _original: { mode, narration, date, receivedBy, amount },
+          };
+        }),
         packs: nextPacks,
-      });
+      };
+      setFormData(loadedFormData);
+      // Snapshot of server state — used to reset on submission failure.
+      savedFormDataRef.current = loadedFormData;
       setCustomerSearchInputs({
         primary:
           formatCustomerLabel(
@@ -1851,6 +1996,7 @@ export default function BookingsPage() {
       setActiveCustomerSearchField(null);
       setOpenHallPickerPack(null);
       setAmountSyncMode('finalAmount');
+      setDiscountManuallySet(true); // existing booking already has deliberate amounts
       setShowCreateForm(true);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to load booking');
@@ -2094,14 +2240,14 @@ export default function BookingsPage() {
           ratePerPlate: row.withCatering ? toNumber(row.ratePerPlate) : 0,
           setupCost: row.setupCost ? toNumber(row.setupCost) : 0,
           extraCharges: row.extraCharges || 0,
-          extraPlate: row.extraPlate,
-          extraAmount: row.extraAmount,
-          extraAmountValue: row.extraAmountValue,
-          extraRate: row.extraRate,
-          extraRateValue: row.extraRateValue,
+          extraPlate: row.extraPlate ?? undefined,
+          extraAmount: row.extraAmount ?? undefined,
+          extraAmountValue: row.extraAmountValue ?? undefined,
+          extraRate: row.extraRate ?? undefined,
+          extraRateValue: row.extraRateValue ?? undefined,
           startTime: row.startTime || undefined,
           endTime: row.endTime || undefined,
-          hallRate: row.withHall ? row.hallRate || undefined : undefined,
+          hallRate: row.withHall ? (row.hallRate ?? undefined) || undefined : undefined,
           menuPoint: row.menuPoints ? toNumber(row.menuPoints) : undefined,
           hallName: row.withHall ? selectedHallNames.join(', ') || undefined : undefined,
           menu: {
@@ -2150,20 +2296,17 @@ export default function BookingsPage() {
           }, menuPoints=${row.menuPoints || 0}`;
       });
 
-      const notes = [formData.notes.trim(), packSummary.length ? `Pack Summary - ${packSummary.join(' ; ')}` : '']
-        .filter(Boolean)
-        .join('\n');
+      // Keep notes to just the user-entered text — pack summaries were bloating
+      // this past the server's 2000-char limit on complex bookings.
+      const notes = formData.notes.trim() || undefined;
+
+      // Payment entries are now persisted via the /payments endpoint, so we
+      // don't need to duplicate them in internalNotes. Just store the financial
+      // snapshot which is compact and always useful for debugging.
       const internalNotesParts = [
-        paymentSummary.length ? `Payment Entries - ${paymentSummary.join(' ; ')}` : '',
-        `Settlement: discount=${formData.settlementDiscountAmount || 0}, amount=${formData.settlementAmount || 0
-        }`,
-        `Final Calc: discountAmount=${normalizedDiscountAmount}, discountPercent=${normalizedDiscountPercent
-        }, finalAmount=${normalizedFinalAmount}, totalBill=${totalBillAmount.toFixed(
-          2
-        )}, totalPayments=${totalPayments.toFixed(2)}`,
+        `Final Calc: discountAmt=${normalizedDiscountAmount}, discountPct=${normalizedDiscountPercent}, finalAmt=${normalizedFinalAmount}, totalBill=${totalBillAmount.toFixed(2)}, totalPaid=${totalPayments.toFixed(2)}`,
       ].filter(Boolean);
-      const internalNotes =
-        internalNotesParts.length > 0 ? internalNotesParts.join('\n') : undefined;
+      const internalNotes = internalNotesParts.join('\n').slice(0, 1990) || undefined;
 
       const payload = {
         customerId: formData.customerId,
@@ -2190,26 +2333,78 @@ export default function BookingsPage() {
         discountPercentage: normalizedDiscountPercent,
         advanceRequired: formData.advanceRequired || undefined,
         paymentReceivedPercent: formData.paymentReceivedPercent || undefined,
-        paymentReceivedAmount:
-          totalPayments > 0 ? totalPayments.toFixed(2) : undefined,
+        // paymentReceivedAmount is derived server-side from actual payment records.
         dueAmount: formData.dueAmount || undefined,
-        notes: notes || undefined,
+        notes: notes ? notes.slice(0, 1990) : undefined,
         internalNotes,
       };
 
+      let savedBookingId: string;
       if (editingBookingId) {
         await api.updateBooking(editingBookingId, payload);
+        savedBookingId = editingBookingId;
       } else {
-        await api.createBooking(payload);
+        const created = await api.createBooking(payload);
+        // Server: { success, data: { booking: { id, ... } } } → axios wraps in .data
+        savedBookingId = created?.data?.data?.booking?.id || created?.data?.booking?.id || '';
       }
+
+      if (savedBookingId) {
+        // PATCH existing payments that were actually changed.
+        const changedPayments = formData.payments.filter((p) => {
+          if (!p.id || !p._original) return false;
+          return (
+            p.amount !== p._original.amount ||
+            p.mode !== p._original.mode ||
+            p.date !== p._original.date ||
+            p.narration !== p._original.narration ||
+            p.receivedBy !== p._original.receivedBy
+          );
+        });
+
+        // POST new payments (no DB id yet).
+        const newPayments = formData.payments.filter(
+          (p) => !p.id && p.amount.trim() && p.date.trim()
+        );
+
+        await Promise.all([
+          ...changedPayments.map((p) =>
+            api.updatePayment(savedBookingId, p.id!, {
+              amount: parseFloat(p.amount),
+              method: p.mode,
+              narration: p.narration || undefined,
+              paymentDate: p.date,
+            })
+          ),
+          ...newPayments.map((p) =>
+            api.addPayment(savedBookingId, {
+              amount: parseFloat(p.amount),
+              method: p.mode,
+              narration: p.narration || undefined,
+              paymentDate: p.date,
+            })
+          ),
+        ]);
+      }
+
       toast.success(editingBookingId ? 'Booking updated successfully' : 'Booking created successfully');
+      savedFormDataRef.current = null;
       closeBookingForm();
       await loadBookings();
     } catch (error: any) {
-      toast.error(
-        error?.response?.data?.error ||
-        (editingBookingId ? 'Failed to update booking' : 'Failed to create booking')
-      );
+      console.error('[BookingSubmit] error:', error?.response?.data ?? error);
+      const validationErrors: Array<{ field: string; message: string }> =
+        error?.response?.data?.errors || [];
+      const detail = validationErrors.length
+        ? validationErrors.map((e) => `${e.field}: ${e.message}`).join('; ')
+        : error?.response?.data?.error ||
+          (editingBookingId ? 'Failed to update booking' : 'Failed to create booking');
+      toast.error(detail);
+      // Reset form to the last known server state so partial mutations don't
+      // leave the user looking at corrupted local state.
+      if (savedFormDataRef.current) {
+        setFormData(savedFormDataRef.current);
+      }
     } finally {
       setSaving(false);
     }
@@ -2391,7 +2586,7 @@ export default function BookingsPage() {
         </div>
         {canAddBooking && (
           <button
-            onClick={() => setShowWizard(true)}
+            onClick={() => setShowCreateForm(true)}
             className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
           >
             <Plus className="w-4 h-4" />
@@ -2485,14 +2680,13 @@ export default function BookingsPage() {
                   <div>
                     <label className="label">Priority</label>
                     <input
-                      className="input"
+                      className="input bg-slate-50 cursor-not-allowed"
                       type="number"
-                      min={0}
+                      readOnly
                       value={formData.priority}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, priority: e.target.value }))
-                      }
+                      title="Priority is set from the selected customer's profile"
                     />
+                    <p className="mt-1 text-xs text-[var(--text-4)]">Auto-set from customer profile</p>
                   </div>
                 </div>
 
@@ -2637,110 +2831,231 @@ export default function BookingsPage() {
                   <div>
                     <label className="label">Due Amount</label>
                     <input
-                      className="input"
+                      className="input bg-slate-50 cursor-not-allowed"
                       type="number"
-                      min={0}
+                      readOnly
                       value={formData.dueAmount}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, dueAmount: e.target.value }))
-                      }
                     />
+                    <p className="mt-1 text-xs text-[var(--text-4)]">Auto-calculated (Final − Paid)</p>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
-                  <div className="grid grid-cols-6 bg-slate-200 text-xs font-semibold text-slate-700 px-3 py-2">
-                    <div>Mode</div>
-                    <div>Narration</div>
-                    <div>Date</div>
-                    <div>Received By</div>
-                    <div>Amount</div>
-                    <div className="text-right">
-                      <button
-                        type="button"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-primary-600 text-primary-700 hover:bg-primary-50"
-                        onClick={addPaymentRow}
-                        aria-label="Add payment row"
-                      >
-                        +
-                      </button>
+                {/* Payment modal */}
+                {showPaymentModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+                        <h3 className="text-base font-semibold text-[var(--text-1)]">Add Payment</h3>
+                        <button
+                          type="button"
+                          className="text-[var(--text-4)] hover:text-[var(--text-2)]"
+                          onClick={() => setShowPaymentModal(false)}
+                        >✕</button>
+                      </div>
+                      <div className="space-y-4 px-5 py-4">
+                        <div>
+                          <label className="label">Amount *</label>
+                          <input
+                            autoFocus
+                            className="input"
+                            type="number"
+                            min={0}
+                            placeholder="0"
+                            value={paymentDraft.amount}
+                            onChange={(e) => setPaymentDraft((p) => ({ ...p, amount: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Mode *</label>
+                          <select
+                            className="input"
+                            value={paymentDraft.mode}
+                            onChange={(e) => setPaymentDraft((p) => ({ ...p, mode: e.target.value }))}
+                          >
+                            {['Cash', 'Cheque', 'Card', 'Online (UPI)'].map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="label">Date *</label>
+                          <input
+                            className="input"
+                            type="date"
+                            value={paymentDraft.date}
+                            onChange={(e) => setPaymentDraft((p) => ({ ...p, date: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Received By</label>
+                          <input
+                            className="input"
+                            placeholder="Staff name"
+                            value={paymentDraft.receivedBy}
+                            onChange={(e) => setPaymentDraft((p) => ({ ...p, receivedBy: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Narration</label>
+                          <input
+                            className="input"
+                            placeholder="Optional note"
+                            value={paymentDraft.narration}
+                            onChange={(e) => setPaymentDraft((p) => ({ ...p, narration: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-4">
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => setShowPaymentModal(false)}
+                        >Cancel</button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={!paymentDraft.amount || !paymentDraft.date}
+                          onClick={() => {
+                            if (!paymentDraft.amount || !paymentDraft.date) return;
+                            setFormData((prev) => ({
+                              ...prev,
+                              payments: [...prev.payments, { ...paymentDraft }],
+                            }));
+                            setShowPaymentModal(false);
+                            setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '' });
+                          }}
+                        >Add Payment</button>
+                      </div>
                     </div>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
+                  <div className="flex items-center justify-between bg-slate-200 px-3 py-2">
+                    <span className="text-xs font-semibold text-slate-700">Payments</span>
+                    <button
+                      type="button"
+                      className="inline-flex h-7 items-center gap-1 rounded-full border border-primary-600 px-3 text-xs font-medium text-primary-700 hover:bg-primary-50"
+                      onClick={() => {
+                        setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '' });
+                        setShowPaymentModal(true);
+                      }}
+                    >
+                      + Add Payment
+                    </button>
                   </div>
                   {formData.payments.length === 0 ? (
                     <div className="px-3 py-5 text-center text-sm text-[var(--text-4)]">
-                      No payments added. Click the + button to add payment entries.
+                      No payments recorded yet.
                     </div>
                   ) : (
-                    formData.payments.map((payment, index) => (
-                      <div
-                        key={`payment-${index}`}
-                        className="grid grid-cols-1 md:grid-cols-6 gap-2 border-t border-[var(--border)] p-3"
-                      >
-                        <input
-                          className="input h-10"
-                          value={payment.mode}
-                          onChange={(e) =>
-                            updatePaymentRow(index, 'mode', e.target.value)
-                          }
-                        />
-                        <input
-                          className="input h-10"
-                          value={payment.narration}
-                          onChange={(e) =>
-                            updatePaymentRow(index, 'narration', e.target.value)
-                          }
-                        />
-                        <input
-                          className="input h-10"
-                          type="date"
-                          value={payment.date}
-                          onChange={(e) =>
-                            updatePaymentRow(index, 'date', e.target.value)
-                          }
-                        />
-                        <input
-                          className="input h-10"
-                          value={payment.receivedBy}
-                          onChange={(e) =>
-                            updatePaymentRow(index, 'receivedBy', e.target.value)
-                          }
-                        />
-                        <input
-                          className="input h-10"
-                          type="number"
-                          min={0}
-                          value={payment.amount}
-                          onChange={(e) =>
-                            updatePaymentRow(index, 'amount', e.target.value)
-                          }
-                        />
-                        <div className="flex md:justify-end">
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                payments: prev.payments.filter(
-                                  (_, rowIndex) => rowIndex !== index
-                                ),
-                              }))
-                            }
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[var(--border)] text-xs font-semibold text-slate-600">
+                          <th className="px-3 py-2 text-left">Amount (₹)</th>
+                          <th className="px-3 py-2 text-left">Mode</th>
+                          <th className="px-3 py-2 text-left">Date</th>
+                          <th className="px-3 py-2 text-left">Note / Narration</th>
+                          <th className="px-3 py-2" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.payments.map((payment, index) => {
+                          const isExisting = Boolean(payment.id);
+                          const isDirty = isExisting && payment._original && (
+                            payment.amount !== payment._original.amount ||
+                            payment.mode !== payment._original.mode ||
+                            payment.date !== payment._original.date ||
+                            payment.narration !== payment._original.narration
+                          );
+                          const patch = (patch: Partial<PaymentRow>) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              payments: prev.payments.map((p, i) =>
+                                i === index ? { ...p, ...patch } : p
+                              ),
+                            }));
+                          return (
+                            <tr
+                              key={payment.id || `new-${index}`}
+                              className={`border-t border-[var(--border)] ${isDirty ? 'bg-amber-50' : ''}`}
+                            >
+                              <td className="px-2 py-1.5">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="input py-1 text-sm w-28"
+                                  value={payment.amount}
+                                  onChange={(e) => patch({ amount: e.target.value })}
+                                />
+                                {isDirty && payment._original && (
+                                  <div className="text-xs text-amber-600 mt-0.5">
+                                    was ₹{Number(payment._original.amount || 0).toLocaleString('en-IN')}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <select
+                                  className="input py-1 text-sm"
+                                  value={payment.mode}
+                                  onChange={(e) => patch({ mode: e.target.value })}
+                                >
+                                  {['Cash', 'Cheque', 'Card', 'Online (UPI)'].map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input
+                                  type="date"
+                                  className="input py-1 text-sm"
+                                  value={payment.date}
+                                  onChange={(e) => patch({ date: e.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input
+                                  type="text"
+                                  className="input py-1 text-sm"
+                                  placeholder={isExisting ? 'Correction note…' : 'Narration'}
+                                  value={payment.narration}
+                                  onChange={(e) => patch({ narration: e.target.value })}
+                                />
+                              </td>
+                              <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                                {isExisting ? (
+                                  <span className="text-xs text-slate-400 select-none">saved</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="text-xs text-red-500 hover:text-red-700"
+                                    onClick={() =>
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        payments: prev.payments.filter((_, i) => i !== index),
+                                      }))
+                                    }
+                                  >Remove</button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   )}
-                  <div className="space-y-1 border-t border-[var(--border)] bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800">
-                    <div className="flex items-center justify-between">
-                      <span>Total Payments</span>
-                      <span>₹{totalPayments.toLocaleString('en-IN')}</span>
+                  <div className="space-y-1 border-t border-[var(--border)] bg-slate-100 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between font-medium text-slate-700">
+                      <span>Amount Received</span>
+                      <span>₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span>Total Bill Amount</span>
-                      <span>₹{totalBillAmount.toLocaleString('en-IN')}</span>
+                    <div className="flex items-center justify-between font-semibold text-slate-800 border-t border-slate-200 pt-1">
+                      <span>Total Amount</span>
+                      <span>₹{(parseFloat(formData.finalAmount || '0') || totalBillAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className={`flex items-center justify-between font-bold ${Math.max(0, (parseFloat(formData.finalAmount || '0') || totalBillAmount) - totalPayments) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span>Amount Due</span>
+                      <span>₹{Math.max(0, (parseFloat(formData.finalAmount || '0') || totalBillAmount) - totalPayments).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>
@@ -3219,6 +3534,7 @@ export default function BookingsPage() {
                       value={formData.finalDiscountPercent}
                       onChange={(e) => {
                         setAmountSyncMode('discountPercent');
+                        setDiscountManuallySet(true);
                         setFormData((prev) => ({
                           ...prev,
                           ...normalizeAmountSnapshot(
@@ -3240,6 +3556,7 @@ export default function BookingsPage() {
                       value={formData.finalDiscountAmount}
                       onChange={(e) => {
                         setAmountSyncMode('discountAmount');
+                        setDiscountManuallySet(true);
                         setFormData((prev) => ({
                           ...prev,
                           ...normalizeAmountSnapshot(
@@ -3260,6 +3577,7 @@ export default function BookingsPage() {
                       value={formData.finalAmount}
                       onChange={(e) => {
                         setAmountSyncMode('finalAmount');
+                        setDiscountManuallySet(true);
                         setFormData((prev) => ({
                           ...prev,
                           ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillAmount),
@@ -4244,17 +4562,44 @@ export default function BookingsPage() {
                   inputMode="numeric"
                   maxLength={10}
                 />
+                {inlineCustomerFormData.country.trim().toLowerCase() === 'india' && (
+                  <p className="mt-1 text-xs text-[var(--text-4)]">
+                    {inlineCustomerPincodeLookupLoading
+                      ? 'Looking up city and state...'
+                      : 'Enter a 6-digit Indian PIN code to auto-fill city and state.'}
+                  </p>
+                )}
+                {inlineCustomerPincodeLookupError && (
+                  <p className="mt-1 text-xs text-red-600">{inlineCustomerPincodeLookupError}</p>
+                )}
               </div>
               <div className="md:col-span-4">
                 <label className="label">State</label>
-                <input
-                  value={inlineCustomerFormData.state}
-                  onChange={(e) =>
-                    setInlineCustomerFormData((prev) => ({ ...prev, state: e.target.value }))
-                  }
-                  className="input"
-                  placeholder="State"
-                />
+                {inlineCustomerFormData.country.trim().toLowerCase() === 'india' ? (
+                  <select
+                    value={inlineCustomerFormData.state}
+                    onChange={(e) =>
+                      setInlineCustomerFormData((prev) => ({ ...prev, state: e.target.value }))
+                    }
+                    className="input"
+                  >
+                    <option value="">Select state</option>
+                    {INDIA_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={inlineCustomerFormData.state}
+                    onChange={(e) =>
+                      setInlineCustomerFormData((prev) => ({ ...prev, state: e.target.value }))
+                    }
+                    className="input"
+                    placeholder="State"
+                  />
+                )}
               </div>
               <div className="md:col-span-4">
                 <label className="label">City</label>
@@ -4822,7 +5167,7 @@ export default function BookingsPage() {
                 : Object.values(columnSearch).some(Boolean)
                   ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
                   : canAddBooking
-                    ? { label: 'New Booking', onClick: () => setShowWizard(true) }
+                    ? { label: 'New Booking', onClick: () => setShowCreateForm(true) }
                     : undefined
             }
           />
@@ -4936,7 +5281,6 @@ export default function BookingsPage() {
                         Actions
                       </th>
                     )}
-                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -5024,7 +5368,7 @@ export default function BookingsPage() {
 
       {canAddBooking && (
         <FloatingActionButton
-          onClick={() => setShowWizard(true)}
+          onClick={() => setShowCreateForm(true)}
           label="New Booking"
         />
       )}
@@ -5149,23 +5493,6 @@ export default function BookingsPage() {
           </div>
         </form>
       </FormPromptModal>
-
-      {/* BookingWizard — used for NEW bookings on desktop */}
-      {canAddBooking && (
-        <BookingWizard
-          open={showWizard}
-          onClose={() => setShowWizard(false)}
-          onSuccess={async () => { await loadBookings(); }}
-          customers={customers}
-          banquets={banquets}
-          halls={halls}
-          items={items}
-          templateMenus={templateMenus}
-          canAddCustomer={canAddCustomer}
-          onAddCustomer={openQuickCustomerForm}
-        />
-      )}
-
       <FilterPanel
         open={showFilters}
         onClose={() => setShowFilters(false)}

@@ -3,8 +3,19 @@
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { KeyRound, Save, Settings2, Shield, Trash2, Users } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  KeyRound,
+  Save,
+  Search,
+  Settings2,
+  Shield,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import EmptyState from '@/components/EmptyState';
 import FormPromptModal from '@/components/FormPromptModal';
 import { TableSkeleton } from '@/components/Skeletons';
 
@@ -12,6 +23,7 @@ interface UserRow {
   id: string;
   name?: string | null;
   email: string;
+  createdAt?: string;
   userRoles?: Array<{
     role: {
       id: string;
@@ -104,20 +116,20 @@ const SUBJECT_ALIASES: Record<string, string> = {
 };
 
 const SUBJECT_LABELS: Record<string, string> = {
-  user: 'USER',
-  customer: 'CUSTOMER',
-  role: 'ROLE',
-  permission: 'PERMISSION',
-  item: 'ITEM',
-  itemtype: 'ITEMTYPE',
-  hall: 'HALL',
-  banquet: 'BANQUET',
-  booking: 'BOOKING',
-  enquiry: 'ENQUIRY',
-  templatemenu: 'TEMPLATEMENU',
-  calendar: 'CALENDAR',
-  dashboard: 'DASHBOARD',
-  report: 'REPORTS',
+  user: 'Users',
+  customer: 'Customers',
+  role: 'Roles',
+  permission: 'Permissions',
+  item: 'Items',
+  itemtype: 'Item Types',
+  hall: 'Halls',
+  banquet: 'Banquets',
+  booking: 'Bookings',
+  enquiry: 'Enquiries',
+  templatemenu: 'Template Menus',
+  calendar: 'Calendar',
+  dashboard: 'Dashboard',
+  report: 'Reports',
 };
 
 const SUBJECT_ORDER = [
@@ -170,6 +182,32 @@ function parsePermissionName(name: string): { action: string; subject: string } 
   return { action: parts[0], subject: parts.slice(1).join('_') || 'general' };
 }
 
+function formatPermissionLabel(name: string): string {
+  const { action, subject } = parsePermissionName(name);
+  const normalizedSubject = normalizeSubject(subject);
+  const subjectLabel = SUBJECT_LABELS[normalizedSubject] || normalizedSubject.replace(/_/g, ' ');
+  const singularSubject = subjectLabel.endsWith('s')
+    ? subjectLabel.slice(0, -1)
+    : subjectLabel;
+  return `${formatAction(action)} ${singularSubject.toLowerCase()}`;
+}
+
+function arraysMatchAsSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((item) => rightSet.has(item));
+}
+
+function formatJoinedDate(value?: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return `Joined ${date.toLocaleDateString('en-IN', {
+    month: 'short',
+    year: 'numeric',
+  })}`;
+}
+
 const initialRoleForm = {
   name: '',
   description: '',
@@ -184,6 +222,7 @@ const initialUserForm = {
   name: '',
   email: '',
   password: '',
+  confirmPassword: '',
   roleId: '',
 };
 type SettingsSection = 'access' | 'users' | 'roles' | 'permissions';
@@ -214,6 +253,9 @@ function SettingsPageContent() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [showUserPrompt, setShowUserPrompt] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [roleForm, setRoleForm] = useState(initialRoleForm);
   const [permissionForm, setPermissionForm] = useState(initialPermissionForm);
@@ -253,6 +295,15 @@ function SettingsPageContent() {
     () => roles.find((role) => role.id === selectedRoleId),
     [roles, selectedRoleId]
   );
+
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    if (!query) return users;
+    return users.filter((user) => {
+      const haystack = `${user.name || ''} ${user.email}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [userSearch, users]);
 
   const currentPermissionSet = useMemo(
     () => new Set(currentUser?.permissions || []),
@@ -403,6 +454,23 @@ function SettingsPageContent() {
     if (!selectedRole) return;
     setSelectedPermissionIds(selectedRole.permissions?.map((rp) => rp.permission.id) || []);
   }, [selectedRole]);
+
+  const selectedUserRoleIds = useMemo(
+    () => selectedUser?.userRoles?.map((ur) => ur.role.id) || [],
+    [selectedUser]
+  );
+  const selectedRolePermissionIds = useMemo(
+    () => selectedRole?.permissions?.map((rp) => rp.permission.id) || [],
+    [selectedRole]
+  );
+  const userRolesDirty = useMemo(
+    () => !arraysMatchAsSet(selectedRoleIds, selectedUserRoleIds),
+    [selectedRoleIds, selectedUserRoleIds]
+  );
+  const rolePermissionsDirty = useMemo(
+    () => !arraysMatchAsSet(selectedPermissionIds, selectedRolePermissionIds),
+    [selectedPermissionIds, selectedRolePermissionIds]
+  );
 
   const loadData = async () => {
     try {
@@ -565,6 +633,10 @@ function SettingsPageContent() {
       toast.error('You do not have permission to delete users');
       return;
     }
+    if (id === currentUser?.id) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
     if (!confirm('Delete this user?')) return;
     try {
       await api.deleteUser(id);
@@ -585,6 +657,10 @@ function SettingsPageContent() {
       toast.error('Name, email and password are required');
       return;
     }
+    if (userForm.password !== userForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
 
     try {
       setSavingUser(true);
@@ -597,6 +673,8 @@ function SettingsPageContent() {
       toast.success('User created');
       setShowUserPrompt(false);
       setUserForm(initialUserForm);
+      setShowPassword(false);
+      setShowConfirmPassword(false);
       await loadData();
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to create user');
@@ -629,7 +707,13 @@ function SettingsPageContent() {
       toast.error('You do not have permission to delete roles');
       return;
     }
-    if (!confirm('Delete this role?')) return;
+    const role = roles.find((item) => item.id === id);
+    const assignedUsers = role?._count?.userRoles || 0;
+    const message =
+      assignedUsers > 0
+        ? `This role is assigned to ${assignedUsers} user${assignedUsers === 1 ? '' : 's'}. Deleting it will remove their access. Continue?`
+        : 'Delete this role?';
+    if (!confirm(message)) return;
     try {
       await api.deleteRole(id);
       toast.success('Role deleted');
@@ -732,9 +816,13 @@ function SettingsPageContent() {
                       <div className="grid grid-cols-2 gap-2">
                         {group.permissions.map((permission) => {
                           const permissionId = permission.id;
-                          const label = formatAction(parsePermissionName(permission.name).action);
+                          const label = formatPermissionLabel(permission.name);
                           return (
-                            <label key={permissionId} className="flex items-center gap-2 text-sm text-[var(--text-2)]">
+                            <label
+                              key={permissionId}
+                              className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                              title={permission.name}
+                            >
                               <input
                                 type="checkbox"
                                 checked={newRolePermissionIds.includes(permissionId)}
@@ -805,7 +893,7 @@ function SettingsPageContent() {
             <div>
               <label className="label">Password</label>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 className="input"
                 value={userForm.password}
                 onChange={(e) =>
@@ -813,6 +901,41 @@ function SettingsPageContent() {
                 }
                 required
               />
+              <button
+                type="button"
+                className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showPassword ? 'Hide password' : 'Show password'}
+              </button>
+              <p className="mt-1 text-xs text-[var(--text-4)]">
+                Use at least 8 characters for staff accounts.
+              </p>
+            </div>
+            <div>
+              <label className="label">Confirm password</label>
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                className="input"
+                value={userForm.confirmPassword}
+                onChange={(e) =>
+                  setUserForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                }
+                required
+              />
+              <button
+                type="button"
+                className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
+                )}
+                {showConfirmPassword ? 'Hide confirmation' : 'Show confirmation'}
+              </button>
             </div>
             <div>
               <label className="label">Role</label>
@@ -976,7 +1099,7 @@ function SettingsPageContent() {
           </div>
           {!canViewUsers || !canViewRoles ? (
             <p className="text-sm text-[var(--text-4)]">
-              Assigning roles requires both `view_user` and `view_role` permissions.
+              Assigning roles requires both <code>view_user</code> and <code>view_role</code> permissions.
             </p>
           ) : (
             <>
@@ -1009,11 +1132,16 @@ function SettingsPageContent() {
               </div>
               <div className="flex justify-end">
                 <button
-                  className="btn btn-primary w-full sm:w-auto"
+                  className={`btn w-full sm:w-auto ${userRolesDirty ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={updateUserRoles}
-                  disabled={savingUserRoles || !canAssignRoles}
+                  disabled={savingUserRoles || !canAssignRoles || !userRolesDirty}
                 >
-                  {savingUserRoles ? 'Saving...' : 'Save User Roles'}
+                  <span className="inline-flex items-center gap-2">
+                    {userRolesDirty ? (
+                      <span className="inline-block h-2 w-2 rounded-full bg-current" aria-hidden="true" />
+                    ) : null}
+                    {savingUserRoles ? 'Saving...' : userRolesDirty ? 'Save User Roles' : 'Saved'}
+                  </span>
                 </button>
               </div>
               {!canAssignRoles && (
@@ -1032,7 +1160,7 @@ function SettingsPageContent() {
           </div>
           {!canViewRoles || !canViewPermissions ? (
             <p className="text-sm text-[var(--text-4)]">
-              Managing role permissions requires both `view_role` and `view_permission`.
+              Managing role permissions requires both <code>view_role</code> and <code>view_permission</code> permissions.
             </p>
           ) : (
             <>
@@ -1088,9 +1216,13 @@ function SettingsPageContent() {
                         <div className="grid grid-cols-2 gap-2">
                           {group.permissions.map((permission) => {
                             const permissionId = permission.id;
-                            const label = formatAction(parsePermissionName(permission.name).action);
+                            const label = formatPermissionLabel(permission.name);
                             return (
-                              <label key={permissionId} className="flex items-center gap-2 text-sm text-[var(--text-2)]">
+                              <label
+                                key={permissionId}
+                                className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                                title={permission.name}
+                              >
                                 <input
                                   type="checkbox"
                                   checked={selectedPermissionIds.includes(permissionId)}
@@ -1114,11 +1246,20 @@ function SettingsPageContent() {
               )}
               <div className="flex justify-end">
                 <button
-                  className="btn btn-primary w-full sm:w-auto"
+                  className={`btn w-full sm:w-auto ${rolePermissionsDirty ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={updateRolePermissions}
-                  disabled={savingRolePermissions || !canManageRolePermissions}
+                  disabled={savingRolePermissions || !canManageRolePermissions || !rolePermissionsDirty}
                 >
-                  {savingRolePermissions ? 'Saving...' : 'Save Role Permissions'}
+                  <span className="inline-flex items-center gap-2">
+                    {rolePermissionsDirty ? (
+                      <span className="inline-block h-2 w-2 rounded-full bg-current" aria-hidden="true" />
+                    ) : null}
+                    {savingRolePermissions
+                      ? 'Saving...'
+                      : rolePermissionsDirty
+                        ? 'Save Role Permissions'
+                        : 'Saved'}
+                  </span>
                 </button>
               </div>
               {!canManageRolePermissions && (
@@ -1131,12 +1272,9 @@ function SettingsPageContent() {
         </div>
       </div>
 
-      <div
-        className={`grid grid-cols-1 xl:grid-cols-3 gap-6 ${
-          activeSettingsSection === 'access' ? 'hidden' : ''
-        }`}
-      >
-        <div className={`card ${activeSettingsSection === 'users' && canAccessUsersSection ? '' : 'hidden'}`}>
+      <div className="space-y-6">
+        {activeSettingsSection === 'users' && canAccessUsersSection && (
+        <div className="card">
           <div className="page-head mb-4">
             <h2 className="text-lg font-semibold text-[var(--text-1)]">Users</h2>
             {canAddUsers && (
@@ -1150,28 +1288,69 @@ function SettingsPageContent() {
               </button>
             )}
           </div>
+          {canViewUsers && (
+            <div className="relative mb-4">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-4)]" />
+              <input
+                className="input pl-9"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search users by name or email"
+              />
+            </div>
+          )}
           {loading ? (
             <TableSkeleton rows={5} />
           ) : !canViewUsers ? (
             <p className="text-sm text-[var(--text-4)]">
               You can create or delete users, but you do not have permission to view user records.
             </p>
+          ) : filteredUsers.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title={userSearch.trim() ? 'No users match this search' : 'No users yet'}
+              description={
+                userSearch.trim()
+                  ? 'Try a different name or email.'
+                  : 'Create the first staff account to start assigning access.'
+              }
+              action={
+                userSearch.trim()
+                  ? {
+                      label: 'Clear search',
+                      onClick: () => setUserSearch(''),
+                    }
+                  : undefined
+              }
+            />
           ) : (
             <div className="space-y-3">
-              {users.map((user) => (
+              {filteredUsers.map((user) => (
                 <div key={user.id} className="border border-[var(--border)] rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium text-[var(--text-1)]">{user.name || 'Unnamed user'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-[var(--text-1)]">{user.name || 'Unnamed user'}</p>
+                        {user.id === currentUser?.id ? (
+                          <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                            You
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-xs text-[var(--text-4)] mt-1">{user.email}</p>
                       <p className="text-xs text-[var(--text-4)] mt-1">
                         {(user.userRoles || []).map((ur) => ur.role.name).join(', ') || 'No roles'}
                       </p>
+                      {formatJoinedDate(user.createdAt) ? (
+                        <p className="text-xs text-[var(--text-4)] mt-1">{formatJoinedDate(user.createdAt)}</p>
+                      ) : null}
                     </div>
                     {canDeleteUsers && (
                       <button
-                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-4)]"
                         onClick={() => removeUser(user.id)}
+                        disabled={user.id === currentUser?.id}
+                        title={user.id === currentUser?.id ? 'You cannot delete your own account' : 'Delete user'}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1182,8 +1361,10 @@ function SettingsPageContent() {
             </div>
           )}
         </div>
+        )}
 
-        <div className={`card ${activeSettingsSection === 'roles' && canAccessRolesSection ? '' : 'hidden'}`}>
+        {activeSettingsSection === 'roles' && canAccessRolesSection && (
+        <div className="card">
           <div className="page-head mb-4">
             <h2 className="text-lg font-semibold text-[var(--text-1)]">Roles</h2>
             {canAddRoles && (
@@ -1203,6 +1384,12 @@ function SettingsPageContent() {
             <p className="text-sm text-[var(--text-4)]">
               You can create or delete roles, but you do not have permission to view role records.
             </p>
+          ) : roles.length === 0 ? (
+            <EmptyState
+              icon={Shield}
+              title="No roles yet"
+              description="Create the first role before mapping access for staff."
+            />
           ) : (
             <div className="space-y-3">
               {roles.map((role) => (
@@ -1210,6 +1397,9 @@ function SettingsPageContent() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-1)]">{role.name}</p>
+                      {role.description ? (
+                        <p className="text-xs text-[var(--text-3)] mt-1">{role.description}</p>
+                      ) : null}
                       <p className="text-xs text-[var(--text-4)] mt-1">
                         {role.permissions?.length || 0} permissions • {role._count?.userRoles || 0} users
                       </p>
@@ -1228,8 +1418,10 @@ function SettingsPageContent() {
             </div>
           )}
         </div>
+        )}
 
-        <div className={`card ${activeSettingsSection === 'permissions' && canAccessPermissionsSection ? '' : 'hidden'}`}>
+        {activeSettingsSection === 'permissions' && canAccessPermissionsSection && (
+        <div className="card">
           <div className="page-head mb-4">
             <h2 className="text-lg font-semibold text-[var(--text-1)]">Permissions</h2>
             {canAddPermissions && (
@@ -1249,6 +1441,12 @@ function SettingsPageContent() {
             <p className="text-sm text-[var(--text-4)]">
               You can manage permission definitions, but you do not have permission to view permission records.
             </p>
+          ) : permissions.length === 0 ? (
+            <EmptyState
+              icon={KeyRound}
+              title="No permissions yet"
+              description="Add permission definitions before attaching them to roles."
+            />
           ) : (
             <div className="space-y-3">
               {permissions.map((permission) => (
@@ -1256,6 +1454,9 @@ function SettingsPageContent() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-1)]">{permission.name}</p>
+                      {permission.description ? (
+                        <p className="text-xs text-[var(--text-3)] mt-1">{permission.description}</p>
+                      ) : null}
                       <p className="text-xs text-[var(--text-4)] mt-1">
                         {(permission._count?.roles || 0).toLocaleString('en-IN')} linked roles
                       </p>
@@ -1274,6 +1475,7 @@ function SettingsPageContent() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

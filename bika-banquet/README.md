@@ -6,7 +6,7 @@ Complete full-stack banquet operations platform for managing events, customers, 
 
 ### 🎯 Core Functionality
 
-- **Customer Management**: Complete CRM with OTP verification, referral tracking
+- **Customer Management**: Complete CRM with referral tracking
 - **Enquiry System**: Track leads with pencil booking and quotation management
 - **Booking Management**: 
   - Multi-pack menu system with meal slots

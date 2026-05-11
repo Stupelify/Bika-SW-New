@@ -17,6 +17,7 @@ import rbacRoutes from './rbac.routes';
 import analyticsRoutes from './analytics.routes';
 import calendarRoutes from './calendar.routes';
 import searchRoutes from './search.routes';
+import { addSseClient, removeSseClient } from '../sse';
 
 const router = Router();
 
@@ -25,6 +26,25 @@ router.get('/', (req, res) => {
     status: 'ok',
     message: 'Bika Banquet API',
     docs: '/api/health',
+  });
+});
+
+router.get('/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  addSseClient(res);
+  res.write(': connected\n\n');
+
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 30_000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    removeSseClient(res);
   });
 });
 

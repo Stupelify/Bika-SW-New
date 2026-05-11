@@ -53,88 +53,60 @@ export async function getDashboardSummary(
       isLatest: true,
     };
 
-    const [totalCustomers, totalBookings, bookingsInRange, totalRevenue] =
+    const [totalCustomers, totalBookings, monthlyTrendsRaw, functionTypesRaw, hallPerformanceRaw, totalRevenue, cancelledBookings] =
       await Promise.all([
         prisma.customer.count(),
         prisma.booking.count({ where: { isLatest: true } }),
-        prisma.booking.findMany({
-          where: bookingWhere,
-          select: {
-            id: true,
-            functionDate: true,
-            functionType: true,
-            grandTotal: true,
-            status: true,
-            halls: {
-              include: {
-                hall: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        }),
+        prisma.$queryRaw<Array<{ month: string; bookings: bigint; revenue: number | null }>>`
+          SELECT
+            to_char("functionDate", 'YYYY-MM') AS month,
+            COUNT(*)::bigint AS bookings,
+            COALESCE(SUM("grandTotal"), 0) AS revenue
+          FROM bookings
+          WHERE "isLatest" = true
+            AND "functionDate" >= ${startDate}
+            AND "functionDate" <= ${endDate}
+          GROUP BY to_char("functionDate", 'YYYY-MM')
+          ORDER BY month ASC
+        `,
+        prisma.$queryRaw<Array<{ name: string; count: bigint }>>`
+          SELECT
+            COALESCE("functionType", 'Unknown') AS name,
+            COUNT(*)::bigint AS count
+          FROM bookings
+          WHERE "isLatest" = true
+            AND "functionDate" >= ${startDate}
+            AND "functionDate" <= ${endDate}
+          GROUP BY "functionType"
+          ORDER BY count DESC, name ASC
+        `,
+        prisma.$queryRaw<Array<{ hallId: string; hallName: string; bookings: bigint }>>`
+          SELECT
+            h.id AS "hallId",
+            h.name AS "hallName",
+            COUNT(*)::bigint AS bookings
+          FROM booking_halls bh
+          INNER JOIN bookings b ON b.id = bh."bookingId"
+          INNER JOIN halls h ON h.id = bh."hallId"
+          WHERE b."isLatest" = true
+            AND b."functionDate" >= ${startDate}
+            AND b."functionDate" <= ${endDate}
+          GROUP BY h.id, h.name
+          ORDER BY bookings DESC, h.name ASC
+        `,
         prisma.booking.aggregate({
           _sum: {
             grandTotal: true,
           },
           where: bookingWhere,
         }),
+        prisma.booking.count({
+          where: {
+            ...bookingWhere,
+            status: 'cancelled',
+          },
+        }),
       ]);
-
-    const monthlyMap = new Map<string, { revenue: number; bookings: number }>();
-    const functionTypeMap = new Map<string, number>();
-    const hallMap = new Map<string, { name: string; bookings: number }>();
-
-    bookingsInRange.forEach((booking) => {
-      const month = new Date(booking.functionDate).toISOString().slice(0, 7);
-      const monthStat = monthlyMap.get(month) || { revenue: 0, bookings: 0 };
-      monthStat.bookings += 1;
-      monthStat.revenue += booking.grandTotal || 0;
-      monthlyMap.set(month, monthStat);
-
-      functionTypeMap.set(
-        booking.functionType,
-        (functionTypeMap.get(booking.functionType) || 0) + 1
-      );
-
-      booking.halls.forEach((bookingHall) => {
-        const hallId = bookingHall.hall.id;
-        const hallStat = hallMap.get(hallId) || {
-          name: bookingHall.hall.name,
-          bookings: 0,
-        };
-        hallStat.bookings += 1;
-        hallMap.set(hallId, hallStat);
-      });
-    });
-
-    const monthlyTrends = Array.from(monthlyMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, stat]) => ({
-        month,
-        bookings: stat.bookings,
-        revenue: stat.revenue,
-      }));
-
-    const functionTypes = Array.from(functionTypeMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const hallPerformance = Array.from(hallMap.entries())
-      .map(([id, stat]) => ({
-        hallId: id,
-        hallName: stat.name,
-        bookings: stat.bookings,
-      }))
-      .sort((a, b) => b.bookings - a.bookings);
-
-    const cancelledBookings = bookingsInRange.filter(
-      (booking) => booking.status === 'cancelled'
-    ).length;
 
     sendSuccess(res, {
       range: {
@@ -144,16 +116,30 @@ export async function getDashboardSummary(
       summary: {
         totalCustomers,
         totalBookings,
-        bookingsInRange: bookingsInRange.length,
+        bookingsInRange: monthlyTrendsRaw.reduce(
+          (sum, row) => sum + Number(row.bookings),
+          0
+        ),
         totalRevenue: totalRevenue._sum.grandTotal || 0,
         cancelledBookings,
       },
       trends: {
-        monthly: monthlyTrends,
+        monthly: monthlyTrendsRaw.map((row) => ({
+          month: row.month,
+          bookings: Number(row.bookings),
+          revenue: Number(row.revenue || 0),
+        })),
       },
       breakdown: {
-        functionTypes,
-        hallPerformance,
+        functionTypes: functionTypesRaw.map((row) => ({
+          name: row.name,
+          count: Number(row.count),
+        })),
+        hallPerformance: hallPerformanceRaw.map((row) => ({
+          hallId: row.hallId,
+          hallName: row.hallName,
+          bookings: Number(row.bookings),
+        })),
       },
     });
   } catch (error) {

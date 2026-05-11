@@ -16,6 +16,7 @@ export interface TokenPayload {
   userId: string;
   email: string;
   roles: string[];
+  permissions: string[];
 }
 
 /**
@@ -61,11 +62,4 @@ export async function comparePassword(
  */
 export function generateRandomToken(): string {
   return crypto.randomBytes(32).toString('hex');
-}
-
-/**
- * Generate OTP
- */
-export function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
 }

@@ -1122,6 +1122,7 @@ function MenuPageContent() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Menu & Items</h1>
@@ -1947,31 +1948,31 @@ function MenuPageContent() {
             <TableSkeleton rows={5} />
           ) : filteredItemTypes.length === 0 ? (
             <EmptyState
-              icon={itemTypesGlobalSearch ? Search : Layers}
+              icon={itemTypeGlobalSearch ? Search : Layers}
               variant={
-                itemTypesGlobalSearch
+                itemTypeGlobalSearch
                   ? 'search'
-                  : Object.values(itemTypesColumnSearch).some(Boolean)
+                  : Object.values(itemTypeColumnSearch).some(Boolean)
                     ? 'filter'
                     : 'page'
               }
               title={
-                itemTypesGlobalSearch
+                itemTypeGlobalSearch
                   ? 'No types match your search'
-                  : Object.values(itemTypesColumnSearch).some(Boolean)
+                  : Object.values(itemTypeColumnSearch).some(Boolean)
                     ? 'No matches'
                     : 'No item types found'
               }
               description={
-                itemTypesGlobalSearch || Object.values(itemTypesColumnSearch).some(Boolean)
-                  ? `"${itemTypesGlobalSearch || Object.values(itemTypesColumnSearch).find(Boolean)}" returned no results.`
+                itemTypeGlobalSearch || Object.values(itemTypeColumnSearch).some(Boolean)
+                  ? `"${itemTypeGlobalSearch || Object.values(itemTypeColumnSearch).find(Boolean)}" returned no results.`
                   : 'Start by creating categories for your menu items.'
               }
               action={
-                itemTypesGlobalSearch
-                  ? { label: 'Clear search', onClick: () => setItemTypesGlobalSearch('') }
-                  : Object.values(itemTypesColumnSearch).some(Boolean)
-                    ? { label: 'Clear filters', onClick: () => setItemTypesColumnSearch(initialItemTypesColumnSearch) }
+                itemTypeGlobalSearch
+                  ? { label: 'Clear search', onClick: () => setItemTypeGlobalSearch('') }
+                  : Object.values(itemTypeColumnSearch).some(Boolean)
+                    ? { label: 'Clear filters', onClick: () => setItemTypeColumnSearch(initialTypeColumnSearch) }
                     : canAddItemType
                       ? { label: 'Add Type', onClick: openCreateType }
                       : undefined
@@ -2120,7 +2121,7 @@ function MenuPageContent() {
                 itemsGlobalSearch
                   ? { label: 'Clear search', onClick: () => setItemsGlobalSearch('') }
                   : Object.values(itemsColumnSearch).some(Boolean)
-                    ? { label: 'Clear filters', onClick: () => setItemsColumnSearch(initialItemsColumnSearch) }
+                    ? { label: 'Clear filters', onClick: () => setItemsColumnSearch(initialItemColumnSearch) }
                     : canAddItem
                       ? { label: 'Add Item', onClick: openCreateItem }
                       : undefined
@@ -2155,8 +2156,6 @@ function MenuPageContent() {
                     <th className="text-right py-3 px-2 text-sm font-semibold text-gray-700">
                       Actions
                     </th>
-                  </tr>
-                    <th className="py-2 px-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -2375,8 +2374,6 @@ function MenuPageContent() {
                       Actions
                     </th>
                   </tr>
-                    <th className="py-2 px-2" />
-                  </tr>
                 </thead>
                 <tbody>
                   {paginatedTemplateMenus.map((template) => (
@@ -2504,6 +2501,7 @@ function MenuPageContent() {
         </FilterPanel>
       )}
     </div>
+    </>
   );
 }
 

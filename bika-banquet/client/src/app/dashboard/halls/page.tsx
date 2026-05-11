@@ -3,9 +3,10 @@
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Building2, Edit, Landmark, Save, Search, Trash2 } from 'lucide-react';
+import { Building2, Edit, Filter, Landmark, Save, Search, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
+import FilterPanel from '@/components/FilterPanel';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
@@ -56,6 +57,7 @@ const initialHallForm = {
   location: '',
   rate: '',
   area: '',
+  capacity: '',
   order: '',
   photo: '',
   photoFileName: '',
@@ -371,6 +373,7 @@ function HallsPageContent() {
         hall.rate ||
         (typeof hall.basePrice === 'number' ? String(hall.basePrice) : ''),
       area: hall.area !== null && hall.area !== undefined ? String(hall.area) : '',
+      capacity: hall.capacity !== null && hall.capacity !== undefined ? String(hall.capacity) : '',
       order: hall.order !== null && hall.order !== undefined ? String(hall.order) : '',
       photo: hall.photo || '',
       photoFileName: hall.photo ? 'Existing image' : '',
@@ -389,7 +392,7 @@ function HallsPageContent() {
       setSavingHall(true);
       const payload = {
         name: hallForm.name.trim(),
-        capacity: 1,
+        capacity: hallForm.capacity ? Number(hallForm.capacity) : 1,
         area: hallForm.area ? Number(hallForm.area) : undefined,
         order: hallForm.order ? Number(hallForm.order) : undefined,
         photo: hallForm.photo || undefined,
@@ -599,6 +602,19 @@ function HallsPageContent() {
                 value={hallForm.area}
                 onChange={(e) =>
                   setHallForm((prev) => ({ ...prev, area: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <label className="label">Capacity</label>
+              <input
+                className="input"
+                type="number"
+                min={1}
+                placeholder="Max guests"
+                value={hallForm.capacity}
+                onChange={(e) =>
+                  setHallForm((prev) => ({ ...prev, capacity: e.target.value }))
                 }
               />
             </div>

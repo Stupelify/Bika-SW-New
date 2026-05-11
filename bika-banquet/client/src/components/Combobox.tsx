@@ -10,14 +10,14 @@ type ComboboxOption = {
 };
 
 type ComboboxProps = {
-  options: ComboboxOption[];
+  options: readonly ComboboxOption[];
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   searchPlaceholder?: string;
   disabled?: boolean;
   className?: string;
-  onSearch?: (query: string) => Promise<ComboboxOption[]>;
+  onSearch?: (query: string) => Promise<readonly ComboboxOption[]>;
   loading?: boolean;
 };
 
@@ -37,7 +37,7 @@ export default function Combobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [asyncOptions, setAsyncOptions] = useState<ComboboxOption[]>(options);
+  const [asyncOptions, setAsyncOptions] = useState<ComboboxOption[]>([...options]);
   const [asyncLoading, setAsyncLoading] = useState(false);
 
   const selectedOption = useMemo(
@@ -61,7 +61,7 @@ export default function Combobox({
   }, [asyncOptions, onSearch, options, query]);
 
   useEffect(() => {
-    setAsyncOptions(options);
+    setAsyncOptions([...options]);
   }, [options]);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export default function Combobox({
       setAsyncLoading(true);
       try {
         const nextOptions = await onSearch(query.trim());
-        setAsyncOptions(nextOptions);
+        setAsyncOptions([...nextOptions]);
         setActiveIndex(0);
       } finally {
         setAsyncLoading(false);

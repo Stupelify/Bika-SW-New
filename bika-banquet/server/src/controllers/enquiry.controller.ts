@@ -29,7 +29,12 @@ export const createEnquirySchema = z.object({
     customerId: idSchema('customer ID'),
     functionName: z.string().min(2, 'Function name is required'),
     functionType: z.string().min(2, 'Function type is required'),
-    functionDate: z.string().min(1, 'Function date is required'),
+    functionDate: z
+      .string()
+      .min(1, 'Function date is required')
+      .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+        message: 'Function date must be a valid date',
+      }),
     functionTime: z.string().optional(),
     startTime: z.string().optional(),
     endTime: z.string().optional(),

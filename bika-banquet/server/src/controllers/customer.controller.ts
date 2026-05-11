@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendSuccess, sendError, sendNotFound } from '../utils/response';
-import { generateOTP } from '../utils/auth';
 import { normalizeCaseFields } from '../utils/textCase';
 import phoneDigitsByCode from '../config/phoneDigitsByCode.json';
 import { idSchema } from '../utils/validation';
@@ -10,7 +9,9 @@ import { toE164 } from '../utils/phone';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 
-const NAME_PATTERN = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
+// Allows letters (including Unicode/Devanagari/Bengali etc.), spaces, dots,
+// hyphens, and apostrophes — covers Indian names, D'Souza, S.K. Sharma, etc.
+const NAME_PATTERN = /^[\p{L}][\p{L}\s.''-]*$/u;
 const PHONE_PATTERN = /^\d+$/;
 const COUNTRY_CODE_PATTERN = /^\+\d{1,4}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,7 +61,7 @@ const nameSchema = z.preprocess(
     .string()
     .min(2, 'Name must be at least 2 characters')
     .max(120, 'Name must be at most 120 characters')
-    .regex(NAME_PATTERN, 'Name can contain only letters and spaces')
+    .regex(NAME_PATTERN, 'Name must start with a letter and can contain letters, spaces, dots, hyphens, or apostrophes')
 );
 
 const phoneSchema = z.preprocess(
@@ -568,89 +569,15 @@ export async function deleteCustomer(
   } catch (error: any) {
     if (error.code === 'P2025') {
       sendNotFound(res, 'Customer not found');
+    } else if (error.code === 'P2003') {
+      // Foreign key constraint — customer has linked bookings, enquiries, or other records.
+      sendError(
+        res,
+        'Cannot delete this customer because they have existing bookings or enquiries. Remove those first.',
+        409
+      );
     } else {
       sendError(res, 'Failed to delete customer');
     }
-  }
-}
-
-/**
- * Send OTP to customer
- */
-export async function sendOTP(req: Request, res: Response): Promise<void> {
-  try {
-    const { phone } = req.body;
-    const phoneE164 = toE164(DEFAULT_COUNTRY_CODE, phone);
-
-    const otp = generateOTP();
-    const otpExpiry = new Date();
-    otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // 10 minutes
-
-    // Update or create customer with OTP
-    await prisma.customer.upsert({
-      where: { phone },
-      update: {
-        otpCode: otp,
-        otpExpiry,
-        phoneCountryCode: DEFAULT_COUNTRY_CODE,
-        phoneE164,
-      },
-      create: {
-        phone,
-        name: 'Guest', // Temporary name
-        otpCode: otp,
-        otpExpiry,
-        phoneCountryCode: DEFAULT_COUNTRY_CODE,
-        phoneE164,
-      },
-    });
-
-    // TODO: Send SMS with OTP
-
-    sendSuccess(res, null, 'OTP sent successfully');
-  } catch (error) {
-    sendError(res, 'Failed to send OTP');
-  }
-}
-
-/**
- * Verify OTP
- */
-export async function verifyOTP(req: Request, res: Response): Promise<void> {
-  try {
-    const { phone, otp } = req.body;
-
-    const customer = await prisma.customer.findUnique({
-      where: { phone },
-    });
-
-    if (!customer || !customer.otpCode || !customer.otpExpiry) {
-      sendError(res, 'Invalid or expired OTP', 400);
-      return;
-    }
-
-    if (customer.otpExpiry < new Date()) {
-      sendError(res, 'OTP has expired', 400);
-      return;
-    }
-
-    if (customer.otpCode !== otp) {
-      sendError(res, 'Invalid OTP', 400);
-      return;
-    }
-
-    // Mark as verified and clear OTP
-    const updatedCustomer = await prisma.customer.update({
-      where: { phone },
-      data: {
-        isVerified: true,
-        otpCode: null,
-        otpExpiry: null,
-      },
-    });
-
-    sendSuccess(res, { customer: updatedCustomer }, 'OTP verified successfully');
-  } catch (error) {
-    sendError(res, 'Failed to verify OTP');
   }
 }

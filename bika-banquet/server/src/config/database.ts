@@ -30,6 +30,10 @@ export async function connectDatabase() {
   }
 }
 
+export async function pingDatabase() {
+  await prisma.$queryRaw`SELECT 1`;
+}
+
 // Graceful shutdown
 export async function disconnectDatabase() {
   await prisma.$disconnect();

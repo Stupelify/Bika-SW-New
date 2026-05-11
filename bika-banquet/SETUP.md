@@ -104,7 +104,6 @@ EMAIL_FROM=noreply@yourdomain.com
 2. **Customer Management**
    - CRUD operations
    - Search and pagination
-   - OTP verification
    - Referral tracking
    - Customer history
 

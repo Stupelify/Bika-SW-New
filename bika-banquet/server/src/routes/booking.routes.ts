@@ -8,15 +8,19 @@ import {
   cancelBooking,
   deleteBooking,
   addPayment,
+  updatePayment,
   downloadBookingMenuPdf,
   createBookingSchema,
   updateBookingSchema,
+  addPaymentSchema,
+  updatePaymentSchema,
   finalizeBookingVersion,
   partyOverBooking,
   getBookingHistory,
   checkHallAvailability,
 } from '../controllers/booking.controller';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
+import { idempotencyMiddleware } from '../middleware/idempotency.middleware';
 import { validate } from '../middleware/validate.middleware';
 
 const router = Router();
@@ -26,6 +30,7 @@ router.use(authenticate);
 
 router.post(
   '/',
+  idempotencyMiddleware,
   requirePermission('add_booking', 'manage_bookings'),
   validate(createBookingSchema),
   createBooking
@@ -44,7 +49,8 @@ router.put(
 );
 router.delete('/:id', requirePermission('delete_booking', 'manage_bookings'), deleteBooking);
 router.post('/:id/cancel', requirePermission('cancel_booking', 'edit_booking', 'manage_bookings'), cancelBooking);
-router.post('/:id/payments', requirePermission('manage_payments', 'edit_booking', 'manage_bookings'), addPayment);
+router.post('/:id/payments', requirePermission('manage_payments', 'edit_booking', 'manage_bookings'), validate(addPaymentSchema), addPayment);
+router.patch('/:id/payments/:paymentId', requirePermission('manage_payments', 'edit_booking', 'manage_bookings'), validate(updatePaymentSchema), updatePayment);
 router.post('/:id/finalize', requirePermission('edit_booking', 'manage_bookings'), finalizeBookingVersion);
 router.post('/:id/party-over', requirePermission('edit_booking', 'manage_bookings'), partyOverBooking);
 router.get('/:id/history', requirePermission('view_booking', 'manage_bookings'), getBookingHistory);
