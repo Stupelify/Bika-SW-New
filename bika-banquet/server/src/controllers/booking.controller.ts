@@ -606,8 +606,8 @@ const PDF_ASSETS_DIR =
 const MENU_BACKGROUND_IMAGE_URL = process.env.MENU_PDF_BACKGROUND_URL || '';
 const MENU_LOGO_IMAGE_URL = process.env.MENU_PDF_LOGO_URL || '';
 
-const IMAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const imageCache = new Map<string, { buffer: Buffer; cachedAt: number }>();
+let cachedMenuBackgroundImage: Buffer | null | undefined;
+let cachedMenuLogoImage: Buffer | null | undefined;
 
 async function loadPdfAsset(localFilename: string, fallbackUrl: string): Promise<Buffer | null> {
   // Try local file first.
