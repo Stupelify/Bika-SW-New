@@ -60,9 +60,9 @@ apiClient.interceptors.response.use(
       const url = response.config.url ?? '';
       const segment = url.split('/')[1] ?? '';
       if (segment) {
-        for (const k of memCache.keys()) {
+        Array.from(memCache.keys()).forEach((k) => {
           if (k.includes(`/${segment}`)) memCache.delete(k);
-        }
+        });
       }
     }
 
