@@ -89,7 +89,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="input"
-                placeholder="admin@bikabanquet.com"
+                placeholder="Enter your email"
               />
             </div>
 
