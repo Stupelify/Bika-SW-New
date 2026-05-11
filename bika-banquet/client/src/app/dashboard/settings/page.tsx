@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import {
+  Building2,
   Eye,
   EyeOff,
   KeyRound,
@@ -30,6 +31,12 @@ interface UserRow {
       name: string;
     };
   }>;
+}
+
+interface BanquetOption {
+  id: string;
+  name: string;
+  location?: string;
 }
 
 interface RoleRow {
@@ -224,6 +231,7 @@ const initialUserForm = {
   password: '',
   confirmPassword: '',
   roleId: '',
+  banquetAccess: [] as string[],
 };
 type SettingsSection = 'access' | 'users' | 'roles' | 'permissions';
 
@@ -261,8 +269,12 @@ function SettingsPageContent() {
   const [permissionForm, setPermissionForm] = useState(initialPermissionForm);
   const [userForm, setUserForm] = useState(initialUserForm);
 
+  const [banquets, setBanquets] = useState<BanquetOption[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [selectedUserBanquetIds, setSelectedUserBanquetIds] = useState<string[]>([]);
+  const [savedUserBanquetIds, setSavedUserBanquetIds] = useState<string[]>([]);
+  const [savingUserBanquets, setSavingUserBanquets] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
   const [newRolePermissionIds, setNewRolePermissionIds] = useState<string[]>([]);
@@ -451,6 +463,17 @@ function SettingsPageContent() {
   }, [selectedUser]);
 
   useEffect(() => {
+    if (!selectedUserId) return;
+    api.getUserBanquets(selectedUserId)
+      .then((res) => {
+        const ids: string[] = res.data?.data?.banquetIds || [];
+        setSelectedUserBanquetIds(ids);
+        setSavedUserBanquetIds(ids);
+      })
+      .catch(() => {});
+  }, [selectedUserId]);
+
+  useEffect(() => {
     if (!selectedRole) return;
     setSelectedPermissionIds(selectedRole.permissions?.map((rp) => rp.permission.id) || []);
   }, [selectedRole]);
@@ -466,6 +489,10 @@ function SettingsPageContent() {
   const userRolesDirty = useMemo(
     () => !arraysMatchAsSet(selectedRoleIds, selectedUserRoleIds),
     [selectedRoleIds, selectedUserRoleIds]
+  );
+  const userBanquetsDirty = useMemo(
+    () => !arraysMatchAsSet(selectedUserBanquetIds, savedUserBanquetIds),
+    [selectedUserBanquetIds, savedUserBanquetIds]
   );
   const rolePermissionsDirty = useMemo(
     () => !arraysMatchAsSet(selectedPermissionIds, selectedRolePermissionIds),
@@ -496,15 +523,17 @@ function SettingsPageContent() {
         permissionSet.has('manage_roles') ||
         permissionSet.has('add_role');
 
-      const [usersRes, rolesRes, permissionsRes] = await Promise.all([
+      const [usersRes, rolesRes, permissionsRes, banquetsRes] = await Promise.all([
         canReadUsers ? api.getUsers({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canReadRoles ? api.getRoles() : Promise.resolve(null),
         canReadPermissions ? api.getPermissions() : Promise.resolve(null),
+        api.getBanquets({ page: 1, limit: 500 }),
       ]);
 
       setUsers(usersRes?.data?.data?.users || []);
       setRoles(rolesRes?.data?.data?.roles || []);
       setPermissions(permissionsRes?.data?.data?.permissions || []);
+      setBanquets(banquetsRes?.data?.data?.banquets || []);
     } catch (error) {
       toast.error('Failed to load settings data');
     } finally {
@@ -598,6 +627,24 @@ function SettingsPageContent() {
     }
   };
 
+  const saveUserBanquets = async () => {
+    if (!selectedUserId) { toast.error('Select a user first'); return; }
+    try {
+      setSavingUserBanquets(true);
+      await api.setUserBanquets(selectedUserId, selectedUserBanquetIds);
+      setSavedUserBanquetIds([...selectedUserBanquetIds]);
+      toast.success(
+        selectedUserBanquetIds.length === 0
+          ? 'User now has access to all banquets'
+          : `Banquet access restricted to ${selectedUserBanquetIds.length} banquet(s)`
+      );
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to update banquet access');
+    } finally {
+      setSavingUserBanquets(false);
+    }
+  };
+
   const updateRolePermissions = async () => {
     if (!canManageRolePermissions) {
       toast.error('You do not have permission to manage role permissions');
@@ -664,12 +711,16 @@ function SettingsPageContent() {
 
     try {
       setSavingUser(true);
-      await api.createUser({
+      const created = await api.createUser({
         name: userForm.name.trim(),
         email: userForm.email.trim(),
         password: userForm.password,
         roleId: userForm.roleId || undefined,
       });
+      const newUserId = created?.data?.data?.user?.id;
+      if (newUserId && userForm.banquetAccess.length > 0) {
+        await api.setUserBanquets(newUserId, userForm.banquetAccess);
+      }
       toast.success('User created');
       setShowUserPrompt(false);
       setUserForm(initialUserForm);
@@ -954,6 +1005,44 @@ function SettingsPageContent() {
               </select>
             </div>
           </div>
+
+          {banquets.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[var(--text-3)]" />
+                <label className="label m-0">Banquet Access</label>
+                <span className="text-xs text-[var(--text-4)]">
+                  {userForm.banquetAccess.length === 0
+                    ? '— all banquets (no restriction)'
+                    : `— ${userForm.banquetAccess.length} selected`}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-[var(--border-2)] p-3 bg-slate-50">
+                {banquets.map((b) => (
+                  <label key={b.id} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={userForm.banquetAccess.includes(b.id)}
+                      onChange={() =>
+                        setUserForm((prev) => ({
+                          ...prev,
+                          banquetAccess: prev.banquetAccess.includes(b.id)
+                            ? prev.banquetAccess.filter((id) => id !== b.id)
+                            : [...prev.banquetAccess, b.id],
+                        }))
+                      }
+                    />
+                    {b.name}
+                    {b.location ? <span className="text-[var(--text-4)] text-xs">({b.location})</span> : null}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-[var(--text-4)]">
+                Leave all unchecked = access to all banquets
+              </p>
+            </div>
+          )}
+
           <div className="form-actions">
             <button
               type="button"
@@ -1152,6 +1241,76 @@ function SettingsPageContent() {
             </>
           )}
         </div>
+
+        {banquets.length > 0 && canViewUsers && (
+          <div className="card space-y-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary-600" />
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Banquet access per user</h2>
+            </div>
+            <p className="text-sm text-[var(--text-3)]">
+              Restrict which banquets a user can view and create bookings for. Leave all unchecked = unrestricted.
+            </p>
+            {!canViewUsers ? (
+              <p className="text-sm text-[var(--text-4)]">Requires <code>view_user</code> permission.</p>
+            ) : (
+              <>
+                <div>
+                  <label className="label">User</label>
+                  <select
+                    className="input"
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    disabled={users.length === 0}
+                  >
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name || 'Unnamed'} ({user.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {banquets.map((b) => (
+                    <label key={b.id} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedUserBanquetIds.includes(b.id)}
+                        onChange={() =>
+                          setSelectedUserBanquetIds((prev) =>
+                            prev.includes(b.id)
+                              ? prev.filter((id) => id !== b.id)
+                              : [...prev, b.id]
+                          )
+                        }
+                        disabled={!canAssignRoles}
+                      />
+                      {b.name}
+                      {b.location ? <span className="text-xs text-[var(--text-4)]">({b.location})</span> : null}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-[var(--text-4)]">
+                  {selectedUserBanquetIds.length === 0
+                    ? 'No restriction — user can access all banquets'
+                    : `User restricted to: ${banquets.filter((b) => selectedUserBanquetIds.includes(b.id)).map((b) => b.name).join(', ')}`}
+                </p>
+                <div className="flex justify-end">
+                  <button
+                    className={`btn w-full sm:w-auto ${userBanquetsDirty ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={saveUserBanquets}
+                    disabled={savingUserBanquets || !canAssignRoles || !userBanquetsDirty}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      {userBanquetsDirty ? <span className="inline-block h-2 w-2 rounded-full bg-current" /> : null}
+                      {savingUserBanquets ? 'Saving...' : userBanquetsDirty ? 'Save Banquet Access' : 'Saved'}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="card space-y-4">
           <div className="flex items-center gap-2">

@@ -168,6 +168,9 @@ export const api = {
   getUser: (id: string) => apiClient.get(`/users/${id}`),
   createUser: (data: any) => apiClient.post('/users', data),
   deleteUser: (id: string) => apiClient.delete(`/users/${id}`),
+  getUserBanquets: (id: string) => apiClient.get(`/users/${id}/banquets`),
+  setUserBanquets: (id: string, banquetIds: string[]) =>
+    apiClient.put(`/users/${id}/banquets`, { banquetIds }),
 
   getRoles: () => apiClient.get('/roles'),
   createRole: (data: any) => apiClient.post('/roles', data),

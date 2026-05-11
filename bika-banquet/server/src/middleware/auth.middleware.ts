@@ -9,6 +9,7 @@ export interface AuthRequest extends Request {
     email: string;
     roles: string[];
     permissions: string[];
+    banquetIds: string[];
   };
 }
 
@@ -67,11 +68,16 @@ async function validateSessionAndResolveUser(
     ),
   ];
 
+  const banquetIds = (session.user as any).userBanquets
+    ? (session.user as any).userBanquets.map((ub: any) => ub.banquetId)
+    : [];
+
   return {
     userId: session.userId,
     email: session.user.email,
     roles,
     permissions,
+    banquetIds,
   };
 }
 
@@ -105,6 +111,7 @@ export async function authenticate(
           permissions: Array.isArray(payload.permissions)
             ? payload.permissions
             : [],
+          banquetIds: Array.isArray(payload.banquetIds) ? payload.banquetIds : [],
         };
 
     if (!payloadToUse) {
@@ -118,6 +125,7 @@ export async function authenticate(
       email: payloadToUse.email,
       roles: payloadToUse.roles,
       permissions: payloadToUse.permissions,
+      banquetIds: Array.isArray(payloadToUse.banquetIds) ? payloadToUse.banquetIds : [],
     };
 
     next();

@@ -217,3 +217,45 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
     sendError(res, 'Failed to delete user');
   }
 }
+
+export async function getUserBanquets(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const rows = await prisma.userBanquet.findMany({
+      where: { userId: id },
+      select: { banquetId: true },
+    });
+    sendSuccess(res, { banquetIds: rows.map((r) => r.banquetId) });
+  } catch (error) {
+    sendError(res, 'Failed to fetch user banquet access');
+  }
+}
+
+export async function setUserBanquets(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const banquetIds: string[] = Array.isArray(req.body.banquetIds)
+      ? req.body.banquetIds.filter((b: unknown) => typeof b === 'string')
+      : [];
+
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!user) {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.userBanquet.deleteMany({ where: { userId: id } }),
+      ...(banquetIds.length > 0
+        ? [prisma.userBanquet.createMany({
+            data: banquetIds.map((banquetId) => ({ userId: id, banquetId })),
+            skipDuplicates: true,
+          })]
+        : []),
+    ]);
+
+    sendSuccess(res, { banquetIds }, 'Banquet access updated');
+  } catch (error) {
+    sendError(res, 'Failed to update user banquet access');
+  }
+}

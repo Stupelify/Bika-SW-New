@@ -25,10 +25,11 @@ model User {
   resetTokenExpiry  DateTime?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
-  sessions          Session[]
-  userRoles         UserRole[]
-  paymentsReceived  BookingPayments[]    @relation("PaymentReceiver")
-  finalizedBookings FinalizedBooking[]   @relation("FinalizedBookingUser")
+  sessions            Session[]
+  userRoles           UserRole[]
+  userBanquets        UserBanquet[]
+  paymentsReceived    BookingPayments[]    @relation("PaymentReceiver")
+  finalizedBookings   FinalizedBooking[]   @relation("FinalizedBookingUser")
   finalizedQuotations FinalizedQuotation[]
 
   @@map("users")
@@ -248,12 +249,26 @@ model Banquet {
   email     String?
   facilities String?
   description String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  halls     Hall[]
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  halls        Hall[]
+  userBanquets UserBanquet[]
 
   @@map("banquets")
+}
+
+model UserBanquet {
+  id        String   @id @default(uuid())
+  userId    String
+  banquetId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  banquet   Banquet  @relation(fields: [banquetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, banquetId])
+  @@index([userId])
+  @@map("user_banquets")
 }
 
 model Hall {

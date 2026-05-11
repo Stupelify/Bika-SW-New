@@ -6,6 +6,7 @@ import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
+import { AuthRequest } from '../middleware/auth.middleware';
 
 export const createHallSchema = z.object({
   body: z.object({
@@ -69,9 +70,18 @@ export async function getHalls(req: Request, res: Response): Promise<void> {
     const banquetId = req.query.banquetId as string | undefined;
 
     const where: Record<string, unknown> = {};
-    if (banquetId) {
+
+    // Banquet access restriction
+    const hallAuthReq = req as AuthRequest;
+    const allowedBanquetIds = hallAuthReq.user?.banquetIds;
+    if (allowedBanquetIds && allowedBanquetIds.length > 0) {
+      where.banquetId = banquetId
+        ? (allowedBanquetIds.includes(banquetId) ? banquetId : '__none__')
+        : { in: allowedBanquetIds };
+    } else if (banquetId) {
       where.banquetId = banquetId;
     }
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },

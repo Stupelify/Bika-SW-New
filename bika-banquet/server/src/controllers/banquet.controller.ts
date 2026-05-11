@@ -6,6 +6,7 @@ import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
+import { AuthRequest } from '../middleware/auth.middleware';
 
 export const createBanquetSchema = z.object({
   body: z.object({
@@ -63,14 +64,21 @@ export async function getBanquets(req: Request, res: Response): Promise<void> {
     );
     const search = sanitizeSearchTerm(req.query.search);
 
+    const banquetAuthReq = req as AuthRequest;
+    const allowedBanquetIds = banquetAuthReq.user?.banquetIds;
+    const banquetIdFilter = allowedBanquetIds && allowedBanquetIds.length > 0
+      ? { id: { in: allowedBanquetIds } }
+      : {};
+
     const where = search
       ? {
+          ...banquetIdFilter,
           OR: [
             { name: { contains: search, mode: 'insensitive' as const } },
             { location: { contains: search, mode: 'insensitive' as const } },
           ],
         }
-      : undefined;
+      : (Object.keys(banquetIdFilter).length ? banquetIdFilter : undefined);
 
     const [banquets, total] = await Promise.all([
       prisma.banquet.findMany({

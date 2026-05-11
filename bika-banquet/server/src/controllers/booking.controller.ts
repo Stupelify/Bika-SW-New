@@ -4,7 +4,7 @@ import { Worker } from 'worker_threads';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
-import { sendSuccess, sendError, sendNotFound } from '../utils/response';
+import { sendSuccess, sendError, sendNotFound, sendForbidden } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { normalizeCaseFields, normalizeCaseInArrayObjects } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
@@ -1499,6 +1499,23 @@ export async function createBooking(
 
     const hallRowsInput = normalizeBookingHallRows(data.halls);
 
+    // Banquet access check: restricted users can only book halls in their allowed banquets
+    const createAuthReq = req as AuthRequest;
+    const createAllowedBanquetIds = createAuthReq.user?.banquetIds;
+    if (createAllowedBanquetIds && createAllowedBanquetIds.length > 0 && hallRowsInput.length > 0) {
+      const selectedHalls = await prisma.hall.findMany({
+        where: { id: { in: hallRowsInput.map((h) => h.hallId) } },
+        select: { id: true, name: true, banquetId: true },
+      });
+      const forbidden = selectedHalls.filter(
+        (h) => h.banquetId && !createAllowedBanquetIds.includes(h.banquetId)
+      );
+      if (forbidden.length > 0) {
+        sendForbidden(res, `Access denied: halls not in your allowed banquets (${forbidden.map((h) => h.name).join(', ')})`);
+        return;
+      }
+    }
+
     // Start transaction
     const booking = await runSerializableBookingTransaction(async (tx) => {
       await assertSingleBanquetHallSelection(tx, hallRowsInput);
@@ -1876,6 +1893,13 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
 
     // Build where clause
     const where: any = { isLatest: true };
+
+    // Banquet access restriction: if user has specific banquets, only show bookings for those halls
+    const authReq = req as AuthRequest;
+    const allowedBanquetIds = authReq.user?.banquetIds;
+    if (allowedBanquetIds && allowedBanquetIds.length > 0) {
+      where.halls = { some: { hall: { banquetId: { in: allowedBanquetIds } } } };
+    }
 
     if (status) {
       where.status = status;

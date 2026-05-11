@@ -4,9 +4,11 @@ import {
   createUser,
   createUserSchema,
   deleteUser,
+  getUserBanquets,
   getUserById,
   getUsers,
   getUsersSimple,
+  setUserBanquets,
 } from '../controllers/user.controller';
 import { validate } from '../middleware/validate.middleware';
 
@@ -24,5 +26,7 @@ router.post(
   createUser
 );
 router.delete('/:id', requirePermission('delete_user', 'manage_users'), deleteUser);
+router.get('/:id/banquets', requirePermission('view_user', 'manage_users'), getUserBanquets);
+router.put('/:id/banquets', requirePermission('manage_users'), setUserBanquets);
 
 export default router;

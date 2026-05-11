@@ -110,6 +110,7 @@ export async function login(req: Request, res: Response): Promise<void> {
             },
           },
         },
+        userBanquets: { select: { banquetId: true } },
       },
     });
 
@@ -132,7 +133,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     //   return;
     // }
 
-    // Extract roles
+    // Extract roles, permissions, banquet restrictions
     const roles = user.userRoles.map((ur) => ur.role.name);
     const permissions = [
       ...new Set(
@@ -141,6 +142,7 @@ export async function login(req: Request, res: Response): Promise<void> {
         )
       ),
     ];
+    const banquetIds = (user.userBanquets || []).map((ub) => ub.banquetId);
 
     // Generate JWT token
     const token = generateToken({
@@ -148,6 +150,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       email: user.email,
       roles,
       permissions,
+      banquetIds,
     });
 
     // Create session
@@ -171,6 +174,7 @@ export async function login(req: Request, res: Response): Promise<void> {
         name: user.name,
         roles,
         permissions,
+        banquetIds,
       },
     });
   } catch (error) {
@@ -236,6 +240,7 @@ export async function getCurrentUser(
         ...user,
         roles: req.user.roles,
         permissions: req.user.permissions,
+        banquetIds: req.user.banquetIds,
       },
     });
   } catch (error) {
