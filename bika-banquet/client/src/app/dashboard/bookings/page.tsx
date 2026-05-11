@@ -225,6 +225,7 @@ interface BookingFormData {
   functionType: string;
   functionDate: string;
   isPencilBooking: boolean;
+  pencilDays: string;
   pencilExpiresAt: string;
   advanceRequired: string;
   paymentReceivedPercent: string;
@@ -249,6 +250,7 @@ const initialFormData: BookingFormData = {
   functionType: '',
   functionDate: '',
   isPencilBooking: false,
+  pencilDays: '3',
   pencilExpiresAt: '',
   advanceRequired: '0',
   paymentReceivedPercent: '0',
@@ -423,6 +425,15 @@ function compareCustomersByName(a: CustomerOption, b: CustomerOption): number {
   if (phoneCompare !== 0) return phoneCompare;
 
   return a.id.localeCompare(b.id);
+}
+
+function computePencilExpiry(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + Math.max(1, days));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function formatDateTimeLabel(value?: string | Date | null): string {
@@ -1934,6 +1945,11 @@ export default function BookingsPage() {
         functionType: booking.functionType || '',
         functionDate: booking.functionDate ? booking.functionDate.slice(0, 10) : '',
         isPencilBooking: booking.isPencilBooking || false,
+        pencilDays: (() => {
+          if (!booking.pencilExpiresAt) return '3';
+          const diffMs = new Date(booking.pencilExpiresAt).getTime() - Date.now();
+          return String(Math.max(1, Math.ceil(diffMs / 86400000)));
+        })(),
         pencilExpiresAt: booking.pencilExpiresAt ? booking.pencilExpiresAt.slice(0, 10) : '',
         advanceRequired: booking.advanceRequired || '0',
         paymentReceivedPercent: booking.paymentReceivedPercent || '0',
@@ -2335,7 +2351,7 @@ export default function BookingsPage() {
         functionTime,
         isPencilBooking: formData.isPencilBooking,
         pencilExpiresAt: formData.isPencilBooking && formData.pencilExpiresAt
-          ? new Date(formData.pencilExpiresAt).toISOString()
+          ? new Date(formData.pencilExpiresAt + 'T23:59:00').toISOString()
           : null,
         startTime: enabledPackEntries[0]?.row.startTime || undefined,
         endTime: enabledPackEntries[0]?.row.endTime || undefined,
@@ -2791,13 +2807,17 @@ export default function BookingsPage() {
                         type="checkbox"
                         className="w-4 h-4 rounded accent-[var(--brand)]"
                         checked={formData.isPencilBooking}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const checked = e.target.checked;
                           setFormData((prev) => ({
                             ...prev,
-                            isPencilBooking: e.target.checked,
-                            pencilExpiresAt: e.target.checked ? prev.pencilExpiresAt : '',
-                          }))
-                        }
+                            isPencilBooking: checked,
+                            pencilDays: checked ? prev.pencilDays || '3' : '3',
+                            pencilExpiresAt: checked
+                              ? computePencilExpiry(Number(prev.pencilDays || '3'))
+                              : '',
+                          }));
+                        }}
                       />
                       <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
                         <PencilLine className="w-4 h-4 text-[var(--text-3)]" />
@@ -2806,26 +2826,52 @@ export default function BookingsPage() {
                       <span className="text-xs text-[var(--text-4)]">— temporary hall hold</span>
                     </label>
                     {formData.isPencilBooking && (
-                      <div className="space-y-1.5 pl-6">
-                        <label className="label text-xs">Block hall until <span className="text-red-500">*</span></label>
-                        <input
-                          type="date"
-                          className="input"
-                          value={formData.pencilExpiresAt}
-                          min={formData.functionDate || todayIsoDate}
-                          onChange={(e) =>
-                            setFormData((prev) => ({ ...prev, pencilExpiresAt: e.target.value }))
-                          }
-                          required={formData.isPencilBooking}
-                        />
+                      <div className="space-y-2 pl-6">
+                        <div className="flex items-end gap-3">
+                          <div className="space-y-1">
+                            <label className="label text-xs">Hold duration (days) <span className="text-red-500">*</span></label>
+                            <input
+                              type="number"
+                              className="input w-24"
+                              min="1"
+                              max="365"
+                              value={formData.pencilDays}
+                              onChange={(e) => {
+                                const days = Math.max(1, Number(e.target.value) || 1);
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  pencilDays: String(days),
+                                  pencilExpiresAt: computePencilExpiry(days),
+                                }));
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1 flex-1">
+                            <label className="label text-xs">Or pick date directly</label>
+                            <input
+                              type="date"
+                              className="input"
+                              value={formData.pencilExpiresAt}
+                              min={todayIsoDate}
+                              onChange={(e) => {
+                                const dateVal = e.target.value;
+                                const diffMs = new Date(dateVal).getTime() - new Date(todayIsoDate).getTime();
+                                const diffDays = Math.max(1, Math.round(diffMs / 86400000));
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  pencilExpiresAt: dateVal,
+                                  pencilDays: String(diffDays),
+                                }));
+                              }}
+                              required={formData.isPencilBooking}
+                            />
+                          </div>
+                        </div>
                         {formData.pencilExpiresAt && (
                           <p className="text-xs text-amber-600 flex items-center gap-1">
                             <PencilLine className="w-3 h-3" />
-                            Hall auto-releases on {new Date(formData.pencilExpiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            Hall auto-releases at 11:59 PM on {new Date(formData.pencilExpiresAt + 'T23:59:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
                           </p>
-                        )}
-                        {!formData.pencilExpiresAt && (
-                          <p className="text-xs text-[var(--text-4)]">Set an expiry date — hall unblocks automatically</p>
                         )}
                       </div>
                     )}
