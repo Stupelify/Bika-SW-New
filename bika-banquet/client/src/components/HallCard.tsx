@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Building2, IndianRupee, Users } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
@@ -90,11 +91,18 @@ export default function HallCard({
             justifyContent: 'center',
             flexShrink: 0,
             overflow: 'hidden',
+            position: 'relative',
           }}
         >
           {hall.photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={hall.photo} alt={hall.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <Image
+              src={hall.photo}
+              alt={hall.name}
+              fill
+              sizes="50px"
+              style={{ objectFit: 'cover' }}
+              loading="lazy"
+            />
           ) : (
             <Building2 size={24} style={{ color: 'var(--text-4)' }} />
           )}

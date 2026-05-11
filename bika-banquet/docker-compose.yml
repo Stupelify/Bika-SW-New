@@ -61,6 +61,10 @@ services:
       - server
     env_file:
       - .env
+    environment:
+      # Internal Docker URL so the Next.js image optimizer can fetch uploaded
+      # images from the Express container without going through Nginx.
+      INTERNAL_SERVER_URL: http://server:5000
 
   # Nginx Reverse Proxy
   nginx:

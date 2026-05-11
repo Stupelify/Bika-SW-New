@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import { httpCache } from '../middleware/cache.middleware';
 import {
   createHall,
   createHallSchema,
@@ -21,8 +22,8 @@ router.post(
   validate(createHallSchema),
   createHall
 );
-router.get('/', requirePermission('view_hall', 'manage_halls'), getHalls);
-router.get('/:id', requirePermission('view_hall', 'manage_halls'), getHallById);
+router.get('/', requirePermission('view_hall', 'manage_halls'), httpCache(60), getHalls);
+router.get('/:id', requirePermission('view_hall', 'manage_halls'), httpCache(60), getHallById);
 router.put(
   '/:id',
   requirePermission('edit_hall', 'manage_halls'),

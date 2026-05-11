@@ -380,6 +380,12 @@
     font-size: 13px;
   }
 
+  @media (max-width: 1023px) {
+    .data-table {
+      min-width: auto;
+    }
+  }
+
   .table-search-row {
     @apply hidden md:table-row;
   }
@@ -416,6 +422,9 @@
     font-family: inherit;
     transition: border-color 0.12s, color 0.12s, background-color 0.12s;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .row-btn:hover {
@@ -640,10 +649,16 @@
   }
 
   .breadcrumb {
-    display: flex;
+    display: none;
     align-items: center;
     gap: 6px;
     font-size: 13px;
+  }
+
+  @media (min-width: 640px) {
+    .breadcrumb {
+      display: flex;
+    }
   }
 
   .breadcrumb-seg {
@@ -1101,6 +1116,7 @@
 
   .tab {
     padding: 12px 16px;
+    min-height: 44px;
   }
 
   .input,
@@ -1113,6 +1129,14 @@
   .bottom-nav-item {
     min-width: 60px;
     min-height: 44px;
+  }
+
+  /* Header icon buttons — nav toggle, help, logout */
+  .header-icon-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
   }
 }
 

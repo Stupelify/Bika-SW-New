@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import { httpCache } from '../middleware/cache.middleware';
 import {
   createTemplateMenu,
   createTemplateMenuSchema,
@@ -21,8 +22,8 @@ router.post(
   validate(createTemplateMenuSchema),
   createTemplateMenu
 );
-router.get('/', requirePermission('view_templatemenu', 'manage_menu'), getTemplateMenus);
-router.get('/:id', requirePermission('view_templatemenu', 'manage_menu'), getTemplateMenuById);
+router.get('/', requirePermission('view_templatemenu', 'manage_menu'), httpCache(60), getTemplateMenus);
+router.get('/:id', requirePermission('view_templatemenu', 'manage_menu'), httpCache(60), getTemplateMenuById);
 router.put(
   '/:id',
   requirePermission('edit_templatemenu', 'manage_menu'),

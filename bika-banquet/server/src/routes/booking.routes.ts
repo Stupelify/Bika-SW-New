@@ -9,6 +9,7 @@ import {
   deleteBooking,
   addPayment,
   downloadBookingMenuPdf,
+  downloadBookingDetailsPdf,
   createBookingSchema,
   updateBookingSchema,
   finalizeBookingVersion,
@@ -36,6 +37,7 @@ router.get('/count', requirePermission('view_booking', 'manage_bookings'), getBo
 router.get('/check-availability', requirePermission('view_booking', 'manage_bookings'), checkHallAvailability);
 router.get('/:id', requirePermission('view_booking', 'manage_bookings'), getBookingById);
 router.get('/:id/menu-pdf', requirePermission('view_booking', 'manage_bookings'), downloadBookingMenuPdf);
+router.get('/:id/booking-pdf', requirePermission('view_booking', 'manage_bookings'), downloadBookingDetailsPdf);
 router.put(
   '/:id',
   requirePermission('edit_booking', 'manage_bookings'),

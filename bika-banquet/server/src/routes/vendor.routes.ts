@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import { httpCache } from '../middleware/cache.middleware';
 import {
   addVendorSupply,
   addVendorSupplySchema,
@@ -21,8 +22,8 @@ const router = Router();
 router.use(authenticate);
 
 router.post('/', requirePermission('manage_menu', 'add_item'), validate(createVendorSchema), createVendor);
-router.get('/', requirePermission('manage_menu', 'view_item'), getVendors);
-router.get('/:id', requirePermission('manage_menu', 'view_item'), getVendorById);
+router.get('/', requirePermission('manage_menu', 'view_item'), httpCache(60), getVendors);
+router.get('/:id', requirePermission('manage_menu', 'view_item'), httpCache(60), getVendorById);
 router.put('/:id', requirePermission('manage_menu', 'edit_item'), validate(updateVendorSchema), updateVendor);
 router.delete('/:id', requirePermission('manage_menu', 'delete_item'), deleteVendor);
 

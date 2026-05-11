@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Edit, FileText, Trash2, Users } from 'lucide-react';
+import { CalendarDays, Download, Edit, FileText, Trash2, Users } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -25,6 +25,8 @@ interface MobileBookingCardProps {
     canEditBooking: boolean;
     canDeleteBooking: boolean;
     onExportPdf?: (booking: Booking) => void;
+    onExportBookingPdf?: (booking: Booking) => void;
+    bookingPdfLoading?: string | null;
     onEdit?: (bookingId: string) => void;
     onDelete?: (bookingId: string) => void;
 }
@@ -35,6 +37,8 @@ export default function MobileBookingCard({
     canEditBooking,
     canDeleteBooking,
     onExportPdf,
+    onExportBookingPdf,
+    bookingPdfLoading,
     onEdit,
     onDelete,
 }: MobileBookingCardProps) {
@@ -83,6 +87,19 @@ export default function MobileBookingCard({
 
             {hasActions && (
                 <div className="mobile-card-actions">
+                    {canExportMenuPdf && onExportBookingPdf && (
+                        <button
+                            type="button"
+                            className="mobile-card-action-btn"
+                            onClick={() => onExportBookingPdf(booking)}
+                            title="Booking details PDF"
+                            disabled={bookingPdfLoading === booking.id}
+                            style={{ opacity: bookingPdfLoading === booking.id ? 0.6 : 1 }}
+                        >
+                            <Download style={{ width: 14, height: 14 }} aria-hidden="true" />
+                            Booking
+                        </button>
+                    )}
                     {canExportMenuPdf && onExportPdf && (
                         <button
                             type="button"
@@ -91,7 +108,7 @@ export default function MobileBookingCard({
                             title="Menu PDF"
                         >
                             <FileText style={{ width: 14, height: 14 }} aria-hidden="true" />
-                            PDF
+                            Menu
                         </button>
                     )}
                     {canEditBooking && onEdit && (

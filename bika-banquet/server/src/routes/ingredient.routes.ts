@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import { httpCache } from '../middleware/cache.middleware';
 import {
   addIngredientSupplier,
   addIngredientSupplierSchema,
@@ -21,8 +22,8 @@ const router = Router();
 router.use(authenticate);
 
 router.post('/', requirePermission('manage_menu', 'add_item'), validate(createIngredientSchema), createIngredient);
-router.get('/', requirePermission('manage_menu', 'view_item'), getIngredients);
-router.get('/:id', requirePermission('manage_menu', 'view_item'), getIngredientById);
+router.get('/', requirePermission('manage_menu', 'view_item'), httpCache(60), getIngredients);
+router.get('/:id', requirePermission('manage_menu', 'view_item'), httpCache(60), getIngredientById);
 router.put('/:id', requirePermission('manage_menu', 'edit_item'), validate(updateIngredientSchema), updateIngredient);
 router.delete('/:id', requirePermission('manage_menu', 'delete_item'), deleteIngredient);
 
