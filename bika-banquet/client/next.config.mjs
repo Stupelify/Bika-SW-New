@@ -13,6 +13,13 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react'],
   },
   transpilePackages: ['@ionic/react', '@ionic/core', 'ionicons'],
+  async rewrites() {
+    const backendUrl = process.env.BACKEND_URL || 'http://server:5000';
+    return [
+      { source: '/api/:path*', destination: `${backendUrl}/api/:path*` },
+      { source: '/health', destination: `${backendUrl}/health` },
+    ];
+  },
 };
 
 export default nextConfig;

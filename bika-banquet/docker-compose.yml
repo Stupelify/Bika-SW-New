@@ -80,6 +80,8 @@ services:
       - server
     env_file:
       - .env
+    ports:
+      - "3000:3000"
 
   # Nginx Reverse Proxy
   nginx:
