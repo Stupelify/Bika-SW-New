@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { connectDatabase, disconnectDatabase, pingDatabase } from './config/database';
 import { initSseSubscriber } from './sse';
+import { releasePencilBookings } from './controllers/booking.controller';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { getRedisClient } from './config/redis';
@@ -260,6 +261,10 @@ async function startServer() {
     // Start SSE Redis subscriber (fan-out across PM2 workers).
     // Safe no-op when Redis is not configured.
     initSseSubscriber();
+
+    // Release expired pencil bookings every hour
+    releasePencilBookings();
+    setInterval(releasePencilBookings, 60 * 60 * 1000);
 
     // Start listening
     app.listen(PORT, () => {

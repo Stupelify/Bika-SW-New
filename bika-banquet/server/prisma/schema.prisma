@@ -521,6 +521,8 @@ model Booking {
   dueAmountValue      Float?
   balanceAmount       Float                   @default(0)
   status              String                  @default("confirmed") // confirmed, cancelled, completed
+  isPencilBooking     Boolean                 @default(false)
+  pencilExpiresAt     DateTime?
   quotation           Boolean?                @default(false)
   isQuotation         Boolean                 @default(false)
   isLatest            Boolean                 @default(true)

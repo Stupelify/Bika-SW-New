@@ -11,6 +11,7 @@ import {
   FileText,
   Flag,
   Lock,
+  PencilLine,
   Plus,
   Printer,
   Save,
@@ -69,6 +70,8 @@ interface Booking {
   expectedGuests: number;
   status: string;
   isQuotation: boolean;
+  isPencilBooking?: boolean;
+  pencilExpiresAt?: string | null;
   grandTotal: number;
   customer: {
     name: string;
@@ -221,6 +224,8 @@ interface BookingFormData {
   priority: string;
   functionType: string;
   functionDate: string;
+  isPencilBooking: boolean;
+  pencilExpiresAt: string;
   advanceRequired: string;
   paymentReceivedPercent: string;
   dueAmount: string;
@@ -243,6 +248,8 @@ const initialFormData: BookingFormData = {
   priority: '0',
   functionType: '',
   functionDate: '',
+  isPencilBooking: false,
+  pencilExpiresAt: '',
   advanceRequired: '0',
   paymentReceivedPercent: '0',
   dueAmount: '0',
@@ -1926,6 +1933,8 @@ export default function BookingsPage() {
             : '0',
         functionType: booking.functionType || '',
         functionDate: booking.functionDate ? booking.functionDate.slice(0, 10) : '',
+        isPencilBooking: booking.isPencilBooking || false,
+        pencilExpiresAt: booking.pencilExpiresAt ? booking.pencilExpiresAt.slice(0, 10) : '',
         advanceRequired: booking.advanceRequired || '0',
         paymentReceivedPercent: booking.paymentReceivedPercent || '0',
         dueAmount: booking.dueAmount || '0',
@@ -2132,6 +2141,10 @@ export default function BookingsPage() {
       toast.error('Primary customer, function type and date are required');
       return;
     }
+    if (formData.isPencilBooking && !formData.pencilExpiresAt) {
+      toast.error('Set an expiry date for the pencil booking');
+      return;
+    }
     if (!editingBookingId && formData.functionDate < todayIsoDate) {
       toast.error(
         `Function date cannot be before ${formatDateDDMMYYYY(todayIsoDate)} for new bookings`
@@ -2320,6 +2333,10 @@ export default function BookingsPage() {
         functionType: formData.functionType.trim(),
         functionDate: formData.functionDate,
         functionTime,
+        isPencilBooking: formData.isPencilBooking,
+        pencilExpiresAt: formData.isPencilBooking && formData.pencilExpiresAt
+          ? new Date(formData.pencilExpiresAt).toISOString()
+          : null,
         startTime: enabledPackEntries[0]?.row.startTime || undefined,
         endTime: enabledPackEntries[0]?.row.endTime || undefined,
         expectedGuests,
@@ -2765,6 +2782,61 @@ export default function BookingsPage() {
                     required
                   />
                 </div>
+
+                {/* Pencil booking toggle */}
+                {!isReadOnlyBooking && (
+                  <div className="rounded-xl border border-[var(--border-2)] bg-slate-50 p-3 space-y-3">
+                    <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded accent-[var(--brand)]"
+                        checked={formData.isPencilBooking}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            isPencilBooking: e.target.checked,
+                            pencilExpiresAt: e.target.checked ? prev.pencilExpiresAt : '',
+                          }))
+                        }
+                      />
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
+                        <PencilLine className="w-4 h-4 text-[var(--text-3)]" />
+                        Pencil Booking
+                      </span>
+                      <span className="text-xs text-[var(--text-4)]">— temporary hall hold</span>
+                    </label>
+                    {formData.isPencilBooking && (
+                      <div className="space-y-1.5 pl-6">
+                        <label className="label text-xs">Block hall until <span className="text-red-500">*</span></label>
+                        <input
+                          type="date"
+                          className="input"
+                          value={formData.pencilExpiresAt}
+                          min={formData.functionDate || todayIsoDate}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, pencilExpiresAt: e.target.value }))
+                          }
+                          required={formData.isPencilBooking}
+                        />
+                        {formData.pencilExpiresAt && (
+                          <p className="text-xs text-amber-600 flex items-center gap-1">
+                            <PencilLine className="w-3 h-3" />
+                            Hall auto-releases on {new Date(formData.pencilExpiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
+                        {!formData.pencilExpiresAt && (
+                          <p className="text-xs text-[var(--text-4)]">Set an expiry date — hall unblocks automatically</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {formData.isPencilBooking && isReadOnlyBooking && formData.pencilExpiresAt && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 flex items-center gap-2">
+                    <PencilLine className="w-4 h-4 shrink-0" />
+                    Pencil hold — auto-releases on {new Date(formData.pencilExpiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </div>
+                )}
 
                 {/* Hall clash warning banner */}
                 {hallClashWarnings.length > 0 && (

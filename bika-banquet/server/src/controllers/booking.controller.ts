@@ -422,6 +422,7 @@ async function assertNoHallClash(
   dayEnd.setUTCHours(23, 59, 59, 999);
 
   // Fetch existing confirmed/completed bookings on the same date that share a hall
+  const now = new Date();
   const clashing = await tx.booking.findMany({
     where: {
       ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
@@ -429,6 +430,7 @@ async function assertNoHallClash(
       status: { notIn: ['cancelled'] },
       functionDate: { gte: dayStart, lte: dayEnd },
       halls: { some: { hallId: { in: hallIds } } },
+      NOT: { isPencilBooking: true, pencilExpiresAt: { lt: now } },
     },
     select: {
       id: true,
@@ -538,6 +540,7 @@ export async function checkHallAvailability(
   const dayEnd = new Date(parsedDate);
   dayEnd.setUTCHours(23, 59, 59, 999);
 
+  const nowCheck = new Date();
   const clashing = await prisma.booking.findMany({
     where: {
       ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
@@ -545,6 +548,7 @@ export async function checkHallAvailability(
       status: { notIn: ['cancelled'] },
       functionDate: { gte: dayStart, lte: dayEnd },
       halls: { some: { hallId: { in: hallIds } } },
+      NOT: { isPencilBooking: true, pencilExpiresAt: { lt: nowCheck } },
     },
     select: {
       id: true,
@@ -554,6 +558,8 @@ export async function checkHallAvailability(
       endTime: true,
       functionTime: true,
       status: true,
+      isPencilBooking: true,
+      pencilExpiresAt: true,
       halls: { select: { hall: { select: { id: true, name: true } } } },
     },
   });
@@ -578,6 +584,8 @@ export async function checkHallAvailability(
     endTime: b.endTime,
     functionTime: b.functionTime,
     status: b.status,
+    isPencilBooking: b.isPencilBooking,
+    pencilExpiresAt: b.pencilExpiresAt,
     clashingHalls: b.halls
       .filter((bh) => hallIds.includes(bh.hall.id))
       .map((bh) => ({ id: bh.hall.id, name: bh.hall.name })),
@@ -1533,6 +1541,10 @@ export async function createBooking(
               ? data.quotation
               : data.isQuotation || false,
           isQuotation: data.isQuotation || false,
+          isPencilBooking: data.isPencilBooking || false,
+          pencilExpiresAt: data.isPencilBooking && data.pencilExpiresAt
+            ? new Date(data.pencilExpiresAt)
+            : null,
           notes: data.notes,
           internalNotes: data.internalNotes,
         },
@@ -2779,6 +2791,10 @@ export async function updateBooking(
                 ? data.isQuotation
                 : undefined,
           isQuotation: data.isQuotation,
+          isPencilBooking: data.isPencilBooking !== undefined ? data.isPencilBooking : undefined,
+          pencilExpiresAt: data.isPencilBooking !== undefined
+            ? (data.isPencilBooking && data.pencilExpiresAt ? new Date(data.pencilExpiresAt) : null)
+            : undefined,
           notes: data.notes,
           internalNotes: data.internalNotes,
           advanceRequired: toStoredNumberString(advanceRequiredValue),
@@ -3437,3 +3453,37 @@ export async function updatePayment(
     sendError(res, 'Failed to update payment');
   }
 }
+
+/**
+ * Cancel all pencil bookings whose pencilExpiresAt has passed.
+ * Called on a schedule and before hall availability checks.
+ */
+export async function releasePencilBookings(): Promise<void> {
+  try {
+    const now = new Date();
+    const expired = await prisma.booking.findMany({
+      where: {
+        isPencilBooking: true,
+        pencilExpiresAt: { lt: now },
+        status: { notIn: ['cancelled'] },
+        isLatest: true,
+      },
+      select: { id: true },
+    });
+    if (expired.length === 0) return;
+
+    await prisma.booking.updateMany({
+      where: { id: { in: expired.map((b) => b.id) } },
+      data: { status: 'cancelled', isPencilBooking: false },
+    });
+
+    expired.forEach((b) => {
+      emitBookingBroadcast('booking:updated', { id: b.id, status: 'cancelled' });
+      emitBookingCalendarCancel(b.id);
+    });
+    logger.info(`Released ${expired.length} expired pencil booking(s)`);
+  } catch (err) {
+    logger.error('releasePencilBookings error:', err);
+  }
+}
+

@@ -39,6 +39,8 @@ interface BookingCalendarRow {
   versionNumber?: number | null;
   status: string;
   isQuotation: boolean;
+  isPencilBooking?: boolean;
+  pencilExpiresAt?: string | null;
   halls?: Array<{
     hallId?: string;
     hall?: {
@@ -119,6 +121,8 @@ interface BookingDetail {
   grandTotal?: number | null;
   status?: string | null;
   isQuotation?: boolean;
+  isPencilBooking?: boolean;
+  pencilExpiresAt?: string | null;
   notes?: string | null;
   customer?: {
     name?: string | null;
@@ -315,7 +319,8 @@ function toSafeNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function resolveBookingStatus(entry: Pick<BookingCalendarRow, 'isQuotation' | 'status'>): string {
+function resolveBookingStatus(entry: { isQuotation?: boolean; status?: string | null; isPencilBooking?: boolean }): string {
+  if (entry.isPencilBooking) return 'pencil';
   return entry.isQuotation ? 'quotation' : (entry.status || 'pending').toLowerCase();
 }
 
@@ -1399,7 +1404,7 @@ export default function CalendarPage() {
       date: entry.functionDate,
       title: entry.functionName,
       subtitle: `${entry.customer?.name || 'Customer'} • ${entry.expectedGuests} guests`,
-      status: entry.isQuotation ? 'quotation' : entry.status,
+      status: entry.isPencilBooking ? 'pencil' : entry.isQuotation ? 'quotation' : entry.status,
       amount: toSafeNumber(entry.grandTotal),
       source: 'software',
     }));
@@ -1437,7 +1442,7 @@ export default function CalendarPage() {
       title: booking.functionName,
       time: bookingTimeLabel(booking),
       subtitle: `${booking.customer?.name || 'Customer'} • ${booking.expectedGuests} guests • ${getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}`,
-      status: booking.isQuotation ? 'quotation' : booking.status,
+      status: booking.isPencilBooking ? 'pencil' : booking.isQuotation ? 'quotation' : booking.status,
       amount: toSafeNumber(booking.grandTotal),
       sortMinutes: bookingSortMinutes(booking),
       bookingId: booking.id,
@@ -1489,7 +1494,7 @@ export default function CalendarPage() {
           title: booking.functionName,
           date: booking.functionDate,
           timeLabel: bookingTimeLabel(booking),
-          status: booking.isQuotation ? 'quotation' : booking.status,
+          status: resolveBookingStatus(booking),
           customerName: booking.customer?.name || 'Customer',
           customerPhone: booking.customer?.phone || '--',
           guests: toSafeNumber(booking.expectedGuests),
@@ -1598,7 +1603,7 @@ export default function CalendarPage() {
           timeLabel,
           functionName: entry.functionName,
           customerName: entry.customer?.name || 'Customer',
-          status: entry.isQuotation ? 'quotation' : entry.status,
+          status: resolveBookingStatus(entry),
           sortKey:
             bookingDate + (Number.isFinite(bookingMinutes) ? bookingMinutes * 60 * 1000 : 0),
           startMinutes,
@@ -3576,7 +3581,7 @@ export default function CalendarPage() {
                       <p className="text-xs uppercase tracking-wide text-[var(--text-4)]">Status</p>
                       <div className="mt-1">
                         <StatusBadge
-                          status={bookingDetails.isQuotation ? 'quotation' : bookingDetails.status || 'pending'}
+                          status={resolveBookingStatus(bookingDetails)}
                           size="sm"
                         />
                       </div>
