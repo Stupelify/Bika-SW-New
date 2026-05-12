@@ -81,6 +81,9 @@ interface Booking {
     payments: number;
     packs: number;
   };
+  halls?: Array<{
+    hall?: { id: string; name: string } | null;
+  }>;
 }
 
 interface BookingMenuPackOption {
@@ -5431,6 +5434,7 @@ export default function BookingsPage() {
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
+                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Hall / Venue</th>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
@@ -5473,6 +5477,11 @@ export default function BookingsPage() {
                           <Users className="w-4 h-4 text-[var(--text-4)]" />
                           {booking.expectedGuests}
                         </span>
+                      </td>
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
+                        {(booking.halls || []).length > 0
+                          ? (booking.halls || []).map((h) => h.hall?.name).filter(Boolean).join(', ')
+                          : <span className="text-[var(--text-4)]">—</span>}
                       </td>
                       <td className="py-4 px-4">
                         <StatusBadge status={booking.isQuotation ? 'quotation' : booking.status} />

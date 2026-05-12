@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Building2,
   CalendarDays,
   Download,
   Edit,
@@ -28,6 +29,9 @@ interface Booking {
     name: string;
     phone: string;
   };
+  halls?: Array<{
+    hall?: { id: string; name: string } | null;
+  }>;
 }
 
 interface BookingCardProps {
@@ -237,6 +241,26 @@ export default function BookingCard({
           {booking.expectedGuests ?? 0} guests
         </div>
       </div>
+
+      {/* Row 3b: Hall / Venue */}
+      {(booking.halls || []).length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            fontSize: 12,
+            color: 'var(--text-3)',
+            marginTop: 5,
+            overflow: 'hidden',
+          }}
+        >
+          <Building2 size={12} style={{ color: 'var(--text-4)', flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {(booking.halls || []).map((h) => h.hall?.name).filter(Boolean).join(', ')}
+          </span>
+        </div>
+      )}
 
       {/* Row 4: Amount + payment bar */}
       <div style={{ marginTop: 12 }}>

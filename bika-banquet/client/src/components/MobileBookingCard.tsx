@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Download, Edit, FileText, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, Download, Edit, FileText, Trash2, Users } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -17,6 +17,9 @@ interface Booking {
         name: string;
         phone: string;
     };
+    halls?: Array<{
+        hall?: { id: string; name: string } | null;
+    }>;
 }
 
 interface MobileBookingCardProps {
@@ -77,6 +80,18 @@ export default function MobileBookingCard({
                     {booking.expectedGuests} guests
                 </span>
             </div>
+
+            {(booking.halls || []).length > 0 && (
+                <div className="mobile-card-row">
+                    <span className="mobile-card-label">
+                        <Building2 style={{ width: 12, height: 12, display: 'inline', marginRight: 3 }} />
+                        Hall
+                    </span>
+                    <span className="mobile-card-value">
+                        {(booking.halls || []).map((h) => h.hall?.name).filter(Boolean).join(', ')}
+                    </span>
+                </div>
+            )}
 
             <div className="mobile-card-row" style={{ marginTop: 6 }}>
                 <span className="mobile-card-label">Amount</span>
