@@ -1827,7 +1827,7 @@ export async function createBooking(
       });
     });
 
-    void createAuditLog(req, 'CREATE', 'booking', booking.id, booking.functionName);
+    void createAuditLog(req, 'CREATE', 'booking', booking.id, [(booking as any).customer?.name, booking.functionName].filter(Boolean).join(' – '));
     sendSuccess(res, { booking }, 'Booking created successfully', 201);
     emitBookingBroadcast('booking:created', {
       id: booking.id,
@@ -3401,7 +3401,7 @@ export async function updateBooking(
       return;
     }
 
-    void createAuditLog(req, 'UPDATE', 'booking', id, booking.functionName);
+    void createAuditLog(req, 'UPDATE', 'booking', id, [(booking as any).customer?.name, booking.functionName].filter(Boolean).join(' – '));
     sendSuccess(res, { booking }, 'Booking updated successfully');
     emitBookingBroadcast('booking:updated', {
       id: booking.id,

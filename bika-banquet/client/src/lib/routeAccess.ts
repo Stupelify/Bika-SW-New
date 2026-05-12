@@ -47,6 +47,10 @@ export const DASHBOARD_ROUTE_RULES: DashboardRouteRule[] = [
     permissions: ['view_reports'],
   },
   {
+    href: '/dashboard/logs',
+    permissions: ['view_dashboard', 'manage_users'],
+  },
+  {
     href: '/dashboard/settings',
     permissions: [
       'add_user',

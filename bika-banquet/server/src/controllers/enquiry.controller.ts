@@ -186,7 +186,7 @@ export async function createEnquiry(req: Request, res: Response): Promise<void> 
       await syncEnquiryEventToGoogleCalendar(enquiry);
     }
 
-    void createAuditLog(req, 'CREATE', 'enquiry', enquiry?.id, enquiry?.functionName);
+    void createAuditLog(req, 'CREATE', 'enquiry', enquiry?.id, [enquiry?.customer?.name, enquiry?.functionName].filter(Boolean).join(' – '));
     sendSuccess(res, { enquiry }, 'Enquiry created successfully', 201);
   } catch (error) {
     sendError(res, 'Failed to create enquiry');
@@ -455,7 +455,7 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
       await syncEnquiryEventToGoogleCalendar(enquiry);
     }
 
-    void createAuditLog(req, 'UPDATE', 'enquiry', id, enquiry?.functionName);
+    void createAuditLog(req, 'UPDATE', 'enquiry', id, [enquiry?.customer?.name, enquiry?.functionName].filter(Boolean).join(' – '));
     sendSuccess(res, { enquiry }, 'Enquiry updated successfully');
   } catch (error) {
     sendError(res, 'Failed to update enquiry');
