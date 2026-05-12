@@ -82,7 +82,7 @@ interface Booking {
     packs: number;
   };
   halls?: Array<{
-    hall?: { id: string; name: string } | null;
+    hall?: { id: string; name: string; banquet?: { id: string; name: string } | null } | null;
   }>;
 }
 
@@ -5480,7 +5480,7 @@ export default function BookingsPage() {
                       </td>
                       <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         {(booking.halls || []).length > 0
-                          ? (booking.halls || []).map((h) => h.hall?.name).filter(Boolean).join(', ')
+                          ? (booking.halls || []).map((h) => h.hall ? [h.hall.banquet?.name, h.hall.name].filter(Boolean).join(' / ') : null).filter(Boolean).join(', ')
                           : <span className="text-[var(--text-4)]">—</span>}
                       </td>
                       <td className="py-4 px-4">

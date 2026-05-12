@@ -30,7 +30,7 @@ interface Booking {
     phone: string;
   };
   halls?: Array<{
-    hall?: { id: string; name: string } | null;
+    hall?: { id: string; name: string; banquet?: { id: string; name: string } | null } | null;
   }>;
 }
 
@@ -257,7 +257,7 @@ export default function BookingCard({
         >
           <Building2 size={12} style={{ color: 'var(--text-4)', flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {(booking.halls || []).map((h) => h.hall?.name).filter(Boolean).join(', ')}
+            {(booking.halls || []).map((h) => h.hall ? [h.hall.banquet?.name, h.hall.name].filter(Boolean).join(' / ') : null).filter(Boolean).join(', ')}
           </span>
         </div>
       )}

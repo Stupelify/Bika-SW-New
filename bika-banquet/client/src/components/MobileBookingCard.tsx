@@ -18,7 +18,7 @@ interface Booking {
         phone: string;
     };
     halls?: Array<{
-        hall?: { id: string; name: string } | null;
+        hall?: { id: string; name: string; banquet?: { id: string; name: string } | null } | null;
     }>;
 }
 
@@ -88,7 +88,7 @@ export default function MobileBookingCard({
                         Hall
                     </span>
                     <span className="mobile-card-value">
-                        {(booking.halls || []).map((h) => h.hall?.name).filter(Boolean).join(', ')}
+                        {(booking.halls || []).map((h) => h.hall ? [h.hall.banquet?.name, h.hall.name].filter(Boolean).join(' / ') : null).filter(Boolean).join(', ')}
                     </span>
                 </div>
             )}

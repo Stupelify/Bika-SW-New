@@ -1985,6 +1985,9 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
                 select: {
                   id: true,
                   name: true,
+                  banquet: {
+                    select: { id: true, name: true },
+                  },
                 },
               },
             },
