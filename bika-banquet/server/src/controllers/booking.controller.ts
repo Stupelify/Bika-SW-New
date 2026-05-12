@@ -19,6 +19,7 @@ import {
 } from '../services/googleCalendar.service';
 import { broadcastBookingEvent } from '../sse';
 import logger from '../utils/logger';
+import { createAuditLog } from '../utils/auditLog';
 
 // Validation schemas
 export const createBookingSchema = z.object({
@@ -1826,6 +1827,7 @@ export async function createBooking(
       });
     });
 
+    void createAuditLog(req, 'CREATE', 'booking', booking.id, booking.functionName);
     sendSuccess(res, { booking }, 'Booking created successfully', 201);
     emitBookingBroadcast('booking:created', {
       id: booking.id,
@@ -2111,6 +2113,7 @@ export async function finalizeBookingVersion(
       };
     });
 
+    void createAuditLog(req, 'FINALIZE', 'booking', id, result.replica.functionName);
     sendSuccess(
       res,
       {
@@ -2298,6 +2301,7 @@ export async function partyOverBooking(
       };
     });
 
+    void createAuditLog(req, 'PARTY_OVER', 'booking', id, result.completedReplica.functionName);
     sendSuccess(
       res,
       {
@@ -3397,6 +3401,7 @@ export async function updateBooking(
       return;
     }
 
+    void createAuditLog(req, 'UPDATE', 'booking', id, booking.functionName);
     sendSuccess(res, { booking }, 'Booking updated successfully');
     emitBookingBroadcast('booking:updated', {
       id: booking.id,
@@ -3460,6 +3465,7 @@ export async function cancelBooking(
       },
     });
 
+    void createAuditLog(req, 'CANCEL', 'booking', id, '');
     sendSuccess(res, { booking }, 'Booking cancelled successfully');
     emitBookingBroadcast('booking:cancelled', {
       id: booking.id,
@@ -3501,6 +3507,7 @@ export async function deleteBooking(
       where: { id },
     });
 
+    void createAuditLog(req, 'DELETE', 'booking', id, '');
     sendSuccess(res, null, 'Booking deleted successfully');
     emitBookingCalendarCancel(id);
   } catch (error: any) {
@@ -3654,6 +3661,7 @@ export async function addPayment(
       return newPayment;
     });
 
+    void createAuditLog(req, 'CREATE', 'payment', payment.id, `Payment for booking ${id}`);
     sendSuccess(res, { payment }, 'Payment added successfully', 201);
   } catch (error: any) {
     if (error?.status === 404) {
@@ -3750,6 +3758,7 @@ export async function updatePayment(
       return updatedPayment;
     });
 
+    void createAuditLog(req, 'UPDATE', 'payment', paymentId, `Payment for booking ${id}`);
     sendSuccess(res, { payment: result }, 'Payment updated successfully');
   } catch (error: any) {
     if (error?.status === 404) {

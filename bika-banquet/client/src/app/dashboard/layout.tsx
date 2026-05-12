@@ -34,6 +34,7 @@ import {
   Users,
   UtensilsCrossed,
   X,
+  Activity,
 } from 'lucide-react';
 
 interface NavigationChild {
@@ -150,6 +151,12 @@ const secondaryNavigation: NavigationItem[] = [
     permissions: ['view_reports'],
   },
   {
+    name: 'Activity Logs',
+    href: '/dashboard/logs',
+    icon: Activity,
+    permissions: ['view_dashboard', 'manage_users'],
+  },
+  {
     name: 'Settings',
     href: '/dashboard/settings',
     icon: Settings,
@@ -214,6 +221,7 @@ const ROUTE_LABELS: Record<string, string> = {
   vendors: 'Vendors',
   payments: 'Payments',
   reports: 'Reports',
+  logs: 'Activity Logs',
   settings: 'Settings',
   create: 'Create',
   edit: 'Edit',

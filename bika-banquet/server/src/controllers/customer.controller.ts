@@ -8,6 +8,7 @@ import { idSchema } from '../utils/validation';
 import { toE164 } from '../utils/phone';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
+import { createAuditLog } from '../utils/auditLog';
 
 // Allows letters (including Unicode/Devanagari/Bengali etc.), spaces, dots,
 // hyphens, and apostrophes — covers Indian names, D'Souza, S.K. Sharma, etc.
@@ -348,6 +349,7 @@ export async function createCustomer(
       },
     });
 
+    void createAuditLog(req, 'CREATE', 'customer', customer.id, customer.name);
     sendSuccess(res, { customer }, 'Customer created successfully', 201);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -539,6 +541,7 @@ export async function updateCustomer(
       },
     });
 
+    void createAuditLog(req, 'UPDATE', 'customer', customer.id, customer.name);
     sendSuccess(res, { customer }, 'Customer updated successfully');
   } catch (error: any) {
     if (error.code === 'P2025') {
@@ -565,6 +568,7 @@ export async function deleteCustomer(
       where: { id },
     });
 
+    void createAuditLog(req, 'DELETE', 'customer', id, '');
     sendSuccess(res, null, 'Customer deleted successfully');
   } catch (error: any) {
     if (error.code === 'P2025') {

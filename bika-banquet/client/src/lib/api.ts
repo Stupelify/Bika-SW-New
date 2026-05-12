@@ -240,6 +240,9 @@ export const api = {
   // Calendar
   getGoogleCalendarEvents: (params?: any) =>
     apiClient.get('/calendar/google-events', { params }),
+
+  // Audit Logs
+  getAuditLogs: (params?: any) => apiClient.get('/audit-logs', { params }),
 };
 
 export default apiClient;

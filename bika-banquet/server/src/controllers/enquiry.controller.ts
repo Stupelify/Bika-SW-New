@@ -11,6 +11,7 @@ import {
   removeEnquiryEventFromGoogleCalendar,
   syncEnquiryEventToGoogleCalendar,
 } from '../services/googleCalendar.service';
+import { createAuditLog } from '../utils/auditLog';
 
 export async function getEnquiryCount(req: Request, res: Response): Promise<void> {
   try {
@@ -185,6 +186,7 @@ export async function createEnquiry(req: Request, res: Response): Promise<void> 
       await syncEnquiryEventToGoogleCalendar(enquiry);
     }
 
+    void createAuditLog(req, 'CREATE', 'enquiry', enquiry?.id, enquiry?.functionName);
     sendSuccess(res, { enquiry }, 'Enquiry created successfully', 201);
   } catch (error) {
     sendError(res, 'Failed to create enquiry');
@@ -453,6 +455,7 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
       await syncEnquiryEventToGoogleCalendar(enquiry);
     }
 
+    void createAuditLog(req, 'UPDATE', 'enquiry', id, enquiry?.functionName);
     sendSuccess(res, { enquiry }, 'Enquiry updated successfully');
   } catch (error) {
     sendError(res, 'Failed to update enquiry');
@@ -469,6 +472,7 @@ export async function deleteEnquiry(req: Request, res: Response): Promise<void> 
 
     await removeEnquiryEventFromGoogleCalendar(id);
 
+    void createAuditLog(req, 'DELETE', 'enquiry', id, '');
     sendSuccess(res, null, 'Enquiry deleted successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {

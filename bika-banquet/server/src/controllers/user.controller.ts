@@ -7,6 +7,7 @@ import { toEntryCase } from '../utils/textCase';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { createAuditLog } from '../utils/auditLog';
 
 export const createUserSchema = z.object({
   body: z.object({
@@ -180,6 +181,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       return createdUser;
     });
 
+    void createAuditLog(req, 'CREATE', 'user', user.id, user.email);
     sendSuccess(res, { user }, 'User created successfully', 201);
   } catch (error: any) {
     if (error?.code === 'P2002') {
@@ -208,6 +210,7 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
     await prisma.user.delete({
       where: { id },
     });
+    void createAuditLog(req, 'DELETE', 'user', id, '');
     sendSuccess(res, null, 'User deleted successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {

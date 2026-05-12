@@ -37,7 +37,7 @@ function drawPageBackground(doc: PDFKit.PDFDocument, imageBuffer: Buffer | null)
       height: doc.page.height,
     });
   } catch (error) {
-    // Keep PDF generation resilient if the image cannot be rendered.
+    console.error('Failed to draw background image in PDF:', error);
   }
 }
 
@@ -115,7 +115,7 @@ function drawCoverPage(
         valign: 'center',
       });
     } catch (error) {
-      // Keep PDF generation resilient if the image cannot be rendered.
+      console.error('Failed to draw logo image in PDF cover page:', error);
     }
   }
 
@@ -395,7 +395,15 @@ async function main() {
     throw new Error('PDF worker must be run as a worker thread');
   }
 
-  const pdfBuffer = await generatePdfBuffer(workerData as PdfWorkerPayload);
+  const payload = workerData as PdfWorkerPayload;
+  if (payload.imageBuffer && !Buffer.isBuffer(payload.imageBuffer)) {
+    payload.imageBuffer = Buffer.from(payload.imageBuffer);
+  }
+  if (payload.logoBuffer && !Buffer.isBuffer(payload.logoBuffer)) {
+    payload.logoBuffer = Buffer.from(payload.logoBuffer);
+  }
+
+  const pdfBuffer = await generatePdfBuffer(payload);
   parentPort.postMessage(pdfBuffer);
 }
 

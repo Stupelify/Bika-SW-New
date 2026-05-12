@@ -7,6 +7,7 @@ import { idSchema } from '../utils/validation';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { createAuditLog } from '../utils/auditLog';
 
 export const createBanquetSchema = z.object({
   body: z.object({
@@ -44,6 +45,7 @@ export async function createBanquet(req: Request, res: Response): Promise<void> 
     const banquet = await prisma.banquet.create({
       data: payload,
     });
+    void createAuditLog(req, 'CREATE', 'banquet', banquet.id, banquet.name);
     sendSuccess(res, { banquet }, 'Banquet created successfully', 201);
   } catch (error: any) {
     if (error?.code === 'P2002') {
@@ -152,6 +154,7 @@ export async function updateBanquet(req: Request, res: Response): Promise<void> 
       where: { id },
       data: payload,
     });
+    void createAuditLog(req, 'UPDATE', 'banquet', banquet.id, banquet.name);
     sendSuccess(res, { banquet }, 'Banquet updated successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {
@@ -172,6 +175,7 @@ export async function deleteBanquet(req: Request, res: Response): Promise<void> 
     await prisma.banquet.delete({
       where: { id },
     });
+    void createAuditLog(req, 'DELETE', 'banquet', id, '');
     sendSuccess(res, null, 'Banquet deleted successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {

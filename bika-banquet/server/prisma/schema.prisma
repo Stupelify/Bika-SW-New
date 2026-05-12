@@ -31,6 +31,7 @@ model User {
   paymentsReceived    BookingPayments[]    @relation("PaymentReceiver")
   finalizedBookings   FinalizedBooking[]   @relation("FinalizedBookingUser")
   finalizedQuotations FinalizedQuotation[]
+  auditLogs           AuditLog[]
 
   @@map("users")
 }
@@ -717,4 +718,28 @@ model FinalizedQuotation {
   @@index([bookingId])
   @@index([finalizedAt])
   @@map("finalized_quotations")
+}
+
+// ============================================
+// AUDIT LOG MANAGEMENT
+// ============================================
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  userId        String?
+  userName      String?
+  action        String
+  resource      String
+  resourceId    String?
+  resourceLabel String?
+  details       Json?
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([resource])
+  @@index([createdAt])
+  @@index([action])
+  @@map("audit_logs")
 }

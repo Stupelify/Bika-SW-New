@@ -7,6 +7,7 @@ import { idSchema } from '../utils/validation';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { createAuditLog } from '../utils/auditLog';
 
 export const createHallSchema = z.object({
   body: z.object({
@@ -48,6 +49,7 @@ export async function createHall(req: Request, res: Response): Promise<void> {
         images: payload.images || [],
       },
     });
+    void createAuditLog(req, 'CREATE', 'hall', hall.id, hall.name);
     sendSuccess(res, { hall }, 'Hall created successfully', 201);
   } catch (error: any) {
     if (error?.code === 'P2002') {
@@ -167,6 +169,7 @@ export async function updateHall(req: Request, res: Response): Promise<void> {
         banquet: true,
       },
     });
+    void createAuditLog(req, 'UPDATE', 'hall', hall.id, hall.name);
     sendSuccess(res, { hall }, 'Hall updated successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {
@@ -187,6 +190,7 @@ export async function deleteHall(req: Request, res: Response): Promise<void> {
     await prisma.hall.delete({
       where: { id },
     });
+    void createAuditLog(req, 'DELETE', 'hall', id, '');
     sendSuccess(res, null, 'Hall deleted successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {

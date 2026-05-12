@@ -17,6 +17,7 @@ import rbacRoutes from './rbac.routes';
 import analyticsRoutes from './analytics.routes';
 import calendarRoutes from './calendar.routes';
 import searchRoutes from './search.routes';
+import auditLogRoutes from './auditLog.routes';
 import { addSseClient, removeSseClient } from '../sse';
 
 const router = Router();
@@ -67,6 +68,7 @@ router.use('/rbac', rbacRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/search', searchRoutes);
+router.use('/audit-logs', auditLogRoutes);
 
 // Legacy-style aliases for easier migration from older project paths
 router.use('/customer', customerRoutes);
