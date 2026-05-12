@@ -77,6 +77,10 @@ interface Booking {
     name: string;
     phone: string;
   };
+  _count?: {
+    payments: number;
+    packs: number;
+  };
 }
 
 interface BookingMenuPackOption {
@@ -2684,7 +2688,7 @@ export default function BookingsPage() {
         <fieldset disabled={isReadOnlyBooking}>
         <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} className="space-y-5">
           <div ref={actionSentinelRef} />
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {!isReadOnlyBooking && (
                 <button type="submit" className="btn btn-primary" disabled={saving}>
                   <span className="inline-flex items-center gap-2">
@@ -2703,6 +2707,21 @@ export default function BookingsPage() {
                   Print
                 </span>
               </button>
+              {editingBookingId && canExportMenuPdf && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    const b = bookings.find((bk) => bk.id === editingBookingId);
+                    if (b) openMenuPdfModal(b);
+                  }}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Menu PDF
+                  </span>
+                </button>
+              )}
             </div>
 
             {isReadOnlyBooking && (
@@ -5325,7 +5344,7 @@ export default function BookingsPage() {
                       <MobileBookingCard
                         key={booking.id}
                         booking={booking}
-                        canExportMenuPdf={canExportMenuPdf}
+                        canExportMenuPdf={canExportMenuPdf && (booking._count?.packs ?? 1) > 0}
                         canEditBooking={canEditBooking}
                         canDeleteBooking={canDeleteBooking}
                         onExportPdf={(b) => openMenuPdfModal(b)}
@@ -5361,7 +5380,7 @@ export default function BookingsPage() {
                         <BookingCard
                           key={booking.id}
                           booking={booking}
-                          canExportMenuPdf={canExportMenuPdf}
+                          canExportMenuPdf={canExportMenuPdf && (booking._count?.packs ?? 1) > 0}
                           canEditBooking={canEditBooking}
                           canDeleteBooking={canDeleteBooking}
                           onExportPdf={(b) => openMenuPdfModal(b)}
@@ -5477,7 +5496,7 @@ export default function BookingsPage() {
                                   : <Download className="w-4 h-4" />}
                               </button>
                             )}
-                            {canExportMenuPdf && (
+                            {canExportMenuPdf && (booking._count?.packs ?? 1) > 0 && (
                               <button
                                 type="button"
                                 className="p-2 text-[var(--text-4)] hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"

@@ -613,10 +613,13 @@ async function loadPdfAsset(localFilename: string, fallbackUrl: string): Promise
   // Try local file first.
   try {
     const localPath = path.join(PDF_ASSETS_DIR, localFilename);
+    console.log(`Checking local PDF asset: ${localPath}, exists: ${fs.existsSync(localPath)}`);
     if (fs.existsSync(localPath)) {
+      console.log(`Successfully loaded local PDF asset: ${localPath}`);
       return fs.readFileSync(localPath);
     }
-  } catch {
+  } catch (error) {
+    console.error(`Error loading local PDF asset: ${localFilename}`, error);
     // fall through to URL
   }
 
@@ -646,13 +649,13 @@ interface PdfMenuPack {
 }
 
 async function getMenuBackgroundImage(): Promise<Buffer | null> {
-  if (cachedMenuBackgroundImage !== undefined) return cachedMenuBackgroundImage;
+  if (cachedMenuBackgroundImage) return cachedMenuBackgroundImage;
   cachedMenuBackgroundImage = await loadPdfAsset('background.png', MENU_BACKGROUND_IMAGE_URL);
   return cachedMenuBackgroundImage;
 }
 
 async function getMenuLogoImage(): Promise<Buffer | null> {
-  if (cachedMenuLogoImage !== undefined) return cachedMenuLogoImage;
+  if (cachedMenuLogoImage) return cachedMenuLogoImage;
   cachedMenuLogoImage = await loadPdfAsset('logo.png', MENU_LOGO_IMAGE_URL);
   return cachedMenuLogoImage;
 }
@@ -1989,6 +1992,7 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
           _count: {
             select: {
               payments: true,
+              packs: true,
             },
           },
         },
