@@ -468,7 +468,11 @@ export default function BookingsPage() {
   const [banquets, setBanquets] = useState<BanquetOption[]>([]);
   const [halls, setHalls] = useState<HallOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
+  const [itemTypes, setItemTypes] = useState<{ id: string; name: string }[]>([]);
   const [templateMenus, setTemplateMenus] = useState<TemplateMenuOption[]>([]);
+  const [showQuickAddItem, setShowQuickAddItem] = useState(false);
+  const [quickItemForm, setQuickItemForm] = useState({ name: '', itemTypeId: '', points: '' });
+  const [savingQuickItem, setSavingQuickItem] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bookingHistory, setBookingHistory] = useState<any[]>([]);
@@ -1275,6 +1279,38 @@ export default function BookingsPage() {
     });
   };
 
+  const submitQuickAddItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickItemForm.itemTypeId || !quickItemForm.name.trim() || !quickItemForm.points) {
+      toast.error('Name, type and points are required');
+      return;
+    }
+    try {
+      setSavingQuickItem(true);
+      const response = await api.createItem({
+        itemTypeId: quickItemForm.itemTypeId,
+        name: quickItemForm.name.trim(),
+        point: Number(quickItemForm.points),
+        points: Number(quickItemForm.points),
+        isVeg: true,
+      });
+      const newItemId = response.data?.data?.item?.id;
+      const refreshed = await api.getItems({ page: 1, limit: 5000 });
+      const refreshedItems = refreshed.data?.data?.items || [];
+      setItems(refreshedItems);
+      if (newItemId && menuEditorPack) {
+        togglePackMenuItem(menuEditorPack, newItemId);
+      }
+      setShowQuickAddItem(false);
+      setQuickItemForm({ name: '', itemTypeId: itemTypes[0]?.id || '', points: '' });
+      toast.success('Item created and selected');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to create item');
+    } finally {
+      setSavingQuickItem(false);
+    }
+  };
+
   const importTemplateToPack = (packKey: PackKey, templateMenuId: string) => {
     const template = templateMenus.find((entry) => entry.id === templateMenuId);
     const importedItemIds = template?.items?.map((entry) => entry.item.id) || [];
@@ -1754,21 +1790,24 @@ export default function BookingsPage() {
         setTemplateMenus([]);
         return;
       }
-      const [customerRows, banquetRes, hallRes, itemRes, templateRes] = await Promise.all([
+      const [customerRows, banquetRes, hallRes, itemRes, templateRes, itemTypeRes] = await Promise.all([
         loadCustomerOptions(),
         api.getBanquets({ page: 1, limit: 5000 }),
         api.getHalls({ page: 1, limit: 5000 }),
         api.getItems({ page: 1, limit: 5000 }),
         api.getTemplateMenus({ page: 1, limit: 5000, includeItems: true }),
+        api.getItemTypes({ page: 1, limit: 500 }),
       ]);
       const banquetRows = banquetRes.data?.data?.banquets || [];
       const hallRows = hallRes.data?.data?.halls || [];
       const itemRows = itemRes.data?.data?.items || [];
       const templateRows = templateRes.data?.data?.templateMenus || [];
+      const itemTypeRows = itemTypeRes.data?.data?.itemTypes || [];
       setCustomers(customerRows);
       setBanquets(banquetRows);
       setHalls(hallRows);
       setItems(itemRows);
+      setItemTypes(itemTypeRows);
       setTemplateMenus(templateRows);
     } catch (error) {
       toast.error('Failed to load booking form options');
@@ -5007,12 +5046,25 @@ export default function BookingsPage() {
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div className="rounded-xl border border-[var(--border)] p-3">
-                <input
-                  className="input mb-3"
-                  placeholder="Search items..."
-                  value={menuItemSearch}
-                  onChange={(e) => setMenuItemSearch(e.target.value)}
-                />
+                <div className="flex gap-2 mb-3">
+                  <input
+                    className="input flex-1"
+                    placeholder="Search items..."
+                    value={menuItemSearch}
+                    onChange={(e) => setMenuItemSearch(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm flex items-center gap-1 shrink-0"
+                    onClick={() => {
+                      setQuickItemForm({ name: '', itemTypeId: itemTypes[0]?.id || '', points: '' });
+                      setShowQuickAddItem(true);
+                    }}
+                  >
+                    <Plus size={14} />
+                    Add Item
+                  </button>
+                </div>
                 <div
                   className="max-h-[360px] overflow-y-auto rounded-lg border border-[var(--border)]"
                   style={{ contain: 'content', overscrollBehavior: 'contain' }}
@@ -5683,6 +5735,61 @@ export default function BookingsPage() {
           </div>
         </form>
       </FormPromptModal>
+
+      {/* Quick Add Item Modal */}
+      <FormPromptModal
+        open={showQuickAddItem}
+        onClose={() => setShowQuickAddItem(false)}
+        title="Create New Item"
+      >
+        <form onSubmit={submitQuickAddItem} className="space-y-4">
+          <div>
+            <label className="label">Item Type <span className="text-red-500">*</span></label>
+            <select
+              className="input"
+              value={quickItemForm.itemTypeId}
+              onChange={(e) => setQuickItemForm((prev) => ({ ...prev, itemTypeId: e.target.value }))}
+              required
+            >
+              <option value="">Select type...</option>
+              {itemTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Item Name <span className="text-red-500">*</span></label>
+            <input
+              className="input"
+              placeholder="e.g. Paneer Butter Masala"
+              value={quickItemForm.name}
+              onChange={(e) => setQuickItemForm((prev) => ({ ...prev, name: e.target.value }))}
+              required
+            />
+          </div>
+          <div>
+            <label className="label">Points <span className="text-red-500">*</span></label>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              placeholder="e.g. 1"
+              value={quickItemForm.points}
+              onChange={(e) => setQuickItemForm((prev) => ({ ...prev, points: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="btn btn-secondary" onClick={() => setShowQuickAddItem(false)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={savingQuickItem}>
+              {savingQuickItem ? 'Creating...' : 'Create & Select'}
+            </button>
+          </div>
+        </form>
+      </FormPromptModal>
+
       <FilterPanel
         open={showFilters}
         onClose={() => setShowFilters(false)}
