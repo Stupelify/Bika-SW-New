@@ -22,8 +22,8 @@ router.post(
   validate(createItemTypeSchema),
   createItemType
 );
-router.get('/', requirePermission('view_itemtype', 'manage_menu'), httpCache(60), getItemTypes);
-router.get('/:id', requirePermission('view_itemtype', 'manage_menu'), httpCache(60), getItemTypeById);
+router.get('/', requirePermission('view_itemtype', 'add_itemtype', 'edit_itemtype', 'add_item', 'manage_menu'), getItemTypes);
+router.get('/:id', requirePermission('view_itemtype', 'add_itemtype', 'edit_itemtype', 'manage_menu'), getItemTypeById);
 router.put(
   '/:id',
   requirePermission('edit_itemtype', 'manage_menu'),

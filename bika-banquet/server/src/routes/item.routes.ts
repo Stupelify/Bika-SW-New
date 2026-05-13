@@ -34,8 +34,8 @@ router.post(
   validate(createItemSchema),
   createItem
 );
-router.get('/', requirePermission('view_item', 'manage_menu'), httpCache(60), getItems);
-router.get('/:id/recipes', requirePermission('view_item', 'manage_menu'), httpCache(60), getItemRecipes);
+router.get('/', requirePermission('view_item', 'add_item', 'edit_item', 'manage_menu'), getItems);
+router.get('/:id/recipes', requirePermission('view_item', 'add_item', 'edit_item', 'manage_menu'), getItemRecipes);
 router.post(
   '/:id/recipes',
   requirePermission('edit_item', 'manage_menu'),

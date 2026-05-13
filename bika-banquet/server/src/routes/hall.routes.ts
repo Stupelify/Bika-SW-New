@@ -22,8 +22,8 @@ router.post(
   validate(createHallSchema),
   createHall
 );
-router.get('/', requirePermission('view_hall', 'manage_halls'), httpCache(60), getHalls);
-router.get('/:id', requirePermission('view_hall', 'manage_halls'), httpCache(60), getHallById);
+router.get('/', requirePermission('view_hall', 'add_hall', 'edit_hall', 'add_booking', 'manage_halls'), getHalls);
+router.get('/:id', requirePermission('view_hall', 'add_hall', 'edit_hall', 'add_booking', 'manage_halls'), getHallById);
 router.put(
   '/:id',
   requirePermission('edit_hall', 'manage_halls'),

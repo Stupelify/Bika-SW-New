@@ -22,8 +22,8 @@ router.post(
   validate(createBanquetSchema),
   createBanquet
 );
-router.get('/', requirePermission('view_banquet', 'manage_halls'), httpCache(60), getBanquets);
-router.get('/:id', requirePermission('view_banquet', 'manage_halls'), httpCache(60), getBanquetById);
+router.get('/', requirePermission('view_banquet', 'add_banquet', 'edit_banquet', 'add_booking', 'manage_halls'), getBanquets);
+router.get('/:id', requirePermission('view_banquet', 'add_banquet', 'edit_banquet', 'add_booking', 'manage_halls'), getBanquetById);
 router.put(
   '/:id',
   requirePermission('edit_banquet', 'manage_halls'),
