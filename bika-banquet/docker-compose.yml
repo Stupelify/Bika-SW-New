@@ -142,14 +142,19 @@ services:
 
 volumes:
   postgres_data_local:
-    driver: local
+    external: true
+    name: bikabanquet_v2_postgres_data_local
   redis_data:
-    driver: local
+    external: true
+    name: bikabanquet_v2_redis_data
   metabase_data:
-    driver: local
+    external: true
+    name: bikabanquet_v2_metabase_data
   uptime_kuma_data:
-    driver: local
+    external: true
+    name: bikabanquet_v2_uptime_kuma_data
 
 networks:
   default:
     name: bika-v2-network
+    external: true
