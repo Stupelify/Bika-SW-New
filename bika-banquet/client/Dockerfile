@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -5,8 +6,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (source snapshot does not include package-lock.json)
-RUN npm install
+# Install dependencies — cache node_modules across builds
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --prefer-offline
 
 # Copy source code
 COPY . .
@@ -29,8 +31,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only (source snapshot does not include package-lock.json)
-RUN npm install --omit=dev
+# Install production dependencies only — cached
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --omit=dev --prefer-offline
 
 # Copy built files
 COPY --from=builder /app/.next ./.next

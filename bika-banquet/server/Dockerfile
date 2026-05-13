@@ -1,9 +1,10 @@
+# syntax=docker/dockerfile:1
 FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Force Prisma CLI to fetch OpenSSL 3-compatible engines on Debian arm64
-ENV PRISMA_CLI_BINARY_TARGETS=linux-arm64-openssl-3.0.x
+# x86 Debian server — use debian-openssl target
+ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
 
 # Prisma needs OpenSSL available during generate/build
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
@@ -12,8 +13,9 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies (source snapshot does not include package-lock.json)
-RUN npm install
+# Install dependencies — cache node_modules across builds
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --prefer-offline
 
 # Copy source code
 COPY . .
@@ -30,7 +32,7 @@ FROM node:20-slim
 WORKDIR /app
 
 # Force Prisma CLI to use OpenSSL 3-compatible engines at runtime
-ENV PRISMA_CLI_BINARY_TARGETS=linux-arm64-openssl-3.0.x
+ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
 
 # Prisma runtime requires OpenSSL shared libraries
 RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
@@ -39,8 +41,9 @@ RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install production dependencies only (source snapshot does not include package-lock.json)
-RUN npm install --omit=dev
+# Install production dependencies only — cached
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --omit=dev --prefer-offline
 
 # Copy Prisma Client and built files
 COPY --from=builder /app/dist ./dist

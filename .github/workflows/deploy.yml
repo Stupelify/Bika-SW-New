@@ -1,0 +1,38 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /root/bika-banquet-v2/bika-banquet
+
+            echo "==> Pulling latest code"
+            git fetch origin
+            git reset --hard origin/master
+
+            echo "==> Building images (BuildKit cache enabled)"
+            DOCKER_BUILDKIT=1 docker compose build --parallel
+
+            echo "==> Starting containers"
+            docker compose up -d
+
+            echo "==> Running migrations"
+            docker compose exec -T server npx prisma migrate deploy
+
+            echo "==> Health check"
+            sleep 10
+            docker compose ps
