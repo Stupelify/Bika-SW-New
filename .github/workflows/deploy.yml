@@ -41,8 +41,8 @@ jobs:
           echo "==> Starting containers"
           docker compose up -d
 
-          echo "==> Running migrations"
-          docker compose exec -T server npx prisma migrate deploy || echo "Migration skipped (baseline DB)"
+          echo "==> Syncing DB schema"
+          docker compose exec -T server npx prisma db push --skip-generate || echo "Schema sync skipped"
 
           echo "==> Health check"
           sleep 10
