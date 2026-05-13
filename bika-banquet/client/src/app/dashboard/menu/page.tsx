@@ -3,7 +3,7 @@
 import { FormEvent, Fragment, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { ChevronDown, Edit, Layers, ListChecks, Save, Search, Soup, Trash2, Filter } from 'lucide-react';
+import { ChevronDown, Edit, Layers, ListChecks, Plus, Save, Search, Soup, Trash2, Filter } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 import FilterPanel from '@/components/FilterPanel';
@@ -777,6 +777,12 @@ function MenuPageContent() {
       await syncItemVendors(itemId);
 
       toast.success(editingItemId ? 'Item updated' : 'Item created');
+      if (!editingItemId && itemId && showTemplatePrompt) {
+        setTemplateForm((prev) => ({
+          ...prev,
+          itemIds: [...prev.itemIds, itemId],
+        }));
+      }
       setShowItemPrompt(false);
       setEditingItemId(null);
       setItemForm((prev) => ({
@@ -1474,9 +1480,19 @@ function MenuPageContent() {
           </div>
 
           <div>
-            <label className="label">
-              Select Items <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="label mb-0">
+                Select Items <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm flex items-center gap-1"
+                onClick={openCreateItem}
+              >
+                <Plus size={14} />
+                Add Item
+              </button>
+            </div>
             <p className="text-sm text-primary-700 mb-2">
               {templateForm.itemIds.length} selected
             </p>
