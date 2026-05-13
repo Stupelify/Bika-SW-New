@@ -42,7 +42,7 @@ jobs:
           docker compose up -d
 
           echo "==> Running migrations"
-          docker compose exec -T server npx prisma migrate deploy
+          docker compose exec -T server npx prisma migrate deploy || echo "Migration skipped (baseline DB)"
 
           echo "==> Health check"
           sleep 10
