@@ -521,15 +521,18 @@ function MenuPageContent() {
   const loadData = async () => {
     try {
       setLoading(true);
+      const canFetchItemType = hasAnyPermission(permissionSet, ['view_itemtype', 'add_itemtype', 'edit_itemtype', 'manage_menu']);
+      const canFetchItem = hasAnyPermission(permissionSet, ['view_item', 'add_item', 'edit_item', 'manage_menu']);
+      const canFetchTemplate = hasAnyPermission(permissionSet, ['view_templatemenu', 'add_templatemenu', 'edit_templatemenu', 'manage_menu']);
       const [typesRes, itemsRes, templatesRes, ingredientsRes, vendorsRes] =
         await Promise.all([
-        canViewItemType ? api.getItemTypes({ page: 1, limit: 5000 }) : Promise.resolve(null),
-        canViewItem ? api.getItems({ page: 1, limit: 5000 }) : Promise.resolve(null),
-        canViewTemplate
+        canFetchItemType ? api.getItemTypes({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canFetchItem ? api.getItems({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canFetchTemplate
           ? api.getTemplateMenus({ page: 1, limit: 5000, includeItems: false })
           : Promise.resolve(null),
-        canViewItem ? api.getIngredients({ page: 1, limit: 5000 }) : Promise.resolve(null),
-        canViewItem ? api.getVendors({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canFetchItem ? api.getIngredients({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canFetchItem ? api.getVendors({ page: 1, limit: 5000 }) : Promise.resolve(null),
       ]);
 
       const types = typesRes?.data?.data?.itemTypes || [];
@@ -577,16 +580,21 @@ function MenuPageContent() {
         order: Number(typeForm.order || 0),
         displayOrder: Number(typeForm.order || 0),
       };
+      let newTypeId: string | undefined;
       if (editingTypeId) {
         await api.updateItemType(editingTypeId, payload);
       } else {
-        await api.createItemType(payload);
+        const res = await api.createItemType(payload);
+        newTypeId = res.data?.data?.itemType?.id;
       }
       toast.success(editingTypeId ? 'Item type updated' : 'Item type created');
       setShowTypePrompt(false);
       setEditingTypeId(null);
       setTypeForm(initialTypeForm);
       await loadData();
+      if (newTypeId && showItemPrompt) {
+        setItemForm((prev) => ({ ...prev, itemTypeId: newTypeId! }));
+      }
     } catch (error: any) {
       toast.error(
         error?.response?.data?.error ||
@@ -1230,9 +1238,21 @@ function MenuPageContent() {
               />
             </div>
             <div>
-              <label className="label">
-                Select Item Type <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label mb-0">
+                  Select Item Type <span className="text-red-500">*</span>
+                </label>
+                {canAddItemType && (
+                  <button
+                    type="button"
+                    className="text-xs text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1"
+                    onClick={openCreateType}
+                  >
+                    <Plus size={12} />
+                    Add Type
+                  </button>
+                )}
+              </div>
               <select
                 className="input"
                 value={itemForm.itemTypeId}
