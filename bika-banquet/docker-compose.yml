@@ -79,21 +79,16 @@ services:
       - server
     env_file:
       - .env
-    ports:
-      - "3000:3000"
     environment:
       INTERNAL_SERVER_URL: http://server:5000
 
-  # Nginx Reverse Proxy
+  # Nginx Reverse Proxy (internal only — nginx-proxy on host handles 80/443)
   nginx:
     image: nginx:alpine
     restart: always
     depends_on:
       - client
       - server
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro

@@ -34,7 +34,7 @@ jobs:
           docker compose -p bikabanquet_v2 down --remove-orphans 2>/dev/null || true
           docker stop bika-db 2>/dev/null || true
           docker rm bika-db 2>/dev/null || true
-          for port in 80 443 3000 3001 3002; do
+          for port in 3001 3002; do
             docker ps -q --filter "publish=$port" | xargs -r docker rm -f
           done
 
