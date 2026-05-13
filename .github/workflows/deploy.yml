@@ -30,7 +30,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker compose build --parallel
 
           echo "==> Starting containers"
-          docker compose up -d
+          docker compose up -d --remove-orphans --force-recreate
 
           echo "==> Running migrations"
           docker compose exec -T server npx prisma migrate deploy
