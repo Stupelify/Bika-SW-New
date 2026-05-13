@@ -1714,7 +1714,7 @@ export default function CalendarPage() {
             }`}
         >
           <div
-            className={`rounded-2xl border border-[var(--border)] bg-white shadow-sm flex flex-col h-full ${sidebarOpen ? 'p-4' : 'p-2'
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm flex flex-col h-full ${sidebarOpen ? 'p-4' : 'p-2'
               }`}
           >
             {/* Toggle button */}
@@ -1787,7 +1787,7 @@ export default function CalendarPage() {
                                   ? 'bg-indigo-500 border-indigo-500 text-white'
                                   : someChecked
                                     ? 'bg-indigo-200 border-indigo-400'
-                                    : 'bg-white border-[var(--border-2)]'
+                                    : 'bg-[var(--surface)] border-[var(--border-2)]'
                                 }`}
                               style={{ fontSize: 8 }}
                             >
@@ -2032,7 +2032,7 @@ export default function CalendarPage() {
                     />
                   )}
                 </button>
-                <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2">
+                <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
                   <span className="text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Go to</span>
                   <input
                     type="date"
@@ -2053,7 +2053,7 @@ export default function CalendarPage() {
                       }}
                       className={`px-3 py-2 text-sm font-semibold capitalize transition ${viewMode === mode
                         ? 'bg-primary-600 text-white'
-                        : 'bg-white text-[var(--text-2)] hover:bg-[var(--surface-2)]'
+                        : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
                         }`}
                     >
                       {mode}
@@ -2073,7 +2073,7 @@ export default function CalendarPage() {
                       onClick={() => setDisplayMode(mode)}
                       className={`px-3 py-2 text-sm font-semibold transition ${displayMode === mode
                         ? 'bg-slate-800 text-white'
-                        : 'bg-white text-[var(--text-2)] hover:bg-[var(--surface-2)]'
+                        : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
                         }`}
                     >
                       {label}
@@ -2094,7 +2094,7 @@ export default function CalendarPage() {
                       onClick={() => setSourceFilter(mode)}
                       className={`px-3 py-2 text-sm font-semibold transition ${sourceFilter === mode
                         ? 'bg-primary-600 text-white'
-                        : 'bg-white text-[var(--text-2)] hover:bg-[var(--surface-2)]'
+                        : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
                         }`}
                     >
                       {label}
@@ -2816,7 +2816,7 @@ export default function CalendarPage() {
                                                           {booking.customer?.name || 'Customer'} • {toSafeNumber(booking.expectedGuests)} guests
                                                         </div>
                                                         {payment.total > 0 && (
-                                                          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/70">
+                                                          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--surface)]/70">
                                                             <div
                                                               className={`h-full rounded-full ${payment.tone === 'paid'
                                                                   ? 'bg-emerald-500'
@@ -3084,7 +3084,7 @@ export default function CalendarPage() {
                                   key={booking.id}
                                   type="button"
                                   onClick={() => void openBookingDetails(booking.id)}
-                                  className="rounded-lg border border-[var(--border)] bg-white p-3 text-left hover:border-primary-300 hover:bg-primary-50 transition"
+                                  className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-left hover:border-primary-300 hover:bg-primary-50 transition"
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="min-w-0">
@@ -3153,7 +3153,7 @@ export default function CalendarPage() {
                               return (
                                 <div
                                   key={group.hallName}
-                                  className="rounded-lg border border-[var(--border)] bg-white p-2.5 space-y-2"
+                                  className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5 space-y-2"
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <p className="text-sm font-medium text-[var(--text-1)] inline-flex items-center gap-1.5">
@@ -3227,7 +3227,7 @@ export default function CalendarPage() {
                             selectedEnquiries.map((enquiry) => {
                               const phone = enquiry.customer?.phone?.trim() || '';
                               return (
-                                <div key={enquiry.id} className="rounded-lg border border-[var(--border)] bg-white p-2.5">
+                                <div key={enquiry.id} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5">
                                   <div className="flex items-center justify-between gap-2">
                                     <button
                                       type="button"
@@ -3286,7 +3286,7 @@ export default function CalendarPage() {
                             </div>
                           ) : (
                             selectedGoogleEvents.map((event) => (
-                              <div key={event.id} className="rounded-lg border border-[var(--border)] bg-white p-2.5">
+                              <div key={event.id} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5">
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="text-sm font-medium text-[var(--text-1)] truncate">{event.title}</p>
                                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
@@ -3346,7 +3346,7 @@ export default function CalendarPage() {
                             }
                           }
                         }}
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-white px-3 py-2.5 text-left ${entry.kind === 'booking'
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-left ${entry.kind === 'booking'
                           ? 'hover:border-primary-300 hover:bg-primary-50 transition'
                           : 'cursor-default'
                           }`}
@@ -3427,7 +3427,7 @@ export default function CalendarPage() {
                       return (
                         <div
                           key={row.hallName}
-                          className={`grid grid-cols-[220px_repeat(3,1fr)] border-t border-[var(--border)] ${index % 2 === 0 ? 'bg-white' : 'bg-[var(--surface-2)]'
+                          className={`grid grid-cols-[220px_repeat(3,1fr)] border-t border-[var(--border)] ${index % 2 === 0 ? 'bg-[var(--surface)]' : 'bg-[var(--surface-2)]'
                             }`}
                         >
                           <div className="px-4 py-4 border-r border-[var(--border)] text-sm font-semibold text-[var(--text-1)]">
@@ -3522,7 +3522,7 @@ export default function CalendarPage() {
               onClick={closeBookingDetails}
             >
               <div
-                className="mx-auto h-full w-full max-w-3xl overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-xl"
+                className="mx-auto h-full w-full max-w-3xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 sm:px-5">
@@ -3608,7 +3608,7 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-[var(--border)] bg-white p-3">
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
                         <p className="text-sm font-semibold text-[var(--text-1)]">Menu/Pack Details</p>
                         {bookingDetailsPacks.length === 0 ? (
                           <div className="empty-state" style={{ padding: '16px 12px' }}>
@@ -3635,7 +3635,7 @@ export default function CalendarPage() {
                         )}
                       </div>
 
-                      <div className="rounded-xl border border-[var(--border)] bg-white p-3">
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
                         <p className="text-sm font-semibold text-[var(--text-1)]">Payments</p>
                         {bookingDetailsPayments.length === 0 ? (
                           <div className="empty-state" style={{ padding: '16px 12px' }}>
@@ -3671,7 +3671,7 @@ export default function CalendarPage() {
                       </div>
 
                       {(bookingDetailsAdditionalItems.length > 0 || bookingDetails.notes) && (
-                        <div className="rounded-xl border border-[var(--border)] bg-white p-3 space-y-2">
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2">
                           {bookingDetailsAdditionalItems.length > 0 && (
                             <div>
                               <p className="text-sm font-semibold text-[var(--text-1)]">

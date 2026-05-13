@@ -73,6 +73,10 @@
 [data-theme="dark"] thead th          { background-color: var(--surface-2); }
 [data-theme="dark"] .kpi-delta.delta-up   { background: #052e16; color: #86efac; }
 [data-theme="dark"] .kpi-delta.delta-down { background: #2d0a0a; color: #fca5a5; }
+[data-theme="dark"] .insight-card.good   { background: #052e16; border-color: #14532d; }
+[data-theme="dark"] .insight-card.warn   { background: #2d1a00; border-color: #78350f; }
+[data-theme="dark"] .insight-card.good::before  { background: #22c55e; }
+[data-theme="dark"] .insight-card.warn::before  { background: #f59e0b; }
 
 /* ── Skip-to-content link (accessibility) ─────────────────────── */
 .skip-nav {
@@ -629,6 +633,7 @@
     background: var(--surface-2);
     border-color: var(--border);
   }
+
 
   .insight-card.good::before,
   .insight-card.warn::before,
