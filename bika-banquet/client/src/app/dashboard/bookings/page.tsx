@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   CalendarCheck,
   CheckCircle,
@@ -454,6 +455,7 @@ function formatDateTimeLabel(value?: string | Date | null): string {
 }
 
 export default function BookingsPage() {
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
   const canViewBooking = hasAnyPermission(permissionSet, ['view_booking', 'manage_bookings']);
@@ -1424,6 +1426,15 @@ export default function BookingsPage() {
   useEffect(() => {
     void loadBookings();
   }, [loadBookings]);
+
+  useEffect(() => {
+    const section = searchParams.get('section');
+    const id = searchParams.get('id');
+    if (section === 'edit' && id) {
+      void openEditBooking(id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!canViewBooking || typeof window === 'undefined') return;

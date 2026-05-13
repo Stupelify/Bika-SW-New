@@ -48,7 +48,11 @@ export default function MobileBookingCard({
     const hasActions = canExportMenuPdf || canEditBooking || canDeleteBooking;
 
     return (
-        <div className="mobile-card">
+        <div
+            className="mobile-card"
+            onClick={() => canEditBooking && onEdit?.(booking.id)}
+            style={canEditBooking ? { cursor: 'pointer' } : undefined}
+        >
             <div className="mobile-card-header">
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="mobile-card-title">{booking.functionName}</div>
@@ -101,7 +105,7 @@ export default function MobileBookingCard({
             </div>
 
             {hasActions && (
-                <div className="mobile-card-actions">
+                <div className="mobile-card-actions" onClick={(e) => e.stopPropagation()}>
                     {canExportMenuPdf && onExportBookingPdf && (
                         <button
                             type="button"
