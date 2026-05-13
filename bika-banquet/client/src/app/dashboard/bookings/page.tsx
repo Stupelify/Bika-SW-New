@@ -1406,7 +1406,7 @@ export default function BookingsPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      if (!canViewBooking) {
+      if (!hasAnyPermission(permissionSet, ['view_booking', 'add_booking', 'edit_booking', 'manage_bookings'])) {
         setBookings([]);
         return;
       }

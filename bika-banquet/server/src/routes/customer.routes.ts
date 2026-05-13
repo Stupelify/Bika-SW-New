@@ -22,8 +22,8 @@ router.post(
   validate(createCustomerSchema),
   createCustomer
 );
-router.get('/', requirePermission('view_customer', 'manage_customers'), getCustomers);
-router.get('/:id', requirePermission('view_customer', 'manage_customers'), getCustomerById);
+router.get('/', requirePermission('view_customer', 'add_customer', 'edit_customer', 'manage_customers'), getCustomers);
+router.get('/:id', requirePermission('view_customer', 'add_customer', 'edit_customer', 'manage_customers'), getCustomerById);
 router.put(
   '/:id',
   requirePermission('edit_customer', 'manage_customers'),

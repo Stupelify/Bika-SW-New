@@ -289,10 +289,12 @@ function HallsPageContent() {
       const fromDate = today.toISOString().split('T')[0];
       const toDate = new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      const canFetchBanquet = hasAnyPermission(permissionSet, ['view_banquet', 'add_banquet', 'edit_banquet', 'add_hall', 'manage_halls']);
+      const canFetchHall = hasAnyPermission(permissionSet, ['view_hall', 'add_hall', 'edit_hall', 'manage_halls']);
       const [banquetsRes, hallsRes, bookingsRes] = await Promise.all([
-        canViewBanquet ? api.getBanquets({ page: 1, limit: 5000 }) : Promise.resolve(null),
-        canViewHall ? api.getHalls({ page: 1, limit: 5000 }) : Promise.resolve(null),
-        canViewHall ? api.getBookings({ fromDate, toDate, limit: 1000 }) : Promise.resolve(null),
+        canFetchBanquet ? api.getBanquets({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canFetchHall ? api.getHalls({ page: 1, limit: 5000 }) : Promise.resolve(null),
+        canFetchHall ? api.getBookings({ fromDate, toDate, limit: 1000 }) : Promise.resolve(null),
       ]);
       const banquetRows = banquetsRes?.data?.data?.banquets || [];
       setBanquets(banquetRows);

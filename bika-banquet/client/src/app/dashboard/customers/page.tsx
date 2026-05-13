@@ -311,7 +311,7 @@ export default function CustomersPage() {
 
   const loadCustomers = async () => {
     try {
-      if (!canViewCustomer) {
+      if (!hasAnyPermission(permissionSet, ['view_customer', 'add_customer', 'edit_customer', 'manage_customers'])) {
         setCustomers([]);
         return;
       }

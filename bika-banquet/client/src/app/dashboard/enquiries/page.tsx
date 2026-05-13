@@ -268,7 +268,7 @@ export default function EnquiriesPage() {
 
   const loadEnquiries = async () => {
     try {
-      if (!canViewEnquiry) {
+      if (!hasAnyPermission(permissionSet, ['view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'])) {
         setEnquiries([]);
         return;
       }

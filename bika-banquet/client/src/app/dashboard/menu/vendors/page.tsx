@@ -135,7 +135,7 @@ export default function VendorsPage() {
   }, [items, itemSupplySearch]);
 
   useEffect(() => {
-    if (!canView) {
+    if (!hasAnyPermission(permissionSet, ['view_item', 'add_item', 'edit_item', 'manage_menu'])) {
       setLoading(false);
       return;
     }

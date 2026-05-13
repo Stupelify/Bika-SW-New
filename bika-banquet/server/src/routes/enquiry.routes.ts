@@ -23,9 +23,9 @@ router.post(
   createEnquiry
 );
 // Must be before /:id to avoid route conflict
-router.get('/count', requirePermission('view_enquiry', 'manage_enquiries'), getEnquiryCount);
-router.get('/', requirePermission('view_enquiry', 'manage_enquiries'), getEnquiries);
-router.get('/:id', requirePermission('view_enquiry', 'manage_enquiries'), getEnquiryById);
+router.get('/count', requirePermission('view_enquiry', 'add_enquiry', 'manage_enquiries'), getEnquiryCount);
+router.get('/', requirePermission('view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'), getEnquiries);
+router.get('/:id', requirePermission('view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'), getEnquiryById);
 router.put(
   '/:id',
   requirePermission('edit_enquiry', 'manage_enquiries'),
