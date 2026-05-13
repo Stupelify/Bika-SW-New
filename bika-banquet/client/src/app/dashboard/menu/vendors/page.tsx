@@ -8,6 +8,7 @@ import { TableSkeleton } from '@/components/Skeletons';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import MenuSectionTabs from '@/components/MenuSectionTabs';
 
 interface Vendor {
   id: string;
@@ -503,6 +504,8 @@ export default function VendorsPage() {
           Maintain vendor list and map supplies for ingredients and items with pricing.
         </p>
       </div>
+
+      <MenuSectionTabs active="vendors" />
 
       {!canView && (
         <div className="card border-amber-200 bg-amber-50 text-amber-800 text-sm">

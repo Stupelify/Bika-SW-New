@@ -8,6 +8,7 @@ import { TableSkeleton } from '@/components/Skeletons';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import MenuSectionTabs from '@/components/MenuSectionTabs';
 
 interface Ingredient {
   id: string;
@@ -418,6 +419,8 @@ export default function IngredientsPage() {
           Track raw ingredients, default units and vendor pricing per ingredient.
         </p>
       </div>
+
+      <MenuSectionTabs active="ingredients" />
 
       {!canView && (
         <div className="card border-amber-200 bg-amber-50 text-amber-800 text-sm">
