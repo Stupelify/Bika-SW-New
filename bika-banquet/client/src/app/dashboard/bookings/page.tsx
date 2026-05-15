@@ -3572,6 +3572,7 @@ export default function BookingsPage() {
                                 className="input bg-[var(--surface-2)]"
                                 type="number"
                                 min={0}
+                                step="0.01"
                                 value={row.menuPoints}
                                 readOnly
                                 title="Auto-calculated from selected menu items"

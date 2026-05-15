@@ -5,20 +5,26 @@ on:
     branches: [master]
   workflow_dispatch:
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+
     steps:
       - name: Setup SSH
         run: |
-          mkdir -p $HOME/.ssh
-          printf '%s' "${{ secrets.VPS_SSH_KEY }}" | base64 -d > $HOME/.ssh/deploy_key
-          chmod 600 $HOME/.ssh/deploy_key
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.VPS_SSH_KEY }}" | base64 -d > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> "$HOME/.ssh/known_hosts" 2>/dev/null
 
       - name: Deploy
-        timeout-minutes: 30
         run: |
-          ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=no root@${{ secrets.VPS_HOST }} << 'ENDSSH'
+          ssh -i "$HOME/.ssh/deploy_key" root@${{ secrets.VPS_HOST }} << 'ENDSSH'
           set -e
           cd /root/bika-banquet-v2/bika-banquet
 
@@ -29,22 +35,24 @@ jobs:
           echo "==> Building images (BuildKit cache enabled)"
           DOCKER_BUILDKIT=1 docker compose build --parallel
 
-          echo "==> Stopping old containers"
-          docker compose down --remove-orphans 2>/dev/null || true
-          docker compose -p bikabanquet_v2 down --remove-orphans 2>/dev/null || true
-          docker stop bika-db 2>/dev/null || true
-          docker rm bika-db 2>/dev/null || true
-          for port in 3001 3002; do
-            docker ps -q --filter "publish=$port" | xargs -r docker rm -f
-          done
+          echo "==> Recreating app containers (non-destructive)"
+          docker compose up -d --no-deps --force-recreate server client nginx
 
-          echo "==> Starting containers"
+          echo "==> Ensure all services up"
           docker compose up -d
 
-          echo "==> Syncing DB schema"
-          docker compose exec -T server npx prisma db push --skip-generate || echo "Schema sync skipped"
+          echo "==> Syncing DB schema (additive only)"
+          docker compose exec -T server npx prisma db push --skip-generate --accept-data-loss=false 2>&1 || echo "Schema sync skipped"
 
           echo "==> Health check"
-          sleep 10
+          for i in 1 2 3 4 5 6; do
+            if docker compose exec -T server curl -fs http://localhost:5000/health >/dev/null 2>&1; then
+              echo "Server healthy"
+              break
+            fi
+            echo "Waiting... ($i/6)"
+            sleep 5
+          done
+
           docker compose ps
           ENDSSH
