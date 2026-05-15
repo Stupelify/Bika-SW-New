@@ -1297,7 +1297,8 @@ function MenuPageContent() {
                 className="input"
                 type="number"
                 min={0}
-                placeholder="Points"
+                step="0.01"
+                placeholder="e.g. 1.5"
                 value={itemForm.points}
                 onChange={(e) => setItemForm((prev) => ({ ...prev, points: e.target.value }))}
                 required

@@ -5784,7 +5784,8 @@ export default function BookingsPage() {
               className="input"
               type="number"
               min="0"
-              placeholder="e.g. 1"
+              step="0.01"
+              placeholder="e.g. 1.5"
               value={quickItemForm.points}
               onChange={(e) => setQuickItemForm((prev) => ({ ...prev, points: e.target.value }))}
               required
