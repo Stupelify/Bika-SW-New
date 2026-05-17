@@ -139,7 +139,11 @@ export async function getItems(req: Request, res: Response): Promise<void> {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { itemType: { displayOrder: 'asc' } },
+          { itemType: { order: 'asc' } },
+          { name: 'asc' },
+        ],
         include: {
           itemType: {
             select: {

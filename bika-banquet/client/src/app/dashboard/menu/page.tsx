@@ -1,9 +1,9 @@
 'use client';
 
-import { FormEvent, Fragment, Suspense, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { ChevronDown, Edit, Layers, ListChecks, Plus, Save, Search, Soup, Trash2, Filter } from 'lucide-react';
+import { Edit, Layers, ListChecks, Plus, Save, Search, Soup, Trash2, Filter } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
 import FilterPanel from '@/components/FilterPanel';
@@ -258,9 +258,6 @@ function MenuPageContent() {
   const [itemTypePage, setItemTypePage] = useState(1);
   const [itemPage, setItemPage] = useState(1);
   const [templatePage, setTemplatePage] = useState(1);
-  const [collapsedItemTypeGroups, setCollapsedItemTypeGroups] = useState<
-    Record<string, boolean>
-  >({});
   const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>('itemType');
   const sectionParam = searchParams.get('section');
   const isIngredientsPage = pathname === '/dashboard/menu/ingredients';
@@ -285,7 +282,7 @@ function MenuPageContent() {
         accessor: (item) => `${item.name} ${item.isVeg ? 'Veg' : 'Non-veg'}`,
       },
       { key: 'type', accessor: (item) => item.itemType?.name || '' },
-      { key: 'cost', accessor: (item) => item.cost ?? 0 },
+      { key: 'points', accessor: (item) => item.points ?? item.point ?? 0 },
     ],
     []
   );
@@ -379,45 +376,6 @@ function MenuPageContent() {
     return filteredItems.slice(startIndex, startIndex + ITEMS_PAGE_SIZE);
   }, [filteredItems, itemPage, itemTotalPages]);
 
-  const groupedPaginatedItems = useMemo(() => {
-    const itemTypeMeta = new Map<string, { name: string; order: number }>();
-    itemTypes.forEach((itemType) => {
-      itemTypeMeta.set(itemType.id, {
-        name: itemType.name || 'Other',
-        order: itemType.order ?? itemType.displayOrder ?? Number.MAX_SAFE_INTEGER,
-      });
-    });
-
-    const groupedMap = new Map<
-      string,
-      { key: string; label: string; order: number; rows: Item[] }
-    >();
-
-    paginatedItems.forEach((item) => {
-      const fallbackLabel = item.itemType?.name || 'Other';
-      const meta = item.itemTypeId ? itemTypeMeta.get(item.itemTypeId) : undefined;
-      const groupKey = item.itemTypeId || `other-${fallbackLabel}`;
-      const groupLabel = meta?.name || fallbackLabel;
-      const groupOrder = meta?.order ?? Number.MAX_SAFE_INTEGER;
-
-      const existing = groupedMap.get(groupKey);
-      if (existing) {
-        existing.rows.push(item);
-        return;
-      }
-      groupedMap.set(groupKey, {
-        key: groupKey,
-        label: groupLabel,
-        order: groupOrder,
-        rows: [item],
-      });
-    });
-
-    return Array.from(groupedMap.values()).sort((a, b) => {
-      if (a.order !== b.order) return a.order - b.order;
-      return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
-    });
-  }, [itemTypes, paginatedItems]);
 
   const paginatedTemplateMenus = useMemo(() => {
     const safePage = Math.min(Math.max(templatePage, 1), templateTotalPages);
@@ -934,11 +892,12 @@ function MenuPageContent() {
       bucket.push(item);
       map.set(group, bucket);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return Array.from(map.entries());
   }, [filteredTemplateSourceItems]);
 
   const selectedTemplateItemsByGroup = useMemo(() => {
-    const selected = items.filter((item) => templateForm.itemIds.includes(item.id));
+    const selectedIds = new Set(templateForm.itemIds);
+    const selected = items.filter((item) => selectedIds.has(item.id));
     const map = new Map<string, Item[]>();
     selected.forEach((item) => {
       const group = item.itemType?.name || 'Other';
@@ -946,7 +905,7 @@ function MenuPageContent() {
       bucket.push(item);
       map.set(group, bucket);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return Array.from(map.entries());
   }, [items, templateForm.itemIds]);
 
   const removeItemType = async (id: string) => {
@@ -1515,7 +1474,15 @@ function MenuPageContent() {
               </button>
             </div>
             <p className="text-sm text-primary-700 mb-2">
-              {templateForm.itemIds.length} selected
+              {templateForm.itemIds.length} items
+              {templateForm.itemIds.length > 0 && (() => {
+                const totalPts = templateForm.itemIds.reduce((sum, id) => {
+                  const item = items.find((i) => i.id === id);
+                  const pts = item?.points ?? item?.point ?? 0;
+                  return sum + (Number.isFinite(Number(pts)) ? Number(pts) : 0);
+                }, 0);
+                return <span className="ml-1 font-semibold text-teal-700">· {totalPts} pts</span>;
+              })()}
             </p>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div className="border border-gray-200 rounded-xl p-3">
@@ -2184,8 +2151,8 @@ function MenuPageContent() {
                       className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
                     />
                     <SortableHeader
-                      label="Cost"
-                      sortKey="cost"
+                      label="Points"
+                      sortKey="points"
                       sort={itemSort}
                       onSort={(key) => setItemSort((prev) => getNextSort(prev, key))}
                       className="text-left py-3 px-2 text-sm font-semibold text-gray-700"
@@ -2196,98 +2163,64 @@ function MenuPageContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {groupedPaginatedItems.map((group) => {
-                    const collapsed = Boolean(collapsedItemTypeGroups[group.key]);
-                    return (
-                      <Fragment key={`group-${group.key}`}>
-                        <tr className="border-b border-gray-200 bg-gray-50">
-                          <td colSpan={4} className="py-2 px-2">
+                  {paginatedItems.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-100">
+                      <td className="py-3 px-2">
+                        <p className="text-sm text-gray-900">{item.name}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                          <span>{item.isVeg ? 'Veg' : 'Non-veg'}</span>
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                            Recipe: {item._count?.itemRecipes || 0}
+                          </span>
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                            Vendors: {item._count?.vendorSupplies || 0}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-sm text-gray-700">
+                        {item.itemType?.name || '-'}
+                      </td>
+                      <td className="py-3 px-2 text-sm text-gray-700">
+                        {item.points ?? item.point ?? '-'}
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {canEditItem && (
                             <button
-                              type="button"
-                              className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-gray-100"
-                              onClick={() =>
-                                setCollapsedItemTypeGroups((prev) => ({
-                                  ...prev,
-                                  [group.key]: !prev[group.key],
-                                }))
-                              }
+                              className="btn btn-secondary"
+                              onClick={() => openItemRecipeManager(item)}
                             >
-                              <span className="text-sm font-semibold text-gray-800">
-                                {group.label}
-                              </span>
-                              <span className="inline-flex items-center gap-2 text-xs text-gray-500">
-                                {group.rows.length} item{group.rows.length === 1 ? '' : 's'}
-                                <ChevronDown
-                                  className={`w-4 h-4 transition-transform ${collapsed ? '' : 'rotate-180'}`}
-                                />
-                              </span>
+                              Recipe
                             </button>
-                          </td>
-                        </tr>
-                        {!collapsed &&
-                          group.rows.map((item) => (
-                            <tr key={item.id} className="border-b border-gray-100">
-                              <td className="py-3 px-2">
-                                <p className="text-sm text-gray-900">{item.name}</p>
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                                  <span>{item.isVeg ? 'Veg' : 'Non-veg'}</span>
-                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
-                                    Recipe: {item._count?.itemRecipes || 0}
-                                  </span>
-                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
-                                    Vendors: {item._count?.vendorSupplies || 0}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-2 text-sm text-gray-700">
-                                {group.label || '-'}
-                              </td>
-                              <td className="py-3 px-2 text-sm text-gray-700">
-                                {item.cost ? `INR ${item.cost.toLocaleString('en-IN')}` : '-'}
-                              </td>
-                              <td className="py-3 px-2 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  {canEditItem && (
-                                    <button
-                                      className="btn btn-secondary"
-                                      onClick={() => openItemRecipeManager(item)}
-                                    >
-                                      Recipe
-                                    </button>
-                                  )}
-                                  {canEditItem && (
-                                    <button
-                                      className="btn btn-secondary"
-                                      onClick={() => openItemVendorsManager(item)}
-                                    >
-                                      Vendors
-                                    </button>
-                                  )}
-                                  {canEditItem && (
-                                    <button
-                                      className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                                      onClick={() => {
-                                        void openEditItem(item);
-                                      }}
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                  {canDeleteItem && (
-                                    <button
-                                      className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                                      onClick={() => removeItem(item.id)}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                      </Fragment>
-                    );
-                  })}
+                          )}
+                          {canEditItem && (
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => openItemVendorsManager(item)}
+                            >
+                              Vendors
+                            </button>
+                          )}
+                          {canEditItem && (
+                            <button
+                              className="p-2 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              onClick={() => { void openEditItem(item); }}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canDeleteItem && (
+                            <button
+                              className="p-2 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              onClick={() => removeItem(item.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               <TablePagination

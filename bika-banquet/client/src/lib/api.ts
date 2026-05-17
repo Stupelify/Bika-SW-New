@@ -1,4 +1,6 @@
-import axios, { AxiosError, AxiosInstance } from 'axios';
+import axios from 'axios';
+import type { AxiosError, AxiosInstance } from 'axios';
+import { invalidateCacheEntries } from './apiCache';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -56,14 +58,7 @@ apiClient.interceptors.response.use(
       const key = cacheKey(response.config.url, response.config.params);
       memCache.set(key, { data: response.data, exp: Date.now() + GET_TTL });
     } else if (method && method !== 'get') {
-      // Invalidate cached entries for the same resource on any mutation
-      const url = response.config.url ?? '';
-      const segment = url.split('/')[1] ?? '';
-      if (segment) {
-        Array.from(memCache.keys()).forEach((k) => {
-          if (k.includes(`/${segment}`)) memCache.delete(k);
-        });
-      }
+      invalidateCacheEntries(memCache, response.config.url);
     }
 
     return response;

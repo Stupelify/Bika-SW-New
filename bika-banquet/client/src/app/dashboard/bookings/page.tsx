@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
   CalendarCheck,
@@ -501,6 +502,9 @@ export default function BookingsPage() {
   const [menuPdfSetupLoading, setMenuPdfSetupLoading] = useState(false);
   const [menuPdfPreviewUrl, setMenuPdfPreviewUrl] = useState<string | null>(null);
   const [openHallPickerPack, setOpenHallPickerPack] = useState<PackKey | null>(null);
+  const [hallPickerAnchorRect, setHallPickerAnchorRect] = useState<DOMRect | null>(null);
+  const [focusedPackAmount, setFocusedPackAmount] = useState<{ key: PackKey; value: string } | null>(null);
+  const [netAmountDraft, setNetAmountDraft] = useState<string | null>(null);
   const [customerSearchInputs, setCustomerSearchInputs] =
     useState<CustomerSearchInputState>({
       primary: '',
@@ -510,6 +514,7 @@ export default function BookingsPage() {
   const [activeCustomerSearchField, setActiveCustomerSearchField] =
     useState<CustomerSearchField | null>(null);
   const hallPickerContainerRef = useRef<HTMLDivElement | null>(null);
+  const hallPickerPortalRef = useRef<HTMLDivElement | null>(null);
   const actionSentinelRef = useRef<HTMLDivElement | null>(null);
   // Snapshot of formData as last loaded from the server. Reset to this on server rejection.
   const savedFormDataRef = useRef<BookingFormData | null>(null);
@@ -544,6 +549,7 @@ export default function BookingsPage() {
   // When true the user has explicitly typed a discount/final-amount value.
   // The auto-recalc effect will NOT overwrite it when pack rates change.
   const [discountManuallySet, setDiscountManuallySet] = useState(false);
+  const prevTotalPackAmountRef = useRef<number | null>(null);
 
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -910,15 +916,15 @@ export default function BookingsPage() {
     [totalAdditionalRequirementsAmount, totalPackAmount]
   );
 
-  // Keep dueAmount in sync: always = finalAmount (or totalBillAmount) minus what's been paid.
+  // Keep dueAmount in sync: always = grandTotal (finalAmount + extras) minus what's been paid.
   // When there are no payments, due = full amount automatically.
   useEffect(() => {
     if (!showCreateForm) return;
-    const effectiveFinal =
-      parseFloat(formData.finalAmount || '0') || totalBillAmount;
-    const due = Math.max(0, effectiveFinal - totalPayments);
+    const netAmount = parseFloat(formData.finalAmount || '0') || totalPackAmount;
+    const grandTotal = netAmount + totalAdditionalRequirementsAmount;
+    const due = Math.max(0, grandTotal - totalPayments);
     setFormData((prev) => ({ ...prev, dueAmount: due.toFixed(2) }));
-  }, [formData.finalAmount, totalPayments, totalBillAmount, showCreateForm]);
+  }, [formData.finalAmount, totalPayments, totalPackAmount, totalAdditionalRequirementsAmount, showCreateForm]);
 
   const enabledPackAmountRows = useMemo(
     () =>
@@ -1153,10 +1159,9 @@ export default function BookingsPage() {
 
     const handleOutsidePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (
-        hallPickerContainerRef.current &&
-        !hallPickerContainerRef.current.contains(target)
-      ) {
+      const insideButton = hallPickerContainerRef.current?.contains(target);
+      const insidePortal = hallPickerPortalRef.current?.contains(target);
+      if (!insideButton && !insidePortal) {
         setOpenHallPickerPack(null);
       }
     };
@@ -1168,6 +1173,8 @@ export default function BookingsPage() {
   }, [openHallPickerPack]);
 
   const groupedMenuItems = useMemo(() => {
+    // Items arrive pre-sorted by itemType.displayOrder/order from the server.
+    // Inserting into a Map preserves that insertion order for groups.
     const map = new Map<string, ItemOption[]>();
     filteredMenuItems.forEach((item) => {
       const group = item.itemType?.name || 'Other';
@@ -1175,32 +1182,18 @@ export default function BookingsPage() {
       existing.push(item);
       map.set(group, existing);
     });
+    // Sort items within each group alphabetically
     map.forEach((grouped, groupName) => {
-      map.set(
-        groupName,
-        [...grouped].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-      );
+      map.set(groupName, [...grouped].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
     });
-    const getGroupSortValue = (grouped: ItemOption[]) => {
-      const first = grouped.find((item) => item.itemType?.id);
-      const order = first?.itemType?.order;
-      const displayOrder = first?.itemType?.displayOrder;
-      if (typeof order === 'number' && Number.isFinite(order)) return order;
-      if (typeof displayOrder === 'number' && Number.isFinite(displayOrder)) return displayOrder;
-      return Number.MAX_SAFE_INTEGER;
-    };
-    return Array.from(map.entries()).sort(([aName, aItems], [bName, bItems]) => {
-      const orderCompare = getGroupSortValue(aItems) - getGroupSortValue(bItems);
-      if (orderCompare !== 0) return orderCompare;
-      return aName.localeCompare(bName);
-    });
+    return Array.from(map.entries());
   }, [filteredMenuItems]);
 
   const selectedMenuItemsByGroup = useMemo(() => {
     if (!activeMenuPackRow) return [] as Array<[string, ItemOption[]]>;
-    const selected = activeMenuPackRow.menuItemIds
-      .map((itemId) => items.find((entry) => entry.id === itemId))
-      .filter(Boolean) as ItemOption[];
+    // Use items array (server-sorted) as the source of truth for ordering.
+    const selectedIds = new Set(activeMenuPackRow.menuItemIds);
+    const selected = items.filter((item) => selectedIds.has(item.id));
     const map = new Map<string, ItemOption[]>();
     selected.forEach((item) => {
       const group = item.itemType?.name || 'Other';
@@ -1209,24 +1202,9 @@ export default function BookingsPage() {
       map.set(group, bucket);
     });
     map.forEach((grouped, groupName) => {
-      map.set(
-        groupName,
-        [...grouped].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-      );
+      map.set(groupName, [...grouped].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
     });
-    const getGroupSortValue = (grouped: ItemOption[]) => {
-      const first = grouped.find((item) => item.itemType?.id);
-      const order = first?.itemType?.order;
-      const displayOrder = first?.itemType?.displayOrder;
-      if (typeof order === 'number' && Number.isFinite(order)) return order;
-      if (typeof displayOrder === 'number' && Number.isFinite(displayOrder)) return displayOrder;
-      return Number.MAX_SAFE_INTEGER;
-    };
-    return Array.from(map.entries()).sort(([aName, aItems], [bName, bItems]) => {
-      const orderCompare = getGroupSortValue(aItems) - getGroupSortValue(bItems);
-      if (orderCompare !== 0) return orderCompare;
-      return aName.localeCompare(bName);
-    });
+    return Array.from(map.entries());
   }, [activeMenuPackRow, items]);
 
   const getItemPoints = useCallback((item?: ItemOption | null): number => {
@@ -1360,7 +1338,8 @@ export default function BookingsPage() {
           : amountSyncMode === 'discountAmount'
             ? prev.finalDiscountAmount
             : prev.finalAmount;
-      const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, totalBillAmount);
+      // Discount is applied to pack amounts only (not extras)
+      const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, totalPackAmount);
       if (
         prev.finalDiscountAmount === nextValues.finalDiscountAmount &&
         prev.finalDiscountPercent === nextValues.finalDiscountPercent &&
@@ -1373,7 +1352,25 @@ export default function BookingsPage() {
         ...nextValues,
       };
     });
-  }, [amountSyncMode, discountManuallySet, normalizeAmountSnapshot, showCreateForm, totalBillAmount]);
+  }, [amountSyncMode, discountManuallySet, normalizeAmountSnapshot, showCreateForm, totalPackAmount]);
+
+  useEffect(() => {
+    if (!showCreateForm) return;
+    if (prevTotalPackAmountRef.current === null) {
+      prevTotalPackAmountRef.current = totalPackAmount;
+      return;
+    }
+    if (prevTotalPackAmountRef.current === totalPackAmount) return;
+    prevTotalPackAmountRef.current = totalPackAmount;
+    if (!discountManuallySet) return;
+    // Pack amounts changed while discount was manually set — reset discount to blank, net = new total
+    setFormData((prev) => ({
+      ...prev,
+      finalDiscountPercent: '',
+      finalDiscountAmount: '',
+      finalAmount: formatComputedAmount(totalPackAmount),
+    }));
+  }, [totalPackAmount, discountManuallySet, showCreateForm, formatComputedAmount]);
 
   const addPaymentRow = () => {
     setFormData((prev) => ({
@@ -2235,21 +2232,20 @@ export default function BookingsPage() {
     }
   }, [bookingPdfLoading]);
 
-  const handleSubmitBooking = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const doSaveBooking = async (opts?: { keepOpen?: boolean }): Promise<string | null> => {
     if (!formData.customerId || !formData.functionType.trim() || !formData.functionDate) {
       toast.error('Primary customer, function type and date are required');
-      return;
+      return null;
     }
     if (formData.isPencilBooking && !formData.pencilExpiresAt) {
       toast.error('Set an expiry date for the pencil booking');
-      return;
+      return null;
     }
     if (!editingBookingId && formData.functionDate < todayIsoDate) {
       toast.error(
         `Function date cannot be before ${formatDateDDMMYYYY(todayIsoDate)} for new bookings`
       );
-      return;
+      return null;
     }
 
     try {
@@ -2269,7 +2265,7 @@ export default function BookingsPage() {
         toast.error(
           `Select banquet before halls for ${PACK_LABELS[missingBanquetSelection.key]}`
         );
-        return;
+        return null;
       }
       const getValidHallIdsForPack = (row: BookingPackRow): string[] =>
         row.hallIds.filter((hallId) =>
@@ -2286,7 +2282,19 @@ export default function BookingsPage() {
         toast.error(
           `Select at least one hall for ${PACK_LABELS[missingHallSelection.key]}`
         );
-        return;
+        return null;
+      }
+      const belowHallRate = enabledPackEntries.find((entry) => {
+        const { row } = entry;
+        if (!row.withHall) return false;
+        const hr = toNumber(row.hallRate);
+        const packAmt = calculatePackAmount(row);
+        return hr > 0 && packAmt < hr;
+      });
+      if (belowHallRate) {
+        const hr = toNumber(belowHallRate.row.hallRate);
+        toast.error(`${PACK_LABELS[belowHallRate.key]}: Amount (₹${calculatePackAmount(belowHallRate.row).toLocaleString('en-IN')}) is less than Hall Rate (₹${hr.toLocaleString('en-IN')})`);
+        return null;
       }
       const expectedGuests = Math.max(
         1,
@@ -2295,7 +2303,7 @@ export default function BookingsPage() {
           .filter((value) => value > 0)
       );
       const normalizedDiscountAmount = Math.min(
-        totalBillAmount,
+        totalPackAmount,
         Math.max(0, toNumber(formData.finalDiscountAmount || '0'))
       );
       const normalizedDiscountPercent = Math.min(
@@ -2303,7 +2311,7 @@ export default function BookingsPage() {
         Math.max(0, toNumber(formData.finalDiscountPercent || '0'))
       );
       const normalizedFinalAmount = Math.min(
-        totalBillAmount,
+        totalPackAmount,
         Math.max(0, toNumber(formData.finalAmount || '0'))
       );
       const functionTime = enabledPackEntries[0]?.row.startTime || '12:00';
@@ -2506,8 +2514,13 @@ export default function BookingsPage() {
 
       toast.success(editingBookingId ? 'Booking updated successfully' : 'Booking created successfully');
       savedFormDataRef.current = null;
-      closeBookingForm();
-      await loadBookings();
+      if (!opts?.keepOpen) {
+        closeBookingForm();
+        await loadBookings();
+      } else {
+        await loadBookings();
+      }
+      return savedBookingId;
     } catch (error: any) {
       console.error('[BookingSubmit] error:', error?.response?.data ?? error);
       const validationErrors: Array<{ field: string; message: string }> =
@@ -2522,19 +2535,27 @@ export default function BookingsPage() {
       if (savedFormDataRef.current) {
         setFormData(savedFormDataRef.current);
       }
+      return null;
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSubmitBooking = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await doSaveBooking({ keepOpen: false });
+  };
+
   const handleFinalizeBooking = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!editingBookingId) return;
     if (!confirm('Finalize this booking? It will become read-only and a new editable replica will be generated.')) return;
+
+    const bookingId = await doSaveBooking({ keepOpen: true });
+    if (!bookingId) return;
 
     try {
       setSaving(true);
-      const res = await api.finalizeBooking(editingBookingId);
+      const res = await api.finalizeBooking(bookingId);
       toast.success('Booking finalized successfully.');
       await loadBookings();
       if (res.data?.data?.newBookingId) {
@@ -3053,7 +3074,7 @@ export default function BookingsPage() {
                       readOnly
                       value={formData.dueAmount}
                     />
-                    <p className="mt-1 text-xs text-[var(--text-4)]">Auto-calculated (Final − Paid)</p>
+                    <p className="mt-1 text-xs text-[var(--text-4)]">Auto-calculated (Grand Total − Paid)</p>
                   </div>
                 </div>
 
@@ -3261,20 +3282,26 @@ export default function BookingsPage() {
                       </tbody>
                     </table>
                   )}
-                  <div className="space-y-1 border-t border-[var(--border)] bg-slate-100 px-3 py-2 text-sm">
-                    <div className="flex items-center justify-between font-medium text-slate-700">
-                      <span>Amount Received</span>
-                      <span>₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold text-slate-800 border-t border-slate-200 pt-1">
-                      <span>Total Amount</span>
-                      <span>₹{(parseFloat(formData.finalAmount || '0') || totalBillAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className={`flex items-center justify-between font-bold ${Math.max(0, (parseFloat(formData.finalAmount || '0') || totalBillAmount) - totalPayments) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      <span>Amount Due</span>
-                      <span>₹{Math.max(0, (parseFloat(formData.finalAmount || '0') || totalBillAmount) - totalPayments).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const netAmt = parseFloat(formData.finalAmount || '0') || totalPackAmount;
+                    const grandTotalAmt = netAmt + totalAdditionalRequirementsAmount;
+                    return (
+                      <div className="space-y-1 border-t border-[var(--border)] bg-slate-100 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between font-medium text-slate-700">
+                          <span>Amount Received</span>
+                          <span>₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex items-center justify-between font-semibold text-slate-800 border-t border-slate-200 pt-1">
+                          <span>Grand Total</span>
+                          <span>₹{grandTotalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className={`flex items-center justify-between font-bold ${Math.max(0, grandTotalAmt - totalPayments) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          <span>Amount Due</span>
+                          <span>₹{Math.max(0, grandTotalAmt - totalPayments).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="rounded-xl border border-[var(--border-2)] p-3">
@@ -3315,506 +3342,751 @@ export default function BookingsPage() {
               </div>
             </section>
 
+            {/* ── Pack & Summary Table (desktop) ── */}
             <section className="space-y-3">
-              {(Object.keys(PACK_LABELS) as PackKey[]).map((packKey) => {
-                const row = formData.packs[packKey];
-                const filteredHalls = halls.filter(
-                  (hall) => !row.banquetId || hall.banquet?.id === row.banquetId
-                );
-                const validSelectedHallIds = row.hallIds.filter((hallId) =>
-                  filteredHalls.some((hall) => hall.id === hallId)
-                );
-                const selectedHallNames = filteredHalls
-                  .filter((hall) => validSelectedHallIds.includes(hall.id))
-                  .map((hall) => hall.name);
+              {/* ── Desktop table ── */}
+              <div className="hidden xl:block rounded-2xl border border-[var(--border)]">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-[var(--surface-2)] border-b border-[var(--border)]">
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Meal</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Banquet</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Hall</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap min-w-[200px]">Time</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Menu</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap min-w-[60px]">PAX</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap min-w-[70px]">Rate/Plate</th>
+                        <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap min-w-[70px]">Hall Rate</th>
+                        <th className="px-2 py-2 text-right text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Object.keys(PACK_LABELS) as PackKey[]).map((packKey) => {
+                        const row = formData.packs[packKey];
+                        const packDiffKey = PACK_LABELS[packKey].toLowerCase();
+                        const packDiff = formDiff?.packs[packDiffKey];
+                        const menuAdded = packDiff?.addedItemIds.length ?? 0;
+                        const menuRemoved = packDiff?.removedItemIds.length ?? 0;
+                        const hasMenuDiff = menuAdded > 0 || menuRemoved > 0;
+                        const filteredHalls = halls.filter(
+                          (hall) => !row.banquetId || hall.banquet?.id === row.banquetId
+                        );
+                        const validSelectedHallIds = row.hallIds.filter((hallId) =>
+                          filteredHalls.some((hall) => hall.id === hallId)
+                        );
+                        const selectedHallNames = filteredHalls
+                          .filter((hall) => validSelectedHallIds.includes(hall.id))
+                          .map((hall) => hall.name);
+                        const packColorMap: Record<PackKey, string> = {
+                          breakfast: '#f97316',
+                          lunch: '#22c55e',
+                          hiTea: '#64748b',
+                          dinner: '#6366f1',
+                        };
+                        const packBgMap: Record<PackKey, string> = {
+                          breakfast: 'bg-orange-50',
+                          lunch: 'bg-green-50',
+                          hiTea: 'bg-slate-50',
+                          dinner: 'bg-indigo-50',
+                        };
+                        return (
+                          <tr
+                            key={packKey}
+                            className={`border-b border-[var(--border)] ${!row.enabled ? 'opacity-50' : ''} ${packBgMap[packKey]}`}
+                            style={{ borderLeft: `3px solid ${packColorMap[packKey]}` }}
+                          >
+                            {/* Col 1: Meal toggle + Hall/Cat checkboxes */}
+                            <td className="px-2 py-2 align-top min-w-[140px]">
+                              <div className="flex flex-col gap-1">
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                                  <span className="relative inline-flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      className="peer sr-only"
+                                      checked={row.enabled}
+                                      onChange={(e) => {
+                                        const enabled = e.target.checked;
+                                        if (!enabled && openHallPickerPack === packKey) {
+                                          setOpenHallPickerPack(null);
+                                        }
+                                        updatePackRow(packKey, { enabled });
+                                      }}
+                                    />
+                                    <span className="h-5 w-9 rounded-full bg-[var(--surface-3)] transition-colors peer-checked:bg-primary-600 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-4" />
+                                  </span>
+                                  <span className="text-xs font-semibold text-[var(--text-1)]">{PACK_LABELS[packKey]}</span>
+                                </label>
+                                <div className="flex gap-2 pl-0.5">
+                                  <label className="inline-flex items-center gap-1 text-xs text-[var(--text-2)] cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      className="h-3 w-3 rounded"
+                                      checked={row.withHall}
+                                      disabled={!row.enabled}
+                                      onChange={(e) => {
+                                        const withHall = e.target.checked;
+                                        if (!withHall && openHallPickerPack === packKey) setOpenHallPickerPack(null);
+                                        updatePackRow(packKey, { withHall });
+                                      }}
+                                    />
+                                    Hall
+                                  </label>
+                                  <label className="inline-flex items-center gap-1 text-xs text-[var(--text-2)] cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      className="h-3 w-3 rounded"
+                                      checked={row.withCatering}
+                                      disabled={!row.enabled}
+                                      onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })}
+                                    />
+                                    Cat
+                                  </label>
+                                </div>
+                              </div>
+                            </td>
+                            {/* Col 2: Banquet */}
+                            <td className="px-2 py-2 align-top min-w-[130px]">
+                              <select
+                                className="input py-1 text-xs w-full"
+                                value={row.banquetId}
+                                disabled={!row.enabled}
+                                onChange={(e) => {
+                                  setOpenHallPickerPack((cur) => cur === packKey ? null : cur);
+                                  updatePackRow(packKey, { banquetId: e.target.value, hallIds: [] });
+                                }}
+                              >
+                                <option value="">Select…</option>
+                                {banquets.map((b) => (
+                                  <option key={b.id} value={b.id}>{b.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                            {/* Col 3: Hall picker */}
+                            <td className="px-2 py-2 align-top min-w-[130px]">
+                              <div
+                                className="relative"
+                                ref={openHallPickerPack === packKey ? hallPickerContainerRef : undefined}
+                              >
+                              <button
+                                type="button"
+                                className="input py-1 text-xs w-full flex items-center justify-between text-left truncate"
+                                disabled={!row.enabled || !row.withHall || !row.banquetId}
+                                onClick={(e) => {
+                                  const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                  setHallPickerAnchorRect(rect);
+                                  setOpenHallPickerPack((cur) => cur === packKey ? null : packKey);
+                                }}
+                              >
+                                <span className="truncate">
+                                  {!row.enabled || !row.withHall
+                                    ? '—'
+                                    : !row.banquetId
+                                      ? 'Pick banquet'
+                                      : selectedHallNames.length > 0
+                                        ? selectedHallNames.join(', ')
+                                        : 'Select halls'}
+                                </span>
+                              </button>
+                              {openHallPickerPack === packKey && hallPickerAnchorRect && typeof document !== 'undefined' && createPortal(
+                                <div
+                                  ref={hallPickerPortalRef}
+                                  style={{
+                                    position: 'fixed',
+                                    top: hallPickerAnchorRect.bottom + 4,
+                                    left: hallPickerAnchorRect.left,
+                                    width: Math.max(hallPickerAnchorRect.width, 208),
+                                    zIndex: 9999,
+                                  }}
+                                  className="max-h-56 overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg"
+                                >
+                                  {filteredHalls.length === 0 ? (
+                                    <p className="px-3 py-2 text-xs text-[var(--text-4)]">No halls for this banquet.</p>
+                                  ) : (
+                                    filteredHalls.map((hall) => {
+                                      const checked = row.hallIds.includes(hall.id);
+                                      return (
+                                        <label key={hall.id} className="flex cursor-pointer items-center gap-2 border-b border-[var(--border)] px-3 py-2 text-sm text-[var(--text-1)] last:border-b-0 hover:bg-[var(--surface-2)]">
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => {
+                                              const next = checked
+                                                ? row.hallIds.filter((id) => id !== hall.id)
+                                                : [...row.hallIds, hall.id];
+                                              updatePackRow(packKey, { hallIds: next });
+                                            }}
+                                          />
+                                          <span>{hall.name}</span>
+                                        </label>
+                                      );
+                                    })
+                                  )}
+                                </div>,
+                                document.body
+                              )}
+                              </div>
+                            </td>
+                            {/* Col 4: Time */}
+                            <td className="px-2 py-2 align-top min-w-[200px]">
+                              <div className="flex gap-0.5 items-center">
+                                <input
+                                  className="input py-1 text-xs w-[90px]"
+                                  type="time"
+                                  step="900"
+                                  value={row.startTime}
+                                  disabled={!row.enabled}
+                                  onChange={(e) => updatePackRow(packKey, { startTime: e.target.value })}
+                                />
+                                <span className="text-xs text-[var(--text-4)]">–</span>
+                                <input
+                                  className="input py-1 text-xs w-[90px]"
+                                  type="time"
+                                  step="900"
+                                  value={row.endTime}
+                                  disabled={!row.enabled}
+                                  onChange={(e) => updatePackRow(packKey, { endTime: e.target.value })}
+                                />
+                              </div>
+                            </td>
+                            {/* Col 5: Menu */}
+                            <td className="px-2 py-2 align-top min-w-[100px]">
+                              <button
+                                type="button"
+                                className={`btn py-1 text-xs w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
+                                onClick={() => { setMenuEditorPack(packKey); setMenuItemSearch(''); }}
+                              >
+                                {row.menuItemIds.length > 0
+                                  ? `${row.menuPoints} pts`
+                                  : 'Set menu…'}
+                                {hasMenuDiff && (
+                                  <span className="ml-1">
+                                    {menuAdded > 0 && <span className="text-green-700">+{menuAdded}</span>}
+                                    {menuAdded > 0 && menuRemoved > 0 && <span>/</span>}
+                                    {menuRemoved > 0 && <span className="text-red-700">−{menuRemoved}</span>}
+                                  </span>
+                                )}
+                              </button>
+                            </td>
+                            {/* Col 6: PAX */}
+                            <td className="px-2 py-2 align-top min-w-[60px]">
+                              <input
+                                className={`input py-1 text-xs w-full${packDiff?.paxChange ? ' ring-2 ring-amber-300' : ''}`}
+                                type="number"
+                                min={0}
+                                value={row.pax}
+                                disabled={!row.enabled || !row.withCatering}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => updatePackRow(packKey, { pax: e.target.value })}
+                              />
+                              {packDiff?.paxChange && (
+                                <p className="mt-0.5 text-xs text-amber-600">was {packDiff.paxChange.from}</p>
+                              )}
+                            </td>
+                            {/* Col 7: Rate/Plate */}
+                            <td className="px-2 py-2 align-top min-w-[70px]">
+                              <input
+                                className={`input py-1 text-xs w-full${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`}
+                                type="number"
+                                min={0}
+                                value={row.ratePerPlate}
+                                disabled={!row.enabled || !row.withCatering}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => updatePackRow(packKey, { ratePerPlate: e.target.value })}
+                              />
+                              {packDiff?.ratePerPlateChange && (
+                                <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}</p>
+                              )}
+                            </td>
+                            {/* Col 8: Hall Rate */}
+                            <td className="px-2 py-2 align-top min-w-[70px]">
+                              <input
+                                className={`input py-1 text-xs w-full${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`}
+                                type="number"
+                                min={0}
+                                value={row.hallRate}
+                                disabled={!row.enabled || !row.withHall}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
+                              />
+                              {packDiff?.hallRateChange && (
+                                <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}</p>
+                              )}
+                            </td>
+                            {/* Col 9: Amount (editable — back-calculates ratePerPlate on blur) */}
+                            <td className="px-2 py-2 align-top min-w-[100px]">
+                              <input
+                                className="input py-1 text-xs w-full text-right"
+                                type="number"
+                                min={0}
+                                value={
+                                  focusedPackAmount?.key === packKey
+                                    ? focusedPackAmount.value
+                                    : formatComputedAmount(calculatePackAmount(row))
+                                }
+                                disabled={!row.enabled}
+                                onFocus={(e) => { e.target.select(); setFocusedPackAmount({ key: packKey, value: e.target.value }); }}
+                                onChange={(e) => setFocusedPackAmount({ key: packKey, value: e.target.value })}
+                                onBlur={(e) => {
+                                  setFocusedPackAmount(null);
+                                  const enteredAmount = parseFloat(e.target.value) || 0;
+                                  const hallRate = row.withHall ? toNonNegativeNumber(row.hallRate) : 0;
+                                  const pax = row.withCatering ? toNonNegativeNumber(row.pax) : 0;
+                                  if (pax > 0) {
+                                    const newRate = Math.round(((enteredAmount - hallRate) / pax) * 100) / 100;
+                                    updatePackRow(packKey, { ratePerPlate: String(Math.max(0, newRate)) });
+                                  }
+                                }}
+                                title="Tab out after editing to update Rate/Plate"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
 
-                return (
-                  <div
-                    key={packKey}
-                    className={`rounded-2xl border p-3 space-y-3 ${PACK_ROW_STYLES[packKey]}`}
-                  >
-                    <div
-                      className={`grid gap-3 items-center ${row.enabled && row.withHall
-                        ? 'grid-cols-1 xl:grid-cols-[220px,170px,170px,1fr,1fr]'
-                        : row.enabled
-                          ? 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
-                          : 'grid-cols-1 sm:grid-cols-[220px,170px,170px]'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-white px-3 py-2">
-                        <div className="inline-flex items-center gap-2">
-                          <label className="relative inline-flex cursor-pointer items-center">
+                      {/* ── Summary rows ── */}
+                      <tr>
+                        <td colSpan={9} className="border-t-2 border-[var(--border)] p-0" />
+                      </tr>
+
+                      {/* Total row */}
+                      <tr className="bg-white">
+                        <td colSpan={7} />
+                        <td className="px-2 py-2 text-right text-xs font-bold text-[var(--text-1)] whitespace-nowrap">Total</td>
+                        <td className="px-2 py-2 text-right text-sm font-bold text-[var(--text-1)]">
+                          ₹{totalPackAmount.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+
+                      {/* Discount row */}
+                      <tr className="bg-red-50">
+                        <td colSpan={5} />
+                        <td className="px-2 py-1.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-xs text-[var(--text-3)] whitespace-nowrap">Disc %</span>
+                            <input
+                              className="input py-1 text-xs w-16 text-right"
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.01"
+                              value={formData.finalDiscountPercent}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                setAmountSyncMode('discountPercent');
+                                setDiscountManuallySet(true);
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  ...normalizeAmountSnapshot('discountPercent', e.target.value, totalPackAmount),
+                                }));
+                              }}
+                            />
+                          </div>
+                        </td>
+                        <td colSpan={1} />
+                        <td className="px-2 py-1.5 text-right text-xs font-semibold text-red-700 whitespace-nowrap">Discount</td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            className="input py-1 text-xs w-full text-right"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={formData.finalDiscountAmount}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              setAmountSyncMode('discountAmount');
+                              setDiscountManuallySet(true);
+                              setFormData((prev) => ({
+                                ...prev,
+                                ...normalizeAmountSnapshot('discountAmount', e.target.value, totalPackAmount),
+                              }));
+                            }}
+                          />
+                        </td>
+                      </tr>
+
+                      {/* Net Amount row */}
+                      <tr className="bg-teal-50">
+                        <td colSpan={7} />
+                        <td className="px-2 py-1.5 text-right text-xs font-bold text-teal-700 whitespace-nowrap">Net Amount</td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            className="input py-1 text-xs w-full text-right font-semibold text-teal-700"
+                            type="number"
+                            min={0}
+                            value={netAmountDraft !== null ? netAmountDraft : formData.finalAmount}
+                            onFocus={(e) => { e.target.select(); setNetAmountDraft(e.target.value); }}
+                            onChange={(e) => setNetAmountDraft(e.target.value)}
+                            onBlur={(e) => {
+                              setNetAmountDraft(null);
+                              setAmountSyncMode('finalAmount');
+                              setDiscountManuallySet(true);
+                              setFormData((prev) => ({
+                                ...prev,
+                                ...normalizeAmountSnapshot('finalAmount', e.target.value, totalPackAmount),
+                              }));
+                            }}
+                            aria-label="Net Amount"
+                            title="Net Amount (after discount)"
+                          />
+                        </td>
+                      </tr>
+
+                      {/* Extra Items header row */}
+                      <tr className="bg-[var(--surface-2)] border-t border-[var(--border)]">
+                        <td colSpan={8} className="px-3 py-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-[var(--text-2)]">Extra Items</span>
+                            <button
+                              type="button"
+                              className="inline-flex h-6 items-center gap-1 rounded-full border border-primary-600 px-2 text-xs font-medium text-primary-700 hover:bg-primary-50"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  additionalRequirements: [
+                                    ...prev.additionalRequirements,
+                                    { description: '', amount: '' },
+                                  ],
+                                }))
+                              }
+                            >
+                              <Plus className="h-3 w-3" />
+                              Add
+                            </button>
+                          </div>
+                        </td>
+                        <td />
+                      </tr>
+
+                      {/* Extra item rows — description + amount on the left, no individual amount in right col */}
+                      {formData.additionalRequirements.map((item, index) => (
+                        <tr key={`req-${index}`} className="bg-white border-t border-[var(--border)]">
+                          <td colSpan={4} />
+                          <td colSpan={4} className="px-2 py-1.5">
+                            <div className="flex gap-2 items-center">
+                              <input
+                                className="input py-1 text-xs flex-1"
+                                value={item.description}
+                                placeholder="Description"
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    additionalRequirements: prev.additionalRequirements.map(
+                                      (entry, entryIndex) =>
+                                        entryIndex === index
+                                          ? { ...entry, description: e.target.value }
+                                          : entry
+                                    ),
+                                  }))
+                                }
+                              />
+                              <input
+                                className="input py-1 text-xs w-24 text-right"
+                                type="number"
+                                min={0}
+                                value={item.amount}
+                                placeholder="0"
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    additionalRequirements: prev.additionalRequirements.map(
+                                      (entry, entryIndex) =>
+                                        entryIndex === index
+                                          ? { ...entry, amount: e.target.value }
+                                          : entry
+                                    ),
+                                  }))
+                                }
+                              />
+                              <button
+                                type="button"
+                                className="text-xs text-red-500 hover:text-red-700 whitespace-nowrap"
+                                onClick={() =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    additionalRequirements: prev.additionalRequirements.filter(
+                                      (_, entryIndex) => entryIndex !== index
+                                    ),
+                                  }))
+                                }
+                              >✕</button>
+                            </div>
+                          </td>
+                          <td />
+                        </tr>
+                      ))}
+                      {/* Extras total row — label on left, total in amount column */}
+                      {formData.additionalRequirements.length > 0 && (
+                        <tr className="bg-white border-t border-[var(--border)]">
+                          <td colSpan={4} />
+                          <td colSpan={4} className="px-2 py-1.5 text-right text-xs font-semibold text-[var(--text-2)]">
+                            Extras Total
+                          </td>
+                          <td className="px-2 py-1.5 text-right text-xs font-bold text-[var(--text-1)]">
+                            ₹{totalAdditionalRequirementsAmount.toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Grand Total row */}
+                      {(() => {
+                        const netAmount = parseFloat(formData.finalAmount || '0') || totalPackAmount;
+                        const grandTotal = netAmount + totalAdditionalRequirementsAmount;
+                        return (
+                          <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]">
+                            <td colSpan={7} />
+                            <td className="px-2 py-2 text-right text-xs font-extrabold text-[var(--text-1)] whitespace-nowrap">Grand Total</td>
+                            <td className="px-2 py-2 text-right text-base font-extrabold text-[var(--text-1)]">
+                              ₹{grandTotal.toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        );
+                      })()}
+
+                      {/* Actions row */}
+                      <tr className="border-t border-[var(--border)] bg-white">
+                        <td colSpan={6} className="px-3 py-2">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={closeBookingForm}
+                            >
+                              Cancel
+                            </button>
+                            {!isReadOnlyBooking && (
+                              <button type="submit" className="btn btn-primary" disabled={saving}>
+                                <span className="inline-flex items-center gap-2">
+                                  <Save className="w-4 h-4" />
+                                  {saving ? 'Saving...' : 'Submit'}
+                                </span>
+                              </button>
+                            )}
+                            {editingBookingId && !isReadOnlyBooking && (
+                              <button
+                                type="button"
+                                className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                                onClick={openPartyOver}
+                                disabled={saving}
+                              >
+                                <span className="inline-flex items-center gap-2">
+                                  <Flag className="w-4 h-4" />
+                                  Party Over
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td colSpan={2} />
+                        <td className="px-3 py-2 text-right">
+                          {!isReadOnlyBooking && (
+                            <button
+                              type="button"
+                              className="btn bg-green-600 hover:bg-green-700 text-white shadow-sm whitespace-nowrap"
+                              onClick={handleFinalizeBooking}
+                              disabled={saving}
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4" />
+                                Finalize Version
+                              </span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+              </div>
+
+              {/* ── Mobile cards (xl:hidden) ── */}
+              <div className="xl:hidden space-y-3">
+                {(Object.keys(PACK_LABELS) as PackKey[]).map((packKey) => {
+                  const row = formData.packs[packKey];
+                  const packDiffKey = PACK_LABELS[packKey].toLowerCase();
+                  const packDiff = formDiff?.packs[packDiffKey];
+                  const menuAdded = packDiff?.addedItemIds.length ?? 0;
+                  const menuRemoved = packDiff?.removedItemIds.length ?? 0;
+                  const hasMenuDiff = menuAdded > 0 || menuRemoved > 0;
+                  const filteredHalls = halls.filter(
+                    (hall) => !row.banquetId || hall.banquet?.id === row.banquetId
+                  );
+                  const validSelectedHallIds = row.hallIds.filter((hallId) =>
+                    filteredHalls.some((hall) => hall.id === hallId)
+                  );
+                  const selectedHallNames = filteredHalls
+                    .filter((hall) => validSelectedHallIds.includes(hall.id))
+                    .map((hall) => hall.name);
+
+                  return (
+                    <div key={packKey} className={`rounded-2xl border p-3 space-y-3 ${PACK_ROW_STYLES[packKey]}`}>
+                      <div className="flex items-center justify-between">
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                          <span className="relative inline-flex items-center">
                             <input
                               type="checkbox"
                               className="peer sr-only"
                               checked={row.enabled}
                               onChange={(e) => {
                                 const enabled = e.target.checked;
-                                if (!enabled && openHallPickerPack === packKey) {
-                                  setOpenHallPickerPack(null);
-                                }
+                                if (!enabled && openHallPickerPack === packKey) setOpenHallPickerPack(null);
                                 updatePackRow(packKey, { enabled });
                               }}
                             />
                             <span className="h-6 w-11 rounded-full bg-[var(--surface-3)] transition-colors peer-checked:bg-primary-600 peer-focus:ring-2 peer-focus:ring-primary-200 peer-focus:ring-offset-1 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
-                          </label>
-                          <span className="text-base font-semibold text-[var(--text-1)]">
-                            {PACK_LABELS[packKey]}
                           </span>
+                          <span className="text-base font-semibold text-[var(--text-1)]">{PACK_LABELS[packKey]}</span>
+                        </label>
+                        <div className="flex gap-3">
+                          <label className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
+                            <input type="checkbox" className="h-4 w-4 rounded" checked={row.withHall} disabled={!row.enabled}
+                              onChange={(e) => { const withHall = e.target.checked; if (!withHall && openHallPickerPack === packKey) setOpenHallPickerPack(null); updatePackRow(packKey, { withHall }); }} />
+                            Hall
+                          </label>
+                          <label className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
+                            <input type="checkbox" className="h-4 w-4 rounded" checked={row.withCatering} disabled={!row.enabled}
+                              onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })} />
+                            Catering
+                          </label>
                         </div>
                       </div>
 
-                      <div
-                        className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-[var(--border)] bg-white'
-                          : 'border-[var(--border)] bg-white opacity-80'
-                          }`}
-                      >
-                        <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-1)]">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-[var(--border-2)] text-primary-600 focus:ring-primary-500"
-                            checked={row.withHall}
-                            disabled={!row.enabled}
-                            onChange={(e) => {
-                              const withHall = e.target.checked;
-                              if (!withHall && openHallPickerPack === packKey) {
-                                setOpenHallPickerPack(null);
-                              }
-                              updatePackRow(packKey, { withHall });
-                            }}
-                          />
-                          Hall
-                        </label>
-                      </div>
-
-                      <div
-                        className={`flex items-center justify-between rounded-xl border px-3 py-2 ${row.enabled
-                          ? 'border-[var(--border)] bg-white'
-                          : 'border-[var(--border)] bg-white opacity-80'
-                          }`}
-                      >
-                        <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-1)]">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-[var(--border-2)] text-primary-600 focus:ring-primary-500"
-                            checked={row.withCatering}
-                            disabled={!row.enabled}
-                            onChange={(e) =>
-                              updatePackRow(packKey, { withCatering: e.target.checked })
-                            }
-                          />
-                          Catering
-                        </label>
-                      </div>
-
-                      {row.enabled && row.withHall && (
-                        <div className="space-y-1">
-                          <label className="label">Banquet</label>
-                          <select
-                            className="input"
-                            value={row.banquetId}
-                            onChange={(e) => {
-                              setOpenHallPickerPack((current) =>
-                                current === packKey ? null : current
-                              );
-                              updatePackRow(packKey, {
-                                banquetId: e.target.value,
-                                hallIds: [],
-                              });
-                            }}
-                          >
-                            <option value="">Select Banquet</option>
-                            {banquets.map((banquet) => (
-                              <option key={banquet.id} value={banquet.id}>
-                                {banquet.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {row.enabled && row.withHall && (
-                        <div
-                          className="relative space-y-1"
-                          ref={openHallPickerPack === packKey ? hallPickerContainerRef : undefined}
-                        >
-                          <div className="flex items-center justify-between">
-                            <label className="label">Hall</label>
-                            <p className="text-xs text-[var(--text-2)]">
-                              {validSelectedHallIds.length} hall
-                              {validSelectedHallIds.length === 1 ? '' : 's'} selected
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            className="input flex w-full items-center justify-between text-left"
-                            disabled={!row.banquetId}
-                            onClick={() =>
-                              setOpenHallPickerPack((current) =>
-                                current === packKey ? null : packKey
-                              )
-                            }
-                          >
-                            <span className="truncate">
-                              {!row.banquetId
-                                ? 'Select Banquet First'
-                                : selectedHallNames.length > 0
-                                  ? selectedHallNames.join(', ')
-                                  : 'Select Halls *'}
-                            </span>
-                            <span className="text-[var(--text-4)] text-xs">
-                              {openHallPickerPack === packKey ? 'Close' : 'Select'}
-                            </span>
-                          </button>
-
-                          {openHallPickerPack === packKey && (
-                            <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg">
-                              {filteredHalls.length === 0 ? (
-                                <p className="px-3 py-2 text-xs text-[var(--text-4)]">
-                                  No halls available for this banquet.
-                                </p>
-                              ) : (
-                                filteredHalls.map((hall) => {
-                                  const checked = row.hallIds.includes(hall.id);
-                                  return (
-                                    <label
-                                      key={hall.id}
-                                      className="flex cursor-pointer items-center gap-2 border-b border-[var(--border)] px-3 py-2 text-sm text-[var(--text-1)] last:border-b-0 hover:bg-[var(--surface-2)]"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={() => {
-                                          const nextHallIds = checked
-                                            ? row.hallIds.filter((id) => id !== hall.id)
-                                            : [...row.hallIds, hall.id];
-                                          updatePackRow(packKey, { hallIds: nextHallIds });
-                                        }}
-                                      />
-                                      <span>{hall.name}</span>
-                                    </label>
-                                  );
-                                })
+                      {row.enabled && (
+                        <div className="grid grid-cols-2 gap-3">
+                          {row.withHall && (
+                            <div>
+                              <label className="label text-xs">Banquet</label>
+                              <select className="input" value={row.banquetId}
+                                onChange={(e) => { setOpenHallPickerPack((cur) => cur === packKey ? null : cur); updatePackRow(packKey, { banquetId: e.target.value, hallIds: [] }); }}>
+                                <option value="">Select Banquet</option>
+                                {banquets.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          {row.withHall && (
+                            <div className="relative" ref={openHallPickerPack === packKey ? hallPickerContainerRef : undefined}>
+                              <label className="label text-xs">Hall</label>
+                              <button type="button" className="input flex w-full items-center justify-between text-left" disabled={!row.banquetId}
+                                onClick={() => setOpenHallPickerPack((cur) => cur === packKey ? null : packKey)}>
+                                <span className="truncate">{!row.banquetId ? 'Select Banquet First' : selectedHallNames.length > 0 ? selectedHallNames.join(', ') : 'Select Halls *'}</span>
+                              </button>
+                              {openHallPickerPack === packKey && (
+                                <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg">
+                                  {filteredHalls.length === 0 ? <p className="px-3 py-2 text-xs text-[var(--text-4)]">No halls for this banquet.</p> : filteredHalls.map((hall) => {
+                                    const checked = row.hallIds.includes(hall.id);
+                                    return (
+                                      <label key={hall.id} className="flex cursor-pointer items-center gap-2 border-b border-[var(--border)] px-3 py-2 text-sm text-[var(--text-1)] last:border-b-0 hover:bg-[var(--surface-2)]">
+                                        <input type="checkbox" checked={checked} onChange={() => { const next = checked ? row.hallIds.filter((id) => id !== hall.id) : [...row.hallIds, hall.id]; updatePackRow(packKey, { hallIds: next }); }} />
+                                        <span>{hall.name}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
                               )}
                             </div>
                           )}
+                          <div>
+                            <label className="label text-xs">Start Time</label>
+                            <input className="input" type="time" step="900" value={row.startTime} onChange={(e) => updatePackRow(packKey, { startTime: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="label text-xs">End Time</label>
+                            <input className="input" type="time" step="900" value={row.endTime} onChange={(e) => updatePackRow(packKey, { endTime: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="label text-xs">Menu</label>
+                            <button type="button" className={`btn w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
+                              onClick={() => { setMenuEditorPack(packKey); setMenuItemSearch(''); }}>
+                              {Number(row.menuPoints) > 0 ? `${row.menuPoints} pts` : 'Set menu…'}
+                              {hasMenuDiff && <span className="ml-1 text-xs">{menuAdded > 0 && <span className="text-green-700">+{menuAdded}</span>}{menuAdded > 0 && menuRemoved > 0 && '/'}{menuRemoved > 0 && <span className="text-red-700">−{menuRemoved}</span>}</span>}
+                            </button>
+                          </div>
+                          <div>
+                            <label className="label text-xs">PAX</label>
+                            <input className={`input${packDiff?.paxChange ? ' ring-2 ring-amber-300' : ''}`} type="number" min={0} value={row.pax}
+                              disabled={!row.withCatering} onChange={(e) => updatePackRow(packKey, { pax: e.target.value })} />
+                            {packDiff?.paxChange && <p className="mt-0.5 text-xs text-amber-600">was {packDiff.paxChange.from}</p>}
+                          </div>
+                          <div>
+                            <label className="label text-xs">Rate/Plate</label>
+                            <input className={`input${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`} type="number" min={0} value={row.ratePerPlate}
+                              disabled={!row.withCatering} onChange={(e) => updatePackRow(packKey, { ratePerPlate: e.target.value })} />
+                            {packDiff?.ratePerPlateChange && <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}</p>}
+                          </div>
+                          <div>
+                            <label className="label text-xs">Hall Rate</label>
+                            <input className={`input${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`} type="number" min={0} value={row.hallRate}
+                              disabled={!row.withHall} onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })} />
+                            {packDiff?.hallRateChange && <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}</p>}
+                          </div>
+                          <div>
+                            <label className="label text-xs">Amount</label>
+                            <input className="input bg-[var(--surface-2)] text-right" type="number" min={0}
+                              value={formatComputedAmount(calculatePackAmount(row))} readOnly title="Hall Rate + Rate/Plate × PAX" />
+                          </div>
                         </div>
                       )}
                     </div>
+                  );
+                })}
 
-                    <div className={`pack-section-body ${row.enabled ? 'open' : ''}`}>
-                      {row.enabled && (() => {
-                        const packDiffKey = PACK_LABELS[packKey].toLowerCase();
-                        const packDiff = formDiff?.packs[packDiffKey];
-                        const menuAdded = packDiff?.addedItemIds.length ?? 0;
-                        const menuRemoved = packDiff?.removedItemIds.length ?? 0;
-                        const hasMenuDiff = menuAdded > 0 || menuRemoved > 0;
+                {/* Mobile summary */}
+                <div className="rounded-2xl border border-[var(--border)] bg-white p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold text-[var(--text-1)]">Amount Summary</h3>
+                    <button type="button"
+                      className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
+                      onClick={() => setFormData((prev) => ({ ...prev, additionalRequirements: [...prev.additionalRequirements, { description: '', amount: '' }] }))}>
+                      <Plus className="h-3.5 w-3.5" /> Add Extra
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {enabledPackAmountRows.map((entry) => (
+                      <div key={entry.key} className="flex items-center justify-between">
+                        <span className="text-sm text-[var(--text-2)]">{entry.label}</span>
+                        <span className="text-sm font-medium text-[var(--text-1)]">₹{formatComputedAmount(entry.amount)}</span>
+                      </div>
+                    ))}
+                    {formData.additionalRequirements.map((item, index) => (
+                      <div key={`mob-req-${index}`} className="grid grid-cols-[1fr,120px,auto] gap-2 items-center">
+                        <input className="input" value={item.description} placeholder="Extra item" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) }))} />
+                        <input className="input text-right" type="number" min={0} value={item.amount} placeholder="0" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: e.target.value } : r) }))} />
+                        <button type="button" className="text-red-500 text-xs" onClick={() => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.filter((_, i) => i !== index) }))}>✕</button>
+                      </div>
+                    ))}
+                    <div className="border-t border-[var(--border)] pt-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-[var(--text-1)]">Total (Packs)</span>
+                        <span className="text-sm font-semibold text-[var(--text-1)]">₹{totalPackAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="label text-xs">Discount %</label>
+                          <input className="input text-right" type="number" min={0} max={100} step="0.01" value={formData.finalDiscountPercent}
+                            onChange={(e) => { setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', e.target.value, totalPackAmount) })); }} />
+                        </div>
+                        <div>
+                          <label className="label text-xs">Discount ₹</label>
+                          <input className="input text-right" type="number" min={0} step="0.01" value={formData.finalDiscountAmount}
+                            onChange={(e) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', e.target.value, totalPackAmount) })); }} />
+                        </div>
+                        <div>
+                          <label className="label text-xs">Net Amount</label>
+                          <input className="input text-right font-semibold text-teal-700" type="number" min={0} value={formData.finalAmount}
+                            onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, totalPackAmount) })); }}
+                            aria-label="Net Amount" />
+                        </div>
+                      </div>
+                      {(() => {
+                        const netAmount = parseFloat(formData.finalAmount || '0') || totalPackAmount;
+                        const grandTotal = netAmount + totalAdditionalRequirementsAmount;
                         return (
-                          <div className="grid grid-cols-1 xl:grid-cols-[120px,120px,1fr,130px,1fr,1fr,1fr,1fr] gap-3 items-end">
-                            <div>
-                              <label className="label mb-1 text-xs">Start Time</label>
-                              <input
-                                className="input"
-                                type="time"
-                                value={row.startTime}
-                                onChange={(e) => updatePackRow(packKey, { startTime: e.target.value })}
-                              />
-                            </div>
-                            <div>
-                              <label className="label mb-1 text-xs">End Time</label>
-                              <input
-                                className="input"
-                                type="time"
-                                value={row.endTime}
-                                onChange={(e) => updatePackRow(packKey, { endTime: e.target.value })}
-                              />
-                            </div>
-                            <div>
-                              <label className="label mb-1 text-xs">Hall Rate</label>
-                              <input
-                                className={`input${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`}
-                                type="number"
-                                min={0}
-                                value={row.hallRate}
-                                disabled={!row.withHall}
-                                onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
-                              />
-                              {packDiff?.hallRateChange && (
-                                <p className="mt-0.5 text-xs text-amber-600">
-                                  was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}
-                                </p>
-                              )}
-                            </div>
-                            <div>
-                              <label className="label mb-1 text-xs">Menu</label>
-                              <button
-                                type="button"
-                                className={`btn w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
-                                onClick={() => {
-                                  setMenuEditorPack(packKey);
-                                  setMenuItemSearch('');
-                                }}
-                              >
-                                {row.menuItemIds.length} items
-                                {hasMenuDiff && (
-                                  <span className="ml-1 text-xs font-normal">
-                                    {menuAdded > 0 && <span className="text-green-700">+{menuAdded}</span>}
-                                    {menuAdded > 0 && menuRemoved > 0 && <span className="text-[var(--text-4)]"> / </span>}
-                                    {menuRemoved > 0 && <span className="text-red-700">−{menuRemoved}</span>}
-                                  </span>
-                                )}
-                              </button>
-                            </div>
-                            <div>
-                              <label className="label mb-1 text-xs">Menu Points</label>
-                              <input
-                                className="input bg-[var(--surface-2)]"
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={row.menuPoints}
-                                readOnly
-                                title="Auto-calculated from selected menu items"
-                              />
-                            </div>
-                            <div>
-                              <label className="label mb-1 text-xs">Rate Per Plate</label>
-                              <input
-                                className={`input${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`}
-                                type="number"
-                                min={0}
-                                value={row.ratePerPlate}
-                                onChange={(e) =>
-                                  updatePackRow(packKey, { ratePerPlate: e.target.value })
-                                }
-                              />
-                              {packDiff?.ratePerPlateChange && (
-                                <p className="mt-0.5 text-xs text-amber-600">
-                                  was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}
-                                </p>
-                              )}
-                            </div>
-                            <div>
-                              <label className="label mb-1 text-xs">
-                                PAX <span className="text-red-500">*</span>
-                              </label>
-                              <input
-                                className={`input${packDiff?.paxChange ? ' ring-2 ring-amber-300' : ''}`}
-                                type="number"
-                                min={0}
-                                value={row.pax}
-                                onChange={(e) => updatePackRow(packKey, { pax: e.target.value })}
-                              />
-                              {packDiff?.paxChange && (
-                                <p className="mt-0.5 text-xs text-amber-600">
-                                  was {packDiff.paxChange.from}
-                                </p>
-                              )}
-                            </div>
-                            <div>
-                              <label className="label mb-1 text-xs">Amount</label>
-                              <input
-                                className="input bg-[var(--surface-2)]"
-                                type="number"
-                                min={0}
-                                value={formatComputedAmount(calculatePackAmount(row))}
-                                readOnly
-                                title="Auto-calculated as Hall Rate + (Rate Per Plate × PAX)"
-                              />
-                            </div>
+                          <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
+                            <span className="text-base font-extrabold text-[var(--text-1)]">Grand Total</span>
+                            <span className="text-base font-extrabold text-[var(--text-1)]">₹{grandTotal.toLocaleString('en-IN')}</span>
                           </div>
                         );
                       })()}
                     </div>
-
-                  </div>
-                );
-              })}
-            </section>
-
-            <section className="space-y-2 rounded-2xl border border-[var(--border)] bg-white p-4">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-base font-semibold text-[var(--text-1)]">Amount Summary</h3>
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
-                  onClick={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      additionalRequirements: [
-                        ...prev.additionalRequirements,
-                        { description: '', amount: '' },
-                      ],
-                    }))
-                  }
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Requirement
-                </button>
-              </div>
-
-              {enabledPackAmountRows.length === 0 &&
-                formData.additionalRequirements.length === 0 ? (
-                <p className="text-sm text-[var(--text-4)]">
-                  Enable a pack to view its amount rows.
-                </p>
-              ) : null}
-
-              <div className="space-y-2">
-                {enabledPackAmountRows.map((entry) => (
-                  <div
-                    key={entry.key}
-                    className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px]"
-                  >
-                    <label className="label">{entry.label} Amount</label>
-                    <input
-                      className="input bg-[var(--surface-2)] text-right"
-                      type="number"
-                      min={0}
-                      value={formatComputedAmount(entry.amount)}
-                      readOnly
-                    />
-                  </div>
-                ))}
-
-                {formData.additionalRequirements.map((item, index) => (
-                  <div
-                    key={`req-${index}`}
-                    className="grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr,190px,auto]"
-                  >
-                    <div>
-                      <label className="label">Additional Requirement {index + 1}</label>
-                      <input
-                        className="input"
-                        value={item.description}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            additionalRequirements: prev.additionalRequirements.map(
-                              (entry, entryIndex) =>
-                                entryIndex === index
-                                  ? { ...entry, description: e.target.value }
-                                  : entry
-                            ),
-                          }))
-                        }
-                        placeholder="Requirement details"
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Amount</label>
-                      <input
-                        className="input text-right"
-                        type="number"
-                        min={0}
-                        value={item.amount}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            additionalRequirements: prev.additionalRequirements.map(
-                              (entry, entryIndex) =>
-                                entryIndex === index
-                                  ? { ...entry, amount: e.target.value }
-                                  : entry
-                            ),
-                          }))
-                        }
-                        placeholder="0"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-secondary md:self-end"
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          additionalRequirements: prev.additionalRequirements.filter(
-                            (_, entryIndex) => entryIndex !== index
-                          ),
-                        }))
-                      }
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-
-                <div className="grid grid-cols-1 items-end gap-2 border-t border-[var(--border)] pt-2 md:grid-cols-3">
-                  <div>
-                    <label className="label">Discount %</label>
-                    <input
-                      className="input text-right"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      value={formData.finalDiscountPercent}
-                      onChange={(e) => {
-                        setAmountSyncMode('discountPercent');
-                        setDiscountManuallySet(true);
-                        setFormData((prev) => ({
-                          ...prev,
-                          ...normalizeAmountSnapshot(
-                            'discountPercent',
-                            e.target.value,
-                            totalBillAmount
-                          ),
-                        }));
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Discount Amount</label>
-                    <input
-                      className="input text-right"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={formData.finalDiscountAmount}
-                      onChange={(e) => {
-                        setAmountSyncMode('discountAmount');
-                        setDiscountManuallySet(true);
-                        setFormData((prev) => ({
-                          ...prev,
-                          ...normalizeAmountSnapshot(
-                            'discountAmount',
-                            e.target.value,
-                            totalBillAmount
-                          ),
-                        }));
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Final Amount</label>
-                    <input
-                      className="input text-right"
-                      type="number"
-                      min={0}
-                      value={formData.finalAmount}
-                      onChange={(e) => {
-                        setAmountSyncMode('finalAmount');
-                        setDiscountManuallySet(true);
-                        setFormData((prev) => ({
-                          ...prev,
-                          ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillAmount),
-                        }));
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-3">
-                  <div className="md:col-start-3">
-                    <label className="label font-semibold text-[var(--text-1)]">Total Amount</label>
-                    <input
-                      className="input bg-[var(--surface-2)] text-right font-semibold text-primary-700"
-                      type="number"
-                      min={0}
-                      value={formatComputedAmount(totalBillAmount)}
-                      readOnly
-                    />
                   </div>
                 </div>
               </div>
@@ -3863,30 +4135,17 @@ export default function BookingsPage() {
                 </button>
               )}
               {editingBookingId && !isReadOnlyBooking && (
-                <>
-                  <button
-                    type="button"
-                    className="btn bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                    onClick={handleFinalizeBooking}
-                    disabled={saving}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Finalize Version
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                    onClick={openPartyOver}
-                    disabled={saving}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Flag className="w-4 h-4" />
-                      Party Over
-                    </span>
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                  onClick={openPartyOver}
+                  disabled={saving}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Flag className="w-4 h-4" />
+                    Party Over
+                  </span>
+                </button>
               )}
             </div>
 
@@ -3917,31 +4176,18 @@ export default function BookingsPage() {
                     {saving ? 'Saving...' : 'Submit'}
                   </span>
                 </button>
-                {editingBookingId && (
-                  <>
-                    <button
-                      type="button"
-                      className="btn bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                      onClick={handleFinalizeBooking}
-                      disabled={saving}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        Finalize Version
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                      onClick={openPartyOver}
-                      disabled={saving}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <Flag className="w-4 h-4" />
-                        Party Over
-                      </span>
-                    </button>
-                  </>
+                {editingBookingId && !isReadOnlyBooking && (
+                  <button
+                    type="button"
+                    className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                    onClick={openPartyOver}
+                    disabled={saving}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Flag className="w-4 h-4" />
+                      Party Over
+                    </span>
+                  </button>
                 )}
               </div>
             )}
@@ -4150,7 +4396,7 @@ export default function BookingsPage() {
                                 <DiffPill label="Function" from={thisDiff.functionType.from} to={thisDiff.functionType.to} />
                               )}
                               {thisDiff.finalAmountChange && (
-                                <DiffPill label="Final Amount" prefix="₹" from={thisDiff.finalAmountChange.from} to={thisDiff.finalAmountChange.to} isNum />
+                                <DiffPill label="Net Amount" prefix="₹" from={thisDiff.finalAmountChange.from} to={thisDiff.finalAmountChange.to} isNum />
                               )}
                               {thisDiff.discountAmountChange && (
                                 <DiffPill label="Discount" prefix="₹" from={thisDiff.discountAmountChange.from} to={thisDiff.discountAmountChange.to} isNum />
@@ -4464,7 +4710,7 @@ export default function BookingsPage() {
                             <span className="font-semibold text-red-700">−₹{histDiscountAmount.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
-                            <span className="text-xs text-[var(--text-4)] block">Final Amount</span>
+                            <span className="text-xs text-[var(--text-4)] block">Net Amount</span>
                             <span className="font-bold text-green-800 text-base">₹{histFinalAmount.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
@@ -5125,7 +5371,14 @@ export default function BookingsPage() {
               </div>
 
               <div className="rounded-xl border border-[var(--border)] p-3">
-                <p className="text-sm font-semibold text-[var(--text-1)] mb-2">Selected Items</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-[var(--text-1)]">Selected Items</p>
+                  {activeMenuPackRow.menuItemIds.length > 0 && (
+                    <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+                      {activeMenuPackRow.menuItemIds.length} items · {activeMenuPackRow.menuPoints || '0'} pts
+                    </span>
+                  )}
+                </div>
                 {activeMenuPackRow.menuItemIds.length === 0 ? (
                   <div className="empty-state" style={{ padding: '20px 12px' }}>
                     <div className="empty-state-icon">
