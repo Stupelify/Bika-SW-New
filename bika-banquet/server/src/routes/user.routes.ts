@@ -8,6 +8,8 @@ import {
   getUserById,
   getUsers,
   getUsersSimple,
+  resetUserPassword,
+  resetUserPasswordSchema,
   setUserBanquets,
 } from '../controllers/user.controller';
 import { validate } from '../middleware/validate.middleware';
@@ -26,6 +28,12 @@ router.post(
   createUser
 );
 router.delete('/:id', requirePermission('delete_user', 'manage_users'), deleteUser);
+router.post(
+  '/:id/reset-password',
+  requirePermission('manage_users'),
+  validate(resetUserPasswordSchema),
+  resetUserPassword
+);
 router.get('/:id/banquets', requirePermission('view_user', 'manage_users'), getUserBanquets);
 router.put('/:id/banquets', requirePermission('manage_users'), setUserBanquets);
 

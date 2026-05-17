@@ -27,6 +27,13 @@ export const loginSchema = z.object({
   }),
 });
 
+export const changePasswordSchema = z.object({
+  body: z.object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+  }),
+});
+
 /**
  * Register new user
  */
@@ -198,6 +205,50 @@ export async function logout(req: AuthRequest, res: Response): Promise<void> {
     sendSuccess(res, null, 'Logged out successfully');
   } catch (error) {
     sendError(res, 'Logout failed');
+  }
+}
+
+export async function changePassword(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    if (!req.user) {
+      sendUnauthorized(res);
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        password: true,
+      },
+    });
+
+    if (!user) {
+      sendUnauthorized(res);
+      return;
+    }
+
+    const isValidPassword = await comparePassword(currentPassword, user.password);
+    if (!isValidPassword) {
+      sendError(res, 'Current password is incorrect', 400);
+      return;
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    sendSuccess(res, null, 'Password changed successfully');
+  } catch (error) {
+    sendError(res, 'Failed to change password');
   }
 }
 

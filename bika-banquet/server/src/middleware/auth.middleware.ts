@@ -17,6 +17,16 @@ function pathWithoutQuery(value: string | undefined): string {
   return (value || '').split('?')[0];
 }
 
+function resolveToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+
+  const queryToken = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+  return queryToken || null;
+}
+
 function shouldValidateSession(req: Request): boolean {
   const routePath = pathWithoutQuery(req.originalUrl || req.url);
   return (
@@ -48,6 +58,11 @@ async function validateSessionAndResolveUser(
                   },
                 },
               },
+            },
+          },
+          userBanquets: {
+            select: {
+              banquetId: true,
             },
           },
         },
@@ -90,14 +105,12 @@ export async function authenticate(
   next: NextFunction
 ): Promise<void> {
   try {
-    const authHeader = req.headers.authorization;
+    const token = resolveToken(req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       sendUnauthorized(res, 'No token provided');
       return;
     }
-
-    const token = authHeader.substring(7);
 
     // Verify token
     const payload = verifyToken(token);
@@ -144,10 +157,7 @@ export function requireRole(...roles: string[]) {
     }
 
     if (hasAdminRoleCheck(roles)) {
-      const authHeader = req.headers.authorization;
-      const token = authHeader?.startsWith('Bearer ')
-        ? authHeader.substring(7)
-        : null;
+      const token = resolveToken(req);
 
       if (!token) {
         return sendUnauthorized(res, 'No token provided');

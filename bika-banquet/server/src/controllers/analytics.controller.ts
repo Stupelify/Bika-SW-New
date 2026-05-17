@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { sendError, sendSuccess } from '../utils/response';
+import { AuthRequest } from '../middleware/auth.middleware';
+import {
+  getAllowedBanquetIds,
+  withBookingBanquetScope,
+} from '../utils/banquetAccess';
 
 function parseRange(range?: string): { start: Date; end: Date } {
   const end = new Date();
@@ -30,11 +35,19 @@ function parseRange(range?: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+function toMonthKey(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 export async function getDashboardSummary(
   req: Request,
   res: Response
 ): Promise<void> {
   try {
+    const authReq = req as AuthRequest;
+    const allowedBanquetIds = getAllowedBanquetIds(authReq);
     const range = (req.query.range as string) || '1m';
     const { start, end } = parseRange(range);
 
@@ -45,68 +58,86 @@ export async function getDashboardSummary(
       ? new Date(req.query.endDate as string)
       : end;
 
-    const bookingWhere = {
-      functionDate: {
-        gte: startDate,
-        lte: endDate,
+    const scopedLatestWhere = withBookingBanquetScope(
+      {
+        isLatest: true,
       },
-      isLatest: true,
-    };
+      allowedBanquetIds
+    );
 
-    const [totalCustomers, totalBookings, monthlyTrendsRaw, functionTypesRaw, hallPerformanceRaw, totalRevenue, cancelledBookings] =
-      await Promise.all([
-        prisma.customer.count(),
-        prisma.booking.count({ where: { isLatest: true } }),
-        prisma.$queryRaw<Array<{ month: string; bookings: bigint; revenue: number | null }>>`
-          SELECT
-            to_char("functionDate", 'YYYY-MM') AS month,
-            COUNT(*)::bigint AS bookings,
-            COALESCE(SUM("grandTotal"), 0) AS revenue
-          FROM bookings
-          WHERE "isLatest" = true
-            AND "functionDate" >= ${startDate}
-            AND "functionDate" <= ${endDate}
-          GROUP BY to_char("functionDate", 'YYYY-MM')
-          ORDER BY month ASC
-        `,
-        prisma.$queryRaw<Array<{ name: string; count: bigint }>>`
-          SELECT
-            COALESCE("functionType", 'Unknown') AS name,
-            COUNT(*)::bigint AS count
-          FROM bookings
-          WHERE "isLatest" = true
-            AND "functionDate" >= ${startDate}
-            AND "functionDate" <= ${endDate}
-          GROUP BY "functionType"
-          ORDER BY count DESC, name ASC
-        `,
-        prisma.$queryRaw<Array<{ hallId: string; hallName: string; bookings: bigint }>>`
-          SELECT
-            h.id AS "hallId",
-            h.name AS "hallName",
-            COUNT(*)::bigint AS bookings
-          FROM booking_halls bh
-          INNER JOIN bookings b ON b.id = bh."bookingId"
-          INNER JOIN halls h ON h.id = bh."hallId"
-          WHERE b."isLatest" = true
-            AND b."functionDate" >= ${startDate}
-            AND b."functionDate" <= ${endDate}
-          GROUP BY h.id, h.name
-          ORDER BY bookings DESC, h.name ASC
-        `,
-        prisma.booking.aggregate({
-          _sum: {
-            grandTotal: true,
+    const scopedRangeWhere = withBookingBanquetScope(
+      {
+        isLatest: true,
+        functionDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      allowedBanquetIds
+    );
+
+    const [allScopedBookings, rangedBookings] = await Promise.all([
+      prisma.booking.findMany({
+        where: scopedLatestWhere,
+        select: {
+          id: true,
+          customerId: true,
+        },
+      }),
+      prisma.booking.findMany({
+        where: scopedRangeWhere,
+        select: {
+          id: true,
+          functionDate: true,
+          functionType: true,
+          grandTotal: true,
+          status: true,
+          halls: {
+            select: {
+              hall: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
           },
-          where: bookingWhere,
-        }),
-        prisma.booking.count({
-          where: {
-            ...bookingWhere,
-            status: 'cancelled',
-          },
-        }),
-      ]);
+        },
+      }),
+    ]);
+
+    const monthlyMap = new Map<string, { bookings: number; revenue: number }>();
+    const functionTypeMap = new Map<string, number>();
+    const hallMap = new Map<string, { hallName: string; bookings: number }>();
+
+    let totalRevenue = 0;
+    let cancelledBookings = 0;
+
+    for (const booking of rangedBookings) {
+      const monthKey = toMonthKey(new Date(booking.functionDate));
+      const monthEntry = monthlyMap.get(monthKey) || { bookings: 0, revenue: 0 };
+      monthEntry.bookings += 1;
+      monthEntry.revenue += Number(booking.grandTotal || 0);
+      monthlyMap.set(monthKey, monthEntry);
+
+      const functionType = booking.functionType || 'Unknown';
+      functionTypeMap.set(functionType, (functionTypeMap.get(functionType) || 0) + 1);
+
+      for (const hallEntry of booking.halls) {
+        if (!hallEntry.hall) continue;
+        const current = hallMap.get(hallEntry.hall.id) || {
+          hallName: hallEntry.hall.name,
+          bookings: 0,
+        };
+        current.bookings += 1;
+        hallMap.set(hallEntry.hall.id, current);
+      }
+
+      totalRevenue += Number(booking.grandTotal || 0);
+      if (booking.status === 'cancelled') {
+        cancelledBookings += 1;
+      }
+    }
 
     sendSuccess(res, {
       range: {
@@ -114,32 +145,35 @@ export async function getDashboardSummary(
         endDate,
       },
       summary: {
-        totalCustomers,
-        totalBookings,
-        bookingsInRange: monthlyTrendsRaw.reduce(
-          (sum, row) => sum + Number(row.bookings),
-          0
-        ),
-        totalRevenue: totalRevenue._sum.grandTotal || 0,
+        totalCustomers: new Set(allScopedBookings.map((booking) => booking.customerId)).size,
+        totalBookings: allScopedBookings.length,
+        bookingsInRange: rangedBookings.length,
+        totalRevenue,
         cancelledBookings,
       },
       trends: {
-        monthly: monthlyTrendsRaw.map((row) => ({
-          month: row.month,
-          bookings: Number(row.bookings),
-          revenue: Number(row.revenue || 0),
-        })),
+        monthly: Array.from(monthlyMap.entries())
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([month, value]) => ({
+            month,
+            bookings: value.bookings,
+            revenue: value.revenue,
+          })),
       },
       breakdown: {
-        functionTypes: functionTypesRaw.map((row) => ({
-          name: row.name,
-          count: Number(row.count),
-        })),
-        hallPerformance: hallPerformanceRaw.map((row) => ({
-          hallId: row.hallId,
-          hallName: row.hallName,
-          bookings: Number(row.bookings),
-        })),
+        functionTypes: Array.from(functionTypeMap.entries())
+          .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+          .map(([name, count]) => ({
+            name,
+            count,
+          })),
+        hallPerformance: Array.from(hallMap.entries())
+          .sort((left, right) => right[1].bookings - left[1].bookings || left[1].hallName.localeCompare(right[1].hallName))
+          .map(([hallId, value]) => ({
+            hallId,
+            hallName: value.hallName,
+            bookings: value.bookings,
+          })),
       },
     });
   } catch (error) {

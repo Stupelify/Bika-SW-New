@@ -138,6 +138,8 @@ export async function getHalls(req: Request, res: Response): Promise<void> {
 export async function getHallById(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const hallAuthReq = req as AuthRequest;
+    const allowedBanquetIds = hallAuthReq.user?.banquetIds || [];
     const hall = await prisma.hall.findUnique({
       where: { id },
       include: {
@@ -145,6 +147,10 @@ export async function getHallById(req: Request, res: Response): Promise<void> {
       },
     });
     if (!hall) {
+      sendNotFound(res, 'Hall not found');
+      return;
+    }
+    if (allowedBanquetIds.length > 0 && (!hall.banquetId || !allowedBanquetIds.includes(hall.banquetId))) {
       sendNotFound(res, 'Hall not found');
       return;
     }
@@ -157,6 +163,20 @@ export async function getHallById(req: Request, res: Response): Promise<void> {
 export async function updateHall(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const hallAuthReq = req as AuthRequest;
+    const allowedBanquetIds = hallAuthReq.user?.banquetIds || [];
+    const existingHall = await prisma.hall.findUnique({
+      where: { id },
+      select: { id: true, banquetId: true },
+    });
+    if (!existingHall) {
+      sendNotFound(res, 'Hall not found');
+      return;
+    }
+    if (allowedBanquetIds.length > 0 && (!existingHall.banquetId || !allowedBanquetIds.includes(existingHall.banquetId))) {
+      sendNotFound(res, 'Hall not found');
+      return;
+    }
     const payload = normalizeCaseFields({ ...req.body }, [
       'name',
       'location',

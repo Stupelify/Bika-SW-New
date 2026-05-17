@@ -90,6 +90,8 @@ export const api = {
   register: (data: any) => apiClient.post('/auth/register', data),
   getCurrentUser: () => apiClient.get('/auth/me'),
   logout: () => apiClient.post('/auth/logout'),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    apiClient.post('/auth/change-password', data),
 
   // Customers
   getCustomers: (params?: any) => apiClient.get('/customers', { params }),
@@ -209,6 +211,8 @@ export const api = {
   getUser: (id: string) => apiClient.get(`/users/${id}`),
   createUser: (data: any) => apiClient.post('/users', data),
   deleteUser: (id: string) => apiClient.delete(`/users/${id}`),
+  resetUserPassword: (id: string, data: { newPassword: string }) =>
+    apiClient.post(`/users/${id}/reset-password`, data),
   getUserBanquets: (id: string) => apiClient.get(`/users/${id}/banquets`),
   setUserBanquets: (id: string, banquetIds: string[]) =>
     apiClient.put(`/users/${id}/banquets`, { banquetIds }),

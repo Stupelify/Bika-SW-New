@@ -1272,7 +1272,7 @@ function DashboardLayoutContent({
           id="main-content"
           className="has-bottom-nav lg:!pb-0"
           style={{
-            maxWidth: 1400,
+            maxWidth: pathname.startsWith('/dashboard/calendar') ? '100%' : 1400,
             width: '100%',
             margin: '0 auto',
             flex: 1,
@@ -1281,8 +1281,8 @@ function DashboardLayoutContent({
             overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',
             paddingTop: 'clamp(16px, 2.5vw, 28px)',
-            paddingLeft: 'clamp(16px, 2.5vw, 28px)',
-            paddingRight: 'clamp(16px, 2.5vw, 28px)',
+            paddingLeft: pathname.startsWith('/dashboard/calendar') ? '0' : 'clamp(16px, 2.5vw, 28px)',
+            paddingRight: pathname.startsWith('/dashboard/calendar') ? '0' : 'clamp(16px, 2.5vw, 28px)',
             /* paddingBottom is intentionally omitted here so the
                .has-bottom-nav class can apply the correct bottom
                clearance (nav height + safe-area + extra breathing room).

@@ -20,6 +20,10 @@ import {
 import { broadcastBookingEvent } from '../sse';
 import logger from '../utils/logger';
 import { createAuditLog } from '../utils/auditLog';
+import {
+  getAllowedBanquetIds,
+  withBookingBanquetScope,
+} from '../utils/banquetAccess';
 
 // Validation schemas
 export const createBookingSchema = z.object({
@@ -55,7 +59,7 @@ export const createBookingSchema = z.object({
       packName: z.string().min(1).max(120, 'Pack name must be at most 120 characters'),
       noOfPack: z.number().min(1).optional(),
       packCount: z.number().min(1).optional(),
-      hallIds: z.array(z.number().int()).optional(),
+      hallIds: z.array(idSchema('hall ID')).optional(),
       ratePerPlate: z.number().min(0),
       setupCost: z.number().min(0).optional(),
       extraCharges: z.number().min(0).optional(),
@@ -141,7 +145,7 @@ export const updateBookingSchema = z.object({
               .max(120, 'Pack name must be at most 120 characters'),
             noOfPack: z.number().min(1).optional(),
             packCount: z.number().min(1).optional(),
-            hallIds: z.array(z.number().int()).optional(),
+            hallIds: z.array(idSchema('hall ID')).optional(),
             ratePerPlate: z.number().min(0),
             setupCost: z.number().min(0).optional(),
             extraCharges: z.number().min(0).optional(),
@@ -367,6 +371,20 @@ function normalizeBookingHallRows(value: unknown): BookingHallInputRow[] {
   });
 
   return Array.from(rows.values());
+}
+
+function normalizePackHallIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter(Boolean)
+    )
+  );
 }
 
 async function assertSingleBanquetHallSelection(
@@ -1506,6 +1524,7 @@ export async function createBooking(
             ['name']
           );
         }
+        normalizedPack.hallIds = normalizePackHallIds(normalizedPack.hallIds);
         return normalizedPack;
       });
     }
@@ -2023,14 +2042,15 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
  * Get booking by ID
  */
 export async function getBookingById(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
     const booking = await prisma.booking.findFirst({
-      where: { id },
+      where: withBookingBanquetScope({ id }, allowedBanquetIds),
       include: BOOKING_RELATION_INCLUDE,
     });
 
@@ -2059,10 +2079,11 @@ export async function finalizeBookingVersion(
     }
 
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
     const result = await prisma.$transaction(async (tx) => {
-      const booking = await tx.booking.findUnique({
-        where: { id },
+      const booking = await tx.booking.findFirst({
+        where: withBookingBanquetScope({ id }, allowedBanquetIds),
         select: {
           id: true,
           isLatest: true,
@@ -2167,6 +2188,7 @@ export async function partyOverBooking(
     }
 
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
     const payloadSchema = z.object({
       packs: z
@@ -2188,8 +2210,8 @@ export async function partyOverBooking(
     const payload = parsed.data;
 
     const result = await prisma.$transaction(async (tx) => {
-      const booking = await tx.booking.findUnique({
-        where: { id },
+      const booking = await tx.booking.findFirst({
+        where: withBookingBanquetScope({ id }, allowedBanquetIds),
         include: {
           packs: {
             select: {
@@ -2352,14 +2374,15 @@ export async function partyOverBooking(
  * Get complete booking version history (latest to oldest).
  */
 export async function getBookingHistory(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
-    const anchor = await prisma.booking.findUnique({
-      where: { id },
+    const anchor = await prisma.booking.findFirst({
+      where: withBookingBanquetScope({ id }, allowedBanquetIds),
       select: {
         id: true,
         previousBookingId: true,
@@ -2489,15 +2512,16 @@ async function generateBookingMenuPdfBuffer(payload: {
  * Download booking menu PDF
  */
 export async function downloadBookingMenuPdf(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { id } = req.params;
     const packId = typeof req.query.packId === 'string' ? req.query.packId : undefined;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
     const booking = await prisma.booking.findFirst({
-      where: { id, isLatest: true },
+      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
       include: {
         customer: {
           select: {
@@ -2670,14 +2694,15 @@ export async function downloadBookingMenuPdf(
  * Download booking details PDF
  */
 export async function downloadBookingDetailsPdf(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
     const booking = await prisma.booking.findFirst({
-      where: { id },
+      where: withBookingBanquetScope({ id }, allowedBanquetIds),
       include: BOOKING_RELATION_INCLUDE,
     });
 
@@ -2940,11 +2965,12 @@ export async function downloadBookingDetailsPdf(
  * Update booking
  */
 export async function updateBooking(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
     const data: any = normalizeCaseFields({ ...req.body }, [
       'functionName',
       'functionType',
@@ -2970,6 +2996,7 @@ export async function updateBooking(
             ['name']
           );
         }
+        normalizedPack.hallIds = normalizePackHallIds(normalizedPack.hallIds);
         return normalizedPack;
       });
     }
@@ -2980,7 +3007,7 @@ export async function updateBooking(
 
     // Check if booking exists
     const existingBooking = await prisma.booking.findFirst({
-      where: { id, isLatest: true },
+      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
     });
 
     if (!existingBooking) {
@@ -3440,13 +3467,14 @@ export async function updateBooking(
  * Cancel booking
  */
 export async function cancelBooking(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
     const existing = await prisma.booking.findFirst({
-      where: { id, isLatest: true },
+      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
       select: { id: true, status: true, isLatest: true },
     });
     if (!existing) {
@@ -3485,13 +3513,14 @@ export async function cancelBooking(
  * Delete booking
  */
 export async function deleteBooking(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
     const existing = await prisma.booking.findFirst({
-      where: { id, isLatest: true },
+      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
       select: { id: true, status: true, isLatest: true },
     });
     if (!existing) {
@@ -3585,6 +3614,7 @@ export async function addPayment(
     const { id } = req.params;
     const { amount, method, reference, narration, paymentDate } = req.body;
     const normalizedAmount = toSafeMoney(amount);
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
     if (!req.user) {
       sendError(res, 'Unauthorized', 401);
@@ -3595,7 +3625,7 @@ export async function addPayment(
       // Verify booking exists and is mutable BEFORE creating the payment so we
       // never leave an orphaned payment record on a non-latest or immutable booking.
       const booking = await tx.booking.findFirst({
-        where: { id },
+        where: withBookingBanquetScope({ id }, allowedBanquetIds),
         select: {
           id: true,
           status: true,
@@ -3695,6 +3725,7 @@ export async function updatePayment(
 ): Promise<void> {
   try {
     const { id, paymentId } = req.params;
+    const allowedBanquetIds = getAllowedBanquetIds(req);
 
     if (!req.user) {
       sendError(res, 'Unauthorized', 401);
@@ -3712,7 +3743,9 @@ export async function updatePayment(
         throw Object.assign(new Error('Payment not found'), { status: 404 });
       }
 
-      const booking = await tx.booking.findFirst({ where: { id, isLatest: true } });
+      const booking = await tx.booking.findFirst({
+        where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
+      });
       if (!booking) {
         throw Object.assign(new Error('Booking not found'), { status: 404 });
       }
@@ -3805,4 +3838,3 @@ export async function releasePencilBookings(): Promise<void> {
     logger.error('releasePencilBookings error:', err);
   }
 }
-

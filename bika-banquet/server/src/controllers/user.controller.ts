@@ -18,6 +18,15 @@ export const createUserSchema = z.object({
   }),
 });
 
+export const resetUserPasswordSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid user ID'),
+  }),
+  body: z.object({
+    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  }),
+});
+
 export async function getUsersSimple(req: Request, res: Response): Promise<void> {
   try {
     const users = await prisma.user.findMany({
@@ -218,6 +227,36 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
       return;
     }
     sendError(res, 'Failed to delete user');
+  }
+}
+
+export async function resetUserPassword(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true },
+    });
+
+    if (!existingUser) {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    void createAuditLog(req, 'RESET_PASSWORD', 'user', id, existingUser.email);
+    sendSuccess(res, null, 'User password reset successfully');
+  } catch (error) {
+    sendError(res, 'Failed to reset user password');
   }
 }
 

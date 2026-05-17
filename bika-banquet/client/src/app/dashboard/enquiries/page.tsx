@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users, Filter } from 'lucide-react';
@@ -148,6 +149,7 @@ const initialColumnSearch = {
 const ENQUIRIES_PAGE_SIZE = 75;
 
 export default function EnquiriesPage() {
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
   const canViewEnquiry = hasAnyPermission(permissionSet, ['view_enquiry', 'manage_enquiries']);
@@ -221,10 +223,6 @@ export default function EnquiriesPage() {
   }, [currentPage, filteredEnquiries, totalPages]);
 
   useEffect(() => {
-    void loadLookups();
-  }, [canAddEnquiry, canEditEnquiry]);
-
-  useEffect(() => {
     void loadEnquiries();
   }, [status, canViewEnquiry]);
 
@@ -237,6 +235,19 @@ export default function EnquiriesPage() {
     setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
+  useEffect(() => {
+    const section = searchParams.get('section');
+    const id = searchParams.get('id');
+    if (section !== 'edit' || !id || enquiries.length === 0) {
+      return;
+    }
+    const enquiry = enquiries.find((entry) => entry.id === id);
+    if (enquiry) {
+      openEditPrompt(enquiry);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enquiries]);
+
   const loadLookups = async () => {
     try {
       if (!canAddEnquiry && !canEditEnquiry) {
@@ -246,9 +257,9 @@ export default function EnquiriesPage() {
         return;
       }
       const [customerRes, hallRes, templateRes] = await Promise.all([
-        api.getCustomers({ page: 1, limit: 5000 }),
-        api.getHalls({ page: 1, limit: 5000 }),
-        api.getTemplateMenus({ page: 1, limit: 5000 }),
+        api.getCustomers({ page: 1, limit: 200 }),
+        api.getHalls({ page: 1, limit: 200 }),
+        api.getTemplateMenus({ page: 1, limit: 200 }),
       ]);
       const customerRows = customerRes.data?.data?.customers || [];
       const hallRows = hallRes.data?.data?.halls || [];
@@ -275,7 +286,7 @@ export default function EnquiriesPage() {
       setLoading(true);
       const response = await api.getEnquiries({
         page: 1,
-        limit: 5000,
+        limit: 200,
         status: status || undefined,
       });
       setEnquiries(response.data?.data?.enquiries || []);
@@ -297,6 +308,7 @@ export default function EnquiriesPage() {
   };
 
   const openCreatePrompt = () => {
+    void loadLookups();
     setEditingEnquiryId(null);
     setFormData({
       ...initialFormData,
@@ -318,6 +330,7 @@ export default function EnquiriesPage() {
   };
 
   const openEditPrompt = (enquiry: Enquiry) => {
+    void loadLookups();
     const nextPacks = { ...initialFormData.packs };
     (enquiry.packs || []).forEach((pack) => {
       const key = pack.mealSlot?.name ? normalizePackKey(pack.mealSlot.name) : null;

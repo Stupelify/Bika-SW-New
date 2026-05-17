@@ -41,6 +41,7 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import { buildEventStreamUrl } from '@/lib/dashboardNavigation';
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
 import {
@@ -1222,7 +1223,8 @@ export default function BookingsPage() {
         const item = items.find((entry) => entry.id === itemId);
         return sum + getItemPoints(item);
       }, 0);
-      return String(totalPoints);
+      const rounded = Math.round(totalPoints * 100) / 100;
+      return Number.isInteger(rounded) ? String(rounded) : String(rounded);
     },
     [getItemPoints, items]
   );
@@ -1437,7 +1439,8 @@ export default function BookingsPage() {
     if (!canViewBooking || typeof window === 'undefined') return;
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-    const eventSource = new EventSource(`${baseUrl}/events`);
+    const token = window.localStorage.getItem('auth_token');
+    const eventSource = new EventSource(buildEventStreamUrl(baseUrl, token));
 
     eventSource.onmessage = (event) => {
       try {
@@ -1554,10 +1557,6 @@ export default function BookingsPage() {
   ]);
 
   useEffect(() => {
-    void loadLookups();
-  }, [canAddBooking, canEditBooking]);
-
-  useEffect(() => {
     return () => {
       if (menuPdfPreviewUrl) {
         URL.revokeObjectURL(menuPdfPreviewUrl);
@@ -1575,7 +1574,7 @@ export default function BookingsPage() {
   };
 
   const loadCustomerOptions = async (): Promise<CustomerOption[]> => {
-    const customerRes = await api.getCustomers({ page: 1, limit: 5000 });
+    const customerRes = await api.getCustomers({ page: 1, limit: 200 });
     const customerRows = customerRes.data?.data?.customers || [];
     const sortedCustomers = [...customerRows].sort(compareCustomersByName);
     setCustomers(sortedCustomers);
@@ -1800,10 +1799,10 @@ export default function BookingsPage() {
       }
       const [customerRows, banquetRes, hallRes, itemRes, templateRes, itemTypeRes] = await Promise.all([
         loadCustomerOptions(),
-        api.getBanquets({ page: 1, limit: 5000 }),
-        api.getHalls({ page: 1, limit: 5000 }),
-        api.getItems({ page: 1, limit: 5000 }),
-        api.getTemplateMenus({ page: 1, limit: 5000, includeItems: true }),
+        api.getBanquets({ page: 1, limit: 200 }),
+        api.getHalls({ page: 1, limit: 200 }),
+        api.getItems({ page: 1, limit: 200 }),
+        api.getTemplateMenus({ page: 1, limit: 200, includeItems: true }),
         api.getItemTypes({ page: 1, limit: 500 }),
       ]);
       const banquetRows = banquetRes.data?.data?.banquets || [];
@@ -1860,6 +1859,7 @@ export default function BookingsPage() {
   };
 
   const openCreateBooking = () => {
+    void loadLookups();
     setEditingBookingId(null);
     setEditingBookingStatus(null);
     setBookingHistory([]);
@@ -1893,6 +1893,9 @@ export default function BookingsPage() {
   const openEditBooking = async (bookingId: string) => {
     try {
       setSaving(true);
+      if (halls.length === 0 || templateMenus.length === 0 || customers.length === 0) {
+        await loadLookups();
+      }
       const [response, historyResponse] = await Promise.all([
         api.getBooking(bookingId),
         api.getBookingHistory(bookingId).catch(() => ({ data: { data: { history: [] } } }))
@@ -2368,6 +2371,7 @@ export default function BookingsPage() {
           extraRateValue: row.extraRateValue ?? undefined,
           startTime: row.startTime || undefined,
           endTime: row.endTime || undefined,
+          hallIds: validHallIds,
           hallRate: row.withHall ? (row.hallRate ?? undefined) || undefined : undefined,
           menuPoint: row.menuPoints ? toNumber(row.menuPoints) : undefined,
           hallName: row.withHall ? selectedHallNames.join(', ') || undefined : undefined,

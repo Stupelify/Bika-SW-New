@@ -591,7 +591,7 @@ model BookingPack {
   noOfPack        Int?
   packName        String
   packCount       Int
-  hallIds         Int[]         @default([])
+  hallIds         String[]      @default([])
   hallName        String?
   ratePerPlate    Float
   setupCost       Float        @default(0)

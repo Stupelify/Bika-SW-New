@@ -233,6 +233,12 @@ const initialUserForm = {
   roleId: '',
   banquetAccess: [] as string[],
 };
+
+const initialPasswordForm = {
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+};
 type SettingsSection = 'access' | 'users' | 'roles' | 'permissions';
 
 function isSettingsSection(value: string | null): value is SettingsSection {
@@ -257,6 +263,8 @@ function SettingsPageContent() {
   const [savingUserRoles, setSavingUserRoles] = useState(false);
   const [savingRolePermissions, setSavingRolePermissions] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const [savingPasswordChange, setSavingPasswordChange] = useState(false);
+  const [savingUserPasswordReset, setSavingUserPasswordReset] = useState<string | null>(null);
   const [showRolePrompt, setShowRolePrompt] = useState(false);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [showUserPrompt, setShowUserPrompt] = useState(false);
@@ -264,10 +272,14 @@ function SettingsPageContent() {
   const [userSearch, setUserSearch] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewAccountPassword, setShowNewAccountPassword] = useState(false);
+  const [showConfirmAccountPassword, setShowConfirmAccountPassword] = useState(false);
 
   const [roleForm, setRoleForm] = useState(initialRoleForm);
   const [permissionForm, setPermissionForm] = useState(initialPermissionForm);
   const [userForm, setUserForm] = useState(initialUserForm);
+  const [passwordForm, setPasswordForm] = useState(initialPasswordForm);
 
   const [banquets, setBanquets] = useState<BanquetOption[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -734,6 +746,57 @@ function SettingsPageContent() {
     }
   };
 
+  const changeOwnPassword = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      toast.error('Current and new password are required');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    try {
+      setSavingPasswordChange(true);
+      await api.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      toast.success('Password changed');
+      setPasswordForm(initialPasswordForm);
+      setShowCurrentPassword(false);
+      setShowNewAccountPassword(false);
+      setShowConfirmAccountPassword(false);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to change password');
+    } finally {
+      setSavingPasswordChange(false);
+    }
+  };
+
+  const resetManagedUserPassword = async (user: UserRow) => {
+    if (!currentPermissionSet.has('manage_users')) {
+      toast.error('You do not have permission to reset passwords');
+      return;
+    }
+
+    const newPassword = window.prompt(`Enter a temporary password for ${user.email}`);
+    if (!newPassword) {
+      return;
+    }
+
+    try {
+      setSavingUserPasswordReset(user.id);
+      await api.resetUserPassword(user.id, { newPassword });
+      toast.success(`Password reset for ${user.email}`);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to reset password');
+    } finally {
+      setSavingUserPasswordReset(null);
+    }
+  };
+
   const togglePermissionId = (permissionId: string, setter: (value: string[]) => void, current: string[]) => {
     setter(current.includes(permissionId) ? current.filter((id) => id !== permissionId) : [...current, permissionId]);
   };
@@ -796,6 +859,77 @@ function SettingsPageContent() {
         <p className="text-[var(--text-2)] mt-1">
           Manage users, roles and permissions with role-based access control.
         </p>
+      </div>
+
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-primary-600" />
+          <h2 className="text-lg font-semibold text-[var(--text-1)]">Change My Password</h2>
+        </div>
+        <form className="grid grid-cols-1 md:grid-cols-3 gap-4" onSubmit={changeOwnPassword}>
+          <div>
+            <label className="label">Current password</label>
+            <input
+              type={showCurrentPassword ? 'text' : 'password'}
+              className="input"
+              value={passwordForm.currentPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+              required
+            />
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
+              onClick={() => setShowCurrentPassword((prev) => !prev)}
+            >
+              {showCurrentPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showCurrentPassword ? 'Hide password' : 'Show password'}
+            </button>
+          </div>
+          <div>
+            <label className="label">New password</label>
+            <input
+              type={showNewAccountPassword ? 'text' : 'password'}
+              className="input"
+              value={passwordForm.newPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+              required
+            />
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
+              onClick={() => setShowNewAccountPassword((prev) => !prev)}
+            >
+              {showNewAccountPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showNewAccountPassword ? 'Hide password' : 'Show password'}
+            </button>
+          </div>
+          <div>
+            <label className="label">Confirm new password</label>
+            <input
+              type={showConfirmAccountPassword ? 'text' : 'password'}
+              className="input"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+              required
+            />
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
+              onClick={() => setShowConfirmAccountPassword((prev) => !prev)}
+            >
+              {showConfirmAccountPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showConfirmAccountPassword ? 'Hide confirmation' : 'Show confirmation'}
+            </button>
+          </div>
+          <div className="md:col-span-3 flex justify-end">
+            <button className="btn btn-primary w-full sm:w-auto" type="submit" disabled={savingPasswordChange}>
+              <span className="inline-flex items-center gap-2">
+                <Save className="w-4 h-4" />
+                {savingPasswordChange ? 'Saving...' : 'Update Password'}
+              </span>
+            </button>
+          </div>
+        </form>
       </div>
 
       <FormPromptModal
@@ -1504,16 +1638,28 @@ function SettingsPageContent() {
                         <p className="text-xs text-[var(--text-4)] mt-1">{formatJoinedDate(user.createdAt)}</p>
                       ) : null}
                     </div>
-                    {canDeleteUsers && (
-                      <button
-                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-4)]"
-                        onClick={() => removeUser(user.id)}
-                        disabled={user.id === currentUser?.id}
-                        title={user.id === currentUser?.id ? 'You cannot delete your own account' : 'Delete user'}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {currentPermissionSet.has('manage_users') && user.id !== currentUser?.id ? (
+                        <button
+                          className="p-2 text-[var(--text-4)] hover:text-amber-700 hover:bg-amber-50 rounded-lg"
+                          onClick={() => resetManagedUserPassword(user)}
+                          disabled={savingUserPasswordReset === user.id}
+                          title="Reset password"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                        </button>
+                      ) : null}
+                      {canDeleteUsers && (
+                        <button
+                          className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-4)]"
+                          onClick={() => removeUser(user.id)}
+                          disabled={user.id === currentUser?.id}
+                          title={user.id === currentUser?.id ? 'You cannot delete your own account' : 'Delete user'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

@@ -4,8 +4,10 @@ import {
   login,
   logout,
   getCurrentUser,
+  changePassword,
   registerSchema,
   loginSchema,
+  changePasswordSchema,
 } from '../controllers/auth.controller';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -21,5 +23,6 @@ router.post('/register', authenticate, requireRole('Admin'), validate(registerSc
 // Protected routes
 router.post('/logout', authenticate, logout);
 router.get('/me', authenticate, getCurrentUser);
+router.post('/change-password', authenticate, validate(changePasswordSchema), changePassword);
 
 export default router;

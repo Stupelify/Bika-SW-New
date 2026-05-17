@@ -13,6 +13,10 @@ import {
   User,
   UserPlus,
 } from 'lucide-react';
+import {
+  buildBookingEditorHref,
+  buildEnquiryEditorHref,
+} from '@/lib/dashboardNavigation';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -143,7 +147,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             id: b.id,
             label: b.label ?? b.functionName ?? 'Booking',
             secondary: b.secondary ?? b.customerName,
-            href: b.href ?? `/dashboard/bookings/${b.id}`,
+            href: b.href ?? buildBookingEditorHref(b.id),
             type: 'booking' as const,
           })),
           ...(data.customers ?? []).map((c: any) => ({
@@ -157,7 +161,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             id: e.id,
             label: e.label ?? e.functionName ?? 'Enquiry',
             secondary: e.secondary ?? e.customerName,
-            href: e.href ?? `/dashboard/enquiries/${e.id}`,
+            href: e.href ?? buildEnquiryEditorHref(e.id),
             type: 'enquiry' as const,
           })),
         ];

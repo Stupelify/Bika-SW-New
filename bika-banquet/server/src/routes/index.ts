@@ -18,6 +18,7 @@ import analyticsRoutes from './analytics.routes';
 import calendarRoutes from './calendar.routes';
 import searchRoutes from './search.routes';
 import auditLogRoutes from './auditLog.routes';
+import { authenticate } from '../middleware/auth.middleware';
 import { addSseClient, removeSseClient } from '../sse';
 
 const router = Router();
@@ -30,7 +31,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/events', (req, res) => {
+router.get('/events', authenticate, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');

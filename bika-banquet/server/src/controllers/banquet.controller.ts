@@ -121,6 +121,12 @@ export async function getBanquetById(
 ): Promise<void> {
   try {
     const { id } = req.params;
+    const banquetAuthReq = req as AuthRequest;
+    const allowedBanquetIds = banquetAuthReq.user?.banquetIds || [];
+    if (allowedBanquetIds.length > 0 && !allowedBanquetIds.includes(id)) {
+      sendNotFound(res, 'Banquet not found');
+      return;
+    }
     const banquet = await prisma.banquet.findUnique({
       where: { id },
       include: {
@@ -142,6 +148,12 @@ export async function getBanquetById(
 export async function updateBanquet(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const banquetAuthReq = req as AuthRequest;
+    const allowedBanquetIds = banquetAuthReq.user?.banquetIds || [];
+    if (allowedBanquetIds.length > 0 && !allowedBanquetIds.includes(id)) {
+      sendNotFound(res, 'Banquet not found');
+      return;
+    }
     const payload = normalizeCaseFields({ ...req.body }, [
       'name',
       'location',

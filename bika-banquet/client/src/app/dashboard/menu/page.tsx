@@ -1481,7 +1481,8 @@ function MenuPageContent() {
                   const pts = item?.points ?? item?.point ?? 0;
                   return sum + (Number.isFinite(Number(pts)) ? Number(pts) : 0);
                 }, 0);
-                return <span className="ml-1 font-semibold text-teal-700">· {totalPts} pts</span>;
+                const roundedPts = Math.round(totalPts * 100) / 100;
+                return <span className="ml-1 font-semibold text-teal-700">· {roundedPts} pts</span>;
               })()}
             </p>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
