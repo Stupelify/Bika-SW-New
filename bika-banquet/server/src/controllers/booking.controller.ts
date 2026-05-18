@@ -646,20 +646,16 @@ let cachedMenuBackgroundImage: Buffer | null | undefined;
 let cachedMenuLogoImage: Buffer | null | undefined;
 
 async function loadPdfAsset(localFilename: string, fallbackUrl: string): Promise<Buffer | null> {
-  // Try local file first.
   try {
     const localPath = path.join(PDF_ASSETS_DIR, localFilename);
-    console.log(`Checking local PDF asset: ${localPath}, exists: ${fs.existsSync(localPath)}`);
     if (fs.existsSync(localPath)) {
-      console.log(`Successfully loaded local PDF asset: ${localPath}`);
+      logger.debug('Loaded PDF asset from local file', { path: localPath });
       return fs.readFileSync(localPath);
     }
   } catch (error) {
-    console.error(`Error loading local PDF asset: ${localFilename}`, error);
-    // fall through to URL
+    logger.error('Failed to load local PDF asset', { filename: localFilename, error });
   }
 
-  // Fall back to remote URL if provided.
   if (!fallbackUrl) return null;
   try {
     const response = await fetch(fallbackUrl, {
@@ -1840,7 +1836,7 @@ export async function createBooking(
     });
     emitBookingCalendarSync(booking);
   } catch (error: any) {
-    console.error('Booking creation error:', error);
+    logger.error('Booking creation error:', error);
     if (error instanceof Error) {
       if (
         error.message === 'Selected halls must belong to the same banquet' ||
