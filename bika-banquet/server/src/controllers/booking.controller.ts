@@ -24,7 +24,7 @@ import {
   getAllowedBanquetIds,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
-import { resolveVersionChain, sumBookingLines } from './booking.helpers';
+import { resolveVersionChain, sumBookingLines, getPdfAsset } from './booking.helpers';
 
 // Validation schemas
 export const createBookingSchema = z.object({
@@ -642,9 +642,6 @@ const PDF_ASSETS_DIR =
 const MENU_BACKGROUND_IMAGE_URL = process.env.MENU_PDF_BACKGROUND_URL || '';
 const MENU_LOGO_IMAGE_URL = process.env.MENU_PDF_LOGO_URL || '';
 
-let cachedMenuBackgroundImage: Buffer | null | undefined;
-let cachedMenuLogoImage: Buffer | null | undefined;
-
 async function loadPdfAsset(localFilename: string, fallbackUrl: string): Promise<Buffer | null> {
   try {
     const localPath = path.join(PDF_ASSETS_DIR, localFilename);
@@ -680,16 +677,16 @@ interface PdfMenuPack {
   }>;
 }
 
-async function getMenuBackgroundImage(): Promise<Buffer | null> {
-  if (cachedMenuBackgroundImage) return cachedMenuBackgroundImage;
-  cachedMenuBackgroundImage = await loadPdfAsset('background.png', MENU_BACKGROUND_IMAGE_URL);
-  return cachedMenuBackgroundImage;
+function getMenuBackgroundImage(): Promise<Buffer | null> {
+  return getPdfAsset('background.png', () =>
+    loadPdfAsset('background.png', MENU_BACKGROUND_IMAGE_URL)
+  );
 }
 
-async function getMenuLogoImage(): Promise<Buffer | null> {
-  if (cachedMenuLogoImage) return cachedMenuLogoImage;
-  cachedMenuLogoImage = await loadPdfAsset('logo.png', MENU_LOGO_IMAGE_URL);
-  return cachedMenuLogoImage;
+function getMenuLogoImage(): Promise<Buffer | null> {
+  return getPdfAsset('logo.png', () =>
+    loadPdfAsset('logo.png', MENU_LOGO_IMAGE_URL)
+  );
 }
 
 function formatDateForPdf(value?: Date | string | null): string {
