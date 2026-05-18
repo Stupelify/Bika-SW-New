@@ -306,25 +306,12 @@ function ThemeToggle() {
       type="button"
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       onClick={toggleTheme}
+      className="sidebar-icon-btn inline-flex items-center justify-center cursor-pointer"
       style={{
         border: '1px solid var(--border)',
         background: 'var(--surface)',
-        color: 'var(--text-3)',
         borderRadius: 10,
         padding: '6px 8px',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        transition: 'color 0.15s, border-color 0.15s, background 0.15s',
-      }}
-      onMouseOver={(event) => {
-        event.currentTarget.style.color = 'var(--text-1)';
-        event.currentTarget.style.borderColor = 'var(--border-2)';
-      }}
-      onMouseOut={(event) => {
-        event.currentTarget.style.color = 'var(--text-3)';
-        event.currentTarget.style.borderColor = 'var(--border)';
       }}
     >
       {theme === 'dark' ? (
@@ -546,7 +533,7 @@ function DashboardLayoutContent({
         setSidebarOpen(true);
       }}
       aria-label={sidebarCollapsed ? 'Expand navigation' : 'Toggle navigation'}
-      className="header-icon-btn"
+      className="header-icon-btn header-icon-hover"
       style={{
         border: 'none',
         background: 'transparent',
@@ -559,14 +546,6 @@ function DashboardLayoutContent({
         justifyContent: 'center',
         cursor: 'pointer',
         flexShrink: 0,
-      }}
-      onMouseOver={(event) => {
-        event.currentTarget.style.background = 'var(--surface-2)';
-        event.currentTarget.style.color = 'var(--text-1)';
-      }}
-      onMouseOut={(event) => {
-        event.currentTarget.style.background = 'transparent';
-        event.currentTarget.style.color = 'var(--text-3)';
       }}
     >
       <Menu style={{ width: 18, height: 18 }} aria-hidden="true" />
@@ -999,7 +978,7 @@ function DashboardLayoutContent({
             onClick={handleLogout}
             aria-label="Log out"
             title={isCollapsed ? 'Log out' : undefined}
-            className="header-icon-btn"
+            className="header-icon-btn logout-btn-hover"
             style={{
               border: 'none',
               background: 'none',
@@ -1011,14 +990,6 @@ function DashboardLayoutContent({
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-            }}
-            onMouseOver={(event) => {
-              event.currentTarget.style.color = '#ef4444';
-              event.currentTarget.style.background = '#fef2f2';
-            }}
-            onMouseOut={(event) => {
-              event.currentTarget.style.color = 'var(--text-4)';
-              event.currentTarget.style.background = 'none';
             }}
           >
             <LogOut style={{ width: 15, height: 15 }} aria-hidden="true" />
@@ -1238,7 +1209,7 @@ function DashboardLayoutContent({
           <button
             type="button"
             aria-label="Help"
-            className="header-icon-btn"
+            className="header-icon-btn header-icon-hover"
             style={{
               border: 'none',
               background: 'transparent',
@@ -1250,14 +1221,6 @@ function DashboardLayoutContent({
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-            }}
-            onMouseOver={(event) => {
-              event.currentTarget.style.background = 'var(--surface-2)';
-              event.currentTarget.style.color = 'var(--text-1)';
-            }}
-            onMouseOut={(event) => {
-              event.currentTarget.style.background = 'transparent';
-              event.currentTarget.style.color = 'var(--text-3)';
             }}
           >
             <HelpCircle style={{ width: 16, height: 16 }} aria-hidden="true" />

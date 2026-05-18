@@ -1270,6 +1270,33 @@
     flex: 1;
   }
 
+  /* Sidebar/header hover states — replaces JS onMouseOver/Out handlers */
+  .sidebar-icon-btn {
+    color: var(--text-3);
+    border-color: var(--border);
+    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  }
+  .sidebar-icon-btn:hover {
+    color: var(--text-1);
+    border-color: var(--border-2);
+  }
+
+  .header-icon-hover {
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .header-icon-hover:hover {
+    background-color: var(--surface-2);
+    color: var(--text-1);
+  }
+
+  .logout-btn-hover {
+    transition: color 150ms ease, background-color 150ms ease;
+  }
+  .logout-btn-hover:hover {
+    color: #ef4444;
+    background-color: #fef2f2;
+  }
+
   @keyframes bar-grow {
     from {
       transform: scaleY(0);
