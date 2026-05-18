@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { verifyToken, TokenPayload } from '../utils/auth';
 import { sendUnauthorized, sendForbidden } from '../utils/response';
 import prisma from '../config/database';
@@ -23,10 +24,6 @@ export function resolveTokenFromRequest(req: AuthRequest): string | null {
   return req.rawToken || null;
 }
 
-function pathWithoutQuery(value: string | undefined): string {
-  return (value || '').split('?')[0];
-}
-
 function resolveToken(req: Request): string | null {
   // Standard Bearer token
   const authHeader = req.headers.authorization;
@@ -44,16 +41,39 @@ function resolveToken(req: Request): string | null {
   return null;
 }
 
-function shouldValidateSession(req: Request): boolean {
-  const routePath = pathWithoutQuery(req.originalUrl || req.url);
-  return (
-    (req.method === 'POST' && routePath.endsWith('/auth/logout')) ||
-    (req.method === 'POST' && routePath.endsWith('/auth/change-password'))
-  );
+const SESSION_CACHE_TTL = 60; // seconds
+
+function tokenCacheKey(token: string): string {
+  return `session:${crypto.createHash('sha256').update(token).digest('hex')}`;
 }
 
-function hasAdminRoleCheck(roles: string[]): boolean {
-  return roles.some((role) => role.trim().toLowerCase() === 'admin');
+async function getCachedOrFetchSession(token: string): Promise<TokenPayload | null> {
+  const redis = getRedisClient();
+  const key = tokenCacheKey(token);
+
+  if (redis) {
+    const cached = await redis.get(key);
+    if (cached === 'revoked') return null;
+    if (cached) {
+      try {
+        return JSON.parse(cached) as TokenPayload;
+      } catch {
+        // corrupt cache entry — fall through to DB
+      }
+    }
+  }
+
+  const dbUser = await validateSessionAndResolveUser(token);
+
+  if (redis) {
+    if (!dbUser) {
+      await redis.set(key, 'revoked', 'EX', SESSION_CACHE_TTL);
+    } else {
+      await redis.set(key, JSON.stringify(dbUser), 'EX', SESSION_CACHE_TTL);
+    }
+  }
+
+  return dbUser;
 }
 
 async function validateSessionAndResolveUser(
@@ -150,20 +170,10 @@ export async function authenticate(
     // Store raw JWT on request for downstream use (e.g. /auth/sse-token)
     req.rawToken = jwtToken;
 
-    // Verify token
-    const payload = verifyToken(jwtToken);
+    // Verify JWT signature — throws if invalid (caught below)
+    verifyToken(jwtToken);
 
-    const payloadToUse = shouldValidateSession(req)
-      ? await validateSessionAndResolveUser(jwtToken)
-      : {
-          userId: payload.userId,
-          email: payload.email,
-          roles: Array.isArray(payload.roles) ? payload.roles : [],
-          permissions: Array.isArray(payload.permissions)
-            ? payload.permissions
-            : [],
-          banquetIds: Array.isArray(payload.banquetIds) ? payload.banquetIds : [],
-        };
+    const payloadToUse = await getCachedOrFetchSession(jwtToken!);
 
     if (!payloadToUse) {
       sendUnauthorized(res, 'Session expired');
@@ -194,19 +204,13 @@ export function requireRole(...roles: string[]) {
       return sendUnauthorized(res);
     }
 
-    if (hasAdminRoleCheck(roles)) {
-      const token = req.rawToken || null;
-
-      if (!token) {
-        return sendUnauthorized(res, 'No token provided');
-      }
-
-      const refreshedUser = await validateSessionAndResolveUser(token);
-      if (!refreshedUser) {
+    // Re-validate from cache for any role check (catches revoked sessions)
+    if (req.rawToken) {
+      const refreshed = await getCachedOrFetchSession(req.rawToken);
+      if (!refreshed) {
         return sendUnauthorized(res, 'Session expired');
       }
-
-      req.user = refreshedUser;
+      req.user = refreshed;
     }
 
     const hasRole = roles.some((role) =>
