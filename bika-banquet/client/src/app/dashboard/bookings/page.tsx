@@ -1444,8 +1444,7 @@ export default function BookingsPage() {
     if (!canViewBooking || typeof window === 'undefined') return;
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-    const token = window.localStorage.getItem('auth_token');
-    const eventSource = new EventSource(buildEventStreamUrl(baseUrl, token));
+    const eventSource = new EventSource(buildEventStreamUrl(baseUrl));
 
     eventSource.onmessage = (event) => {
       try {

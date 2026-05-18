@@ -22,9 +22,7 @@ function resolveToken(req: Request): string | null {
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.substring(7);
   }
-
-  const queryToken = typeof req.query.token === 'string' ? req.query.token.trim() : '';
-  return queryToken || null;
+  return null;
 }
 
 function shouldValidateSession(req: Request): boolean {
