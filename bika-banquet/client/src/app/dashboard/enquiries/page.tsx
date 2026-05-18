@@ -227,6 +227,11 @@ export default function EnquiriesPage() {
   }, [status, canViewEnquiry]);
 
   useEffect(() => {
+    void loadLookups();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAddEnquiry, canEditEnquiry]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [debouncedGlobalSearch, columnSearch, sort, status]);
 

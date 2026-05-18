@@ -7,7 +7,7 @@ type CachedEntry = {
   timestamp: number;
 };
 
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 600_000; // 10 minutes — enough for retried booking requests
 const responseCache = new Map<string, CachedEntry>();
 
 function pruneExpiredEntries(now: number): void {
@@ -43,7 +43,9 @@ export function idempotencyMiddleware(
 
   const originalJson = res.json.bind(res);
   res.json = ((body: unknown) => {
-    if (res.statusCode < 400) {
+    // Only cache successful, non-conflict responses.
+    // 409 (hall clash etc.) should NOT be cached — client must retry with different data.
+    if (res.statusCode >= 200 && res.statusCode < 300) {
       responseCache.set(cacheKey, {
         response: body,
         statusCode: res.statusCode,

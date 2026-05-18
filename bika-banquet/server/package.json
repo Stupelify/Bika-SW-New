@@ -12,8 +12,10 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "tsx src/seed.ts",
+    "stress-test": "tsx src/scripts/stressTest.ts",
     "data:normalize-case": "node dist/scripts/normalizeEntryCase.js",
-    "data:normalize-case:dev": "tsx src/scripts/normalizeEntryCase.ts"
+    "data:normalize-case:dev": "tsx src/scripts/normalizeEntryCase.ts",
+    "db:apply-raw": "tsx src/scripts/applyRawMigrations.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",

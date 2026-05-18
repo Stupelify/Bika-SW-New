@@ -920,6 +920,11 @@ export default function BookingsPage() {
   // Keep dueAmount in sync: always = grandTotal (finalAmount + extras) minus what's been paid.
   // When there are no payments, due = full amount automatically.
   useEffect(() => {
+    void loadLookups();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAddBooking, canEditBooking]);
+
+  useEffect(() => {
     if (!showCreateForm) return;
     const netAmount = parseFloat(formData.finalAmount || '0') || totalPackAmount;
     const grandTotal = netAmount + totalAdditionalRequirementsAmount;

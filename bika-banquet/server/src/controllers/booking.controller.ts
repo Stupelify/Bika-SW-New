@@ -47,8 +47,8 @@ export const createBookingSchema = z.object({
     ),
     functionDate: z.string(),
     functionTime: z.string(),
-    expectedGuests: z.number().min(1, 'Expected guests must be at least 1'),
-    confirmedGuests: z.number().optional(),
+    expectedGuests: z.number().min(1, 'Expected guests must be at least 1').max(10000, 'Expected guests must be at most 10000'),
+    confirmedGuests: z.number().min(0, 'Confirmed guests must be non-negative').max(10000, 'Confirmed guests must be at most 10000').optional(),
     isQuotation: z.boolean().optional(),
     halls: z.array(z.object({
       hallId: idSchema('hall ID'),
@@ -65,7 +65,7 @@ export const createBookingSchema = z.object({
       extraCharges: z.number().min(0).optional(),
       startTime: z.string().optional(),
       endTime: z.string().optional(),
-      extraPlate: z.number().int().optional(),
+      extraPlate: z.number().int().min(0, 'Extra plate count must be non-negative').optional(),
       extraRate: z.string().max(50).optional(),
       extraAmount: z.string().max(50).optional(),
       menuPoint: z.number().optional(),
@@ -95,7 +95,10 @@ export const createBookingSchema = z.object({
       .string()
       .max(2000, 'Internal notes must be at most 2000 characters')
       .optional(),
-  }),
+  }).refine(
+    (data) => !data.secondCustomerId || data.secondCustomerId !== data.customerId,
+    { message: 'Secondary customer must be different from primary customer', path: ['secondCustomerId'] }
+  ),
 });
 
 export const updateBookingSchema = z.object({
@@ -124,8 +127,8 @@ export const updateBookingSchema = z.object({
         .optional(),
       functionDate: z.string().optional(),
       functionTime: z.string().optional(),
-      expectedGuests: z.number().min(1, 'Expected guests must be at least 1').optional(),
-      confirmedGuests: z.number().optional(),
+      expectedGuests: z.number().min(1, 'Expected guests must be at least 1').max(10000, 'Expected guests must be at most 10000').optional(),
+      confirmedGuests: z.number().min(0, 'Confirmed guests must be non-negative').max(10000, 'Confirmed guests must be at most 10000').optional(),
       isQuotation: z.boolean().optional(),
       halls: z
         .array(
@@ -151,7 +154,7 @@ export const updateBookingSchema = z.object({
             extraCharges: z.number().min(0).optional(),
             startTime: z.string().optional(),
             endTime: z.string().optional(),
-            extraPlate: z.number().int().optional(),
+            extraPlate: z.number().int().min(0, 'Extra plate count must be non-negative').optional(),
             extraRate: z.string().max(50).optional(),
             extraAmount: z.string().max(50).optional(),
             menuPoint: z.number().optional(),
@@ -199,7 +202,11 @@ export const updateBookingSchema = z.object({
     })
     .refine((value) => Object.keys(value).length > 0, {
       message: 'At least one field is required',
-    }),
+    })
+    .refine(
+      (data) => !data.secondCustomerId || !data.customerId || data.secondCustomerId !== data.customerId,
+      { message: 'Secondary customer must be different from primary customer', path: ['secondCustomerId'] }
+    ),
 });
 
 const MONEY_DECIMALS = 2;
@@ -276,7 +283,7 @@ function toJsonSnapshot(value: unknown): Prisma.InputJsonValue {
 async function runSerializableBookingTransaction<T>(
   operation: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
-  const maxAttempts = 3;
+  const maxAttempts = 5;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -291,10 +298,13 @@ async function runSerializableBookingTransaction<T>(
       if (!isSerializationFailure || attempt === maxAttempts) {
         throw error;
       }
+
+      // Exponential backoff: 50ms, 100ms, 200ms, 400ms between retries
+      await new Promise((resolve) => setTimeout(resolve, 50 * 2 ** (attempt - 1)));
     }
   }
 
-  throw new Error('Serializable transaction failed');
+  throw new Error('Serializable transaction failed after max retries');
 }
 
 function isHallClashConstraintError(error: unknown): boolean {
@@ -531,21 +541,27 @@ export async function checkHallAvailability(
   req: Request,
   res: Response
 ): Promise<void> {
-  const { hallIds: hallIdsRaw, date, startTime, endTime, excludeBookingId } = req.query as Record<string, string>;
+  const { date, startTime, endTime, excludeBookingId } = req.query as Record<string, string>;
+  const hallIdsRaw = req.query.hallIds;
 
   if (!hallIdsRaw || !date) {
     sendError(res, 'hallIds and date are required', 400);
     return;
   }
 
-  const hallIds = hallIdsRaw.split(',').map((id) => id.trim()).filter(Boolean);
+  const hallIds = Array.isArray(hallIdsRaw)
+    ? (hallIdsRaw as string[]).map((id) => id.trim()).filter(Boolean)
+    : typeof hallIdsRaw === 'string'
+      ? hallIdsRaw.split(',').map((id) => id.trim()).filter(Boolean)
+      : [];
   if (hallIds.length === 0) {
     sendSuccess(res, { available: true, clashes: [] });
     return;
   }
 
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!hallIds.every((id) => UUID_RE.test(id))) {
+  // Accept both UUID-style and legacy integer IDs (same pattern as idSchema)
+  const VALID_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
+  if (!hallIds.every((id) => VALID_ID_RE.test(id))) {
     sendError(res, 'One or more hall IDs are invalid', 400);
     return;
   }
@@ -1863,6 +1879,10 @@ export async function createBooking(
         error.message === 'One or more selected halls are invalid'
       ) {
         sendError(res, error.message, 400);
+        return;
+      }
+      if (error.message.startsWith('Hall timing clash detected')) {
+        sendError(res, error.message, 409);
         return;
       }
     }
