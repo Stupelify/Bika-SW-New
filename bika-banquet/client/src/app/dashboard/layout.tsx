@@ -1290,7 +1290,7 @@ function DashboardLayoutContent({
           }}
           data-active-nav={activeNav?.name || ''}
         >
-          <div key={pathname} className="page-enter">
+          <div className="page-content">
             {children}
           </div>
         </main>
