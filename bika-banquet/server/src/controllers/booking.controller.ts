@@ -24,6 +24,7 @@ import {
   getAllowedBanquetIds,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
+import { resolveVersionChain } from './booking.helpers';
 
 // Validation schemas
 export const createBookingSchema = z.object({
@@ -2405,7 +2406,6 @@ export async function getBookingHistory(
       where: withBookingBanquetScope({ id }, allowedBanquetIds),
       select: {
         id: true,
-        previousBookingId: true,
       },
     });
 
@@ -2414,37 +2414,7 @@ export async function getBookingHistory(
       return;
     }
 
-    let rootId = anchor.id;
-    let cursor = anchor;
-    while (cursor.previousBookingId) {
-      const previous = await prisma.booking.findUnique({
-        where: { id: cursor.previousBookingId },
-        select: {
-          id: true,
-          previousBookingId: true,
-        },
-      });
-      if (!previous) break;
-      rootId = previous.id;
-      cursor = previous;
-    }
-
-    const lineageIds: string[] = [];
-    let nextCursorId: string | null = rootId;
-    let guard = 0;
-    while (nextCursorId && guard < 200) {
-      lineageIds.push(nextCursorId);
-      const nextVersionRow: { id: string } | null = await prisma.booking.findFirst({
-        where: {
-          previousBookingId: nextCursorId,
-        },
-        select: {
-          id: true,
-        },
-      });
-      nextCursorId = nextVersionRow?.id || null;
-      guard += 1;
-    }
+    const lineageIds = await resolveVersionChain(anchor.id);
 
     const versions = await prisma.booking.findMany({
       where: {
