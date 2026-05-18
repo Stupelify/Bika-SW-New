@@ -8,6 +8,7 @@ import { RedisStore } from 'rate-limit-redis';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { connectDatabase, disconnectDatabase, pingDatabase } from './config/database';
+import prisma from './config/database';
 import { initSseSubscriber } from './sse';
 import { releasePencilBookings } from './controllers/booking.controller';
 import routes from './routes';
@@ -252,19 +253,61 @@ app.get('/', (req, res) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+async function verifyDbConstraints(): Promise<void> {
+  try {
+    const rows = await prisma.$queryRaw<{ conname: string }[]>`
+      SELECT conname FROM pg_constraint WHERE conname = 'booking_halls_hall_time_range_excl'
+    `;
+    if (rows.length === 0) {
+      logger.warn(
+        '⚠️  DB constraint booking_halls_hall_time_range_excl is missing. ' +
+        'Run: npm run db:apply-raw to apply raw SQL migrations.',
+      );
+    }
+  } catch (err) {
+    logger.warn('Could not verify DB constraints:', err);
+  }
+}
+
+async function runWithDistributedLock(
+  lockKey: string,
+  ttlMs: number,
+  fn: () => Promise<void>,
+): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) {
+    await fn();
+    return;
+  }
+  const acquired = await redis.set(lockKey, '1', 'PX', ttlMs, 'NX');
+  if (!acquired) return;
+  try {
+    await fn();
+  } finally {
+    await redis.del(lockKey);
+  }
+}
+
 // Start server
 async function startServer() {
   try {
     // Connect to database
     await connectDatabase();
+    await verifyDbConstraints();
 
     // Start SSE Redis subscriber (fan-out across PM2 workers).
     // Safe no-op when Redis is not configured.
     initSseSubscriber();
 
-    // Release expired pencil bookings every hour
-    releasePencilBookings();
-    setInterval(releasePencilBookings, 60 * 60 * 1000);
+    // Release expired pencil bookings every hour.
+    // Distributed lock ensures only one PM2 worker runs this per cycle.
+    const runPencilRelease = () => runWithDistributedLock(
+      'pencil-release-lock',
+      55 * 60 * 1000,
+      releasePencilBookings,
+    );
+    runPencilRelease();
+    setInterval(runPencilRelease, 60 * 60 * 1000);
 
     // Start listening
     app.listen(PORT, () => {

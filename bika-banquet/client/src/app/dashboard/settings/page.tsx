@@ -1151,7 +1151,7 @@ function SettingsPageContent() {
                     : `— ${userForm.banquetAccess.length} selected`}
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-[var(--border-2)] p-3 bg-slate-50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-[var(--border-2)] p-3 bg-slate-50 dark:bg-slate-500/10">
                 {banquets.map((b) => (
                   <label key={b.id} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
                     <input
@@ -1251,7 +1251,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'access'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Access Mapping
@@ -1264,7 +1264,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'users'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Users
@@ -1277,7 +1277,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'roles'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Roles
@@ -1290,7 +1290,7 @@ function SettingsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeSettingsSection === 'permissions'
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
             >
               Permissions
@@ -1641,7 +1641,7 @@ function SettingsPageContent() {
                     <div className="flex items-center gap-2">
                       {currentPermissionSet.has('manage_users') && user.id !== currentUser?.id ? (
                         <button
-                          className="p-2 text-[var(--text-4)] hover:text-amber-700 hover:bg-amber-50 rounded-lg"
+                          className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:text-amber-200 hover:bg-amber-50 dark:bg-amber-500/10 rounded-lg"
                           onClick={() => resetManagedUserPassword(user)}
                           disabled={savingUserPasswordReset === user.id}
                           title="Reset password"
@@ -1651,7 +1651,7 @@ function SettingsPageContent() {
                       ) : null}
                       {canDeleteUsers && (
                         <button
-                          className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-4)]"
+                          className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-4)]"
                           onClick={() => removeUser(user.id)}
                           disabled={user.id === currentUser?.id}
                           title={user.id === currentUser?.id ? 'You cannot delete your own account' : 'Delete user'}
@@ -1711,7 +1711,7 @@ function SettingsPageContent() {
                     </div>
                     {canDeleteRoles && (
                       <button
-                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
                         onClick={() => removeRole(role.id)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1768,7 +1768,7 @@ function SettingsPageContent() {
                     </div>
                     {canDeletePermissions && (
                       <button
-                        className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
                         onClick={() => removePermission(permission.id)}
                       >
                         <Trash2 className="w-4 h-4" />

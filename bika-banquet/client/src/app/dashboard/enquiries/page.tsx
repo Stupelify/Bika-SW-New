@@ -478,7 +478,7 @@ export default function EnquiriesPage() {
       </div>
 
       {!canViewEnquiry && (
-        <div className="card border-amber-200 bg-amber-50 text-amber-800 text-sm">
+        <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
           You do not have permission to view enquiries.
         </div>
       )}
@@ -1011,7 +1011,7 @@ export default function EnquiriesPage() {
                           {canEditEnquiry && (
                             <button
                               onClick={() => openEditPrompt(enquiry)}
-                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
                               title="Edit enquiry"
                             >
                               <Edit className="w-4 h-4" />
@@ -1020,7 +1020,7 @@ export default function EnquiriesPage() {
                           {canDeleteEnquiry && (
                             <button
                               onClick={() => handleDelete(enquiry.id)}
-                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
                               title="Delete enquiry"
                             >
                               <Trash2 className="w-4 h-4" />

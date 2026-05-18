@@ -818,7 +818,7 @@ export default function DashboardPage() {
               <p className="panel-title">Monthly Revenue</p>
               <p className="panel-subtitle">Last 8 months trend</p>
             </div>
-            <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-[12px] font-semibold text-teal-700">
+            <span className="inline-flex items-center rounded-full border border-teal-200 dark:border-teal-900/50 bg-teal-50 dark:bg-teal-500/10 px-3 py-1 text-[12px] font-semibold text-teal-700 dark:text-teal-200">
               ₹ In Lakhs
             </span>
           </div>
@@ -906,7 +906,7 @@ export default function DashboardPage() {
             <h2 className="panel-title">Business Insights</h2>
             <p className="panel-subtitle">Actionable metrics for the selected period</p>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[12px] font-semibold text-amber-700">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-1 text-[12px] font-semibold text-amber-700 dark:text-amber-200">
             <Sparkles className="w-3.5 h-3.5" />
             Actionable
           </span>

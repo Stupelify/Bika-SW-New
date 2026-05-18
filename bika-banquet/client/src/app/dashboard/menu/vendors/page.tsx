@@ -508,7 +508,7 @@ export default function VendorsPage() {
       <MenuSectionTabs active="vendors" />
 
       {!canView && (
-        <div className="card border-amber-200 bg-amber-50 text-amber-800 text-sm">
+        <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
           You do not have permission to view vendors.
         </div>
       )}
@@ -608,7 +608,7 @@ export default function VendorsPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-[var(--border)] bg-white">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
               <div className="px-3 py-2 border-b border-[var(--border)]">
                 <p className="text-sm font-semibold text-[var(--text-1)]">Ingredients Supplied</p>
               </div>
@@ -623,7 +623,7 @@ export default function VendorsPage() {
                   />
                 </div>
               </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+              <div className="max-h-72 overflow-y-auto divide-y divide-[var(--border)]">
                 {filteredIngredientsForPrompt.length === 0 ? (
                   <div className="empty-state" style={{ padding: '20px 12px' }}>
                     <div className="empty-state-icon">
@@ -699,7 +699,7 @@ export default function VendorsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-white">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
               <div className="px-3 py-2 border-b border-[var(--border)]">
                 <p className="text-sm font-semibold text-[var(--text-1)]">Items Supplied</p>
               </div>
@@ -714,7 +714,7 @@ export default function VendorsPage() {
                   />
                 </div>
               </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+              <div className="max-h-72 overflow-y-auto divide-y divide-[var(--border)]">
                 {filteredItemsForPrompt.length === 0 ? (
                   <div className="empty-state" style={{ padding: '20px 12px' }}>
                     <div className="empty-state-icon">
@@ -853,14 +853,14 @@ export default function VendorsPage() {
                         <td className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
                               onClick={() => editSupply(supply)}
                               type="button"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
                               onClick={() => deleteSupply(supply.id)}
                               type="button"
                             >
@@ -1043,7 +1043,7 @@ export default function VendorsPage() {
                               </button>
                               {canEdit && (
                                 <button
-                                  className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                  className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
                                   onClick={() => {
                                     void openEditVendor(vendor);
                                   }}
@@ -1054,7 +1054,7 @@ export default function VendorsPage() {
                               )}
                               {canDelete && (
                                 <button
-                                  className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                  className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
                                   onClick={() => removeVendor(vendor.id)}
                                   type="button"
                                 >

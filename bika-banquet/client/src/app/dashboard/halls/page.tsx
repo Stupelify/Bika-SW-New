@@ -471,7 +471,7 @@ function HallsPageContent() {
       </div>
 
       {!canViewBanquet && !canViewHall && (
-        <div className="card border-amber-200 bg-amber-50 text-amber-800 text-sm">
+        <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
           You do not have permission to view venue tables.
         </div>
       )}
@@ -688,7 +688,7 @@ function HallsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeVenueSection === 'banquet' && canViewBanquet
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Banquet
@@ -700,7 +700,7 @@ function HallsPageContent() {
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
                 activeVenueSection === 'hall' && canViewHall
                   ? 'bg-primary-600 text-white shadow'
-                  : 'bg-white text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               Hall
@@ -775,7 +775,7 @@ function HallsPageContent() {
             </FilterPanel>
 
             {!canViewBanquet ? (
-              <p className="text-sm text-amber-700">No permission to view banquet table.</p>
+              <p className="text-sm text-amber-700 dark:text-amber-200">No permission to view banquet table.</p>
             ) : loading ? (
               <TableSkeleton rows={5} />
             ) : filteredBanquets.length === 0 ? (
@@ -833,7 +833,7 @@ function HallsPageContent() {
                           <div className="flex items-center justify-end gap-2">
                             {canEditBanquet && (
                               <button
-                                className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
                                 onClick={() => openEditBanquet(banquet)}
                               >
                                 <Edit className="w-4 h-4" />
@@ -841,7 +841,7 @@ function HallsPageContent() {
                             )}
                             {canDeleteBanquet && (
                               <button
-                                className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
                                 onClick={() => deleteBanquet(banquet.id)}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -928,7 +928,7 @@ function HallsPageContent() {
             </FilterPanel>
 
             {!canViewHall ? (
-              <p className="text-sm text-amber-700">No permission to view hall table.</p>
+              <p className="text-sm text-amber-700 dark:text-amber-200">No permission to view hall table.</p>
             ) : loading ? (
               <TableSkeleton rows={5} />
             ) : filteredHalls.length === 0 ? (

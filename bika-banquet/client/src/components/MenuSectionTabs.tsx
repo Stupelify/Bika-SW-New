@@ -39,7 +39,7 @@ export default function MenuSectionTabs({ active }: MenuSectionTabsProps) {
             className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
               active === tab.key && tab.enabled
                 ? 'bg-primary-600 text-white shadow'
-                : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
             }`}
           >
             {tab.label}

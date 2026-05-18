@@ -8,6 +8,8 @@ import {
     CalendarCheck,
     LayoutDashboard,
     Menu,
+    Users,
+    ClipboardList,
 } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -29,6 +31,18 @@ const navItems = [
         href: '/dashboard/bookings',
         icon: CalendarCheck,
         permissions: ['view_booking', 'manage_bookings'],
+    },
+    {
+        name: 'Enquiries',
+        href: '/dashboard/enquiries',
+        icon: ClipboardList,
+        permissions: ['view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'],
+    },
+    {
+        name: 'Customers',
+        href: '/dashboard/customers',
+        icon: Users,
+        permissions: ['view_customer', 'add_customer', 'edit_customer', 'manage_customers'],
     },
     {
         name: 'Calendar',

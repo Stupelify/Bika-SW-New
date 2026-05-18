@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
-import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { sendError, sendForbidden, sendNotFound, sendSuccess } from '../utils/response';
 import { hashPassword } from '../utils/auth';
 import { toEntryCase } from '../utils/textCase';
 import { sanitizeSearchTerm } from '../utils/search';
@@ -242,6 +242,22 @@ export async function resetUserPassword(req: AuthRequest, res: Response): Promis
 
     if (!existingUser) {
       sendNotFound(res, 'User not found');
+      return;
+    }
+
+    const targetRoles = await prisma.userRole.findMany({
+      where: { userId: id },
+      include: { role: { select: { name: true } } },
+    });
+    const targetIsAdmin = targetRoles.some(
+      (ur) => ur.role.name.toLowerCase() === 'admin'
+    );
+    const requesterIsAdmin = (req as AuthRequest).user?.roles?.some(
+      (r) => r.toLowerCase() === 'admin'
+    ) ?? false;
+
+    if (targetIsAdmin && !requesterIsAdmin) {
+      sendForbidden(res, 'Cannot reset password for an Admin user');
       return;
     }
 

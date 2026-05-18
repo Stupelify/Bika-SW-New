@@ -283,12 +283,16 @@
   }
 
   .input {
-    @apply w-full rounded-[12px] px-3 py-[8px] text-sm duration-150 disabled:bg-gray-50 disabled:cursor-not-allowed;
+    @apply w-full rounded-[12px] px-3 py-[8px] text-sm duration-150 disabled:cursor-not-allowed;
     transition-property: border-color, box-shadow, background-color, color;
     border: 1px solid var(--border-2);
     background-color: var(--surface);
     color: var(--text-1);
     font-family: inherit;
+  }
+
+  .input:disabled {
+    background-color: var(--surface-2);
   }
 
   .input::placeholder {

@@ -48,7 +48,7 @@ export default function LoginPage() {
         <section className="lg:col-span-3 card overflow-hidden relative">
           <div className="absolute inset-0 bg-gradient-to-br from-primary-100/70 via-white to-accent-100/60 pointer-events-none"></div>
           <div className="relative p-2 md:p-4">
-            <p className="inline-flex rounded-full border border-primary-200 bg-white px-3 py-1 text-xs font-semibold text-primary-700">
+            <p className="inline-flex rounded-full border border-primary-200 bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-primary-700">
               Hospitality Operations Suite
             </p>
             <h1 className="mt-5 text-4xl md:text-5xl leading-tight font-display text-[var(--text-1)] text-balance">
@@ -59,15 +59,15 @@ export default function LoginPage() {
             </p>
 
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-[var(--border)] bg-white/90 p-4">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
                 <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Workflows</p>
                 <p className="text-xl font-display text-[var(--text-1)] mt-2">9 modules</p>
               </div>
-              <div className="rounded-xl border border-[var(--border)] bg-white/90 p-4">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
                 <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Real-time</p>
                 <p className="text-xl font-display text-[var(--text-1)] mt-2">Live metrics</p>
               </div>
-              <div className="rounded-xl border border-[var(--border)] bg-white/90 p-4">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
                 <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Team Access</p>
                 <p className="text-xl font-display text-[var(--text-1)] mt-2">RBAC ready</p>
               </div>

@@ -1,0 +1,64 @@
+<h2>Screen-size optimization: how should the calendar grow?</h2>
+<p class="subtitle">The current 1400px cap is the problem. Pick the layout model.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:12px;border-radius:8px">
+      <!-- Current state diagram -->
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">CURRENT (1400px cap)</div>
+      <div style="display:flex;height:80px;background:#e2e8f0;border-radius:6px;overflow:hidden;gap:0">
+        <div style="width:48px;background:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;writing-mode:vertical-rl;flex-shrink:0">SIDEBAR</div>
+        <div style="flex:1;display:flex;flex-direction:column;padding:4px">
+          <div style="display:flex;gap:4px;flex:1">
+            <div style="background:#e2e8f0;border:2px dashed #94a3b8;flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;color:#94a3b8;border-radius:4px">unused screen space</div>
+            <div style="background:#0d9488;border-radius:4px;width:240px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:600">Calendar (1400px)</div>
+            <div style="background:#e2e8f0;border:2px dashed #94a3b8;flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;color:#94a3b8;border-radius:4px">unused screen space</div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:#ef4444;margin-top:4px">❌ On 2560px screen: only 55% used</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Keep 1400px cap, just use it better</h3>
+      <p>Calendar fills 1400px wall-to-wall (no padding waste inside). Timeline gets all of that. Not full-screen but clean. Best for consistency with other pages.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:12px;border-radius:8px">
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">FULL-BLEED CALENDAR</div>
+      <div style="display:flex;height:80px;background:#e2e8f0;border-radius:6px;overflow:hidden">
+        <div style="width:48px;background:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;writing-mode:vertical-rl;flex-shrink:0">SIDEBAR</div>
+        <div style="flex:1;background:#0d9488;display:flex;align-items:center;justify-content:center;gap:8px">
+          <div style="background:rgba(255,255,255,.15);border-radius:4px;padding:4px 10px;font-size:9px;color:#fff;font-weight:600">Venue Sidebar</div>
+          <div style="flex:1;background:rgba(255,255,255,.08);border-radius:4px;height:60px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff">Timeline → fills ALL remaining screen width</div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:#059669;margin-top:4px">✅ 100% of screen used. More timeline visible.</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Full-bleed: calendar escapes the 1400px cap</h3>
+      <p>Calendar page overrides maxWidth to none. On a 2560px screen you see 3× more of the timeline at once. Day view shows all 15 hours without scrolling. Week view is much more readable. Other pages unaffected.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:12px;border-radius:8px">
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">FULL-BLEED + PERSISTENT FILTER SIDEBAR</div>
+      <div style="display:flex;height:80px;background:#e2e8f0;border-radius:6px;overflow:hidden">
+        <div style="width:48px;background:#94a3b8;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;writing-mode:vertical-rl;flex-shrink:0">NAV</div>
+        <div style="width:52px;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;text-align:center;padding:2px;flex-shrink:0">Filter<br/>Sidebar</div>
+        <div style="flex:1;background:#0d9488;display:flex;align-items:center;justify-content:center">
+          <div style="flex:1;background:rgba(255,255,255,.08);border-radius:4px;height:60px;margin:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff">Timeline — all remaining space</div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:#059669;margin-top:4px">✅ Hall filters always visible — no drawer needed.</div>
+    </div>
+    <div class="card-body">
+      <h3>C — Full-bleed + inline filter panel (always visible on large screens)</h3>
+      <p>Same as B, plus the hall/status filter panel becomes a persistent left sidebar on lg+ screens (collapses to a drawer on smaller screens). No opening/closing needed on desktop.</p>
+    </div>
+  </div>
+</div>
+
+<p style="font-size:12px;color:#9ca3af;margin-top:16px">My recommendation: <strong>C</strong> — the filter panel is something you use constantly; having it always visible on a big screen removes friction. Full-bleed gives you maximum timeline real estate.</p>

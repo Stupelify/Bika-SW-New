@@ -22,16 +22,12 @@ const PALETTE = [
   { solid: '#4f46e5', soft: 'rgba(79,70,229,0.13)',   text: '#3730a3', border: '#6366f1', heat: 'rgba(79,70,229,' },
   { solid: '#d97706', soft: 'rgba(217,119,6,0.14)',   text: '#92400e', border: '#f59e0b', heat: 'rgba(217,119,6,' },
   { solid: '#e11d48', soft: 'rgba(225,29,72,0.13)',   text: '#9f1239', border: '#fb7185', heat: 'rgba(225,29,72,' },
-  { solid: '#7c3aed', soft: 'rgba(124,58,237,0.13)',  text: '#5b21b6', border: '#a78bfa', heat: 'rgba(124,58,237,' },
+  { solid: '#0284c7', soft: 'rgba(2,132,199,0.13)',   text: '#075985', border: '#38bdf8', heat: 'rgba(2,132,199,' },
+  { solid: '#16a34a', soft: 'rgba(22,163,74,0.13)',   text: '#14532d', border: '#4ade80', heat: 'rgba(22,163,74,' },
+  { solid: '#9333ea', soft: 'rgba(147,51,234,0.13)',  text: '#581c87', border: '#c084fc', heat: 'rgba(147,51,234,' },
+  { solid: '#b45309', soft: 'rgba(180,83,9,0.13)',    text: '#78350f', border: '#fbbf24', heat: 'rgba(180,83,9,'  },
 ];
 type Pal = typeof PALETTE[number];
-
-function stableHash(s: string): number {
-  let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h;
-}
-function getPalette(seed: string): Pal {
-  const k = seed.trim().toLowerCase(); return k ? PALETTE[stableHash(k) % PALETTE.length] : PALETTE[0];
-}
 function venueInitials(name: string): string {
   const w = name.trim().split(/\s+/);
   if (w.length === 1) return name.slice(0, 2).toUpperCase();
@@ -111,7 +107,7 @@ function useGroups(rows: TimelineHallRow[]): VenueGroup[] {
   return useMemo(() => {
     const m=new Map<string,TimelineHallRow[]>();
     for(const r of rows){const k=r.banquetName?.trim()||'Unassigned';if(!m.has(k))m.set(k,[]);m.get(k)!.push(r);}
-    return Array.from(m.entries()).map(([name,halls])=>({name,pal:getPalette(name),halls}));
+    return Array.from(m.entries()).map(([name,halls],idx)=>({name,pal:PALETTE[idx%PALETTE.length],halls}));
   },[rows]);
 }
 

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Calendar Design Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#111;padding:20px}
+h1{font-size:16px;font-weight:700;margin-bottom:4px;color:#111}
+.subtitle{font-size:12px;color:#64748b;margin-bottom:20px}
+.tabs{display:flex;gap:2px;background:#e2e8f0;border-radius:8px;padding:3px;width:fit-content;margin-bottom:16px}
+.tab{padding:5px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;color:#64748b;border:none;background:transparent}
+.tab.active{background:#fff;color:#111;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.panel{display:none}.panel.active{display:block}
+
+/* Calendar shell */
+.cal-shell{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+
+/* Nav bar */
+.cal-nav{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid #eaedf5;gap:10px;background:#fff}
+.cal-nav .date-label{font-size:15px;font-weight:700;color:#111;flex:1}
+.nav-btn{width:28px;height:28px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#555}
+.today-btn{padding:4px 12px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;font-size:11px;font-weight:600;cursor:pointer;color:#555}
+.view-tabs{display:flex;gap:1px;background:#f1f5f9;border-radius:6px;padding:2px}
+.view-tab{padding:3px 10px;border-radius:5px;font-size:11px;font-weight:500;cursor:pointer;color:#64748b;border:none;background:transparent}
+.view-tab.active{background:#fff;color:#111;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.new-btn{padding:5px 12px;background:#0d9488;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer}
+
+/* Sidebar */
+.cal-body{display:flex}
+.venue-sidebar{width:180px;flex-shrink:0;border-right:1px solid #eaedf5}
+.venue-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer}
+.venue-item:hover{background:#f8fafc}
+.venue-avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.venue-info{flex:1;min-width:0}
+.venue-name{font-size:11px;font-weight:600;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.venue-meta{font-size:9px;color:#9ca3af;margin-top:1px}
+.venue-badge{font-size:9px;font-weight:700;color:#fff;border-radius:10px;padding:1px 6px;flex-shrink:0}
+.hall-item{display:flex;align-items:center;gap:6px;padding:5px 10px 5px 22px;border-bottom:1px solid #f8fafc}
+.hall-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.hall-name{font-size:10px;color:#9ca3af}
+.hall-status{font-size:8.5px;padding:1px 5px;border-radius:10px;margin-left:auto;flex-shrink:0;font-weight:600}
+.status-busy{background:#fef2f2;color:#dc2626}
+.status-avail{background:#f0fdf4;color:#16a34a}
+
+/* Timeline */
+.timeline-wrap{flex:1;overflow:hidden}
+.hour-header{display:flex;height:24px;background:#f9fafb;border-bottom:1px solid #eaedf5;position:relative}
+.hour-label{position:absolute;font-size:8px;color:#c0c5d0;font-weight:500;padding-left:3px;top:50%;transform:translateY(-50%)}
+.tl-row{display:flex;height:46px;border-bottom:1px solid #eaedf5;position:relative}
+.tl-row.venue-row{background:#f4f6fc}
+.tl-row.hall-row{background:#fff}
+.now-line{position:absolute;top:0;bottom:0;width:2px;background:rgba(239,68,68,.85);z-index:5}
+.now-dot{position:absolute;left:-3px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;background:rgba(239,68,68,.85)}
+.booking-bar{position:absolute;top:4px;bottom:4px;border-radius:5px;overflow:hidden;display:flex;flex-direction:column;justify-content:center;padding:0 6px;cursor:pointer;transition:filter .1s,transform .1s}
+.booking-bar:hover{filter:brightness(1.08);transform:scaleY(1.02);z-index:10}
+.bar-name{font-size:9.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;line-height:1.3}
+.bar-sub{font-size:8px;color:rgba(255,255,255,.75);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pencil-bar{background:transparent!important;border:1.5px dashed}
+.pencil-chip{font-size:7.5px;font-weight:700;letter-spacing:.04em;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Tooltip */
+.tooltip{position:absolute;background:#1e293b;color:#fff;border-radius:8px;padding:8px 10px;font-size:10px;z-index:20;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.25);min-width:160px;display:none}
+.tooltip-row{display:flex;gap:6px;margin-bottom:3px;align-items:center}
+.tooltip-label{color:#94a3b8;flex-shrink:0;width:40px}
+.tbar:hover .tooltip{display:block}
+
+/* Month grid */
+.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#e2e8f0;border-top:1px solid #e2e8f0}
+.month-cell{background:#fff;padding:6px;min-height:72px;cursor:pointer;transition:background .1s}
+.month-cell:hover{background:#f0fdf4}
+.month-cell.today{background:#f0fdf4;border:1.5px solid rgba(13,148,136,.3)}
+.month-cell.selected{background:#ecfdf5;border:1.5px solid #0d9488}
+.month-cell.other-month{background:#f9fafb;opacity:.5}
+.cell-num{font-size:11px;font-weight:500;color:#374151;margin-bottom:3px}
+.cell-num.today-num{width:18px;height:18px;background:#0d9488;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700}
+.booking-pill{font-size:8px;font-weight:600;padding:1px 5px;border-radius:3px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;cursor:pointer}
+.booking-pill:hover{opacity:.85}
+.more-chip{font-size:7.5px;color:#9ca3af;padding-left:2px}
+.heat-0{background:#fff}
+.heat-1{background:#f0fdf4}
+.heat-2{background:#dcfce7}
+.heat-3{background:#bbf7d0}
+.heat-4{background:#86efac}
+
+/* Week */
+.week-header{display:flex;border-bottom:1px solid #eaedf5}
+.week-day-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;border-left:1px solid #eaedf5}
+.week-day-col:first-child{border-left:none}
+.wday-label{font-size:9px;font-weight:500;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em;line-height:1}
+.wday-num{font-size:14px;font-weight:500;color:#374151;margin-top:2px;line-height:1}
+.wday-num.today-wday{width:22px;height:22px;background:rgb(239,68,68);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.week-row{display:flex;border-bottom:1px solid #eaedf5}
+.week-venue-label{width:180px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 10px;border-right:1px solid #eaedf5;background:#f4f6fc}
+.week-hall-label{width:180px;flex-shrink:0;padding:0 10px 0 22px;display:flex;align-items:center;border-right:1px solid #eaedf5;font-size:9.5px;color:#9ca3af}
+.week-cell{flex:1;border-left:1px solid #eaedf5;padding:3px;display:flex;flex-direction:column;gap:2px;position:relative;min-height:46px}
+.week-cell.today-col{background:rgba(239,68,68,.03)}
+.week-chip{font-size:8px;font-weight:600;padding:2px 4px;border-radius:3px;color:#fff;cursor:pointer;line-height:1.3;position:relative}
+.week-chip:hover{opacity:.85}
+.week-chip-type{font-size:7px;color:rgba(255,255,255,.75);line-height:1.2}
+
+/* Occupancy bar */
+.occ-bar-wrap{width:28px;background:#e2e8f0;border-radius:2px;overflow:hidden;height:8px;margin-left:auto;flex-shrink:0}
+.occ-bar{height:100%;border-radius:2px}
+
+/* DOW header for month */
+.dow-header{display:grid;grid-template-columns:repeat(7,1fr);background:#f9fafb;border-bottom:1px solid #eaedf5}
+.dow-cell{padding:6px;text-align:center;font-size:9px;font-weight:600;text-transform:uppercase;color:#9ca3af;letter-spacing:.05em}
+
+/* Drill-down indicator */
+.drill-hint{position:absolute;bottom:2px;right:3px;font-size:7px;color:rgba(13,148,136,.6);opacity:0;transition:opacity .15s}
+.month-cell:hover .drill-hint{opacity:1}
+</style>
+</head>
+<body>
+<h1>Calendar Redesign — Interactive Mockup</h1>
+<p class="subtitle">Click through tabs to see Day, Week, Month views. Hover over booking bars / month cells to see interactions.</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('day',this)">Day View</button>
+  <button class="tab" onclick="showTab('week',this)">Week View</button>
+  <button class="tab" onclick="showTab('month',this)">Month View</button>
+</div>
+
+<!-- ═══ DAY VIEW ═══ -->
+<div class="panel active" id="panel-day">
+  <div class="cal-shell">
+    <!-- Nav -->
+    <div class="cal-nav">
+      <button class="nav-btn">‹</button>
+      <button class="nav-btn">›</button>
+      <button class="today-btn">Today</button>
+      <div class="date-label">Saturday, 17 May 2025</div>
+      <div class="view-tabs">
+        <button class="view-tab active">Day</button>
+        <button class="view-tab">Week</button>
+        <button class="view-tab">Month</button>
+      </div>
+      <button class="new-btn">+ New Booking</button>
+    </div>
+
+    <div class="cal-body">
+      <!-- Venue sidebar -->
+      <div class="venue-sidebar">
+        <!-- Venue 1 expanded -->
+        <div class="venue-item">
+          <div class="venue-avatar" style="background:#0d9488">BK</div>
+          <div class="venue-info">
+            <div class="venue-name">Bika 1</div>
+            <div class="venue-meta">3 halls · 75% busy</div>
+          </div>
+          <div class="venue-badge" style="background:#0d9488">2</div>
+        </div>
+        <div class="hall-item">
+          <div class="hall-dot" style="background:#0d9488"></div>
+          <div class="hall-name">Grand Hall</div>
+          <div class="hall-status status-busy">Busy</div>
+        </div>
+        <div class="hall-item">
+          <div class="hall-dot" style="background:#0d9488"></div>
+          <div class="hall-name">Crystal Suite</div>
+          <div class="hall-status status-avail">Free</div>
+        </div>
+        <div class="hall-item">
+          <div class="hall-dot" style="background:#0d9488"></div>
+          <div class="hall-name">Terrace</div>
+          <div class="hall-status status-busy">Busy</div>
+        </div>
+        <!-- Venue 2 collapsed -->
+        <div class="venue-item" style="background:#f9fafb">
+          <div class="venue-avatar" style="background:#4f46e5">BK</div>
+          <div class="venue-info">
+            <div class="venue-name">Bika 2</div>
+            <div class="venue-meta">2 halls · 50% busy</div>
+          </div>
+          <div class="venue-badge" style="background:#4f46e5">1</div>
+        </div>
+        <!-- Venue 3 -->
+        <div class="venue-item" style="background:#f9fafb">
+          <div class="venue-avatar" style="background:#d97706">RL</div>
+          <div class="venue-info">
+            <div class="venue-name">Rangoli</div>
+            <div class="venue-meta">2 halls · 0% busy</div>
+          </div>
+          <div class="venue-badge" style="background:#6b7280">0</div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline-wrap">
+        <!-- Hour header -->
+        <div class="hour-header" style="position:relative;height:24px">
+          <div class="hour-label" style="left:0%">8am</div>
+          <div class="hour-label" style="left:13.3%">10am</div>
+          <div class="hour-label" style="left:26.6%">12pm</div>
+          <div class="hour-label" style="left:40%">2pm</div>
+          <div class="hour-label" style="left:53.3%">4pm</div>
+          <div class="hour-label" style="left:66.6%">6pm</div>
+          <div class="hour-label" style="left:80%">8pm</div>
+          <div class="hour-label" style="left:93.3%">10pm</div>
+        </div>
+
+        <!-- Venue 1 aggregate row -->
+        <div class="tl-row venue-row" style="position:relative">
+          <div class="now-line" style="left:36.7%"><div class="now-dot"></div></div>
+          <!-- Wedding bar -->
+          <div class="tbar" style="position:absolute;left:60%;width:24%;top:4px;bottom:4px">
+            <div class="booking-bar" style="background:#0d9488;left:0;right:0;top:0;bottom:0;position:absolute">
+              <div class="bar-name">Sharma Wedding</div>
+              <div class="bar-sub">Wedding · 450 pax · 6pm–10pm</div>
+            </div>
+            <div class="tooltip" style="top:100%;left:0;margin-top:4px">
+              <div class="tooltip-row"><span class="tooltip-label">Client</span><span style="font-weight:600">Sharma Family</span></div>
+              <div class="tooltip-row"><span class="tooltip-label">Event</span><span>Wedding</span></div>
+              <div class="tooltip-row"><span class="tooltip-label">Time</span><span>6:00 pm – 10:00 pm</span></div>
+              <div class="tooltip-row"><span class="tooltip-label">Pax</span><span>450 guests</span></div>
+              <div class="tooltip-row"><span class="tooltip-label">Hall</span><span>Grand Hall</span></div>
+              <div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.1);font-size:9px;color:#94a3b8">Click to open details</div>
+            </div>
+          </div>
+          <!-- Pencil booking -->
+          <div class="booking-bar pencil-bar" style="left:13%;width:13%;color:#0d9488;border-color:#0d9488">
+            <div class="pencil-chip" style="color:#0d9488">✏ PENCIL · 2h 15m</div>
+            <div class="bar-name" style="color:#0d9488">Kumar Reception</div>
+          </div>
+        </div>
+
+        <!-- Hall rows -->
+        <div class="tl-row hall-row" style="position:relative">
+          <div class="now-line" style="left:36.7%"><div class="now-dot"></div></div>
+          <div class="booking-bar" style="background:#0d9488;left:60%;width:24%">
+            <div class="bar-name">Sharma Wedding</div>
+            <div class="bar-sub">Grand Hall</div>
+          </div>
+        </div>
+        <div class="tl-row hall-row" style="position:relative;background:#fafafa">
+          <div class="now-line" style="left:36.7%"><div class="now-dot"></div></div>
+          <div style="position:absolute;left:4px;right:4px;top:10px;font-size:9px;color:#d1d5db;text-align:center">Free all day — click to create booking</div>
+        </div>
+        <div class="tl-row hall-row" style="position:relative">
+          <div class="now-line" style="left:36.7%"><div class="now-dot"></div></div>
+          <div class="booking-bar pencil-bar" style="left:13%;width:13%;border-color:#0d9488">
+            <div class="pencil-chip" style="color:#0d9488">✏ PENCIL · 2h 15m</div>
+            <div class="bar-name" style="color:#0d9488">Kumar Reception</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:11px;color:#64748b;margin-top:8px">🖱 Hover over the teal booking bar to see tooltip. Venue sidebar shows avatar + occupancy badge. Free hall shows "click to create" hint. Pencil booking has countdown chip.</p>
+</div>
+
+<!-- ═══ WEEK VIEW ═══ -->
+<div class="panel" id="panel-week">
+  <div class="cal-shell">
+    <div class="cal-nav">
+      <button class="nav-btn">‹</button>
+      <button class="nav-btn">›</button>
+      <button class="today-btn">Today</button>
+      <div class="date-label">12–18 May 2025</div>
+      <div class="view-tabs">
+        <button class="view-tab">Day</button>
+        <button class="view-tab active">Week</button>
+        <button class="view-tab">Month</button>
+      </div>
+      <button class="new-btn">+ New Booking</button>
+    </div>
+    <div class="cal-body" style="flex-direction:column">
+      <!-- Day headers -->
+      <div class="week-header">
+        <div style="width:180px;flex-shrink:0;border-right:1px solid #eaedf5;background:#f9fafb"></div>
+        <div class="week-day-col" style="cursor:pointer" onclick="alert('→ Day view: Mon 12 May')"><div class="wday-label">Mon</div><div class="wday-num">12</div></div>
+        <div class="week-day-col" style="cursor:pointer" onclick="alert('→ Day view: Tue 13 May')"><div class="wday-label">Tue</div><div class="wday-num">13</div></div>
+        <div class="week-day-col" style="cursor:pointer" onclick="alert('→ Day view: Wed 14 May')"><div class="wday-label">Wed</div><div class="wday-num">14</div></div>
+        <div class="week-day-col" style="cursor:pointer" onclick="alert('→ Day view: Thu 15 May')"><div class="wday-label">Thu</div><div class="wday-num">15</div></div>
+        <div class="week-day-col" style="cursor:pointer" onclick="alert('→ Day view: Fri 16 May')"><div class="wday-label">Fri</div><div class="wday-num">16</div></div>
+        <div class="week-day-col" style="background:rgba(239,68,68,.04);cursor:pointer" onclick="alert('→ Day view: Sat 17 May (TODAY)')"><div class="wday-label" style="color:rgb(239,68,68)">Sat</div><div class="wday-num today-wday">17</div></div>
+        <div class="week-day-col" style="cursor:pointer" onclick="alert('→ Day view: Sun 18 May')"><div class="wday-label">Sun</div><div class="wday-num">18</div></div>
+      </div>
+      <!-- Venue 1 -->
+      <div class="week-row" style="background:#f4f6fc">
+        <div class="week-venue-label">
+          <div class="venue-avatar" style="background:#0d9488;width:22px;height:22px;font-size:9px;border-radius:6px">BK</div>
+          <div style="font-size:11px;font-weight:700;color:#111">Bika 1</div>
+          <div style="margin-left:auto;font-size:9px;color:#9ca3af">4 bk</div>
+        </div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Corporate<div class="week-chip-type">Meeting</div></div></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Birthday<div class="week-chip-type">Party</div></div></div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Wedding<div class="week-chip-type">Reception</div></div></div>
+        <div class="week-cell"></div>
+        <div class="week-cell today-col"><div class="week-chip" style="background:#0d9488">Wedding<div class="week-chip-type">Sharma</div></div><div class="week-chip" style="background:transparent;border:1px dashed #0d9488;color:#0d9488">✏ Pencil<div class="week-chip-type" style="color:#0d9488">Kumar</div></div></div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Corporate<div class="week-chip-type">Summit</div></div></div>
+      </div>
+      <!-- Hall rows -->
+      <div class="week-row">
+        <div class="week-hall-label">Grand Hall</div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Corp<div class="week-chip-type">8am–1pm</div></div></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Wedding<div class="week-chip-type">6pm–11pm</div></div></div>
+        <div class="week-cell"></div>
+        <div class="week-cell today-col"><div class="week-chip" style="background:#0d9488">Wedding<div class="week-chip-type">6pm–10pm</div></div></div>
+        <div class="week-cell"></div>
+      </div>
+      <div class="week-row">
+        <div class="week-hall-label">Crystal Suite</div>
+        <div class="week-cell"></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Birthday<div class="week-chip-type">5pm–9pm</div></div></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"></div>
+        <div class="week-cell today-col"></div>
+        <div class="week-cell"><div class="week-chip" style="background:#0d9488">Corp<div class="week-chip-type">9am–1pm</div></div></div>
+      </div>
+      <!-- Venue 2 -->
+      <div class="week-row" style="background:#f4f6fc">
+        <div class="week-venue-label">
+          <div class="venue-avatar" style="background:#4f46e5;width:22px;height:22px;font-size:9px;border-radius:6px">B2</div>
+          <div style="font-size:11px;font-weight:700;color:#111">Bika 2</div>
+          <div style="margin-left:auto;font-size:9px;color:#9ca3af">1 bk</div>
+        </div>
+        <div class="week-cell"></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"></div>
+        <div class="week-cell"></div>
+        <div class="week-cell today-col"></div>
+        <div class="week-cell"></div>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:11px;color:#64748b;margin-top:8px">🖱 Click any day number header to drill down to day view (try clicking "17"). Week chips show booking name + type + time range. Pencil has dashed border.</p>
+</div>
+
+<!-- ═══ MONTH VIEW ═══ -->
+<div class="panel" id="panel-month">
+  <div class="cal-shell">
+    <div class="cal-nav">
+      <button class="nav-btn">‹</button>
+      <button class="nav-btn">›</button>
+      <button class="today-btn">Today</button>
+      <div class="date-label">May 2025</div>
+      <div class="view-tabs">
+        <button class="view-tab">Day</button>
+        <button class="view-tab">Week</button>
+        <button class="view-tab active">Month</button>
+      </div>
+      <button class="new-btn">+ New Booking</button>
+    </div>
+    <!-- DOW header -->
+    <div class="dow-header">
+      <div class="dow-cell">Sun</div><div class="dow-cell">Mon</div><div class="dow-cell">Tue</div>
+      <div class="dow-cell">Wed</div><div class="dow-cell">Thu</div><div class="dow-cell">Fri</div><div class="dow-cell">Sat</div>
+    </div>
+    <!-- Grid -->
+    <div class="month-grid">
+      <!-- Week 1 -->
+      <div class="month-cell other-month" style="min-height:70px"><div class="cell-num">27</div></div>
+      <div class="month-cell other-month"><div class="cell-num">28</div></div>
+      <div class="month-cell other-month"><div class="cell-num">29</div></div>
+      <div class="month-cell other-month"><div class="cell-num">30</div></div>
+      <div class="month-cell heat-1" style="cursor:pointer" onclick="alert('→ Day view: Thu 1 May')">
+        <div class="cell-num">1</div>
+        <div class="booking-pill" style="background:#0d9488">Sharma Corp</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <div class="month-cell" style="cursor:pointer" onclick="alert('→ Day view: Fri 2 May')"><div class="cell-num">2</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-2" style="cursor:pointer" onclick="alert('→ Day view: Sat 3 May')">
+        <div class="cell-num">3</div>
+        <div class="booking-pill" style="background:#0d9488">Gupta Wed.</div>
+        <div class="booking-pill" style="background:#4f46e5">Ali Birthday</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <!-- Week 2 -->
+      <div class="month-cell" style="cursor:pointer" onclick="alert('→ Day view: Sun 4 May')"><div class="cell-num">4</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-1" style="cursor:pointer" onclick="alert('→ Day view: Mon 5 May')">
+        <div class="cell-num">5</div>
+        <div class="booking-pill" style="background:#d97706">Nexus Corp</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <div class="month-cell" style="cursor:pointer" onclick="alert('→ Day view: Tue 6 May')"><div class="cell-num">6</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-3" style="cursor:pointer" onclick="alert('→ Day view: Wed 7 May')">
+        <div class="cell-num">7</div>
+        <div class="booking-pill" style="background:#0d9488">Khan Wed.</div>
+        <div class="booking-pill" style="background:#0d9488">Ali Reception</div>
+        <div class="booking-pill" style="background:#4f46e5">Summit 25</div>
+        <div class="more-chip">+1 more</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">8</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-1" style="cursor:pointer">
+        <div class="cell-num">9</div>
+        <div class="booking-pill" style="background:#4f46e5">Chen Corp</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">10</div><div class="drill-hint">click → day view</div></div>
+      <!-- Week 3 -->
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">11</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-2" style="cursor:pointer">
+        <div class="cell-num">12</div>
+        <div class="booking-pill" style="background:#0d9488">Patel Wed.</div>
+        <div class="booking-pill" style="background:#d97706">Birthday</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">13</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">14</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">15</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-1" style="cursor:pointer">
+        <div class="cell-num">16</div>
+        <div class="booking-pill" style="background:transparent;border:1px dashed #0d9488;color:#0d9488">✏ Kumar (pencil)</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <div class="month-cell today heat-4" style="cursor:pointer">
+        <div class="cell-num today-num">17</div>
+        <div class="booking-pill" style="background:#0d9488">Sharma Wed.</div>
+        <div class="booking-pill" style="background:transparent;border:1px dashed #0d9488;color:#0d9488">✏ Pencil</div>
+        <div class="drill-hint">click → day view</div>
+      </div>
+      <!-- Remaining weeks abbreviated -->
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">18</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-1" style="cursor:pointer"><div class="cell-num">19</div><div class="booking-pill" style="background:#4f46e5">Corp Meet</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">20</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-2" style="cursor:pointer"><div class="cell-num">21</div><div class="booking-pill" style="background:#0d9488">Reception</div><div class="booking-pill" style="background:#d97706">Birthday</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">22</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">23</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-3" style="cursor:pointer"><div class="cell-num">24</div><div class="booking-pill" style="background:#0d9488">Ali Wedding</div><div class="booking-pill" style="background:#4f46e5">Summit</div><div class="booking-pill" style="background:#d97706">Bday</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">25</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">26</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-1" style="cursor:pointer"><div class="cell-num">27</div><div class="booking-pill" style="background:#0d9488">Reception</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">28</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell" style="cursor:pointer"><div class="cell-num">29</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-2" style="cursor:pointer"><div class="cell-num">30</div><div class="booking-pill" style="background:#0d9488">Nikkah</div><div class="booking-pill" style="background:#4f46e5">Corp</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell heat-1" style="cursor:pointer"><div class="cell-num">31</div><div class="booking-pill" style="background:#d97706">Engagement</div><div class="drill-hint">click → day view</div></div>
+      <div class="month-cell other-month"><div class="cell-num">1</div></div>
+    </div>
+  </div>
+  <p style="font-size:11px;color:#64748b;margin-top:8px">🖱 Hover over any date cell — "click → day view" hint appears. Heatmap shading: light green = 1 booking → dark green = 4+ bookings. Click any cell to drill down (try clicking "7" — busiest day). Pencil bookings shown with dashed pill. Today (17) is highlighted.</p>
+</div>
+
+<script>
+function showTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

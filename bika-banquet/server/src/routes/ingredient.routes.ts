@@ -22,8 +22,8 @@ const router = Router();
 router.use(authenticate);
 
 router.post('/', requirePermission('manage_menu', 'add_item'), validate(createIngredientSchema), createIngredient);
-router.get('/', requirePermission('manage_menu', 'view_item', 'add_item', 'edit_item'), getIngredients);
-router.get('/:id', requirePermission('manage_menu', 'view_item', 'add_item', 'edit_item'), getIngredientById);
+router.get('/', httpCache(120), requirePermission('manage_menu', 'view_item', 'add_item', 'edit_item'), getIngredients);
+router.get('/:id', httpCache(120), requirePermission('manage_menu', 'view_item', 'add_item', 'edit_item'), getIngredientById);
 router.put('/:id', requirePermission('manage_menu', 'edit_item'), validate(updateIngredientSchema), updateIngredient);
 router.delete('/:id', requirePermission('manage_menu', 'delete_item'), deleteIngredient);
 

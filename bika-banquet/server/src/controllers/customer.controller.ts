@@ -564,6 +564,30 @@ export async function deleteCustomer(
   try {
     const { id } = req.params;
 
+    const linkedBookings = await prisma.booking.count({
+      where: { customerId: id },
+    });
+
+    if (linkedBookings > 0) {
+      res.status(409).json({
+        success: false,
+        message: `This customer cannot be deleted because they have ${linkedBookings} booking(s) on record. Booking history must be preserved for financial integrity.`,
+      });
+      return;
+    }
+
+    const linkedAsSecondary = await prisma.booking.count({
+      where: { secondCustomerId: id },
+    });
+
+    if (linkedAsSecondary > 0) {
+      res.status(409).json({
+        success: false,
+        message: `This customer cannot be deleted because they are linked as a secondary customer on ${linkedAsSecondary} booking(s).`,
+      });
+      return;
+    }
+
     await prisma.customer.delete({
       where: { id },
     });

@@ -548,8 +548,8 @@ model Booking {
   internalNotes       String?
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
-  customer            Customer                @relation("PrimaryCustomer", fields: [customerId], references: [id])
-  secondCustomer      Customer?               @relation("SecondaryCustomer", fields: [secondCustomerId], references: [id])
+  customer            Customer                @relation("PrimaryCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  secondCustomer      Customer?               @relation("SecondaryCustomer", fields: [secondCustomerId], references: [id], onDelete: SetNull)
   previousBooking     Booking?                @relation("BookingVersion", fields: [previousBookingId], references: [id])
   nextVersion         Booking?                @relation("BookingVersion")
   halls               BookingHall[]

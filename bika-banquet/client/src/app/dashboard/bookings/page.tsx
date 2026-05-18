@@ -375,10 +375,10 @@ const PACK_LABELS: Record<PackKey, string> = {
 };
 
 const PACK_ROW_STYLES: Record<PackKey, string> = {
-  breakfast: 'border-orange-200 bg-orange-50 border-l-[3px] border-l-orange-500',
-  lunch: 'border-green-200 bg-green-50 border-l-[3px] border-l-green-500',
-  hiTea: 'border-slate-200 bg-slate-50 border-l-[3px] border-l-slate-500',
-  dinner: 'border-indigo-200 bg-indigo-50 border-l-[3px] border-l-indigo-500',
+  breakfast: 'border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-500/10 border-l-[3px] border-l-orange-500',
+  lunch: 'border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-500/10 border-l-[3px] border-l-green-500',
+  hiTea: 'border-[var(--border)] dark:border-slate-700/50 bg-[var(--surface-2)] dark:bg-slate-500/10 border-l-[3px] border-l-slate-500',
+  dinner: 'border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-500/10 border-l-[3px] border-l-indigo-500',
 };
 
 const FUNCTION_TYPE_OPTIONS = [
@@ -2697,7 +2697,7 @@ export default function BookingsPage() {
         </div>
 
         {isActive && (
-          <div className="absolute z-40 mt-1 w-full max-h-60 overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg">
+          <div className="absolute z-40 mt-1 w-full max-h-60 overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg">
             {suggestions.length === 0 ? (
               <p className="px-3 py-2 text-xs text-[var(--text-4)]">
                 No customer found for this search.
@@ -2707,7 +2707,7 @@ export default function BookingsPage() {
                 <button
                   key={`${field}-${customer.id}`}
                   type="button"
-                  className="w-full border-b border-[var(--border)] px-3 py-2 text-left hover:bg-primary-50 last:border-b-0"
+                  className="w-full border-b border-[var(--border)] px-3 py-2 text-left hover:bg-[var(--surface-2)] last:border-b-0"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectCustomerSuggestion(field, customer)}
                 >
@@ -2743,14 +2743,14 @@ export default function BookingsPage() {
       </div>
 
       {!canViewBooking && (
-        <div className="card border-amber-200 bg-amber-50 text-amber-800 text-sm">
+        <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
           You do not have permission to view bookings.
         </div>
       )}
 
       {canAddBooking && customers.length === 0 && (
-        <div className="card border-amber-200 bg-amber-50 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-amber-800">
+        <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-amber-800 dark:text-amber-200">
             No customers found. Add a customer first, then create booking.
           </p>
           {canAddCustomer && (
@@ -2808,7 +2808,7 @@ export default function BookingsPage() {
             </div>
 
             {isReadOnlyBooking && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 flex items-center gap-2">
+              <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
                 <Lock className="w-4 h-4" />
                 This booking is completed (party over) and is now read-only.
               </div>
@@ -2842,7 +2842,7 @@ export default function BookingsPage() {
                   <div>
                     <label className="label">Priority</label>
                     <input
-                      className="input bg-slate-50 cursor-not-allowed"
+                      className="input bg-[var(--surface-2)] dark:bg-slate-500/10 cursor-not-allowed"
                       type="number"
                       readOnly
                       value={formData.priority}
@@ -2930,7 +2930,7 @@ export default function BookingsPage() {
 
                 {/* Pencil booking toggle */}
                 {!isReadOnlyBooking && (
-                  <div className="rounded-xl border border-[var(--border-2)] bg-slate-50 p-3 space-y-3">
+                  <div className="rounded-xl border border-[var(--border-2)] bg-[var(--surface-2)] dark:bg-slate-500/10 p-3 space-y-3">
                     <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -3007,7 +3007,7 @@ export default function BookingsPage() {
                   </div>
                 )}
                 {formData.isPencilBooking && isReadOnlyBooking && formData.pencilExpiresAt && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 flex items-center gap-2">
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
                     <PencilLine className="w-4 h-4 shrink-0" />
                     Pencil hold — auto-releases on {new Date(formData.pencilExpiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </div>
@@ -3015,14 +3015,14 @@ export default function BookingsPage() {
 
                 {/* Hall clash warning banner */}
                 {hallClashWarnings.length > 0 && (
-                  <div className="col-span-full mt-1 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                  <div className="col-span-full mt-1 rounded-lg border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 p-3">
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 text-amber-600 shrink-0" aria-hidden>⚠️</span>
                       <div>
-                        <p className="text-sm font-semibold text-amber-800">
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                           Hall timing clash detected on this date
                         </p>
-                        <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
+                        <ul className="mt-1 space-y-0.5 text-xs text-amber-700 dark:text-amber-200">
                           {hallClashWarnings.map((clash) => (
                             <li key={clash.bookingId}>
                               <span className="font-medium">{clash.functionName}</span>
@@ -3078,7 +3078,7 @@ export default function BookingsPage() {
                   <div>
                     <label className="label">Due Amount</label>
                     <input
-                      className="input bg-slate-50 cursor-not-allowed"
+                      className="input bg-[var(--surface-2)] dark:bg-slate-500/10 cursor-not-allowed"
                       type="number"
                       readOnly
                       value={formData.dueAmount}
@@ -3090,7 +3090,7 @@ export default function BookingsPage() {
                 {/* Payment modal */}
                 {showPaymentModal && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                    <div className="w-full max-w-md rounded-2xl bg-[var(--surface)] shadow-2xl">
                       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
                         <h3 className="text-base font-semibold text-[var(--text-1)]">Add Payment</h3>
                         <button
@@ -3178,8 +3178,8 @@ export default function BookingsPage() {
                 )}
 
                 <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
-                  <div className="flex items-center justify-between bg-slate-200 px-3 py-2">
-                    <span className="text-xs font-semibold text-slate-700">Payments</span>
+                  <div className="flex items-center justify-between bg-slate-200 dark:bg-[var(--surface-3)] px-3 py-2">
+                    <span className="text-xs font-semibold text-[var(--text-2)] dark:text-[var(--text-1)]">Payments</span>
                     <button
                       type="button"
                       className="inline-flex h-7 items-center gap-1 rounded-full border border-primary-600 px-3 text-xs font-medium text-primary-700 hover:bg-primary-50"
@@ -3198,7 +3198,7 @@ export default function BookingsPage() {
                   ) : (
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-[var(--border)] text-xs font-semibold text-slate-600">
+                        <tr className="border-b border-[var(--border)] text-xs font-semibold text-[var(--text-3)]">
                           <th className="px-3 py-2 text-left">Amount (₹)</th>
                           <th className="px-3 py-2 text-left">Mode</th>
                           <th className="px-3 py-2 text-left">Date</th>
@@ -3225,7 +3225,7 @@ export default function BookingsPage() {
                           return (
                             <tr
                               key={payment.id || `new-${index}`}
-                              className={`border-t border-[var(--border)] ${isDirty ? 'bg-amber-50' : ''}`}
+                              className={`border-t border-[var(--border)] ${isDirty ? 'bg-amber-50 dark:bg-amber-500/10' : ''}`}
                             >
                               <td className="px-2 py-1.5">
                                 <input
@@ -3271,11 +3271,11 @@ export default function BookingsPage() {
                               </td>
                               <td className="px-2 py-1.5 text-right whitespace-nowrap">
                                 {isExisting ? (
-                                  <span className="text-xs text-slate-400 select-none">saved</span>
+                                  <span className="text-xs text-[var(--text-4)] select-none">saved</span>
                                 ) : (
                                   <button
                                     type="button"
-                                    className="text-xs text-red-500 hover:text-red-700"
+                                    className="text-xs text-red-500 hover:text-red-700 dark:text-red-200"
                                     onClick={() =>
                                       setFormData((prev) => ({
                                         ...prev,
@@ -3295,12 +3295,12 @@ export default function BookingsPage() {
                     const netAmt = parseFloat(formData.finalAmount || '0') || totalPackAmount;
                     const grandTotalAmt = netAmt + totalAdditionalRequirementsAmount;
                     return (
-                      <div className="space-y-1 border-t border-[var(--border)] bg-slate-100 px-3 py-2 text-sm">
-                        <div className="flex items-center justify-between font-medium text-slate-700">
+                      <div className="space-y-1 border-t border-[var(--border)] bg-[var(--surface-2)] dark:bg-[var(--surface-3)] px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between font-medium text-[var(--text-2)]">
                           <span>Amount Received</span>
                           <span>₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="flex items-center justify-between font-semibold text-slate-800 border-t border-slate-200 pt-1">
+                        <div className="flex items-center justify-between font-semibold text-[var(--text-1)] border-t border-[var(--border)] pt-1">
                           <span>Grand Total</span>
                           <span>₹{grandTotalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                         </div>
@@ -3393,10 +3393,10 @@ export default function BookingsPage() {
                           dinner: '#6366f1',
                         };
                         const packBgMap: Record<PackKey, string> = {
-                          breakfast: 'bg-orange-50',
-                          lunch: 'bg-green-50',
-                          hiTea: 'bg-slate-50',
-                          dinner: 'bg-indigo-50',
+                          breakfast: 'bg-orange-50 dark:bg-orange-500/10',
+                          lunch: 'bg-green-50 dark:bg-green-500/10',
+                          hiTea: 'bg-[var(--surface-2)] dark:bg-slate-500/10',
+                          dinner: 'bg-indigo-50 dark:bg-indigo-500/10',
                         };
                         return (
                           <tr
@@ -3506,7 +3506,7 @@ export default function BookingsPage() {
                                     width: Math.max(hallPickerAnchorRect.width, 208),
                                     zIndex: 9999,
                                   }}
-                                  className="max-h-56 overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg"
+                                  className="max-h-56 overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg"
                                 >
                                   {filteredHalls.length === 0 ? (
                                     <p className="px-3 py-2 text-xs text-[var(--text-4)]">No halls for this banquet.</p>
@@ -3569,9 +3569,9 @@ export default function BookingsPage() {
                                   : 'Set menu…'}
                                 {hasMenuDiff && (
                                   <span className="ml-1">
-                                    {menuAdded > 0 && <span className="text-green-700">+{menuAdded}</span>}
+                                    {menuAdded > 0 && <span className="text-green-700 dark:text-green-200">+{menuAdded}</span>}
                                     {menuAdded > 0 && menuRemoved > 0 && <span>/</span>}
-                                    {menuRemoved > 0 && <span className="text-red-700">−{menuRemoved}</span>}
+                                    {menuRemoved > 0 && <span className="text-red-700 dark:text-red-200">−{menuRemoved}</span>}
                                   </span>
                                 )}
                               </button>
@@ -3658,7 +3658,7 @@ export default function BookingsPage() {
                       </tr>
 
                       {/* Total row */}
-                      <tr className="bg-white">
+                      <tr className="bg-[var(--surface)]">
                         <td colSpan={7} />
                         <td className="px-2 py-2 text-right text-xs font-bold text-[var(--text-1)] whitespace-nowrap">Total</td>
                         <td className="px-2 py-2 text-right text-sm font-bold text-[var(--text-1)]">
@@ -3667,7 +3667,7 @@ export default function BookingsPage() {
                       </tr>
 
                       {/* Discount row */}
-                      <tr className="bg-red-50">
+                      <tr className="bg-red-50 dark:bg-red-50 dark:bg-red-500/100/10">
                         <td colSpan={5} />
                         <td className="px-2 py-1.5 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -3692,7 +3692,7 @@ export default function BookingsPage() {
                           </div>
                         </td>
                         <td colSpan={1} />
-                        <td className="px-2 py-1.5 text-right text-xs font-semibold text-red-700 whitespace-nowrap">Discount</td>
+                        <td className="px-2 py-1.5 text-right text-xs font-semibold text-red-700 dark:text-red-200 whitespace-nowrap">Discount</td>
                         <td className="px-2 py-1.5">
                           <input
                             className="input py-1 text-xs w-full text-right"
@@ -3714,12 +3714,12 @@ export default function BookingsPage() {
                       </tr>
 
                       {/* Net Amount row */}
-                      <tr className="bg-teal-50">
+                      <tr className="bg-teal-50 dark:bg-teal-50 dark:bg-teal-500/100/10">
                         <td colSpan={7} />
-                        <td className="px-2 py-1.5 text-right text-xs font-bold text-teal-700 whitespace-nowrap">Net Amount</td>
+                        <td className="px-2 py-1.5 text-right text-xs font-bold text-teal-700 dark:text-teal-200 whitespace-nowrap">Net Amount</td>
                         <td className="px-2 py-1.5">
                           <input
-                            className="input py-1 text-xs w-full text-right font-semibold text-teal-700"
+                            className="input py-1 text-xs w-full text-right font-semibold text-teal-700 dark:text-teal-200"
                             type="number"
                             min={0}
                             value={netAmountDraft !== null ? netAmountDraft : formData.finalAmount}
@@ -3768,7 +3768,7 @@ export default function BookingsPage() {
 
                       {/* Extra item rows — description + amount on the left, no individual amount in right col */}
                       {formData.additionalRequirements.map((item, index) => (
-                        <tr key={`req-${index}`} className="bg-white border-t border-[var(--border)]">
+                        <tr key={`req-${index}`} className="bg-[var(--surface)] border-t border-[var(--border)]">
                           <td colSpan={4} />
                           <td colSpan={4} className="px-2 py-1.5">
                             <div className="flex gap-2 items-center">
@@ -3809,7 +3809,7 @@ export default function BookingsPage() {
                               />
                               <button
                                 type="button"
-                                className="text-xs text-red-500 hover:text-red-700 whitespace-nowrap"
+                                className="text-xs text-red-500 hover:text-red-700 dark:text-red-200 whitespace-nowrap"
                                 onClick={() =>
                                   setFormData((prev) => ({
                                     ...prev,
@@ -3826,7 +3826,7 @@ export default function BookingsPage() {
                       ))}
                       {/* Extras total row — label on left, total in amount column */}
                       {formData.additionalRequirements.length > 0 && (
-                        <tr className="bg-white border-t border-[var(--border)]">
+                        <tr className="bg-[var(--surface)] border-t border-[var(--border)]">
                           <td colSpan={4} />
                           <td colSpan={4} className="px-2 py-1.5 text-right text-xs font-semibold text-[var(--text-2)]">
                             Extras Total
@@ -3853,7 +3853,7 @@ export default function BookingsPage() {
                       })()}
 
                       {/* Actions row */}
-                      <tr className="border-t border-[var(--border)] bg-white">
+                      <tr className="border-t border-[var(--border)] bg-[var(--surface)]">
                         <td colSpan={6} className="px-3 py-2">
                           <div className="flex flex-wrap gap-2">
                             <button
@@ -3979,7 +3979,7 @@ export default function BookingsPage() {
                                 <span className="truncate">{!row.banquetId ? 'Select Banquet First' : selectedHallNames.length > 0 ? selectedHallNames.join(', ') : 'Select Halls *'}</span>
                               </button>
                               {openHallPickerPack === packKey && (
-                                <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--border)] bg-white shadow-lg">
+                                <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg">
                                   {filteredHalls.length === 0 ? <p className="px-3 py-2 text-xs text-[var(--text-4)]">No halls for this banquet.</p> : filteredHalls.map((hall) => {
                                     const checked = row.hallIds.includes(hall.id);
                                     return (
@@ -4006,7 +4006,7 @@ export default function BookingsPage() {
                             <button type="button" className={`btn w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
                               onClick={() => { setMenuEditorPack(packKey); setMenuItemSearch(''); }}>
                               {Number(row.menuPoints) > 0 ? `${row.menuPoints} pts` : 'Set menu…'}
-                              {hasMenuDiff && <span className="ml-1 text-xs">{menuAdded > 0 && <span className="text-green-700">+{menuAdded}</span>}{menuAdded > 0 && menuRemoved > 0 && '/'}{menuRemoved > 0 && <span className="text-red-700">−{menuRemoved}</span>}</span>}
+                              {hasMenuDiff && <span className="ml-1 text-xs">{menuAdded > 0 && <span className="text-green-700 dark:text-green-200">+{menuAdded}</span>}{menuAdded > 0 && menuRemoved > 0 && '/'}{menuRemoved > 0 && <span className="text-red-700 dark:text-red-200">−{menuRemoved}</span>}</span>}
                             </button>
                           </div>
                           <div>
@@ -4039,7 +4039,7 @@ export default function BookingsPage() {
                 })}
 
                 {/* Mobile summary */}
-                <div className="rounded-2xl border border-[var(--border)] bg-white p-4 space-y-3">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-base font-semibold text-[var(--text-1)]">Amount Summary</h3>
                     <button type="button"
@@ -4080,7 +4080,7 @@ export default function BookingsPage() {
                         </div>
                         <div>
                           <label className="label text-xs">Net Amount</label>
-                          <input className="input text-right font-semibold text-teal-700" type="number" min={0} value={formData.finalAmount}
+                          <input className="input text-right font-semibold text-teal-700 dark:text-teal-200" type="number" min={0} value={formData.finalAmount}
                             onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, totalPackAmount) })); }}
                             aria-label="Net Amount" />
                         </div>
@@ -4295,7 +4295,7 @@ export default function BookingsPage() {
                   .filter(Boolean);
 
                 return (
-                  <div key={hist.id} className="rounded-xl border-2 border-[var(--border-2)] bg-white shadow-sm overflow-hidden">
+                  <div key={hist.id} className="rounded-xl border-2 border-[var(--border-2)] bg-[var(--surface)] shadow-sm overflow-hidden">
                     {/* ── Version header ── */}
                     <div className="flex items-center justify-between gap-3 bg-[var(--surface-2)] px-5 py-3 border-b border-[var(--border)]">
                       <div>
@@ -4393,8 +4393,8 @@ export default function BookingsPage() {
 
                       return (
                         <div className="px-5 pt-3 pb-0">
-                          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 space-y-2">
-                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                          <div className="rounded-lg border border-blue-100 bg-blue-50 dark:bg-blue-500/10 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-blue-700 dark:text-blue-200 uppercase tracking-wide">
                               Changes from v{historicalVersions[histIdx + 1]?.versionNumber ?? '?'}
                             </p>
                             <div className="flex flex-wrap gap-1.5">
@@ -4562,12 +4562,12 @@ export default function BookingsPage() {
                                     {pack.timeSlot ? ` (${pack.timeSlot})` : ''}
                                   </span>
                                   {pack.withHall !== undefined && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withHall ? 'bg-blue-100 text-blue-700' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withHall ? 'bg-blue-100 text-blue-700 dark:text-blue-200' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
                                       Hall {pack.withHall ? '✓' : '✗'}
                                     </span>
                                   )}
                                   {pack.withCatering !== undefined && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withCatering ? 'bg-green-100 text-green-700' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withCatering ? 'bg-green-100 text-green-700 dark:text-green-200' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
                                       Catering {pack.withCatering ? '✓' : '✗'}
                                     </span>
                                   )}
@@ -4602,7 +4602,7 @@ export default function BookingsPage() {
                                   <div>
                                     <label className="label">Pack Amount</label>
                                     <input
-                                      className="input font-semibold text-blue-700"
+                                      className="input font-semibold text-blue-700 dark:text-blue-200"
                                       value={`₹${computedAmount.toLocaleString('en-IN')}`}
                                       readOnly
                                     />
@@ -4627,7 +4627,7 @@ export default function BookingsPage() {
                                       {menuItems.map((entry: any) => (
                                         <span
                                           key={`${pack.id}-${entry.itemId || entry.item?.id}`}
-                                          className="inline-flex items-center rounded-full border border-[var(--border)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-2)]"
+                                          className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-0.5 text-xs text-[var(--text-2)]"
                                         >
                                           {entry?.item?.itemType?.name
                                             ? <><span className="text-[var(--text-4)] mr-1">{entry.item.itemType.name}:</span></>
@@ -4654,7 +4654,7 @@ export default function BookingsPage() {
                               <div className="text-right">Amount</div>
                             </div>
                             {histAdditional.map((item: any, idx: number) => (
-                              <div key={`hist-add-${hist.id}-${idx}`} className="grid grid-cols-[1fr,auto] px-3 py-2 text-sm border-t border-[var(--border)] bg-white">
+                              <div key={`hist-add-${hist.id}-${idx}`} className="grid grid-cols-[1fr,auto] px-3 py-2 text-sm border-t border-[var(--border)] bg-[var(--surface)]">
                                 <span className="text-[var(--text-1)]">{item?.description || '-'}</span>
                                 <span className="text-right font-medium text-[var(--text-1)]">
                                   ₹{Number(item?.charges ?? item?.amount ?? 0).toLocaleString('en-IN')}
@@ -4690,7 +4690,7 @@ export default function BookingsPage() {
                               <div className="text-right">Amount</div>
                             </div>
                             {histPayments.map((payment: any, idx: number) => (
-                              <div key={`hist-pay-${hist.id}-${idx}`} className="grid grid-cols-2 md:grid-cols-5 gap-1 px-3 py-2 text-sm border-t border-[var(--border)] bg-white">
+                              <div key={`hist-pay-${hist.id}-${idx}`} className="grid grid-cols-2 md:grid-cols-5 gap-1 px-3 py-2 text-sm border-t border-[var(--border)] bg-[var(--surface)]">
                                 <span className="text-[var(--text-1)] font-medium">{payment?.method || payment?.paymentMethod || payment?.mode || '-'}</span>
                                 <span className="text-[var(--text-2)]">{payment?.narration || '-'}</span>
                                 <span className="text-[var(--text-2)]">{payment?.paymentDate ? formatDateDDMMYYYY(payment.paymentDate.slice(0, 10)) : payment?.date ? formatDateDDMMYYYY(payment.date) : '-'}</span>
@@ -4716,11 +4716,11 @@ export default function BookingsPage() {
                           </div>
                           <div>
                             <span className="text-xs text-[var(--text-4)] block">Discount ({histDiscountPercent.toFixed(2)}%)</span>
-                            <span className="font-semibold text-red-700">−₹{histDiscountAmount.toLocaleString('en-IN')}</span>
+                            <span className="font-semibold text-red-700 dark:text-red-200">−₹{histDiscountAmount.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
                             <span className="text-xs text-[var(--text-4)] block">Net Amount</span>
-                            <span className="font-bold text-green-800 text-base">₹{histFinalAmount.toLocaleString('en-IN')}</span>
+                            <span className="font-bold text-green-800 dark:text-green-200 text-base">₹{histFinalAmount.toLocaleString('en-IN')}</span>
                           </div>
                           <div>
                             <span className="text-xs text-[var(--text-4)] block">Advance Required</span>
@@ -4741,7 +4741,7 @@ export default function BookingsPage() {
                       {histNotes && (
                         <div>
                           <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1 mb-2">Notes</h4>
-                          <p className="text-sm text-[var(--text-2)] whitespace-pre-wrap rounded-lg bg-amber-50 border border-amber-100 p-3">{histNotes}</p>
+                          <p className="text-sm text-[var(--text-2)] whitespace-pre-wrap rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-100 p-3">{histNotes}</p>
                         </div>
                       )}
                     </div>
@@ -5226,7 +5226,7 @@ export default function BookingsPage() {
                         aria-label={`Set rating ${value}`}
                       >
                         <Star
-                          className={`w-5 h-5 ${active ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
+                          className={`w-5 h-5 ${active ? 'text-amber-400 fill-amber-400' : 'text-[var(--text-4)]'
                             }`}
                         />
                       </button>
@@ -5347,7 +5347,7 @@ export default function BookingsPage() {
                   ) : (
                     groupedMenuItems.map(([group, grouped]) => (
                       <div key={group}>
-                        <div className="px-3 py-2 text-sm font-semibold text-[var(--text-1)] bg-primary-50 border-b border-[var(--border)]">
+                        <div className="px-3 py-2 text-sm font-semibold text-[var(--text-1)] bg-primary-50 dark:bg-primary-900/40 border-b border-[var(--border)]">
                           {group}
                         </div>
                         {grouped.map((item) => {
@@ -5359,7 +5359,7 @@ export default function BookingsPage() {
                               <label
                                 key={`${menuEditorPack}-${item.id}`}
                                 className={`cv-auto flex items-center gap-2 px-3 py-2 text-sm border-b border-[var(--border)] last:border-b-0 ${
-                                  _isAdded ? 'bg-green-50 text-green-900' : _isRemoved ? 'bg-red-50 text-red-900' : 'text-[var(--text-2)]'
+                                  _isAdded ? 'bg-green-50 dark:bg-green-500/10 text-green-900 dark:text-green-200' : _isRemoved ? 'bg-red-50 dark:bg-red-500/10 text-red-900 dark:text-red-200' : 'text-[var(--text-2)]'
                                 }`}
                               >
                                 <input
@@ -5368,8 +5368,8 @@ export default function BookingsPage() {
                                   onChange={() => togglePackMenuItem(menuEditorPack, item.id)}
                                 />
                                 <span>{item.name}</span>
-                                {_isAdded && <span className="ml-auto text-xs font-semibold text-green-700">+ added</span>}
-                                {_isRemoved && <span className="ml-auto text-xs font-semibold text-red-700">− removed</span>}
+                                {_isAdded && <span className="ml-auto text-xs font-semibold text-green-700 dark:text-green-200">+ added</span>}
+                                {_isRemoved && <span className="ml-auto text-xs font-semibold text-red-700 dark:text-red-200">− removed</span>}
                               </label>
                             );
                           })}
@@ -5383,7 +5383,7 @@ export default function BookingsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-[var(--text-1)]">Selected Items</p>
                   {activeMenuPackRow.menuItemIds.length > 0 && (
-                    <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold text-teal-700 dark:text-teal-200 bg-teal-50 dark:bg-teal-500/10 px-2 py-0.5 rounded-full">
                       {activeMenuPackRow.menuItemIds.length} items · {activeMenuPackRow.menuPoints || '0'} pts
                     </span>
                   )}
@@ -5414,7 +5414,7 @@ export default function BookingsPage() {
                                 <span
                                   key={`selected-${menuEditorPack}-${item.id}`}
                                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${
-                                    _sAdded ? 'border-green-400 bg-green-50 text-green-900' : _sRemoved ? 'border-red-400 bg-red-50 text-red-900' : 'border-[var(--border-2)] bg-white'
+                                    _sAdded ? 'border-green-400 bg-green-50 dark:bg-green-500/10 text-green-900 dark:text-green-200' : _sRemoved ? 'border-red-400 bg-red-50 dark:bg-red-500/10 text-red-900 dark:text-red-200' : 'border-[var(--border-2)] bg-[var(--surface)]'
                                   }`}
                                 >
                                   {_sAdded && <span className="text-green-600 font-bold text-xs">+</span>}
@@ -5503,7 +5503,7 @@ export default function BookingsPage() {
             </button>
           </div>
 
-          <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden min-h-[500px]">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden min-h-[500px]">
             {menuPdfSetupLoading ? (
               <div className="h-[500px] grid place-items-center text-sm text-[var(--text-2)]">
                 Loading menu options...
@@ -5821,7 +5821,7 @@ export default function BookingsPage() {
                             {canExportMenuPdf && (
                               <button
                                 type="button"
-                                className="p-2 text-[var(--text-4)] hover:text-teal-700 hover:bg-teal-50 rounded-lg disabled:opacity-50"
+                                className="p-2 text-[var(--text-4)] hover:text-teal-700 dark:text-teal-200 hover:bg-teal-50 dark:bg-teal-500/10 rounded-lg disabled:opacity-50"
                                 onClick={() => handleDownloadBookingPdf(booking)}
                                 title="Download booking details PDF"
                                 disabled={bookingPdfLoading === booking.id}
@@ -5844,7 +5844,7 @@ export default function BookingsPage() {
                             {canEditBooking && (
                               <button
                                 type="button"
-                                className="p-2 text-[var(--text-4)] hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
                                 onClick={() => openEditBooking(booking.id)}
                                 title="Edit booking"
                               >
@@ -5854,7 +5854,7 @@ export default function BookingsPage() {
                             {canDeleteBooking && (
                               <button
                                 type="button"
-                                className="p-2 text-[var(--text-4)] hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
                                 onClick={() => handleDeleteBooking(booking.id)}
                                 title="Delete booking"
                               >
@@ -5900,9 +5900,9 @@ export default function BookingsPage() {
         widthClass="max-w-xl"
       >
         <form onSubmit={handlePartyOverSubmit} className="space-y-5">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 mb-4">
-            <h4 className="font-semibold text-red-800 flex items-center gap-2 mb-1"><Flag className="w-4 h-4" /> Permanent Finalization</h4>
-            <p className="text-sm text-red-700">Marking a party as over will freeze ALL versions. This action cannot be reversed. Please input the extra plates strictly as used.</p>
+          <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 p-4 mb-4">
+            <h4 className="font-semibold text-red-800 dark:text-red-200 flex items-center gap-2 mb-1"><Flag className="w-4 h-4" /> Permanent Finalization</h4>
+            <p className="text-sm text-red-700 dark:text-red-200">Marking a party as over will freeze ALL versions. This action cannot be reversed. Please input the extra plates strictly as used.</p>
           </div>
 
           <div className="space-y-4">
@@ -5920,7 +5920,7 @@ export default function BookingsPage() {
                     const er = partyOverRates[pack.id] || 0;
                     if (ep > 0) {
                       return (
-                        <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1">
+                        <span className="text-xs font-semibold text-orange-700 dark:text-orange-200 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-900/50 rounded px-2 py-1">
                           Extra: ₹{(ep * er).toLocaleString('en-IN')}
                         </span>
                       );
@@ -5981,9 +5981,9 @@ export default function BookingsPage() {
             }, 0);
             if (extraTotal <= 0) return null;
             return (
-              <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-center justify-between">
-                <span className="text-sm font-medium text-orange-800">Total Extra Charges</span>
-                <span className="text-base font-bold text-orange-800">
+              <div className="rounded-lg border border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-500/10 px-4 py-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-orange-800 dark:text-orange-200">Total Extra Charges</span>
+                <span className="text-base font-bold text-orange-800 dark:text-orange-200">
                   ₹{extraTotal.toLocaleString('en-IN')}
                 </span>
               </div>

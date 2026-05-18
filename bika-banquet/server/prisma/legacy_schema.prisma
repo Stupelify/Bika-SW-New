@@ -312,7 +312,7 @@ model BookingPack {
   bookingMenuId Int?         @unique
   bookingMenu   BookingMenu? @relation(fields: [bookingMenuId], references: [id])
   timeSlot      String?
-  hallIds       Int[]
+  hallIds       String[]
   setupCost     String?
   ratePerPlate  String?
   startTime     String?

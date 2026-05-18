@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Mobile Calendar — Availability-first Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f1f5f9;padding:16px;color:#111}
+h1{font-size:15px;font-weight:700;margin-bottom:4px}
+.subtitle{font-size:11px;color:#64748b;margin-bottom:20px}
+.phones{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.phone{width:320px;background:#fff;border-radius:24px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.14);border:6px solid #1e293b;flex-shrink:0}
+.phone-label{font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;margin-top:16px}
+.status-bar{background:#1e293b;height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;color:#fff;font-size:10px}
+.screen{background:#f8fafc;min-height:560px}
+
+/* Date strip */
+.date-strip{background:#fff;border-bottom:1px solid #eaedf5;padding:8px 10px}
+.date-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.date-scroll::-webkit-scrollbar{display:none}
+.date-btn{flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:6px 10px;border-radius:10px;cursor:pointer;border:1.5px solid transparent;min-width:44px}
+.date-btn .dow{font-size:8.5px;text-transform:uppercase;color:#9ca3af;font-weight:500;letter-spacing:.04em}
+.date-btn .num{font-size:16px;font-weight:500;color:#374151;margin-top:1px}
+.date-btn .dot{width:4px;height:4px;border-radius:50%;background:#e2e8f0;margin-top:3px}
+.date-btn.has-booking .dot{background:#0d9488}
+.date-btn.selected{background:#0d9488;border-color:#0d9488}
+.date-btn.selected .dow,.date-btn.selected .num{color:#fff}
+.date-btn.selected .dot{background:rgba(255,255,255,.5)}
+.date-btn.today{border-color:#e11d48}
+.date-btn.today .num{color:#e11d48;font-weight:700}
+
+/* Quick search bar */
+.search-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border-bottom:1px solid #eaedf5}
+.search-input{flex:1;padding:7px 10px;background:#f1f5f9;border:none;border-radius:8px;font-size:11px;color:#374151;font-family:inherit;outline:none}
+.search-input::placeholder{color:#9ca3af}
+.search-btn{padding:7px 12px;background:#0d9488;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer}
+
+/* Venue sections */
+.venue-section{margin:8px 8px 0}
+.venue-header{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#fff;border-radius:10px 10px 0 0;border:1px solid #eaedf5;border-bottom:none;cursor:pointer}
+.venue-avatar{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+.venue-title{font-size:12px;font-weight:700;color:#111;flex:1}
+.occ-pill{font-size:9px;font-weight:600;padding:2px 7px;border-radius:10px}
+.occ-busy{background:#fef2f2;color:#dc2626}
+.occ-free{background:#f0fdf4;color:#16a34a}
+.occ-part{background:#fff7ed;color:#c2410c}
+
+/* Hall rows */
+.hall-row{background:#fff;border:1px solid #eaedf5;border-top:none;padding:8px 10px;display:flex;align-items:center;gap:8px}
+.hall-row:last-child{border-radius:0 0 10px 10px}
+.hall-row:only-child{border-radius:10px}
+.hall-name-col{flex:1;min-width:0}
+.hall-name{font-size:11px;font-weight:600;color:#111}
+.hall-time{font-size:9.5px;color:#9ca3af;margin-top:1px}
+.hall-booking{font-size:9.5px;color:#374151;margin-top:1px;font-weight:500}
+.avail-badge{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.badge{padding:3px 8px;border-radius:8px;font-size:9px;font-weight:700;white-space:nowrap}
+.badge-free{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.badge-busy{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.badge-pencil{background:#fff7ed;color:#c2410c;border:1px dashed #fed7aa}
+.book-btn{padding:4px 10px;background:#0d9488;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer}
+.alt-btn{padding:3px 8px;background:#f0fdf4;color:#0d9488;border:1px solid #bbf7d0;border-radius:6px;font-size:9px;font-weight:600;cursor:pointer}
+.find-btn{padding:3px 8px;background:#f0f9ff;color:#0284c7;border:1px solid #bae6fd;border-radius:6px;font-size:9px;font-weight:600;cursor:pointer}
+
+/* Timeline mini */
+.mini-tl{height:22px;background:#f8fafc;border-top:1px solid #f1f5f9;position:relative;margin:0 10px 6px;border-radius:4px;overflow:hidden}
+.mini-block{position:absolute;top:3px;bottom:3px;border-radius:3px}
+.mini-free{border-top:2px dashed #16a34a;opacity:.4}
+
+/* Booking snackbar */
+.book-snack{background:#111;color:#fff;border-radius:12px;padding:10px 14px;margin:8px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.book-snack-icon{width:28px;height:28px;background:#0d9488;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.book-snack-text{flex:1;min-width:0}
+.book-snack-title{font-size:11px;font-weight:600}
+.book-snack-sub{font-size:9.5px;color:#94a3b8;margin-top:1px}
+.book-snack-btn{padding:5px 10px;background:#0d9488;border:none;border-radius:8px;color:#fff;font-size:10px;font-weight:700;cursor:pointer}
+
+/* FAB */
+.fab{position:absolute;bottom:12px;right:12px;width:44px;height:44px;background:#0d9488;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(13,148,136,.45);cursor:pointer}
+.relative{position:relative}
+
+/* Drawer */
+.drawer{background:#fff;border-radius:16px 16px 0 0;border-top:1px solid #e2e8f0;padding:12px}
+.drawer-handle{width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 12px}
+.drawer-title{font-size:13px;font-weight:700;margin-bottom:8px}
+.slot-option{display:flex;align-items:center;gap:8px;padding:8px;background:#f8fafc;border-radius:8px;margin-bottom:6px;cursor:pointer;border:1px solid #e2e8f0}
+.slot-option:hover{background:#f0fdf4;border-color:#86efac}
+.slot-time{font-size:11px;font-weight:600;color:#111}
+.slot-sub{font-size:9.5px;color:#6b7280;margin-top:1px}
+.slot-avail{font-size:9px;font-weight:700;color:#16a34a;margin-left:auto}
+</style>
+</head>
+<body>
+<h1>Mobile — Availability-first for Customer Calls</h1>
+<p class="subtitle">Three screens: Check availability → Explore alternatives → Quick book. All from one place.</p>
+
+<div class="phones">
+
+  <!-- SCREEN 1: Availability check -->
+  <div>
+    <div class="phone-label">Screen 1 — "Is May 17 available at Bika 1?"</div>
+    <div class="phone">
+      <div class="status-bar"><span>9:41</span><span>📶 ●●●</span></div>
+      <div class="screen">
+        <!-- Date strip -->
+        <div class="date-strip">
+          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Swipe to change date</div>
+          <div class="date-scroll">
+            <div class="date-btn"><div class="dow">Thu</div><div class="num">15</div><div class="dot"></div></div>
+            <div class="date-btn has-booking"><div class="dow">Fri</div><div class="num">16</div><div class="dot"></div></div>
+            <div class="date-btn selected today"><div class="dow">Sat</div><div class="num">17</div><div class="dot"></div></div>
+            <div class="date-btn"><div class="dow">Sun</div><div class="num">18</div><div class="dot"></div></div>
+            <div class="date-btn has-booking"><div class="dow">Mon</div><div class="num">19</div><div class="dot"></div></div>
+            <div class="date-btn"><div class="dow">Tue</div><div class="num">20</div><div class="dot"></div></div>
+            <div class="date-btn has-booking"><div class="dow">Wed</div><div class="num">21</div><div class="dot"></div></div>
+          </div>
+        </div>
+
+        <!-- Venue 1 — Bika 1 (partially busy) -->
+        <div class="venue-section">
+          <div class="venue-header">
+            <div class="venue-avatar" style="background:#0d9488">BK</div>
+            <div class="venue-title">Bika 1</div>
+            <div class="occ-pill occ-part">2/3 busy</div>
+          </div>
+          <div class="hall-row">
+            <div class="hall-name-col">
+              <div class="hall-name">Grand Hall</div>
+              <div class="hall-booking">Sharma Wedding · 6pm–10pm</div>
+            </div>
+            <div class="avail-badge">
+              <div class="badge badge-busy">Busy</div>
+              <div class="find-btn">Next free →</div>
+            </div>
+          </div>
+          <div class="hall-row">
+            <div class="hall-name-col">
+              <div class="hall-name">Crystal Suite</div>
+              <div class="hall-time">Free all day</div>
+            </div>
+            <div class="avail-badge">
+              <div class="badge badge-free">Available</div>
+              <div class="book-btn">Book →</div>
+            </div>
+          </div>
+          <div class="hall-row">
+            <div class="hall-name-col">
+              <div class="hall-name">Terrace</div>
+              <div class="hall-booking">✏ Kumar Reception · pencil · 3pm–7pm</div>
+            </div>
+            <div class="avail-badge">
+              <div class="badge badge-pencil">Pencil</div>
+              <div class="find-btn">Next free →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Venue 2 — all free -->
+        <div class="venue-section" style="margin-top:8px">
+          <div class="venue-header">
+            <div class="venue-avatar" style="background:#4f46e5">B2</div>
+            <div class="venue-title">Bika 2</div>
+            <div class="occ-pill occ-free">All free</div>
+          </div>
+          <div class="hall-row">
+            <div class="hall-name-col">
+              <div class="hall-name">Manor Suite</div>
+              <div class="hall-time">Free all day</div>
+            </div>
+            <div class="avail-badge">
+              <div class="badge badge-free">Available</div>
+              <div class="book-btn">Book →</div>
+            </div>
+          </div>
+          <div class="hall-row">
+            <div class="hall-name-col">
+              <div class="hall-name">Rose Garden</div>
+              <div class="hall-time">Free all day</div>
+            </div>
+            <div class="avail-badge">
+              <div class="badge badge-free">Available</div>
+              <div class="book-btn">Book →</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:60px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: "Find next free" alternatives drawer -->
+  <div>
+    <div class="phone-label">Screen 2 — Tapped "Next free →" on Grand Hall</div>
+    <div class="phone">
+      <div class="status-bar"><span>9:41</span><span>📶 ●●●</span></div>
+      <div class="screen relative">
+        <!-- Same date strip, dimmed -->
+        <div class="date-strip" style="opacity:.5">
+          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Swipe to change date</div>
+          <div class="date-scroll">
+            <div class="date-btn selected today"><div class="dow">Sat</div><div class="num">17</div><div class="dot"></div></div>
+            <div class="date-btn"><div class="dow">Sun</div><div class="num">18</div><div class="dot"></div></div>
+            <div class="date-btn has-booking"><div class="dow">Mon</div><div class="num">19</div><div class="dot"></div></div>
+          </div>
+        </div>
+
+        <!-- Dimmed venue cards -->
+        <div class="venue-section" style="opacity:.3;pointer-events:none">
+          <div class="venue-header">
+            <div class="venue-avatar" style="background:#0d9488">BK</div>
+            <div class="venue-title">Bika 1</div>
+            <div class="occ-pill occ-part">2/3 busy</div>
+          </div>
+          <div class="hall-row">
+            <div class="hall-name-col"><div class="hall-name">Grand Hall</div><div class="hall-booking">Sharma Wedding · 6pm–10pm</div></div>
+            <div class="avail-badge"><div class="badge badge-busy">Busy</div></div>
+          </div>
+        </div>
+
+        <!-- Bottom drawer slides up -->
+        <div style="position:absolute;bottom:0;left:0;right:0">
+          <div class="drawer">
+            <div class="drawer-handle"></div>
+            <div class="drawer-title">Grand Hall — next available slots</div>
+            <div class="slot-option">
+              <div>
+                <div class="slot-time">Today · 8am – 5pm (before booking)</div>
+                <div class="slot-sub">5h window · May 17</div>
+              </div>
+              <div class="slot-avail">FREE</div>
+            </div>
+            <div class="slot-option">
+              <div>
+                <div class="slot-time">Tomorrow · All day</div>
+                <div class="slot-sub">Sun, May 18 — fully open</div>
+              </div>
+              <div class="slot-avail">FREE</div>
+            </div>
+            <div class="slot-option">
+              <div>
+                <div class="slot-time">Wed, May 21 · All day</div>
+                <div class="slot-sub">Next busy: May 24</div>
+              </div>
+              <div class="slot-avail">FREE</div>
+            </div>
+            <div style="font-size:10px;color:#9ca3af;margin-top:4px">Tap any slot to jump to that day and book</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: Quick booking form -->
+  <div>
+    <div class="phone-label">Screen 3 — Tapped "Book →" on Crystal Suite</div>
+    <div class="phone">
+      <div class="status-bar"><span>9:41</span><span>📶 ●●●</span></div>
+      <div class="screen relative">
+        <!-- Context header -->
+        <div style="background:#0d9488;padding:10px 12px;display:flex;align-items:center;gap:8px">
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:500">Booking for</div>
+            <div style="font-size:13px;font-weight:700;color:#fff">Crystal Suite · Bika 1</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.75);margin-top:1px">Saturday, 17 May 2025</div>
+          </div>
+          <div style="margin-left:auto;background:rgba(255,255,255,.2);border-radius:8px;padding:4px 8px;font-size:10px;font-weight:600;color:#fff">AVAILABLE ✓</div>
+        </div>
+
+        <!-- Quick form -->
+        <div style="padding:10px">
+          <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Quick Booking</div>
+
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:8px">
+            <div style="padding:8px 12px;border-bottom:1px solid #f1f5f9">
+              <div style="font-size:9px;color:#9ca3af;font-weight:500;text-transform:uppercase;letter-spacing:.05em">Customer Name</div>
+              <div style="font-size:12px;color:#374151;margin-top:2px;font-weight:500">Ahmed Family</div>
+            </div>
+            <div style="padding:8px 12px;border-bottom:1px solid #f1f5f9">
+              <div style="font-size:9px;color:#9ca3af;font-weight:500;text-transform:uppercase;letter-spacing:.05em">Event Type</div>
+              <div style="font-size:12px;color:#374151;margin-top:2px;font-weight:500">Wedding</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #f1f5f9">
+              <div style="padding:8px 12px;border-right:1px solid #f1f5f9">
+                <div style="font-size:9px;color:#9ca3af;font-weight:500;text-transform:uppercase;letter-spacing:.05em">Start</div>
+                <div style="font-size:12px;color:#374151;margin-top:2px;font-weight:500">6:00 PM</div>
+              </div>
+              <div style="padding:8px 12px">
+                <div style="font-size:9px;color:#9ca3af;font-weight:500;text-transform:uppercase;letter-spacing:.05em">End</div>
+                <div style="font-size:12px;color:#374151;margin-top:2px;font-weight:500">10:00 PM</div>
+              </div>
+            </div>
+            <div style="padding:8px 12px">
+              <div style="font-size:9px;color:#9ca3af;font-weight:500;text-transform:uppercase;letter-spacing:.05em">Guests (pax)</div>
+              <div style="font-size:12px;color:#374151;margin-top:2px;font-weight:500">350</div>
+            </div>
+          </div>
+
+          <!-- Pencil option -->
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;margin-bottom:10px;cursor:pointer">
+            <div style="font-size:16px">✏</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:#92400e">Save as Pencil Booking</div>
+              <div style="font-size:9.5px;color:#c2410c">Hold the slot, confirm later</div>
+            </div>
+            <div style="margin-left:auto;width:18px;height:18px;border-radius:50%;border:1.5px solid #fed7aa;display:flex;align-items:center;justify-content:center"></div>
+          </div>
+
+          <!-- Action buttons -->
+          <button style="width:100%;padding:12px;background:#0d9488;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:6px">Confirm Booking</button>
+          <button style="width:100%;padding:10px;background:#f1f5f9;color:#374151;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer">Open Full Booking Form</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;padding:12px 16px;background:#fff;border-radius:10px;border:1px solid #e2e8f0;max-width:960px">
+  <div style="font-size:12px;font-weight:700;margin-bottom:6px">Complete customer call flow (30 seconds)</div>
+  <div style="display:flex;gap:0;flex-wrap:wrap">
+    <div style="padding:6px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:3px;font-size:11px;color:#166534">1. Customer calls, mentions May 17</div>
+    <div style="padding:6px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:3px;font-size:11px;color:#166534">2. Swipe to May 17 on date strip</div>
+    <div style="padding:6px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:3px;font-size:11px;color:#166534">3. See all venues + halls at a glance</div>
+    <div style="padding:6px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;margin:3px;font-size:11px;color:#92400e">4. Grand Hall busy → tap "Next free"</div>
+    <div style="padding:6px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;margin:3px;font-size:11px;color:#92400e">5. Offer customer: "Tomorrow is free, or May 21"</div>
+    <div style="padding:6px 12px;background:#dbeafe;border:1px solid #bfdbfe;border-radius:6px;margin:3px;font-size:11px;color:#1e40af">6. Customer says Crystal Suite, May 17</div>
+    <div style="padding:6px 12px;background:#dbeafe;border:1px solid #bfdbfe;border-radius:6px;margin:3px;font-size:11px;color:#1e40af">7. Tap "Book →" on Crystal Suite</div>
+    <div style="padding:6px 12px;background:#dbeafe;border:1px solid #bfdbfe;border-radius:6px;margin:3px;font-size:11px;color:#1e40af">8. Fill quick form, tap Confirm</div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -109,7 +109,7 @@ export default function AuditLogsPage() {
 
   if (!canViewLogs) {
     return (
-      <div className="card border-amber-200 bg-amber-50 text-amber-800 text-sm">
+      <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
         You do not have permission to view activity logs.
       </div>
     );
@@ -215,12 +215,12 @@ export default function AuditLogsPage() {
                     <td className="py-4 px-4">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider
                         ${
-                          log.action === 'CREATE' ? 'bg-green-100 text-green-700' :
-                          log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
-                          log.action === 'DELETE' ? 'bg-red-100 text-red-700' :
-                          log.action === 'CANCEL' ? 'bg-orange-100 text-orange-700' :
+                          log.action === 'CREATE' ? 'bg-green-100 text-green-700 dark:text-green-200' :
+                          log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700 dark:text-blue-200' :
+                          log.action === 'DELETE' ? 'bg-red-100 text-red-700 dark:text-red-200' :
+                          log.action === 'CANCEL' ? 'bg-orange-100 text-orange-700 dark:text-orange-200' :
                           log.action === 'FINALIZE' ? 'bg-purple-100 text-purple-700' :
-                          log.action === 'PARTY_OVER' ? 'bg-indigo-100 text-indigo-700' :
+                          log.action === 'PARTY_OVER' ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-200' :
                           'bg-[var(--bg-3)] text-[var(--text-2)]'
                         }
                       `}>
