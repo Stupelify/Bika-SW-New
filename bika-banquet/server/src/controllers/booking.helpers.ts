@@ -46,15 +46,15 @@ export async function resolveVersionChain(anchorId: string): Promise<string[]> {
 // recalculateBookingFinancials, createBooking, and updateBooking.
 // ---------------------------------------------------------------------------
 
-interface HallLine { charges: number | null | undefined }
-interface PackLine {
+export interface HallLine { charges: number | null | undefined }
+export interface PackLine {
   ratePerPlate: number | null | undefined;
   packCount: number | null | undefined;
   noOfPack: number | null | undefined;
   setupCost: number | null | undefined;
   extraCharges: number | null | undefined;
 }
-interface AdditionalLine {
+export interface AdditionalLine {
   charges: number | null | undefined;
   quantity: number | null | undefined;
 }
