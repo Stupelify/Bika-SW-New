@@ -185,3 +185,11 @@ This report documents the static analysis of the Bika Banquet system (frontend +
 | P3 | UX | **BottomNav missing Enquiries.** High-velocity flow buried in "More" menu. | `client/src/components/BottomNav.tsx` L61 | S | Clunky mobile flow |
 | P3 | UX | **Raw img tag bypasses optimization.** | `client/src/app/dashboard/layout.tsx` L1179 | S | Minor load time hit |
 | P3 | Performance | **Unused cache middleware.** | `server/src/routes/hall.routes.ts`, `server/src/routes/vendor.routes.ts` | S | Unnecessary DB queries |
+
+
+## SECTION I — DARK MODE COMPATIBILITY
+
+**I1 — Hardcoded Colors**
+- **Finding:** Many components across the client application use hardcoded Tailwind classes like `bg-white`, `text-gray-700`, `border-gray-200`, and `bg-green-50`. These classes override CSS variables (`var(--surface)`, `var(--text-1)`) that typically adjust when `[data-theme="dark"]` is active.
+- **Impact:** When a user switches to dark mode, large areas of the UI (such as modals, cards, popovers, and table rows) will remain stark white, creating a harsh contrast and breaking the dark mode experience.
+- **Fix:** Replace all hardcoded colors (e.g., `bg-white`) with CSS variable references (`bg-[var(--surface)]`) and use semantic text/border colors (`text-[var(--text-1)]`, `border-[var(--border)]`) so styles adapt seamlessly to theme changes.
