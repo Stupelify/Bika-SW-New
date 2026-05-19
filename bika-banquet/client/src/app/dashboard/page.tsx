@@ -55,6 +55,11 @@ interface DashboardAnalytics {
       name: string;
       count: number;
     }>;
+    hallPerformance?: Array<{
+      hallId: string;
+      hallName: string;
+      bookings: number;
+    }>;
   };
 }
 
@@ -80,12 +85,6 @@ interface BookingRow {
   }>;
 }
 
-interface EnquiryRow {
-  id: string;
-  functionDate: string;
-  status: string;
-  isPencilBooked?: boolean;
-}
 
 interface ResourceCounts {
   itemTypes: number;
@@ -103,7 +102,6 @@ interface ResourceCounts {
 interface HallRevenue {
   hallId: string;
   hallName: string;
-  revenue: number;
   bookings: number;
   share: number;
 }
@@ -137,11 +135,6 @@ function toDateOnly(value: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-function isBetweenDates(value: string, start: Date, end: Date): boolean {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-  return date >= start && date <= end;
-}
 
 function formatCurrency(amount: number): string {
   return `₹${amount.toLocaleString('en-IN', {
@@ -170,78 +163,6 @@ function formatMonthLabel(monthKey: string): string {
   return `${month} '${year}`;
 }
 
-function buildHallRevenue(bookings: BookingRow[]): HallRevenue[] {
-  const map = new Map<string, { hallName: string; revenue: number; bookings: number }>();
-  let totalRevenue = 0;
-
-  bookings.forEach((booking) => {
-    if (booking.status === 'cancelled') return;
-    const halls =
-      booking.halls
-        ?.map((entry) => entry.hall)
-        .filter(
-          (hall): hall is { id: string; name: string } =>
-            Boolean(hall?.id && hall?.name)
-        ) || [];
-
-    const uniqueHalls = Array.from(
-      new Map(halls.map((hall) => [hall.id, hall])).values()
-    );
-
-    if (uniqueHalls.length === 0) return;
-
-    const bookingRevenue = toSafeNumber(booking.grandTotal);
-    if (bookingRevenue <= 0) return;
-
-    totalRevenue += bookingRevenue;
-    const allocatedRevenue = bookingRevenue / uniqueHalls.length;
-
-    uniqueHalls.forEach((hall) => {
-      const current = map.get(hall.id) || {
-        hallName: hall.name,
-        revenue: 0,
-        bookings: 0,
-      };
-      current.revenue += allocatedRevenue;
-      current.bookings += 1;
-      map.set(hall.id, current);
-    });
-  });
-
-  return Array.from(map.entries())
-    .map(([hallId, stat]) => ({
-      hallId,
-      hallName: stat.hallName,
-      revenue: stat.revenue,
-      bookings: stat.bookings,
-      share: totalRevenue > 0 ? (stat.revenue / totalRevenue) * 100 : 0,
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
-}
-
-async function fetchAllBookings(params: { fromDate?: string; toDate?: string }) {
-  const rows: BookingRow[] = [];
-  const limit = 500;
-  let page = 1;
-  let totalPages = 1;
-
-  while (page <= totalPages) {
-    const response = await api.getBookings({
-      page,
-      limit,
-      fromDate: params.fromDate,
-      toDate: params.toDate,
-    });
-    const data = response.data?.data;
-    const bookings = (data?.bookings || []) as BookingRow[];
-    rows.push(...bookings);
-    totalPages = Math.max(1, Number(data?.pagination?.totalPages || 1));
-    page += 1;
-    if (page > 100) break;
-  }
-
-  return rows;
-}
 
 function getDeltaPercent(current: number, previous: number): number {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
@@ -442,14 +363,12 @@ export default function DashboardPage() {
         throw new Error('Analytics response missing');
       }
 
-      const rangeStart = new Date(analytics.range.startDate);
-      const rangeEnd = new Date(analytics.range.endDate);
       const normalizedStart = toDateOnly(analytics.range.startDate);
       const normalizedEnd = toDateOnly(analytics.range.endDate);
 
       const [
-        bookings,
         enquiriesRes,
+        recentBookingsRes,
         itemTypesRes,
         itemsRes,
         templateMenusRes,
@@ -458,11 +377,13 @@ export default function DashboardPage() {
         usersRes,
         rolesRes,
       ] = await Promise.all([
-        fetchAllBookings({
+        api.getEnquiries({ page: 1, limit: 1, isPencilBooked: 'true' }),
+        api.getBookings({
+          page: 1,
+          limit: 6,
           fromDate: normalizedStart || undefined,
           toDate: normalizedEnd || undefined,
         }),
-        api.getEnquiries({ page: 1, limit: 5000 }),
         api.getItemTypes({ page: 1, limit: 1 }),
         api.getItems({ page: 1, limit: 1 }),
         api.getTemplateMenus({ page: 1, limit: 1 }),
@@ -472,17 +393,20 @@ export default function DashboardPage() {
         api.getRoles(),
       ]);
 
-      const allEnquiries = (enquiriesRes.data?.data?.enquiries || []) as EnquiryRow[];
-      const enquiriesInRange = allEnquiries.filter((entry) =>
-        isBetweenDates(entry.functionDate, rangeStart, rangeEnd)
-      );
-      const pencilBookings = enquiriesInRange.filter(
-        (entry) => entry.isPencilBooked
-      ).length;
+      const pencilBookings = (enquiriesRes.data?.data?.pagination?.total ?? 0) as number;
 
-      const hallsByRevenue = buildHallRevenue(bookings);
+      // Build hall list from analytics breakdown (by booking count, no revenue available from this endpoint)
+      const hallsByRevenue: HallRevenue[] = (analytics.breakdown.hallPerformance ?? []).map((h) => ({
+        hallId: h.hallId,
+        hallName: h.hallName,
+        bookings: h.bookings ?? 0,
+        share:
+          (analytics.summary.bookingsInRange ?? 0) > 0
+            ? ((h.bookings ?? 0) / analytics.summary.bookingsInRange) * 100
+            : 0,
+      }));
 
-      const topFunctions = analytics.breakdown.functionTypes
+      const topFunctions = (analytics.breakdown?.functionTypes ?? [])
         .slice(0, 6)
         .map((entry) => ({
           ...entry,
@@ -492,39 +416,11 @@ export default function DashboardPage() {
               : 0,
         }));
 
-      const activeBookings = bookings.filter((booking) => booking.status !== 'cancelled');
-      const totalBookedValue = activeBookings.reduce(
-        (sum, booking) => sum + toSafeNumber(booking.grandTotal),
-        0
-      );
-      const totalCollected = activeBookings.reduce(
-        (sum, booking) => sum + toSafeNumber(booking.advanceReceived),
-        0
-      );
-
-      const now = new Date();
-      const nextThirtyDays = new Date(now);
-      nextThirtyDays.setDate(now.getDate() + 30);
-
-      const upcomingThirtyDays = activeBookings.filter((booking) => {
-        const date = new Date(booking.functionDate);
-        return date >= now && date <= nextThirtyDays;
-      }).length;
-
-      const weekendEvents = activeBookings.filter((booking) => {
-        const day = new Date(booking.functionDate).getDay();
-        return day === 0 || day === 6;
-      }).length;
-
       const cancellationRate =
         analytics.summary.bookingsInRange > 0
           ? (analytics.summary.cancelledBookings / analytics.summary.bookingsInRange) *
           100
           : 0;
-      const collectionRate =
-        totalBookedValue > 0 ? (totalCollected / totalBookedValue) * 100 : 0;
-      const weekendShare =
-        activeBookings.length > 0 ? (weekendEvents / activeBookings.length) * 100 : 0;
 
       const insights: Insight[] = [
         {
@@ -537,25 +433,29 @@ export default function DashboardPage() {
           tone: cancellationRate > 12 ? 'warn' : 'good',
         },
         {
-          title: 'Collection efficiency',
-          value: `${collectionRate.toFixed(1)}%`,
+          title: 'Pencil bookings',
+          value: `${pencilBookings}`,
           detail:
-            collectionRate < 60
-              ? 'Collections are lagging. Prioritize follow-up on high-value balances.'
-              : 'Advance collections are tracking well.',
-          tone: collectionRate < 60 ? 'warn' : 'good',
+            pencilBookings > 0
+              ? 'Tentative enquiries awaiting confirmation.'
+              : 'No pending pencil bookings.',
+          tone: pencilBookings > 5 ? 'warn' : 'good',
         },
         {
-          title: 'Next 30-day load',
-          value: `${upcomingThirtyDays} events`,
-          detail: 'Use this to plan staffing, inventory, and kitchen prep windows.',
+          title: 'Avg. booking value',
+          value: formatCurrency(
+            analytics.summary.bookingsInRange > 0
+              ? analytics.summary.totalRevenue / analytics.summary.bookingsInRange
+              : 0
+          ),
+          detail: 'Mean revenue per confirmed booking in selected period.',
           tone: 'neutral',
         },
         {
-          title: 'Weekend concentration',
-          value: `${weekendShare.toFixed(1)}%`,
-          detail: 'Share of events falling on weekends in the selected window.',
-          tone: weekendShare > 60 ? 'warn' : 'neutral',
+          title: 'Total revenue',
+          value: formatCurrency(analytics.summary.totalRevenue),
+          detail: 'Gross revenue from all bookings in the selected date range.',
+          tone: 'neutral',
         },
       ];
 
@@ -574,14 +474,11 @@ export default function DashboardPage() {
         bookings: Number(analytics.summary.totalBookings || 0),
       };
 
+      const recentBookings = (recentBookingsRes.data?.data?.bookings ?? []) as BookingRow[];
+
       setData({
         analytics,
-        recentBookings: [...bookings]
-          .sort(
-            (a, b) =>
-              new Date(b.functionDate).getTime() - new Date(a.functionDate).getTime()
-          )
-          .slice(0, 6),
+        recentBookings,
         topFunctions,
         hallsByRevenue,
         insights,
@@ -607,7 +504,7 @@ export default function DashboardPage() {
     const allHalls = data?.hallsByRevenue || [];
     return {
       top: allHalls.slice(0, 5),
-      low: [...allHalls].sort((a, b) => a.revenue - b.revenue).slice(0, 5),
+      low: [...allHalls].sort((a, b) => a.bookings - b.bookings).slice(0, 5),
     };
   }, [data?.hallsByRevenue]);
 
@@ -675,7 +572,7 @@ export default function DashboardPage() {
       )
       : 0;
 
-  const maxHallRevenue = Math.max(1, ...hallSections.top.map((row) => row.revenue));
+  const maxHallBookings = Math.max(1, ...hallSections.top.map((row) => row.bookings));
   const monthlyRevenueData = monthlyTrend.map((entry) => ({
     label: formatMonthShort(entry.month),
     value: toSafeNumber(entry.revenue),
@@ -772,7 +669,7 @@ export default function DashboardPage() {
           <div className="panel-header">
             <div>
               <p className="panel-title">Top Performing Halls</p>
-              <p className="panel-subtitle">By revenue in selected period</p>
+              <p className="panel-subtitle">By booking count in selected period</p>
             </div>
             <Link href="/dashboard/reports" className="view-all">
               View all
@@ -800,11 +697,11 @@ export default function DashboardPage() {
                   <div className="h-2 rounded-full bg-[var(--surface-2)] overflow-hidden">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-500"
-                      style={{ width: `${Math.max((hall.revenue / maxHallRevenue) * 100, 12)}%` }}
+                      style={{ width: `${Math.max((hall.bookings / maxHallBookings) * 100, 12)}%` }}
                     />
                   </div>
                   <p className="text-[15px] font-semibold text-[var(--text-1)] num">
-                    {formatCurrency(hall.revenue).replace('.00', '')}
+                    {hall.bookings} {hall.bookings === 1 ? 'booking' : 'bookings'}
                   </p>
                 </div>
               ))

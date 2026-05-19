@@ -1,9 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import type { CSSProperties } from 'react';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import './mobile.css';
 import { Toaster } from 'sonner';
 import IonicProvider from '@/components/IonicProvider';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -38,15 +44,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        style={
-          {
-            '--font-manrope':
-              'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            '--font-display': '"Georgia", "Times New Roman", serif',
-          } as CSSProperties
-        }
-      >
+      <body className={inter.variable}>
         <IonicProvider>{children}</IonicProvider>
         <Toaster position="top-right" richColors />
       </body>

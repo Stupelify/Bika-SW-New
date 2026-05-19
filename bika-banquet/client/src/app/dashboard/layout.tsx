@@ -232,27 +232,18 @@ function Breadcrumb({ pathname }: { pathname: string }) {
 
   return (
     <nav aria-label="breadcrumb" className="breadcrumb">
-      <ol
-        style={{
-          listStyle: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          margin: 0,
-          padding: 0,
-        }}
-      >
+      <ol className="breadcrumb-list">
         {segments.map((seg, index) => {
           const isLast = index === segments.length - 1;
           return (
             <li
               key={`${seg}-${index}`}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              className="breadcrumb-item"
             >
               {index > 0 && (
                 <ChevronRight
                   aria-hidden="true"
-                  style={{ width: 12, height: 12, color: 'var(--text-4)' }}
+                  className="breadcrumb-chevron"
                 />
               )}
               {isLast ? (
@@ -306,26 +297,7 @@ function ThemeToggle() {
       type="button"
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       onClick={toggleTheme}
-      style={{
-        border: '1px solid var(--border)',
-        background: 'var(--surface)',
-        color: 'var(--text-3)',
-        borderRadius: 10,
-        padding: '6px 8px',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        transition: 'color 0.15s, border-color 0.15s, background 0.15s',
-      }}
-      onMouseOver={(event) => {
-        event.currentTarget.style.color = 'var(--text-1)';
-        event.currentTarget.style.borderColor = 'var(--border-2)';
-      }}
-      onMouseOut={(event) => {
-        event.currentTarget.style.color = 'var(--text-3)';
-        event.currentTarget.style.borderColor = 'var(--border)';
-      }}
+      className="sidebar-icon-btn inline-flex items-center justify-center cursor-pointer theme-toggle-btn"
     >
       {theme === 'dark' ? (
         <Sun width={16} height={16} aria-hidden="true" />
@@ -546,73 +518,30 @@ function DashboardLayoutContent({
         setSidebarOpen(true);
       }}
       aria-label={sidebarCollapsed ? 'Expand navigation' : 'Toggle navigation'}
-      className="header-icon-btn"
-      style={{
-        border: 'none',
-        background: 'transparent',
-        color: 'var(--text-3)',
-        borderRadius: 8,
-        width: 30,
-        height: 30,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        flexShrink: 0,
-      }}
-      onMouseOver={(event) => {
-        event.currentTarget.style.background = 'var(--surface-2)';
-        event.currentTarget.style.color = 'var(--text-1)';
-      }}
-      onMouseOut={(event) => {
-        event.currentTarget.style.background = 'transparent';
-        event.currentTarget.style.color = 'var(--text-3)';
-      }}
+      className="header-icon-btn header-icon-hover nav-toggle-btn"
     >
-      <Menu style={{ width: 18, height: 18 }} aria-hidden="true" />
+      <Menu className="icon-18" aria-hidden="true" />
     </button>
   );
 
   const renderSidebarContent = (isMobile: boolean, isCollapsed: boolean) => (
     <div
-      className={isCollapsed ? 'sidebar-collapsed' : undefined}
-      style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}
+      className={isCollapsed ? 'sidebar-collapsed sidebar-inner' : 'sidebar-inner'}
     >
-      <div
-        style={{
-          padding: '18px 16px 14px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          justifyContent: 'flex-end',
-          minHeight: 73,
-        }}
-      >
+      <div className="sidebar-header">
         {isMobile && (
           <button
             type="button"
-            className="lg:hidden"
+            className="lg:hidden sidebar-close-btn"
             onClick={() => setSidebarOpen(false)}
             aria-label="Close navigation"
-            style={{
-              border: 'none',
-              background: 'none',
-              color: 'var(--text-4)',
-              cursor: 'pointer',
-              padding: 6,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 8,
-            }}
           >
-            <X style={{ width: 16, height: 16 }} aria-hidden="true" />
+            <X className="icon-16" aria-hidden="true" />
           </button>
         )}
       </div>
 
-      <nav aria-label="Main navigation" style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
+      <nav aria-label="Main navigation" className="sidebar-nav">
         {/* PRIMARY nav group */}
         {visiblePrimary.map((item) => {
           const isActive = routeMatches(pathname, item.href);
@@ -626,7 +555,7 @@ function DashboardLayoutContent({
               : null;
 
           return (
-            <div key={item.name} style={{ marginBottom: 2 }}>
+            <div key={item.name} className="nav-item-wrapper">
               <div
                 style={{
                   display: 'flex',
@@ -639,17 +568,7 @@ function DashboardLayoutContent({
                 }}
               >
                 {isActive && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: '22%',
-                      bottom: '22%',
-                      width: 3,
-                      background: 'var(--teal-500)',
-                      borderRadius: '0 3px 3px 0',
-                    }}
-                  />
+                  <div className="nav-active-bar" />
                 )}
                 <Link
                   href={item.href}
@@ -794,13 +713,7 @@ function DashboardLayoutContent({
 
         {/* Divider between primary and secondary nav */}
         {visibleSecondary.length > 0 && (
-          <div
-            style={{
-              height: 1,
-              background: 'var(--border)',
-              margin: '8px 4px',
-            }}
-          />
+          <div className="nav-divider" />
         )}
 
         {/* SECONDARY nav group — de-emphasised admin/config items */}
@@ -810,7 +723,7 @@ function DashboardLayoutContent({
           const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
 
           return (
-            <div key={item.name} style={{ marginBottom: 2 }}>
+            <div key={item.name} className="nav-item-wrapper">
               <div
                 style={{
                   display: 'flex',
@@ -823,17 +736,7 @@ function DashboardLayoutContent({
                 }}
               >
                 {isActive && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: '22%',
-                      bottom: '22%',
-                      width: 3,
-                      background: 'var(--teal-500)',
-                      borderRadius: '0 3px 3px 0',
-                    }}
-                  />
+                  <div className="nav-active-bar" />
                 )}
                 <Link
                   href={item.href}
@@ -957,71 +860,28 @@ function DashboardLayoutContent({
         })}
       </nav>
 
-      <div style={{ padding: '10px 8px', borderTop: '1px solid var(--border)' }}>
+      <div className="sidebar-footer">
         <div
+          className="sidebar-user-row"
           style={{
-            display: 'flex',
-            alignItems: 'center',
             justifyContent: isCollapsed ? 'center' : 'flex-start',
             gap: isCollapsed ? 0 : 9,
             padding: isCollapsed ? '8px 4px' : '8px 10px',
-            borderRadius: 10,
           }}
         >
           <Avatar name={user?.name} size="sm" />
-          <div className="sidebar-label" style={{ flex: 1, minWidth: 0 }}>
-            <p
-              style={{
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: 'var(--text-1)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {user?.name || 'User'}
-            </p>
-            <p
-              style={{
-                fontSize: 11,
-                color: 'var(--text-4)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {user?.email}
-            </p>
+          <div className="sidebar-label sidebar-user-info">
+            <p className="sidebar-user-name">{user?.name || 'User'}</p>
+            <p className="sidebar-user-email">{user?.email}</p>
           </div>
           <button
             type="button"
             onClick={handleLogout}
             aria-label="Log out"
             title={isCollapsed ? 'Log out' : undefined}
-            className="header-icon-btn"
-            style={{
-              border: 'none',
-              background: 'none',
-              color: 'var(--text-4)',
-              cursor: 'pointer',
-              borderRadius: 8,
-              width: 28,
-              height: 28,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            onMouseOver={(event) => {
-              event.currentTarget.style.color = '#ef4444';
-              event.currentTarget.style.background = '#fef2f2';
-            }}
-            onMouseOut={(event) => {
-              event.currentTarget.style.color = 'var(--text-4)';
-              event.currentTarget.style.background = 'none';
-            }}
+            className="header-icon-btn logout-btn-hover logout-btn"
           >
-            <LogOut style={{ width: 15, height: 15 }} aria-hidden="true" />
+            <LogOut className="icon-15" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -1030,17 +890,10 @@ function DashboardLayoutContent({
 
   if (!isAuthenticated) {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          background: 'var(--bg)',
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
-          <p style={{ fontSize: 13, color: 'var(--text-4)' }}>Loading workspace…</p>
+      <div className="loading-screen">
+        <div className="loading-stack">
+          <div className="skeleton loading-avatar" />
+          <p className="loading-text">Loading workspace…</p>
         </div>
       </div>
     );
@@ -1050,35 +903,11 @@ function DashboardLayoutContent({
 
   return (
     <div
-      className={sidebarCollapsed ? 'sidebar-collapsed' : undefined}
-      style={
-        {
-          minHeight: '100dvh',
-          height: '100dvh',
-          background: 'var(--bg)',
-          display: 'flex',
-          flexDirection: 'column',
-          '--current-sidebar-w': currentSidebarWidth,
-        } as React.CSSProperties
-      }
+      className={sidebarCollapsed ? 'sidebar-collapsed dashboard-root' : 'dashboard-root'}
+      style={{ '--current-sidebar-w': currentSidebarWidth } as React.CSSProperties}
     >
       <a href="#main-content" className="skip-nav">Skip to main content</a>
-      <div
-        className="hidden lg:flex"
-        style={{
-          position: 'fixed',
-          top: 'var(--safe-top)',
-          left: 0,
-          width: '72px',
-          height: '52px',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--surface)',
-          borderRight: '1px solid var(--border)',
-          borderBottom: '1px solid var(--border)',
-          zIndex: 60,
-        }}
-      >
+      <div className="hidden lg:flex sidebar-toggle-container">
         {navToggleButton}
       </div>
       {sidebarOpen && (
@@ -1086,121 +915,40 @@ function DashboardLayoutContent({
           type="button"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close navigation"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 40,
-            background: 'rgba(15,23,42,0.4)',
-            border: 'none',
-            cursor: 'pointer',
-          }}
+          className="sidebar-overlay"
         />
       )}
 
       <aside
-        className="hidden lg:block"
-        style={{
-          position: 'fixed',
-          top: 0,
-          paddingTop: 'var(--safe-top)',
-          left: 0,
-          height: '100dvh',
-          width: 'var(--current-sidebar-w)',
-          background: 'var(--surface)',
-          borderRight: '1px solid var(--border)',
-          zIndex: 50,
-          overflowY: 'auto',
-          transition: 'width 0.2s ease',
-        }}
+        className="hidden lg:block desktop-sidebar"
+        style={{ width: 'var(--current-sidebar-w)' }}
       >
         {renderSidebarContent(false, sidebarCollapsed)}
       </aside>
 
       <aside
-        className="lg:hidden"
+        className="lg:hidden mobile-sidebar"
         aria-hidden={!sidebarOpen}
-        style={{
-          position: 'fixed',
-          top: 0,
-          /* Use max() so the sidebar always clears the Dynamic Island (up to ~59 px)
-             on regular iPhones with just a home button/notch it adds comfortable breathing room */
-          paddingTop: 'max(var(--safe-top), 20px)',
-          left: 0,
-          height: '100dvh',
-          width: 'min(84vw, 232px)',
-          background: 'var(--surface)',
-          borderRight: '1px solid var(--border)',
-          zIndex: 50,
-          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.2s ease-out',
-          overflowY: 'auto',
-        }}
+        style={{ transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)' }}
       >
         {renderSidebarContent(true, false)}
       </aside>
 
-      <div
-        className="ml-0 lg:ml-[var(--current-sidebar-w)]"
-        style={{
-          transition: 'margin-left 0.2s ease',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-          flex: 1,
-          minWidth: 0,
-        }}
-      >
-        <header
-          style={{
-            height: 'calc(52px + var(--safe-top))',
-            background: 'var(--surface)',
-            borderBottom: '1px solid var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            paddingLeft: 20,
-            paddingRight: 20,
-            paddingTop: 'var(--safe-top)',
-            gap: 12,
-            position: 'sticky',
-            top: 0,
-            zIndex: 30,
-            flexShrink: 0,
-          }}
-        >
+      <div className="ml-0 lg:ml-[var(--current-sidebar-w)] content-wrapper">
+        <header className="dashboard-header">
           <div className="lg:hidden">{navToggleButton}</div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              flexShrink: 0,
-            }}
-          >
+          <div className="header-logo-group">
             <img
               src="https://assets.zyrosite.com/MBlLcEqY2yw3y2EF/1-2-removebg-scaled-e1752152009924-7iV2qZXAcVUCou9o.png"
               alt="Bika Banquet"
-              style={{
-                width: 32,
-                height: 32,
-                objectFit: 'contain',
-              }}
+              className="header-logo-img"
             />
-            <span
-              aria-hidden="true"
-              style={{
-                color: 'var(--text-4)',
-                fontSize: 16,
-                fontWeight: 600,
-                lineHeight: 1,
-              }}
-            >
-              |
-            </span>
+            <span aria-hidden="true" className="header-logo-divider">|</span>
           </div>
 
           <Breadcrumb pathname={pathname} />
 
-          <div style={{ flex: 1 }} />
+          <div className="flex-spacer" />
 
           <button
             className="header-search hidden md:flex"
@@ -1208,7 +956,7 @@ function DashboardLayoutContent({
             type="button"
             onClick={() => setPaletteOpen(true)}
           >
-            <Search style={{ width: 13, height: 13 }} aria-hidden="true" />
+            <Search className="icon-13" aria-hidden="true" />
             <span>Quick search…</span>
             <SearchShortcut />
           </button>
@@ -1216,51 +964,19 @@ function DashboardLayoutContent({
           <button
             type="button"
             aria-label="Quick search"
-            className="md:hidden"
+            className="md:hidden mobile-search-btn"
             onClick={() => setPaletteOpen(true)}
-            style={{
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text-3)',
-              borderRadius: 10,
-              width: 36,
-              height: 36,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
           >
-            <Search style={{ width: 16, height: 16 }} aria-hidden="true" />
+            <Search className="icon-16" aria-hidden="true" />
           </button>
 
           <ThemeToggle />
           <button
             type="button"
             aria-label="Help"
-            className="header-icon-btn"
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-3)',
-              borderRadius: 8,
-              width: 30,
-              height: 30,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-            onMouseOver={(event) => {
-              event.currentTarget.style.background = 'var(--surface-2)';
-              event.currentTarget.style.color = 'var(--text-1)';
-            }}
-            onMouseOut={(event) => {
-              event.currentTarget.style.background = 'transparent';
-              event.currentTarget.style.color = 'var(--text-3)';
-            }}
+            className="header-icon-btn header-icon-hover nav-toggle-btn"
           >
-            <HelpCircle style={{ width: 16, height: 16 }} aria-hidden="true" />
+            <HelpCircle className="icon-16" aria-hidden="true" />
           </button>
 
           <div className="hidden md:flex">
@@ -1270,17 +986,9 @@ function DashboardLayoutContent({
 
         <main
           id="main-content"
-          className="has-bottom-nav lg:!pb-0"
+          className="has-bottom-nav lg:!pb-0 dashboard-main"
           style={{
             maxWidth: pathname.startsWith('/dashboard/calendar') ? '100%' : 1400,
-            width: '100%',
-            margin: '0 auto',
-            flex: 1,
-            minHeight: 0,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            WebkitOverflowScrolling: 'touch',
-            paddingTop: 'clamp(16px, 2.5vw, 28px)',
             paddingLeft: pathname.startsWith('/dashboard/calendar') ? '0' : 'clamp(16px, 2.5vw, 28px)',
             paddingRight: pathname.startsWith('/dashboard/calendar') ? '0' : 'clamp(16px, 2.5vw, 28px)',
             /* paddingBottom is intentionally omitted here so the
@@ -1290,7 +998,7 @@ function DashboardLayoutContent({
           }}
           data-active-nav={activeNav?.name || ''}
         >
-          <div key={pathname} className="page-enter">
+          <div className="page-content">
             {children}
           </div>
         </main>
@@ -1312,16 +1020,11 @@ function DashboardLayoutContent({
 function DashboardLayoutFallback() {
   return (
     <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        display: 'grid',
-        placeItems: 'center',
-      }}
+      className="loading-screen"
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-        <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
-        <p style={{ fontSize: 13, color: 'var(--text-4)' }}>Loading workspace…</p>
+      <div className="loading-stack">
+        <div className="skeleton loading-avatar" />
+        <p className="loading-text">Loading workspace…</p>
       </div>
     </div>
   );
