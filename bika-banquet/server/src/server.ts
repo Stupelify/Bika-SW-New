@@ -344,6 +344,15 @@ async function shutdown(signal: string): Promise<void> {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
+process.on('unhandledRejection', (reason: unknown) => {
+  logger.error('Unhandled promise rejection', { reason });
+});
+
+process.on('uncaughtException', (error: Error) => {
+  logger.error('Uncaught exception — shutting down', { error: error.message, stack: error.stack });
+  shutdown('uncaughtException').catch(() => process.exit(1));
+});
+
 // Start the server
 startServer();
 
