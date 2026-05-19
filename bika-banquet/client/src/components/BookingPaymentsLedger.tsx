@@ -26,14 +26,20 @@ interface Props {
   onRemove: (index: number) => void;
 }
 
-const PAYMENT_MODES = ['Cash', 'Cheque', 'Card', 'Online (UPI)', 'Bank Transfer'];
+const PAYMENT_MODES: { value: string; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'card', label: 'Card' },
+  { value: 'upi', label: 'Online (UPI)' },
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+];
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
 const emptyDraft = (): PaymentRow => ({
-  mode: 'Cash', amount: '', date: todayStr(), receivedBy: '',
+  mode: 'cash', amount: '', date: todayStr(), receivedBy: '',
   narration: '', reference: '', clearingDate: '',
 });
 
@@ -98,6 +104,7 @@ export default function BookingPaymentsLedger({
               {payments.map((payment, index) => {
                 const isExisting = Boolean(payment.id);
                 const patch = (p: Partial<PaymentRow>) => onUpdate(index, p);
+                const modeLabel = PAYMENT_MODES.find(m => m.value === payment.mode.toLowerCase())?.label ?? payment.mode;
                 const isCheque = payment.mode.toLowerCase() === 'cheque';
                 const notYetCleared = isCheque && payment.clearingDate && payment.clearingDate > todayDate;
 
@@ -120,17 +127,17 @@ export default function BookingPaymentsLedger({
                     </td>
                     <td className="px-2 py-1.5">
                       {isReadOnly ? (
-                        <span className="text-[var(--text-2)]">{payment.mode}</span>
+                        <span className="text-[var(--text-2)]">{modeLabel}</span>
                       ) : (
                         <select
                           className="input py-1 text-sm"
                           value={payment.mode}
                           onChange={(e) => patch({
                             mode: e.target.value,
-                            clearingDate: e.target.value.toLowerCase() !== 'cheque' ? '' : payment.clearingDate,
+                            clearingDate: e.target.value !== 'cheque' ? '' : payment.clearingDate,
                           })}
                         >
-                          {PAYMENT_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+                          {PAYMENT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                         </select>
                       )}
                     </td>
@@ -236,10 +243,10 @@ export default function BookingPaymentsLedger({
                   onChange={(e) => setDraft((d) => ({
                     ...d,
                     mode: e.target.value,
-                    clearingDate: e.target.value.toLowerCase() !== 'cheque' ? '' : d.clearingDate,
+                    clearingDate: e.target.value !== 'cheque' ? '' : d.clearingDate,
                   }))}
                 >
-                  {PAYMENT_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+                  {PAYMENT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
               <div>
@@ -262,7 +269,7 @@ export default function BookingPaymentsLedger({
                   onChange={(e) => setDraft((d) => ({ ...d, receivedBy: e.target.value }))}
                 />
               </div>
-              {draft.mode.toLowerCase() === 'cheque' && (
+              {draft.mode === 'cheque' && (
                 <div>
                   <label className="text-xs text-[var(--text-4)] block mb-1">Clearing Date</label>
                   <input
