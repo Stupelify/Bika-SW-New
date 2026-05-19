@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import os from 'os';
 import { connectDatabase, disconnectDatabase, pingDatabase } from './config/database';
 import prisma from './config/database';
 import { initSseSubscriber } from './sse';
@@ -157,28 +158,40 @@ function getAuthRateLimitKey(req: Request): string {
   return `login-ip:${extractIp(req)}`;
 }
 
-function createRateLimitStore(prefix: string) {
+export function getPerWorkerMax(configuredMax: number, hasRedisStore: boolean): number {
+  if (hasRedisStore) return configuredMax;
+  const cpus = os.cpus().length;
+  return Math.max(1, Math.floor(configuredMax / cpus));
+}
+
+function createRateLimitStore(prefix: string): { store: InstanceType<typeof RedisStore> | undefined; hasRedis: boolean } {
   try {
     const redisClient = getRedisClient();
     if (!redisClient) {
-      return undefined;
+      return { store: undefined, hasRedis: false };
     }
 
-    return new RedisStore({
-      prefix,
-      sendCommand: (...args: string[]) =>
-        redisClient.call(args[0], ...args.slice(1)) as Promise<any>,
-    });
+    return {
+      store: new RedisStore({
+        prefix,
+        sendCommand: (...args: string[]) =>
+          redisClient.call(args[0], ...args.slice(1)) as Promise<any>,
+      }),
+      hasRedis: true,
+    };
   } catch (error) {
     logger.error('Falling back to in-memory rate limiting', { error, prefix });
-    return undefined;
+    return { store: undefined, hasRedis: false };
   }
 }
 
+const apiConfiguredMax = Number.parseInt(process.env.RATE_LIMIT_MAX || '2000', 10);
+const { store: apiStore, hasRedis: apiHasRedis } = createRateLimitStore('rl:api:');
+
 const apiLimiter = rateLimit({
   windowMs: (Number.isFinite(apiWindowMinutes) ? apiWindowMinutes : 15) * 60 * 1000,
-  max: Number.parseInt(process.env.RATE_LIMIT_MAX || '2000', 10),
-  store: createRateLimitStore('rl:api:'),
+  max: getPerWorkerMax(apiConfiguredMax, apiHasRedis),
+  store: apiStore,
   keyGenerator: getRateLimitKey,
   skip: (req) =>
     isTrustedIp(req) ||
@@ -192,10 +205,13 @@ const apiLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
 });
 
+const authConfiguredMax = Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX || '1000', 10);
+const { store: authStore, hasRedis: authHasRedis } = createRateLimitStore('rl:auth:');
+
 const authLimiter = rateLimit({
   windowMs: (Number.isFinite(authWindowMinutes) ? authWindowMinutes : 15) * 60 * 1000,
-  max: Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX || '1000', 10),
-  store: createRateLimitStore('rl:auth:'),
+  max: getPerWorkerMax(authConfiguredMax, authHasRedis),
+  store: authStore,
   keyGenerator: getAuthRateLimitKey,
   skip: (req) => isTrustedIp(req),
   skipSuccessfulRequests: true,
