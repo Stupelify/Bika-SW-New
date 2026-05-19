@@ -45,6 +45,12 @@ export const addPaymentSchema = z.object({
         message: 'Payment date must be a valid date',
       })
       .optional(),
+    clearingDate: z
+      .string()
+      .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+        message: 'Clearing date must be a valid date',
+      })
+      .optional(),
   }),
 });
 
@@ -73,6 +79,12 @@ export const updatePaymentSchema = z.object({
         message: 'Payment date must be a valid date',
       })
       .optional(),
+    clearingDate: z
+      .string()
+      .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+        message: 'Clearing date must be a valid date',
+      })
+      .optional(),
   }),
 });
 
@@ -85,7 +97,7 @@ export async function addPayment(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const { amount, method, reference, narration, paymentDate } = req.body;
+    const { amount, method, reference, narration, paymentDate, clearingDate } = req.body;
     const normalizedAmount = toSafeMoney(amount);
     const allowedBanquetIds = getAllowedBanquetIds(req);
 
@@ -132,6 +144,7 @@ export async function addPayment(
           reference,
           narration,
           paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+          clearingDate: clearingDate ? new Date(clearingDate) : undefined,
         },
       });
 
@@ -205,7 +218,7 @@ export async function updatePayment(
       return;
     }
 
-    const { amount, method, narration, paymentDate, reference } = req.body;
+    const { amount, method, narration, paymentDate, reference, clearingDate } = req.body;
 
     const result = await prisma.$transaction(async (tx) => {
       // Confirm the payment belongs to this booking.
@@ -234,6 +247,7 @@ export async function updatePayment(
           ...(narration !== undefined && { narration }),
           ...(paymentDate !== undefined && { paymentDate: new Date(paymentDate) }),
           ...(reference !== undefined && { reference }),
+          ...(clearingDate !== undefined && { clearingDate: new Date(clearingDate) }),
         },
       });
 
