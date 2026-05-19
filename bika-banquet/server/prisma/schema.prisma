@@ -524,6 +524,9 @@ model Booking {
   discountAmount2ndValue Float?
   discountPercentage2nd String?
   discountPercentage2ndValue Float?
+  settlementDiscountPercent  Float?
+  settlementDiscountAmount   Float?
+  settlementTotalAmount      Float?
   taxAmount           Float                   @default(0)
   grandTotal          Float                   @default(0)
   advanceReceived     Float                   @default(0)
@@ -679,7 +682,8 @@ model BookingPayments {
   paymentMethod String?
   reference   String?
   narration   String?
-  paymentDate DateTime @default(now())
+  paymentDate   DateTime  @default(now())
+  clearingDate  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
