@@ -253,8 +253,6 @@ interface BookingFormData {
   advanceRequired: string;
   paymentReceivedPercent: string;
   dueAmount: string;
-  settlementDiscountAmount: string;
-  settlementAmount: string;
   finalDiscountAmount: string;
   finalDiscountPercent: string;
   finalAmount: string;
@@ -278,8 +276,6 @@ const initialFormData: BookingFormData = {
   advanceRequired: '0',
   paymentReceivedPercent: '0',
   dueAmount: '0',
-  settlementDiscountAmount: '0',
-  settlementAmount: '0',
   finalDiscountAmount: '0',
   finalDiscountPercent: '0',
   finalAmount: '0',
@@ -496,10 +492,6 @@ export default function BookingsPage() {
   const [expandedHistoryVersions, setExpandedHistoryVersions] = useState<Record<string, boolean>>(
     {}
   );
-  const [showPartyOverModal, setShowPartyOverModal] = useState(false);
-  const [partyOverPlates, setPartyOverPlates] = useState<Record<string, number>>({});
-  const [partyOverRates, setPartyOverRates] = useState<Record<string, number>>({});
-  const [activePartyOverBooking, setActivePartyOverBooking] = useState<any>(null);
   const [activeBookingTab, setActiveBookingTab] = useState<'details' | 'payments'>('details');
   const [activeBookingObj, setActiveBookingObj] = useState<any>(null);
 
@@ -1873,10 +1865,6 @@ export default function BookingsPage() {
     setEditingBookingStatus(null);
     setBookingHistory([]);
     setExpandedHistoryVersions({});
-    setShowPartyOverModal(false);
-    setPartyOverPlates({});
-    setPartyOverRates({});
-    setActivePartyOverBooking(null);
     setMenuEditorPack(null);
     setOpenHallPickerPack(null);
     setMenuItemSearch('');
@@ -2618,81 +2606,6 @@ export default function BookingsPage() {
       }
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to finalize booking');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const openPartyOver = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!editingBookingId) return;
-    // Pre-validate: don't bother calling API if function date hasn't arrived
-    const loadedDate = formData.functionDate;
-    if (loadedDate) {
-      const funcDay = new Date(loadedDate);
-      funcDay.setHours(0, 0, 0, 0);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (funcDay.getTime() > today.getTime()) {
-        toast.error('Party Over is only available on or after the function date.');
-        return;
-      }
-    }
-    api.getBooking(editingBookingId).then((res) => {
-      const activeInfo = res.data?.data?.booking;
-      if (!activeInfo) return toast.error('Could not load current booking details');
-      setActivePartyOverBooking(activeInfo);
-
-      const initialPlates: Record<string, number> = {};
-      (activeInfo.packs || []).forEach((p: any) => {
-        initialPlates[p.id] = p.extraPlate || 0;
-      });
-      setPartyOverPlates(initialPlates);
-
-      const initialRates: Record<string, number> = {};
-      (activeInfo.packs || []).forEach((p: any) => {
-        initialRates[p.id] =
-          p.extraRateValue ??
-          (p.extraRate !== null && p.extraRate !== undefined ? Number(p.extraRate) : null) ??
-          p.ratePerPlate ??
-          0;
-      });
-      setPartyOverRates(initialRates);
-      setShowPartyOverModal(true);
-    }).catch(err => {
-      toast.error('Failed to load active booking packs');
-    });
-  };
-
-  const handlePartyOverSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activePartyOverBooking) return;
-
-    if (!confirm('Are you sure you want to mark the party as over? This will calculate final plates and lock ALL versions permanently.')) return;
-
-    try {
-      setSaving(true);
-      const payload = {
-        packs: (activePartyOverBooking.packs || []).map((pack: any) => ({
-          bookingPackId: pack.id,
-          extraPlate: Math.max(0, Number(partyOverPlates[pack.id] || 0)),
-          extraRate: partyOverRates[pack.id] ?? Number(pack.ratePerPlate ?? 0),
-        })),
-      };
-      const response = await api.partyOverBooking(activePartyOverBooking.id, payload);
-      toast.success('Party finalized permanently!');
-      setShowPartyOverModal(false);
-      setPartyOverPlates({});
-      setPartyOverRates({});
-      setActivePartyOverBooking(null);
-      await loadBookings();
-      if (response.data?.data?.newBookingId) {
-        await openEditBooking(response.data.data.newBookingId);
-      } else {
-        closeBookingForm();
-      }
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to submit party over finalization');
     } finally {
       setSaving(false);
     }
@@ -3946,10 +3859,6 @@ export default function BookingsPage() {
                       setSaving(true);
                       const response = await api.partyOverBooking(editingBookingId, payload);
                       toast.success('Party finalized permanently!');
-                      setShowPartyOverModal(false);
-                      setPartyOverPlates({});
-                      setPartyOverRates({});
-                      setActivePartyOverBooking(null);
                       await loadBookings();
                       if (response.data?.data?.newBookingId) {
                         await openEditBooking(response.data.data.newBookingId);
