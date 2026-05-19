@@ -73,8 +73,10 @@ services:
       --requirepass ${REDIS_PASSWORD}
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+    # WARNING: REDIS_PASSWORD must be set in .env — empty password causes healthcheck to hang
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      # Try auth ping first; fall back to no-auth ping so dev envs without a password also pass
+      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping || redis-cli ping"]
       interval: 10s
       timeout: 3s
       retries: 5
