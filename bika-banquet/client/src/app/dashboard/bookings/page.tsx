@@ -63,6 +63,9 @@ import MobileBookingCard from '@/components/MobileBookingCard';
 import BookingCard from '@/components/BookingCard';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import StatusBadge from '@/components/StatusBadge';
+import BookingPaymentsLedger from '@/components/BookingPaymentsLedger';
+import BookingFinancialSummary from '@/components/BookingFinancialSummary';
+import BookingPartyOverForm from '@/components/BookingPartyOverForm';
 
 interface Booking {
   id: string;
@@ -497,6 +500,8 @@ export default function BookingsPage() {
   const [partyOverPlates, setPartyOverPlates] = useState<Record<string, number>>({});
   const [partyOverRates, setPartyOverRates] = useState<Record<string, number>>({});
   const [activePartyOverBooking, setActivePartyOverBooking] = useState<any>(null);
+  const [activeBookingTab, setActiveBookingTab] = useState<'details' | 'payments'>('details');
+  const [activeBookingObj, setActiveBookingObj] = useState<any>(null);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
@@ -563,7 +568,6 @@ export default function BookingsPage() {
   const prevTotalPackAmountRef = useRef<number | null>(null);
 
   // Payment modal state
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentDraft, setPaymentDraft] = useState<PaymentRow>({
     amount: '',
     mode: 'Cash',
@@ -1885,6 +1889,8 @@ export default function BookingsPage() {
     setAmountSyncMode('discountPercent');
     setDiscountManuallySet(false);
     setFormData(initialFormData);
+    setActiveBookingTab('details');
+    setActiveBookingObj(null);
     // Clear any active search so the freshly-saved booking is always visible
     // in the list (Bug: booking appeared to vanish because search was still active)
     clearSearch();
@@ -2094,6 +2100,7 @@ export default function BookingsPage() {
         packs: nextPacks,
       };
       setFormData(loadedFormData);
+      setActiveBookingObj(booking);
       // Snapshot of server state — used to reset on submission failure.
       savedFormDataRef.current = loadedFormData;
       setCustomerSearchInputs({
@@ -2805,6 +2812,37 @@ export default function BookingsPage() {
         onClose={closeBookingForm}
         widthClass="max-w-[1400px]"
       >
+        {/* Tab bar */}
+        <div className="flex border-b border-[var(--border)] -mt-2 mb-4">
+          <button
+            type="button"
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeBookingTab === 'details'
+                ? 'border-primary-600 text-primary-700 dark:text-primary-400'
+                : 'border-transparent text-[var(--text-3)] hover:text-[var(--text-1)]'
+            }`}
+            onClick={() => setActiveBookingTab('details')}
+          >
+            Booking Details
+          </button>
+          <button
+            type="button"
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeBookingTab === 'payments'
+                ? 'border-primary-600 text-primary-700 dark:text-primary-400'
+                : 'border-transparent text-[var(--text-3)] hover:text-[var(--text-1)]'
+            }`}
+            onClick={() => setActiveBookingTab('payments')}
+          >
+            Payments &amp; Party Over
+            {formData.payments.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary-100 dark:bg-primary-900/40 text-[10px] font-bold text-primary-700 dark:text-primary-300">
+                {formData.payments.length}
+              </span>
+            )}
+          </button>
+        </div>
+
         <fieldset disabled={isReadOnlyBooking}>
         <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} className="space-y-5">
           <div ref={actionSentinelRef} />
@@ -2851,7 +2889,8 @@ export default function BookingsPage() {
               </div>
             )}
 
-            <section className="rounded-2xl border border-[var(--border-2)] p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {activeBookingTab === 'details' && (<>
+            <section className="rounded-2xl border border-[var(--border-2)] p-4">
               <div className="space-y-3">
                 <h3 className="text-2xl font-semibold text-[var(--text-1)]">Booking Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr,100px] gap-3">
@@ -3079,312 +3118,6 @@ export default function BookingsPage() {
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-2xl font-semibold text-[var(--text-1)]">Payment</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="label">Advance Required</label>
-                    <input
-                      className="input"
-                      type="number"
-                      min={0}
-                      value={formData.advanceRequired}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, advanceRequired: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="label">% Payment Received</label>
-                    <input
-                      className="input"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={formData.paymentReceivedPercent}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          paymentReceivedPercent: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Due Amount</label>
-                    <input
-                      className="input bg-[var(--surface-2)] dark:bg-slate-800/30 cursor-not-allowed"
-                      type="number"
-                      readOnly
-                      value={formData.dueAmount}
-                    />
-                    <p className="mt-1 text-xs text-[var(--text-4)]">Auto-calculated (Grand Total − Paid)</p>
-                  </div>
-                </div>
-
-                {/* Payment modal */}
-                {showPaymentModal && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-md rounded-2xl bg-[var(--surface)] shadow-2xl">
-                      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-                        <h3 className="text-base font-semibold text-[var(--text-1)]">Add Payment</h3>
-                        <button
-                          type="button"
-                          className="text-[var(--text-4)] hover:text-[var(--text-2)]"
-                          onClick={() => setShowPaymentModal(false)}
-                        >✕</button>
-                      </div>
-                      <div className="space-y-4 px-5 py-4">
-                        <div>
-                          <label className="label">Amount *</label>
-                          <input
-                            autoFocus
-                            className="input"
-                            type="number"
-                            min={0}
-                            placeholder="0"
-                            value={paymentDraft.amount}
-                            onChange={(e) => setPaymentDraft((p) => ({ ...p, amount: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Mode *</label>
-                          <select
-                            className="input"
-                            value={paymentDraft.mode}
-                            onChange={(e) => setPaymentDraft((p) => ({ ...p, mode: e.target.value }))}
-                          >
-                            {['Cash', 'Cheque', 'Card', 'Online (UPI)'].map((m) => (
-                              <option key={m} value={m}>{m}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="label">Date *</label>
-                          <input
-                            className="input"
-                            type="date"
-                            value={paymentDraft.date}
-                            onChange={(e) => setPaymentDraft((p) => ({ ...p, date: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Received By</label>
-                          <input
-                            className="input"
-                            placeholder="Staff name"
-                            value={paymentDraft.receivedBy}
-                            onChange={(e) => setPaymentDraft((p) => ({ ...p, receivedBy: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Narration</label>
-                          <input
-                            className="input"
-                            placeholder="Optional note"
-                            value={paymentDraft.narration}
-                            onChange={(e) => setPaymentDraft((p) => ({ ...p, narration: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-4">
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => setShowPaymentModal(false)}
-                        >Cancel</button>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          disabled={!paymentDraft.amount || !paymentDraft.date}
-                          onClick={() => {
-                            if (!paymentDraft.amount || !paymentDraft.date) return;
-                            setFormData((prev) => ({
-                              ...prev,
-                              payments: [...prev.payments, { ...paymentDraft }],
-                            }));
-                            setShowPaymentModal(false);
-                            setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '', reference: '', clearingDate: '' });
-                          }}
-                        >Add Payment</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
-                  <div className="flex items-center justify-between bg-slate-200 dark:bg-[var(--surface-3)] px-3 py-2">
-                    <span className="text-xs font-semibold text-[var(--text-2)] dark:text-[var(--text-1)]">Payments</span>
-                    <button
-                      type="button"
-                      className="inline-flex h-7 items-center gap-1 rounded-full border border-primary-600 px-3 text-xs font-medium text-primary-700 hover:bg-primary-50"
-                      onClick={() => {
-                        setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '', reference: '', clearingDate: '' });
-                        setShowPaymentModal(true);
-                      }}
-                    >
-                      + Add Payment
-                    </button>
-                  </div>
-                  {formData.payments.length === 0 ? (
-                    <div className="px-3 py-5 text-center text-sm text-[var(--text-4)]">
-                      No payments recorded yet.
-                    </div>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-[var(--border)] text-xs font-semibold text-[var(--text-3)]">
-                          <th className="px-3 py-2 text-left">Amount (₹)</th>
-                          <th className="px-3 py-2 text-left">Mode</th>
-                          <th className="px-3 py-2 text-left">Date</th>
-                          <th className="px-3 py-2 text-left">Note / Narration</th>
-                          <th className="px-3 py-2" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.payments.map((payment, index) => {
-                          const isExisting = Boolean(payment.id);
-                          const isDirty = isExisting && payment._original && (
-                            payment.amount !== payment._original.amount ||
-                            payment.mode !== payment._original.mode ||
-                            payment.date !== payment._original.date ||
-                            payment.narration !== payment._original.narration
-                          );
-                          const patch = (patch: Partial<PaymentRow>) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              payments: prev.payments.map((p, i) =>
-                                i === index ? { ...p, ...patch } : p
-                              ),
-                            }));
-                          return (
-                            <tr
-                              key={payment.id || `new-${index}`}
-                              className={`border-t border-[var(--border)] ${isDirty ? 'bg-amber-50 dark:bg-amber-500/10' : ''}`}
-                            >
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  className="input py-1 text-sm w-28"
-                                  value={payment.amount}
-                                  onChange={(e) => patch({ amount: e.target.value })}
-                                />
-                                {isDirty && payment._original && (
-                                  <div className="text-xs text-amber-600 mt-0.5">
-                                    was ₹{Number(payment._original.amount || 0).toLocaleString('en-IN')}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <select
-                                  className="input py-1 text-sm"
-                                  value={payment.mode}
-                                  onChange={(e) => patch({ mode: e.target.value })}
-                                >
-                                  {['Cash', 'Cheque', 'Card', 'Online (UPI)'].map((m) => (
-                                    <option key={m} value={m}>{m}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="date"
-                                  className="input py-1 text-sm"
-                                  value={payment.date}
-                                  onChange={(e) => patch({ date: e.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="text"
-                                  className="input py-1 text-sm"
-                                  placeholder={isExisting ? 'Correction note…' : 'Narration'}
-                                  value={payment.narration}
-                                  onChange={(e) => patch({ narration: e.target.value })}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                                {isExisting ? (
-                                  <span className="text-xs text-[var(--text-4)] select-none">saved</span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="text-xs text-red-500 hover:text-red-700 dark:text-red-200"
-                                    onClick={() =>
-                                      setFormData((prev) => ({
-                                        ...prev,
-                                        payments: prev.payments.filter((_, i) => i !== index),
-                                      }))
-                                    }
-                                  >Remove</button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                  {(() => {
-                    const netAmt = parseFloat(formData.finalAmount || '0') || totalPackAmount;
-                    const grandTotalAmt = netAmt + totalAdditionalRequirementsAmount;
-                    return (
-                      <div className="space-y-1 border-t border-[var(--border)] bg-[var(--surface-2)] dark:bg-[var(--surface-3)] px-3 py-2 text-sm">
-                        <div className="flex items-center justify-between font-medium text-[var(--text-2)]">
-                          <span>Amount Received</span>
-                          <span>₹{totalPayments.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className="flex items-center justify-between font-semibold text-[var(--text-1)] border-t border-[var(--border)] pt-1">
-                          <span>Grand Total</span>
-                          <span>₹{grandTotalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className={`flex items-center justify-between font-bold ${Math.max(0, grandTotalAmt - totalPayments) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          <span>Amount Due</span>
-                          <span>₹{Math.max(0, grandTotalAmt - totalPayments).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div className="rounded-xl border border-[var(--border-2)] p-3">
-                  <p className="text-lg mb-2 font-semibold text-[var(--text-1)]">Settlement Calculation</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Discount Amount</label>
-                      <input
-                        className="input"
-                        type="number"
-                        min={0}
-                        value={formData.settlementDiscountAmount}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            settlementDiscountAmount: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Settlement Amount</label>
-                      <input
-                        className="input"
-                        type="number"
-                        min={0}
-                        value={formData.settlementAmount}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            settlementAmount: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
               </div>
             </section>
 
@@ -3908,19 +3641,6 @@ export default function BookingsPage() {
                                 </span>
                               </button>
                             )}
-                            {editingBookingId && !isReadOnlyBooking && (
-                              <button
-                                type="button"
-                                className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                                onClick={openPartyOver}
-                                disabled={saving}
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <Flag className="w-4 h-4" />
-                                  Party Over
-                                </span>
-                              </button>
-                            )}
                           </div>
                         </td>
                         <td colSpan={2} />
@@ -4163,6 +3883,88 @@ export default function BookingsPage() {
                 <li>Sound or music after 10:15 PM is not permissible.</li>
               </ul>
             </section>
+            </>)}
+
+            {activeBookingTab === 'payments' && (
+              <div className="space-y-6">
+                <BookingPaymentsLedger
+                  payments={formData.payments}
+                  isReadOnly={isReadOnlyBooking}
+                  onAdd={(payment) =>
+                    setFormData((prev) => ({ ...prev, payments: [...prev.payments, payment] }))
+                  }
+                  onUpdate={(index, patch) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      payments: prev.payments.map((p, i) => (i === index ? { ...p, ...patch } : p)),
+                    }))
+                  }
+                  onRemove={(index) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      payments: prev.payments.filter((_, i) => i !== index),
+                    }))
+                  }
+                />
+
+                <BookingFinancialSummary
+                  packs={
+                    (Object.entries(formData.packs) as Array<[string, typeof formData.packs[keyof typeof formData.packs]]>)
+                      .filter(([, p]) => p.enabled)
+                      .map(([, p]) => ({
+                        ratePerPlate: parseFloat(p.ratePerPlate || '0') || 0,
+                        packCount: parseInt(p.pax || '0') || 0,
+                      }))
+                  }
+                  payments={formData.payments}
+                  functionDate={formData.functionDate}
+                  discountPercent={parseFloat(formData.finalDiscountPercent || '0') || 0}
+                  isPartyOver={activeBookingObj?.status === 'completed'}
+                  totalBilledAmount={
+                    activeBookingObj?.packs?.length > 0
+                      ? activeBookingObj.packs.reduce((sum: number, pack: any) => {
+                          const discPct = activeBookingObj.discountPercentageValue ?? activeBookingObj.discountPercentage ?? 0;
+                          const dr = (pack.ratePerPlate ?? 0) * (1 - discPct / 100);
+                          const billedP = Math.max(pack.packCount ?? 0, (pack.packCount ?? 0) + (pack.extraPlate ?? 0));
+                          return sum + dr * billedP;
+                        }, 0)
+                      : undefined
+                  }
+                  settlementTotalAmount={activeBookingObj?.settlementTotalAmount ?? undefined}
+                  settlementDiscountAmount={activeBookingObj?.settlementDiscountAmount ?? undefined}
+                />
+
+                <BookingPartyOverForm
+                  booking={activeBookingObj}
+                  functionDate={formData.functionDate}
+                  discountPercent={parseFloat(formData.finalDiscountPercent || '0') || 0}
+                  isPartyOverSubmitted={activeBookingObj?.status === 'completed'}
+                  saving={saving}
+                  onSubmit={async (payload) => {
+                    if (!editingBookingId) return;
+                    try {
+                      setSaving(true);
+                      const response = await api.partyOverBooking(editingBookingId, payload);
+                      toast.success('Party finalized permanently!');
+                      setShowPartyOverModal(false);
+                      setPartyOverPlates({});
+                      setPartyOverRates({});
+                      setActivePartyOverBooking(null);
+                      await loadBookings();
+                      if (response.data?.data?.newBookingId) {
+                        await openEditBooking(response.data.data.newBookingId);
+                      } else {
+                        closeBookingForm();
+                      }
+                    } catch (error: any) {
+                      toast.error(error?.response?.data?.error || 'Failed to submit party over');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                />
+              </div>
+            )}
 
             <div className="form-actions">
               <button
@@ -4177,19 +3979,6 @@ export default function BookingsPage() {
                   <span className="inline-flex items-center gap-2">
                     <Save className="w-4 h-4" />
                     {saving ? 'Saving...' : 'Submit'}
-                  </span>
-                </button>
-              )}
-              {editingBookingId && !isReadOnlyBooking && (
-                <button
-                  type="button"
-                  className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                  onClick={openPartyOver}
-                  disabled={saving}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Flag className="w-4 h-4" />
-                    Party Over
                   </span>
                 </button>
               )}
@@ -4222,19 +4011,6 @@ export default function BookingsPage() {
                     {saving ? 'Saving...' : 'Submit'}
                   </span>
                 </button>
-                {editingBookingId && !isReadOnlyBooking && (
-                  <button
-                    type="button"
-                    className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                    onClick={openPartyOver}
-                    disabled={saving}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Flag className="w-4 h-4" />
-                      Party Over
-                    </span>
-                  </button>
-                )}
               </div>
             )}
           </form>
@@ -5925,128 +5701,6 @@ export default function BookingsPage() {
           label="New Booking"
         />
       )}
-      <FormPromptModal
-        open={showPartyOverModal}
-        title="Settle Party Remainder (Extra Plates)"
-        onClose={() => {
-          setShowPartyOverModal(false);
-          setPartyOverPlates({});
-          setPartyOverRates({});
-          setActivePartyOverBooking(null);
-        }}
-        widthClass="max-w-xl"
-      >
-        <form onSubmit={handlePartyOverSubmit} className="space-y-5">
-          <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 p-4 mb-4">
-            <h4 className="font-semibold text-red-800 dark:text-red-200 flex items-center gap-2 mb-1"><Flag className="w-4 h-4" /> Permanent Finalization</h4>
-            <p className="text-sm text-red-700 dark:text-red-200">Marking a party as over will freeze ALL versions. This action cannot be reversed. Please input the extra plates strictly as used.</p>
-          </div>
-
-          <div className="space-y-4">
-            {activePartyOverBooking?.packs?.map((pack: any) => (
-              <div key={pack.id} className="p-3 border border-[var(--border)] rounded-lg space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h5 className="font-medium text-[var(--text-1)]">{pack.packName}</h5>
-                    <p className="text-xs text-[var(--text-4)]">
-                      Confirmed Pax: {pack.packCount || pack.noOfPack} @ ₹{pack.ratePerPlate}/plate
-                    </p>
-                  </div>
-                  {(() => {
-                    const ep = partyOverPlates[pack.id] || 0;
-                    const er = partyOverRates[pack.id] || 0;
-                    if (ep > 0) {
-                      return (
-                        <span className="text-xs font-semibold text-orange-700 dark:text-orange-200 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-900/50 rounded px-2 py-1">
-                          Extra: ₹{(ep * er).toLocaleString('en-IN')}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-[var(--text-4)] block mb-1">Extra Plates Used</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className="input w-full"
-                      value={partyOverPlates[pack.id] || ''}
-                      onChange={(e) =>
-                        setPartyOverPlates((prev) => ({
-                          ...prev,
-                          [pack.id]: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-[var(--text-4)] block mb-1">Rate / Extra Plate (₹)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className="input w-full"
-                      value={partyOverRates[pack.id] ?? ''}
-                      onChange={(e) =>
-                        setPartyOverRates((prev) => ({
-                          ...prev,
-                          [pack.id]: parseFloat(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-            {(!activePartyOverBooking?.packs || activePartyOverBooking.packs.length === 0) && (
-              <div className="empty-state" style={{ padding: '20px 12px' }}>
-                <div className="empty-state-icon">
-                  <FileText size={20} />
-                </div>
-                <p className="empty-state-title">No packs to settle</p>
-                <p className="empty-state-desc">This booking has no pack entries to update.</p>
-              </div>
-            )}
-          </div>
-
-          {(() => {
-            const extraTotal = (activePartyOverBooking?.packs || []).reduce((sum: number, pack: any) => {
-              const ep = partyOverPlates[pack.id] || 0;
-              const er = partyOverRates[pack.id] || 0;
-              return sum + ep * er;
-            }, 0);
-            if (extraTotal <= 0) return null;
-            return (
-              <div className="rounded-lg border border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-500/10 px-4 py-3 flex items-center justify-between">
-                <span className="text-sm font-medium text-orange-800 dark:text-orange-200">Total Extra Charges</span>
-                <span className="text-base font-bold text-orange-800 dark:text-orange-200">
-                  ₹{extraTotal.toLocaleString('en-IN')}
-                </span>
-              </div>
-            );
-          })()}
-
-          <div className="pt-4 border-t border-[var(--border)] flex justify-end gap-3">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setShowPartyOverModal(false);
-                setPartyOverPlates({});
-                setPartyOverRates({});
-                setActivePartyOverBooking(null);
-              }}
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn bg-red-600 hover:bg-red-700 text-white" disabled={saving}>
-              {saving ? 'Processing...' : 'Settle & Lock'}
-            </button>
-          </div>
-        </form>
-      </FormPromptModal>
-
       {/* Quick Add Item Modal */}
       <FormPromptModal
         open={showQuickAddItem}
