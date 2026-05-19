@@ -21,9 +21,9 @@ test('enquiry search href opens the existing enquiry editor route', () => {
   );
 });
 
-test('event stream URL includes encoded token when provided', () => {
+test('event stream URL does not include token in query string (security)', () => {
   assert.equal(
     buildEventStreamUrl('/api', 'token value'),
-    '/api/events?token=token%20value'
+    '/api/events'
   );
 });

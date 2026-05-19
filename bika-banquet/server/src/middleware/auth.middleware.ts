@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { verifyToken, TokenPayload } from '../utils/auth';
 import { sendUnauthorized, sendForbidden } from '../utils/response';
 import prisma from '../config/database';
+import { getRedisClient } from '../config/redis';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -11,32 +13,67 @@ export interface AuthRequest extends Request {
     permissions: string[];
     banquetIds: string[];
   };
+  rawToken?: string;
 }
 
-function pathWithoutQuery(value: string | undefined): string {
-  return (value || '').split('?')[0];
+/**
+ * Return the raw JWT stored on the request by the authenticate middleware.
+ * Used by /auth/sse-token to embed the JWT in the one-time Redis token.
+ */
+export function resolveTokenFromRequest(req: AuthRequest): string | null {
+  return req.rawToken || null;
 }
 
 function resolveToken(req: Request): string | null {
+  // Standard Bearer token
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.substring(7);
   }
 
-  const queryToken = typeof req.query.token === 'string' ? req.query.token.trim() : '';
-  return queryToken || null;
+  // One-time SSE token — only valid on /api/events path
+  const routePath = (req.originalUrl || req.url || '').split('?')[0];
+  if (routePath.endsWith('/events') && typeof req.query.sse_token === 'string') {
+    // Sentinel value — actual JWT lookup happens in authenticate via Redis
+    return `sse:${req.query.sse_token.trim()}`;
+  }
+
+  return null;
 }
 
-function shouldValidateSession(req: Request): boolean {
-  const routePath = pathWithoutQuery(req.originalUrl || req.url);
-  return (
-    (req.method === 'POST' && routePath.endsWith('/auth/logout')) ||
-    (req.method === 'POST' && routePath.endsWith('/auth/change-password'))
-  );
+const SESSION_CACHE_TTL = 60; // seconds
+
+function tokenCacheKey(token: string): string {
+  return `session:${crypto.createHash('sha256').update(token).digest('hex')}`;
 }
 
-function hasAdminRoleCheck(roles: string[]): boolean {
-  return roles.some((role) => role.trim().toLowerCase() === 'admin');
+async function getCachedOrFetchSession(token: string): Promise<TokenPayload | null> {
+  const redis = getRedisClient();
+  const key = tokenCacheKey(token);
+
+  if (redis) {
+    const cached = await redis.get(key);
+    if (cached === 'revoked') return null;
+    if (cached) {
+      try {
+        return JSON.parse(cached) as TokenPayload;
+      } catch {
+        // corrupt cache entry — fall through to DB
+      }
+    }
+  }
+
+  const dbUser = await validateSessionAndResolveUser(token);
+
+  if (redis) {
+    if (!dbUser) {
+      await redis.set(key, 'revoked', 'EX', SESSION_CACHE_TTL);
+    } else {
+      await redis.set(key, JSON.stringify(dbUser), 'EX', SESSION_CACHE_TTL);
+    }
+  }
+
+  return dbUser;
 }
 
 async function validateSessionAndResolveUser(
@@ -112,20 +149,35 @@ export async function authenticate(
       return;
     }
 
-    // Verify token
-    const payload = verifyToken(token);
+    // Resolve one-time SSE token from Redis
+    let jwtToken = token;
+    if (token.startsWith('sse:')) {
+      const redis = getRedisClient();
+      if (!redis) {
+        sendUnauthorized(res, 'SSE auth unavailable');
+        return;
+      }
+      const sseKey = `sse-token:${token.slice(4)}`;
+      const stored = await redis.get(sseKey);
+      if (!stored) {
+        sendUnauthorized(res, 'SSE token expired or invalid');
+        return;
+      }
+      // Consume the SSE token BEFORE verifyToken — intentional design.
+      // Deleting first prevents replay attacks: even if the JWT is later found
+      // to be tampered/expired, the one-time token cannot be reused.
+      // The client must request a fresh SSE token if JWT verification fails.
+      await redis.del(sseKey); // one-time use: consume before verify to prevent replay
+      jwtToken = stored;
+    }
 
-    const payloadToUse = shouldValidateSession(req)
-      ? await validateSessionAndResolveUser(token)
-      : {
-          userId: payload.userId,
-          email: payload.email,
-          roles: Array.isArray(payload.roles) ? payload.roles : [],
-          permissions: Array.isArray(payload.permissions)
-            ? payload.permissions
-            : [],
-          banquetIds: Array.isArray(payload.banquetIds) ? payload.banquetIds : [],
-        };
+    // Store raw JWT on request for downstream use (e.g. /auth/sse-token)
+    req.rawToken = jwtToken;
+
+    // Verify JWT signature — throws if invalid (caught below)
+    verifyToken(jwtToken);
+
+    const payloadToUse = await getCachedOrFetchSession(jwtToken!);
 
     if (!payloadToUse) {
       sendUnauthorized(res, 'Session expired');
@@ -156,19 +208,13 @@ export function requireRole(...roles: string[]) {
       return sendUnauthorized(res);
     }
 
-    if (hasAdminRoleCheck(roles)) {
-      const token = resolveToken(req);
-
-      if (!token) {
-        return sendUnauthorized(res, 'No token provided');
-      }
-
-      const refreshedUser = await validateSessionAndResolveUser(token);
-      if (!refreshedUser) {
+    // Re-validate from cache for any role check (catches revoked sessions)
+    if (req.rawToken) {
+      const refreshed = await getCachedOrFetchSession(req.rawToken);
+      if (!refreshed) {
         return sendUnauthorized(res, 'Session expired');
       }
-
-      req.user = refreshedUser;
+      req.user = refreshed;
     }
 
     const hasRole = roles.some((role) =>

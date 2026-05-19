@@ -90,3 +90,43 @@ export function sumBookingLines(input: {
   );
   return safeMoney(hallTotal + packTotal + additionalTotal);
 }
+
+// ---------------------------------------------------------------------------
+// getPdfAsset — Promise-based PDF asset cache with TTL.
+// Concurrent callers for the same key share the in-flight promise; resolved
+// entries are reused until ttlMs elapses, then re-fetched on next request.
+// ---------------------------------------------------------------------------
+
+interface CacheEntry {
+  promise: Promise<Buffer | null>;
+  resolvedAt: number | null;
+}
+
+const assetCache = new Map<string, CacheEntry>();
+const DEFAULT_ASSET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+export async function getPdfAsset(
+  key: string,
+  loader: () => Promise<Buffer | null>,
+  options: { ttlMs?: number } = {}
+): Promise<Buffer | null> {
+  const ttlMs = options.ttlMs ?? DEFAULT_ASSET_TTL_MS;
+  const existing = assetCache.get(key);
+
+  if (existing) {
+    const age = existing.resolvedAt !== null ? Date.now() - existing.resolvedAt : 0;
+    if (existing.resolvedAt === null || age < ttlMs) {
+      // In-flight or still fresh — return same promise
+      return existing.promise;
+    }
+    assetCache.delete(key);
+  }
+
+  const entry: CacheEntry = { promise: null as unknown as Promise<Buffer | null>, resolvedAt: null };
+  entry.promise = loader().then((result) => {
+    entry.resolvedAt = Date.now();
+    return result;
+  });
+  assetCache.set(key, entry);
+  return entry.promise;
+}

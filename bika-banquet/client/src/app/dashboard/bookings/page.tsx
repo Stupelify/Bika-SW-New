@@ -41,7 +41,7 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
-import { buildEventStreamUrl } from '@/lib/dashboardNavigation';
+import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
 import {
@@ -1443,23 +1443,36 @@ export default function BookingsPage() {
   useEffect(() => {
     if (!canViewBooking || typeof window === 'undefined') return;
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-    const token = window.localStorage.getItem('auth_token');
-    const eventSource = new EventSource(buildEventStreamUrl(baseUrl, token));
+    let eventSource: EventSource | null = null;
+    let cancelled = false;
 
-    eventSource.onmessage = (event) => {
+    const openSseConnection = async () => {
       try {
-        const payload = JSON.parse(event.data) as { type?: string };
-        if (payload.type?.startsWith('booking:')) {
-          void loadBookings();
-        }
-      } catch (error) {
-        // Ignore malformed SSE payloads and keep the stream alive.
+        const res = await api.getSseToken();
+        if (cancelled) return;
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+        eventSource = new EventSource(buildSseEventStreamUrl(baseUrl, res.data.token));
+
+        eventSource.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data) as { type?: string };
+            if (payload.type?.startsWith('booking:')) {
+              void loadBookings();
+            }
+          } catch {
+            // Ignore malformed SSE payloads and keep the stream alive.
+          }
+        };
+      } catch {
+        // SSE token fetch failed — real-time updates unavailable, page still works.
       }
     };
 
+    void openSseConnection();
+
     return () => {
-      eventSource.close();
+      cancelled = true;
+      eventSource?.close();
     };
   }, [canViewBooking, loadBookings]);
 

@@ -89,6 +89,7 @@ export const api = {
     apiClient.post('/auth/login', { email, password }),
   register: (data: any) => apiClient.post('/auth/register', data),
   getCurrentUser: () => apiClient.get('/auth/me'),
+  getSseToken: () => apiClient.get<{ token: string }>('/auth/sse-token'),
   logout: () => apiClient.post('/auth/logout'),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     apiClient.post('/auth/change-password', data),

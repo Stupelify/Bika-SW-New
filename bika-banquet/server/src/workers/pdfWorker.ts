@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { parentPort, workerData } from 'worker_threads';
+import logger from '../utils/logger';
 
 type PdfMenuPack = {
   id: string;
@@ -37,7 +38,7 @@ function drawPageBackground(doc: PDFKit.PDFDocument, imageBuffer: Buffer | null)
       height: doc.page.height,
     });
   } catch (error) {
-    console.error('Failed to draw background image in PDF:', error);
+    logger.error('Failed to draw background image in PDF:', error);
   }
 }
 
@@ -115,7 +116,7 @@ function drawCoverPage(
         valign: 'center',
       });
     } catch (error) {
-      console.error('Failed to draw logo image in PDF cover page:', error);
+      logger.error('Failed to draw logo image in PDF cover page:', error);
     }
   }
 
