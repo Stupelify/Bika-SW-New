@@ -190,9 +190,19 @@ interface PaymentRow {
   date: string;
   receivedBy: string;
   amount: string;
+  reference: string;
+  clearingDate: string;
   // Snapshot of the values as they existed on last load — used to detect which
   // existing payments were actually changed so we only PATCH those.
-  _original?: { mode: string; narration: string; date: string; receivedBy: string; amount: string };
+  _original?: {
+    mode: string;
+    narration: string;
+    date: string;
+    receivedBy: string;
+    amount: string;
+    reference: string;
+    clearingDate: string;
+  };
 }
 
 interface AdditionalRequirementRow {
@@ -375,10 +385,10 @@ const PACK_LABELS: Record<PackKey, string> = {
 };
 
 const PACK_ROW_STYLES: Record<PackKey, string> = {
-  breakfast: 'border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-500/10 border-l-[3px] border-l-orange-500',
-  lunch: 'border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-500/10 border-l-[3px] border-l-green-500',
-  hiTea: 'border-[var(--border)] dark:border-slate-700/50 bg-[var(--surface-2)] dark:bg-slate-500/10 border-l-[3px] border-l-slate-500',
-  dinner: 'border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-500/10 border-l-[3px] border-l-indigo-500',
+  breakfast: 'border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-900/20 border-l-[3px] border-l-orange-500',
+  lunch: 'border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-900/20 border-l-[3px] border-l-green-500',
+  hiTea: 'border-[var(--border)] dark:border-slate-700/50 bg-[var(--surface-2)] dark:bg-slate-800/30 border-l-[3px] border-l-slate-500',
+  dinner: 'border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-900/20 border-l-[3px] border-l-indigo-500',
 };
 
 const FUNCTION_TYPE_OPTIONS = [
@@ -560,6 +570,8 @@ export default function BookingsPage() {
     date: new Date().toISOString().split('T')[0],
     receivedBy: '',
     narration: '',
+    reference: '',
+    clearingDate: '',
   });
 
   const todayStr = () => new Date().toISOString().split('T')[0];
@@ -1390,6 +1402,8 @@ export default function BookingsPage() {
           date: todayStr(),
           receivedBy: '',
           amount: '',
+          reference: '',
+          clearingDate: '',
         },
       ],
     }));
@@ -2062,6 +2076,8 @@ export default function BookingsPage() {
             payment.amount !== null && payment.amount !== undefined
               ? String(payment.amount)
               : '';
+          const reference = payment.reference || '';
+          const clearingDate = payment.clearingDate ? payment.clearingDate.slice(0, 10) : '';
           return {
             id: payment.id || undefined,
             mode,
@@ -2069,8 +2085,10 @@ export default function BookingsPage() {
             date,
             receivedBy,
             amount,
+            reference,
+            clearingDate,
             // Snapshot used to detect which fields actually changed so we only PATCH those.
-            _original: { mode, narration, date, receivedBy, amount },
+            _original: { mode, narration, date, receivedBy, amount, reference, clearingDate },
           };
         }),
         packs: nextPacks,
@@ -2505,7 +2523,9 @@ export default function BookingsPage() {
             p.mode !== p._original.mode ||
             p.date !== p._original.date ||
             p.narration !== p._original.narration ||
-            p.receivedBy !== p._original.receivedBy
+            p.receivedBy !== p._original.receivedBy ||
+            p.reference !== p._original.reference ||
+            p.clearingDate !== p._original.clearingDate
           );
         });
 
@@ -2521,6 +2541,8 @@ export default function BookingsPage() {
               method: p.mode,
               narration: p.narration || undefined,
               paymentDate: p.date,
+              reference: p.reference || undefined,
+              clearingDate: p.clearingDate || undefined,
             })
           ),
           ...newPayments.map((p) =>
@@ -2529,6 +2551,8 @@ export default function BookingsPage() {
               method: p.mode,
               narration: p.narration || undefined,
               paymentDate: p.date,
+              reference: p.reference || undefined,
+              clearingDate: p.clearingDate || undefined,
             })
           ),
         ]);
@@ -2855,7 +2879,7 @@ export default function BookingsPage() {
                   <div>
                     <label className="label">Priority</label>
                     <input
-                      className="input bg-[var(--surface-2)] dark:bg-slate-500/10 cursor-not-allowed"
+                      className="input bg-[var(--surface-2)] dark:bg-slate-800/30 cursor-not-allowed"
                       type="number"
                       readOnly
                       value={formData.priority}
@@ -2943,7 +2967,7 @@ export default function BookingsPage() {
 
                 {/* Pencil booking toggle */}
                 {!isReadOnlyBooking && (
-                  <div className="rounded-xl border border-[var(--border-2)] bg-[var(--surface-2)] dark:bg-slate-500/10 p-3 space-y-3">
+                  <div className="rounded-xl border border-[var(--border-2)] bg-[var(--surface-2)] dark:bg-slate-800/30 p-3 space-y-3">
                     <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -3091,7 +3115,7 @@ export default function BookingsPage() {
                   <div>
                     <label className="label">Due Amount</label>
                     <input
-                      className="input bg-[var(--surface-2)] dark:bg-slate-500/10 cursor-not-allowed"
+                      className="input bg-[var(--surface-2)] dark:bg-slate-800/30 cursor-not-allowed"
                       type="number"
                       readOnly
                       value={formData.dueAmount}
@@ -3182,7 +3206,7 @@ export default function BookingsPage() {
                               payments: [...prev.payments, { ...paymentDraft }],
                             }));
                             setShowPaymentModal(false);
-                            setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '' });
+                            setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '', reference: '', clearingDate: '' });
                           }}
                         >Add Payment</button>
                       </div>
@@ -3197,7 +3221,7 @@ export default function BookingsPage() {
                       type="button"
                       className="inline-flex h-7 items-center gap-1 rounded-full border border-primary-600 px-3 text-xs font-medium text-primary-700 hover:bg-primary-50"
                       onClick={() => {
-                        setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '' });
+                        setPaymentDraft({ amount: '', mode: 'Cash', date: todayStr(), receivedBy: '', narration: '', reference: '', clearingDate: '' });
                         setShowPaymentModal(true);
                       }}
                     >
@@ -3406,10 +3430,10 @@ export default function BookingsPage() {
                           dinner: '#6366f1',
                         };
                         const packBgMap: Record<PackKey, string> = {
-                          breakfast: 'bg-orange-50 dark:bg-orange-500/10',
-                          lunch: 'bg-green-50 dark:bg-green-500/10',
-                          hiTea: 'bg-[var(--surface-2)] dark:bg-slate-500/10',
-                          dinner: 'bg-indigo-50 dark:bg-indigo-500/10',
+                          breakfast: 'bg-orange-50 dark:bg-orange-900/20',
+                          lunch: 'bg-green-50 dark:bg-green-900/20',
+                          hiTea: 'bg-[var(--surface-2)] dark:bg-slate-800/20',
+                          dinner: 'bg-indigo-50 dark:bg-indigo-900/20',
                         };
                         return (
                           <tr
@@ -3442,7 +3466,7 @@ export default function BookingsPage() {
                                   <label className="inline-flex items-center gap-1 text-xs text-[var(--text-2)] cursor-pointer">
                                     <input
                                       type="checkbox"
-                                      className="h-3 w-3 rounded"
+                                      className="h-3 w-3 rounded dark:bg-slate-700 dark:border-slate-600"
                                       checked={row.withHall}
                                       disabled={!row.enabled}
                                       onChange={(e) => {
@@ -3456,7 +3480,7 @@ export default function BookingsPage() {
                                   <label className="inline-flex items-center gap-1 text-xs text-[var(--text-2)] cursor-pointer">
                                     <input
                                       type="checkbox"
-                                      className="h-3 w-3 rounded"
+                                      className="h-3 w-3 rounded dark:bg-slate-700 dark:border-slate-600"
                                       checked={row.withCatering}
                                       disabled={!row.enabled}
                                       onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })}
@@ -3680,13 +3704,13 @@ export default function BookingsPage() {
                       </tr>
 
                       {/* Discount row */}
-                      <tr className="bg-red-50 dark:bg-red-50 dark:bg-red-500/100/10">
+                      <tr className="bg-red-50 dark:bg-red-900/20">
                         <td colSpan={5} />
                         <td className="px-2 py-1.5 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <span className="text-xs text-[var(--text-3)] whitespace-nowrap">Disc %</span>
                             <input
-                              className="input py-1 text-xs w-16 text-right"
+                              className="input py-1 text-xs w-16 text-right dark:bg-slate-800/40"
                               type="number"
                               min={0}
                               max={100}
@@ -3708,7 +3732,7 @@ export default function BookingsPage() {
                         <td className="px-2 py-1.5 text-right text-xs font-semibold text-red-700 dark:text-red-200 whitespace-nowrap">Discount</td>
                         <td className="px-2 py-1.5">
                           <input
-                            className="input py-1 text-xs w-full text-right"
+                            className="input py-1 text-xs w-full text-right dark:bg-slate-800/40"
                             type="number"
                             min={0}
                             step="0.01"
@@ -3727,12 +3751,12 @@ export default function BookingsPage() {
                       </tr>
 
                       {/* Net Amount row */}
-                      <tr className="bg-teal-50 dark:bg-teal-50 dark:bg-teal-500/100/10">
+                      <tr className="bg-teal-50 dark:bg-teal-900/20">
                         <td colSpan={7} />
                         <td className="px-2 py-1.5 text-right text-xs font-bold text-teal-700 dark:text-teal-200 whitespace-nowrap">Net Amount</td>
                         <td className="px-2 py-1.5">
                           <input
-                            className="input py-1 text-xs w-full text-right font-semibold text-teal-700 dark:text-teal-200"
+                            className="input py-1 text-xs w-full text-right font-semibold text-teal-700 dark:text-teal-200 dark:bg-slate-800/40"
                             type="number"
                             min={0}
                             value={netAmountDraft !== null ? netAmountDraft : formData.finalAmount}
