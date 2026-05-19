@@ -124,7 +124,12 @@ export const api = {
   finalizeBooking: (id: string) => apiClient.post(`/bookings/${id}/finalize`),
   partyOverBooking: (
     id: string,
-    data: { packs: Array<{ bookingPackId: string; extraPlate: number; extraRate?: number }> }
+    data: {
+      packs: Array<{ bookingPackId: string; extraPlate: number; extraRate?: number }>;
+      settlementDiscountPercent?: number;
+      settlementDiscountAmount?: number;
+      settlementTotalAmount?: number;
+    }
   ) => apiClient.post(`/bookings/${id}/party-over`, data),
   getBookingHistory: (id: string) => apiClient.get(`/bookings/${id}/history`),
   cancelBooking: (id: string) => apiClient.post(`/bookings/${id}/cancel`),

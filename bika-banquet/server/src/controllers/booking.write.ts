@@ -748,6 +748,9 @@ export async function partyOverBooking(
           })
         )
         .default([]),
+      settlementDiscountPercent: z.number().min(0).max(100).optional(),
+      settlementDiscountAmount: z.number().min(0).optional(),
+      settlementTotalAmount: z.number().min(0).optional(),
     });
 
     const parsed = payloadSchema.safeParse(req.body || {});
@@ -857,6 +860,27 @@ export async function partyOverBooking(
       const completedReplica = await cloneBookingVersion(tx, id, {
         status: 'completed',
       });
+
+      if (
+        payload.settlementDiscountPercent !== undefined ||
+        payload.settlementDiscountAmount !== undefined ||
+        payload.settlementTotalAmount !== undefined
+      ) {
+        await tx.booking.update({
+          where: { id: completedReplica.id },
+          data: {
+            ...(payload.settlementDiscountPercent !== undefined && {
+              settlementDiscountPercent: payload.settlementDiscountPercent,
+            }),
+            ...(payload.settlementDiscountAmount !== undefined && {
+              settlementDiscountAmount: payload.settlementDiscountAmount,
+            }),
+            ...(payload.settlementTotalAmount !== undefined && {
+              settlementTotalAmount: payload.settlementTotalAmount,
+            }),
+          },
+        });
+      }
 
       await tx.finalizedBooking.create({
         data: {
