@@ -406,7 +406,7 @@ export default function DashboardPage() {
             : 0,
       }));
 
-      const topFunctions = analytics.breakdown.functionTypes
+      const topFunctions = (analytics.breakdown?.functionTypes ?? [])
         .slice(0, 6)
         .map((entry) => ({
           ...entry,
