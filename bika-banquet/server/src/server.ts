@@ -288,6 +288,8 @@ async function runWithDistributedLock(
   }
 }
 
+let httpServer: ReturnType<typeof app.listen> | null = null;
+
 // Start server
 async function startServer() {
   try {
@@ -310,7 +312,7 @@ async function startServer() {
     setInterval(runPencilRelease, 60 * 60 * 1000);
 
     // Start listening
-    app.listen(PORT, () => {
+    httpServer = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`🔗 API URL: http://localhost:${PORT}/api`);
@@ -321,18 +323,26 @@ async function startServer() {
   }
 }
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM signal received: closing HTTP server');
+async function shutdown(signal: string): Promise<void> {
+  logger.info(`${signal} received — draining connections`);
+  await new Promise<void>((resolve) => {
+    if (!httpServer) { resolve(); return; }
+    const timeout = setTimeout(() => {
+      logger.warn('Shutdown timeout — forcing exit');
+      resolve();
+    }, 30_000);
+    httpServer.close(() => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
   await disconnectDatabase();
+  logger.info('Graceful shutdown complete');
   process.exit(0);
-});
+}
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT signal received: closing HTTP server');
-  await disconnectDatabase();
-  process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Start the server
 startServer();
