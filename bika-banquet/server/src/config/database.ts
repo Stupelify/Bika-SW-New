@@ -19,15 +19,37 @@ prisma.$use(async (params, next) => {
   }
 });
 
-// Test connection
-export async function connectDatabase() {
-  try {
-    await prisma.$connect();
-    logger.info('✅ Database connected successfully');
-  } catch (error) {
-    logger.error('❌ Database connection failed:', error);
-    process.exit(1);
+const DB_MAX_RETRIES = 8;
+const DB_RETRY_DELAY_MS = 5000;
+
+// Test connection with exponential backoff retry
+export async function connectDatabase(options?: {
+  maxRetries?: number;
+  retryDelayMs?: number;
+}): Promise<void> {
+  const maxRetries = options?.maxRetries ?? DB_MAX_RETRIES;
+  const retryDelayMs = options?.retryDelayMs ?? DB_RETRY_DELAY_MS;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.$connect();
+      logger.info('✅ Database connected successfully');
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries) {
+        const delay = retryDelayMs * Math.pow(1.5, attempt);
+        logger.warn(
+          `Database connection failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${Math.round(delay)}ms`,
+          { error }
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
   }
+  logger.error('❌ Database connection failed after all retries', { error: lastError });
+  throw lastError;
 }
 
 export async function pingDatabase() {
