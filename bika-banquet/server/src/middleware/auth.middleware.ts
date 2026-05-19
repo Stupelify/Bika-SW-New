@@ -163,7 +163,11 @@ export async function authenticate(
         sendUnauthorized(res, 'SSE token expired or invalid');
         return;
       }
-      await redis.del(sseKey); // one-time use
+      // Consume the SSE token BEFORE verifyToken — intentional design.
+      // Deleting first prevents replay attacks: even if the JWT is later found
+      // to be tampered/expired, the one-time token cannot be reused.
+      // The client must request a fresh SSE token if JWT verification fails.
+      await redis.del(sseKey); // one-time use: consume before verify to prevent replay
       jwtToken = stored;
     }
 
