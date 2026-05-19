@@ -3,6 +3,13 @@ import logger from '../utils/logger';
 
 let redisClient: Redis | null = null;
 
+export function resetRedisClient(): void {
+  if (redisClient) {
+    redisClient.disconnect();
+  }
+  redisClient = null;
+}
+
 export function getRedisClient(): Redis | null {
   if (redisClient) {
     return redisClient;
@@ -13,18 +20,25 @@ export function getRedisClient(): Redis | null {
     return null;
   }
 
-  redisClient = new Redis(redisUrl, {
+  const client = new Redis(redisUrl, {
     maxRetriesPerRequest: 1,
     enableOfflineQueue: false,
   });
 
-  redisClient.on('error', (error) => {
-    logger.error('Redis connection error', { error });
+  client.on('error', (error) => {
+    logger.error('Redis connection error — resetting client', { error });
+    redisClient = null;
   });
 
-  redisClient.on('connect', () => {
-    logger.info('Redis connected for rate limiting');
+  client.on('end', () => {
+    logger.warn('Redis connection ended — resetting client');
+    redisClient = null;
   });
 
+  client.on('connect', () => {
+    logger.info('Redis connected');
+  });
+
+  redisClient = client;
   return redisClient;
 }
