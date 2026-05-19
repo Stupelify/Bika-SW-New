@@ -24,6 +24,7 @@ import {
   getAllowedBanquetIds,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
+import { resolveVersionChain, sumBookingLines } from './booking.helpers';
 
 // Validation schemas
 export const createBookingSchema = z.object({
@@ -1450,26 +1451,11 @@ async function recalculateBookingFinancials(
     throw new Error('Booking not found');
   }
 
-  const hallTotal = booking.halls.reduce(
-    (sum, hall) => sum + toSafeMoney(hall.charges),
-    0
-  );
-  const packTotal = booking.packs.reduce(
-    (sum, pack) =>
-      sum +
-      toSafeMoney(pack.ratePerPlate) *
-      Math.max(1, toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)) +
-      toSafeMoney(pack.setupCost) +
-      toSafeMoney(pack.extraCharges),
-    0
-  );
-  const additionalTotal = booking.additionalItems.reduce(
-    (sum, item) =>
-      sum + toSafeMoney(item.charges) * Math.max(1, toSafeNumber(item.quantity || 1)),
-    0
-  );
-
-  const totalAmount = toSafeMoney(hallTotal + packTotal + additionalTotal);
+  const totalAmount = sumBookingLines({
+    halls: booking.halls,
+    packs: booking.packs,
+    additionalItems: booking.additionalItems,
+  });
   const effectiveDiscountPercent = toOptionalSafePercent(booking.discountPercentage) || 0;
   let discountAmount = toSafeMoney(booking.discountAmount);
   if (effectiveDiscountPercent > 0) {
@@ -1732,38 +1718,20 @@ export async function createBooking(
       }
 
       // Calculate totals
-      let totalAmount = 0;
-
-      // Add hall charges
-      if (hallRowsInput.length > 0) {
-        totalAmount += hallRowsInput.reduce((sum: number, h) => sum + toSafeMoney(h.charges), 0);
-      }
-
-      // Add pack charges
-      if (data.packs) {
-        for (const pack of data.packs) {
-          const normalizedPackCount = Math.max(
-            1,
-            toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)
-          );
-          const packTotal =
-            toSafeMoney(pack.ratePerPlate) * normalizedPackCount +
-            toSafeMoney(pack.setupCost) +
-            toSafeMoney(pack.extraCharges);
-          totalAmount += packTotal;
-        }
-      }
-
-      // Add additional items
-      if (data.additionalItems) {
-        totalAmount += data.additionalItems.reduce(
-          (sum: number, item: any) =>
-            sum + toSafeMoney(item.charges) * Math.max(1, toSafeNumber(item.quantity || 1)),
-          0
-        );
-      }
-
-      totalAmount = toSafeMoney(totalAmount);
+      const totalAmount = sumBookingLines({
+        halls: hallRowsInput.map((h: any) => ({ charges: h.charges })),
+        packs: (data.packs ?? []).map((p: any) => ({
+          ratePerPlate: p.ratePerPlate,
+          packCount: p.packCount,
+          noOfPack: p.noOfPack,
+          setupCost: p.setupCost,
+          extraCharges: p.extraCharges,
+        })),
+        additionalItems: (data.additionalItems ?? []).map((a: any) => ({
+          charges: a.charges,
+          quantity: a.quantity,
+        })),
+      });
 
       // Calculate discount
       const discountPercentage =
@@ -2405,7 +2373,6 @@ export async function getBookingHistory(
       where: withBookingBanquetScope({ id }, allowedBanquetIds),
       select: {
         id: true,
-        previousBookingId: true,
       },
     });
 
@@ -2414,37 +2381,7 @@ export async function getBookingHistory(
       return;
     }
 
-    let rootId = anchor.id;
-    let cursor = anchor;
-    while (cursor.previousBookingId) {
-      const previous = await prisma.booking.findUnique({
-        where: { id: cursor.previousBookingId },
-        select: {
-          id: true,
-          previousBookingId: true,
-        },
-      });
-      if (!previous) break;
-      rootId = previous.id;
-      cursor = previous;
-    }
-
-    const lineageIds: string[] = [];
-    let nextCursorId: string | null = rootId;
-    let guard = 0;
-    while (nextCursorId && guard < 200) {
-      lineageIds.push(nextCursorId);
-      const nextVersionRow: { id: string } | null = await prisma.booking.findFirst({
-        where: {
-          previousBookingId: nextCursorId,
-        },
-        select: {
-          id: true,
-        },
-      });
-      nextCursorId = nextVersionRow?.id || null;
-      guard += 1;
-    }
+    const lineageIds = await resolveVersionChain(anchor.id);
 
     const versions = await prisma.booking.findMany({
       where: {
@@ -3339,28 +3276,20 @@ export async function updateBooking(
           },
         });
 
-      const hallTotal = hallRows.reduce(
-        (sum: number, hall: { charges?: number }) => sum + toSafeMoney(hall.charges),
-        0
-      );
-      const packTotal = packRows.reduce(
-        (sum: number, pack: any) =>
-          sum +
-          toSafeMoney(pack.ratePerPlate) *
-          Math.max(1, toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)) +
-          toSafeMoney(pack.setupCost) +
-          toSafeMoney(pack.extraCharges),
-        0
-      );
-      const additionalItemsTotal = additionalItemRows.reduce(
-        (sum: number, item: { charges?: number; quantity?: number }) =>
-          sum +
-          toSafeMoney(item.charges) *
-          Math.max(1, toSafeNumber(item.quantity || 1)),
-        0
-      );
-
-      const totalAmount = toSafeMoney(hallTotal + packTotal + additionalItemsTotal);
+      const totalAmount = sumBookingLines({
+        halls: hallRows.map((h: any) => ({ charges: h.charges })),
+        packs: packRows.map((p: any) => ({
+          ratePerPlate: p.ratePerPlate,
+          packCount: p.packCount,
+          noOfPack: p.noOfPack,
+          setupCost: p.setupCost,
+          extraCharges: p.extraCharges,
+        })),
+        additionalItems: additionalItemRows.map((a: any) => ({
+          charges: a.charges,
+          quantity: a.quantity,
+        })),
+      });
       const inputDiscountPercentage = readDualPercent(
         data,
         'discountPercentageValue',
