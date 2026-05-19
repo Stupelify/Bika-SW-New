@@ -85,36 +85,28 @@ export default function BookingPartyOverForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Flag className="w-4 h-4 text-red-500" />
-        <h3 className="text-lg font-semibold text-[var(--text-1)]">Party Over</h3>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Flag className="w-4 h-4 text-red-500" />
+          <h3 className="text-lg font-semibold text-[var(--text-1)]">Party Over</h3>
+        </div>
+        {!unlocked && (
+          <div className="flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-1 text-xs text-amber-700 dark:text-amber-300">
+            <Lock className="w-3 h-3" />
+            Editable from {functionDate ? new Date(functionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+          </div>
+        )}
       </div>
 
-      {!unlocked && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 p-4 flex items-start gap-3">
-          <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              Party Over is locked
-            </p>
-            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-              Unlocks on or after the function date
-              {functionDate ? ` (${new Date(functionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})` : ''}.
-              You can still record payments above.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {unlocked && packs.length === 0 && (
+      {packs.length === 0 && (
         <div className="rounded-xl border border-[var(--border)] p-8 text-center text-sm text-[var(--text-4)]">
           No packs configured on this booking.
         </div>
       )}
 
-      {unlocked && packs.length > 0 && (
+      {packs.length > 0 && (
         <>
-          <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
+          <div className={`rounded-xl border border-[var(--border-2)] overflow-hidden${!unlocked ? ' opacity-60' : ''}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
@@ -147,7 +139,8 @@ export default function BookingPartyOverForm({
                         <input
                           type="number"
                           min={0}
-                          className="input py-1 text-sm w-24 text-center"
+                          disabled={!unlocked}
+                          className="input py-1 text-sm w-24 text-center disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
                           value={actualPax[pack.id] ?? String(actualP)}
                           onChange={(e) =>
                             setActualPax((prev) => ({ ...prev, [pack.id]: e.target.value }))
@@ -172,7 +165,7 @@ export default function BookingPartyOverForm({
           </div>
 
           {/* Settlement */}
-          <div className="rounded-xl border border-[var(--border-2)] p-4 space-y-3">
+          <div className={`rounded-xl border border-[var(--border-2)] p-4 space-y-3${!unlocked ? ' opacity-60' : ''}`}>
             <p className="text-sm font-semibold text-[var(--text-1)]">Settlement</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
@@ -182,7 +175,8 @@ export default function BookingPartyOverForm({
                   min={0}
                   max={100}
                   step="0.01"
-                  className="input py-1 text-sm"
+                  disabled={!unlocked}
+                  className="input py-1 text-sm disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
                   value={settlementDiscountPct}
                   onChange={(e) => setSettlementDiscountPct(e.target.value)}
                 />
@@ -202,22 +196,25 @@ export default function BookingPartyOverForm({
             </div>
           </div>
 
-          <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 p-3">
-            <p className="text-xs text-red-700 dark:text-red-200">
-              ⚠ Marking party as over permanently locks ALL booking versions. This action cannot be reversed. Please enter actual pax as used.
-            </p>
-          </div>
+          {unlocked && (
+            <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 p-3">
+              <p className="text-xs text-red-700 dark:text-red-200">
+                ⚠ Marking party as over permanently locks ALL booking versions. This action cannot be reversed. Please enter actual pax as used.
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end">
             <button
               type="button"
-              className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm"
-              disabled={saving}
+              className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={saving || !unlocked}
               onClick={handleSubmit}
             >
               <span className="inline-flex items-center gap-2">
-                <Flag className="w-4 h-4" />
-                {saving ? 'Processing…' : 'Settle & Lock Party'}
+                {!unlocked && <Lock className="w-4 h-4" />}
+                {unlocked && <Flag className="w-4 h-4" />}
+                {saving ? 'Processing…' : !unlocked ? 'Locked' : 'Settle & Lock Party'}
               </span>
             </button>
           </div>
