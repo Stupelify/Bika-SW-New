@@ -959,13 +959,12 @@ export default function BookingsPage() {
 
   useEffect(() => {
     if (!showCreateForm) return;
-    // finalAmount = pack+hall subtotal after discount (extras NOT included).
-    // grandTotal = finalAmount + extras = full amount owed.
-    const netAmount = parseFloat(formData.finalAmount || '0') || totalBillBase;
-    const grandTotal = Number.isFinite(netAmount) ? netAmount + totalAdditionalRequirementsAmount : totalBillBase;
+    // Model A: finalAmount = full grand total after discount (halls + packs + extras − discount).
+    // No need to add extras again — they are already inside finalAmount / totalBillBase.
+    const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
     const due = Math.max(0, grandTotal - totalPayments);
     setFormData((prev) => ({ ...prev, dueAmount: due.toFixed(2) }));
-  }, [formData.finalAmount, totalPayments, totalBillBase, totalAdditionalRequirementsAmount, showCreateForm]);
+  }, [formData.finalAmount, totalPayments, totalBillBase, showCreateForm]);
 
   const enabledPackAmountRows = useMemo(
     () =>
@@ -2073,21 +2072,14 @@ export default function BookingsPage() {
           booking.discountPercentage !== null && booking.discountPercentage !== undefined
             ? String(booking.discountPercentage)
             : '0',
-        finalAmount: (() => {
-          // Server finalAmount / grandTotal = halls + packs + extras - discount (everything).
-          // Form displays: finalAmount + additionals = grand total.
-          // To avoid double-adding extras, subtract additionals so form re-adds them correctly.
-          const serverTotal =
-            booking.finalAmountValue ??
-            (booking.finalAmount ? Number(booking.finalAmount) : null) ??
-            booking.grandTotal ??
-            0;
-          const serverAdditionals = (booking.additionalItems || []).reduce(
-            (s: number, i: any) => s + Math.max(0, Number(i.charges || 0)),
-            0
-          );
-          return String(Math.max(0, serverTotal - serverAdditionals));
-        })(),
+        finalAmount:
+          // Model A: finalAmount = full grand total (halls+packs+extras−discount). Load directly.
+          booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
+            ? String(booking.finalAmountValue)
+            : booking.finalAmount ||
+              (booking.grandTotal !== null && booking.grandTotal !== undefined
+                ? String(booking.grandTotal)
+                : '0'),
         notes: booking.notes || '',
         additionalRequirements: (booking.additionalItems || [])
           .map((entry: any) => ({
@@ -3559,8 +3551,8 @@ export default function BookingsPage() {
 
                       {/* Grand Total row */}
                       {(() => {
-                        const netAmount = parseFloat(formData.finalAmount || '0') || totalBillBase;
-                        const grandTotal = netAmount + totalAdditionalRequirementsAmount;
+                        // Model A: finalAmount already includes everything (halls+packs+extras−discount).
+                        const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
                         return (
                           <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]">
                             <td colSpan={7} />
@@ -3793,8 +3785,8 @@ export default function BookingsPage() {
                         </div>
                       </div>
                       {(() => {
-                        const netAmount = parseFloat(formData.finalAmount || '0') || totalBillBase;
-                        const grandTotal = netAmount + totalAdditionalRequirementsAmount;
+                        // Model A: finalAmount already includes everything (halls+packs+extras−discount).
+                        const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
                         return (
                           <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
                             <span className="text-base font-extrabold text-[var(--text-1)]">Grand Total</span>
