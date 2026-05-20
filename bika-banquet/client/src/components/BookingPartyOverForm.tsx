@@ -30,7 +30,11 @@ export default function BookingPartyOverForm({
   booking, functionDate, discountPercent, isPartyOverSubmitted, saving, onSubmit,
 }: Props) {
   const [actualPax, setActualPax] = useState<Record<string, string>>({});
-  const [settlementDiscountPct, setSettlementDiscountPct] = useState('0');
+  // Settlement: any of the three can be edited; others derive from it
+  const [settlePctDraft, setSettlePctDraft] = useState('0');
+  const [settleDiscDraft, setSettleDiscDraft] = useState('');   // raw ₹ input
+  const [settleTotalDraft, setSettleTotalDraft] = useState(''); // raw ₹ input
+  const [settleMode, setSettleMode] = useState<'pct' | 'disc' | 'total'>('pct');
 
   const unlocked = isDateReached(functionDate);
   const packs: any[] = booking?.packs || [];
@@ -53,9 +57,22 @@ export default function BookingPartyOverForm({
 
   const totalDiscAmt = rows.reduce((s, r) => s + r.discAmt, 0);
   const totalBilledAmt = rows.reduce((s, r) => s + r.billedAmt, 0);
-  const settlePct = parseFloat(settlementDiscountPct) || 0;
-  const settleDiscAmt = totalBilledAmt * (settlePct / 100);
-  const settleTotalAmt = totalBilledAmt - settleDiscAmt;
+
+  // Derive the three settlement values from whichever field was last edited
+  const settlePct = (() => {
+    if (settleMode === 'pct') return Math.min(100, Math.max(0, parseFloat(settlePctDraft) || 0));
+    if (settleMode === 'disc') return totalBilledAmt > 0 ? (parseFloat(settleDiscDraft) || 0) / totalBilledAmt * 100 : 0;
+    if (settleMode === 'total') return totalBilledAmt > 0 ? Math.max(0, totalBilledAmt - (parseFloat(settleTotalDraft) || 0)) / totalBilledAmt * 100 : 0;
+    return 0;
+  })();
+  const settleDiscAmt = (() => {
+    if (settleMode === 'disc') return Math.max(0, Math.min(totalBilledAmt, parseFloat(settleDiscDraft) || 0));
+    return totalBilledAmt * (settlePct / 100);
+  })();
+  const settleTotalAmt = (() => {
+    if (settleMode === 'total') return Math.max(0, Math.min(totalBilledAmt, parseFloat(settleTotalDraft) || 0));
+    return totalBilledAmt - settleDiscAmt;
+  })();
 
   const fmt = (n: number) => Math.round(n).toLocaleString('en-IN');
 
@@ -164,9 +181,9 @@ export default function BookingPartyOverForm({
             </div>
           </div>
 
-          {/* Settlement — styled to match booking form disc/net rows */}
+          {/* Settlement — all three fields editable, bidirectional sync */}
           <div className={`rounded-xl border border-[var(--border-2)] overflow-hidden${!unlocked ? ' opacity-60' : ''}`}>
-            {/* Disc % row */}
+            {/* Disc % + Discount Amount row */}
             <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)]">
               <div className="flex items-center gap-3">
                 <span className="text-sm text-[var(--text-3)]">Settlement Disc %</span>
@@ -177,23 +194,33 @@ export default function BookingPartyOverForm({
                   step="0.01"
                   disabled={!unlocked}
                   className="input py-1 text-sm w-24 text-right disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
-                  value={settlementDiscountPct}
-                  onChange={(e) => setSettlementDiscountPct(e.target.value)}
+                  value={settleMode === 'pct' ? settlePctDraft : settlePct.toFixed(2)}
+                  onChange={(e) => { setSettleMode('pct'); setSettlePctDraft(e.target.value); }}
                 />
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-sm font-semibold text-red-600 dark:text-red-400">Settlement Discount</span>
-                <div className="input py-1 text-sm w-36 text-right bg-[var(--surface-2)] cursor-not-allowed text-red-600 dark:text-red-400 font-semibold">
-                  {fmt(settleDiscAmt)}
-                </div>
+                <input
+                  type="number"
+                  min={0}
+                  disabled={!unlocked}
+                  className="input py-1 text-sm w-36 text-right text-red-600 dark:text-red-400 font-semibold disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
+                  value={settleMode === 'disc' ? settleDiscDraft : Math.round(settleDiscAmt).toString()}
+                  onChange={(e) => { setSettleMode('disc'); setSettleDiscDraft(e.target.value); }}
+                />
               </div>
             </div>
             {/* Settlement Amount row */}
             <div className="flex items-center justify-end gap-4 px-4 py-3 bg-[var(--surface-2)]">
               <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Settlement Amount</span>
-              <div className="input py-1 text-sm w-36 text-right bg-[var(--surface)] cursor-not-allowed text-emerald-700 dark:text-emerald-400 font-bold">
-                ₹{fmt(settleTotalAmt)}
-              </div>
+              <input
+                type="number"
+                min={0}
+                disabled={!unlocked}
+                className="input py-1 text-sm w-36 text-right text-emerald-700 dark:text-emerald-400 font-bold bg-[var(--surface)] disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
+                value={settleMode === 'total' ? settleTotalDraft : Math.round(settleTotalAmt).toString()}
+                onChange={(e) => { setSettleMode('total'); setSettleTotalDraft(e.target.value); }}
+              />
             </div>
           </div>
 
