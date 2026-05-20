@@ -3803,6 +3803,7 @@ export default function BookingsPage() {
                 <BookingPaymentsLedger
                   payments={formData.payments}
                   isReadOnly={isReadOnlyBooking}
+                  advanceReceived={activeBookingObj?.advanceReceived ?? undefined}
                   onAdd={(payment) =>
                     setFormData((prev) => ({ ...prev, payments: [...prev.payments, payment] }))
                   }
@@ -3833,8 +3834,9 @@ export default function BookingsPage() {
                   functionDate={formData.functionDate}
                   discountPercent={parseFloat(formData.finalDiscountPercent || '0') || 0}
                   isPartyOver={activeBookingObj?.status === 'completed'}
+                  advanceReceived={activeBookingObj?.advanceReceived ?? undefined}
                   totalBilledAmount={
-                    activeBookingObj?.packs?.length > 0
+                    activeBookingObj?.status === 'completed' && activeBookingObj?.packs?.length > 0
                       ? activeBookingObj.packs.reduce((sum: number, pack: any) => {
                           const discPct = activeBookingObj.discountPercentageValue ?? activeBookingObj.discountPercentage ?? 0;
                           const dr = (pack.ratePerPlate ?? 0) * (1 - discPct / 100);

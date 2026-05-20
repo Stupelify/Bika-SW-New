@@ -17,6 +17,7 @@ interface Props {
   functionDate: string;
   discountPercent: number;
   isPartyOver: boolean;
+  advanceReceived?: number;   // authoritative DB sum across all booking versions
   totalBilledAmount?: number;
   settlementTotalAmount?: number;
   settlementDiscountAmount?: number;
@@ -35,7 +36,7 @@ function getDuePercent(functionDate: string, isPartyOver: boolean): number {
 
 export default function BookingFinancialSummary({
   packs, payments, functionDate, discountPercent,
-  isPartyOver, totalBilledAmount, settlementTotalAmount, settlementDiscountAmount,
+  isPartyOver, advanceReceived, totalBilledAmount, settlementTotalAmount, settlementDiscountAmount,
 }: Props) {
   const discRate = (rpp: number) => rpp * (1 - discountPercent / 100);
 
@@ -43,10 +44,15 @@ export default function BookingFinancialSummary({
   const totalDiscountedAmount = packs.reduce((sum, p) => sum + discRate(p.ratePerPlate) * p.packCount, 0);
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const credited = payments.reduce((sum, p) => {
+  const creditedFromRows = payments.reduce((sum, p) => {
     if (p.mode.toLowerCase() === 'cheque' && p.clearingDate && p.clearingDate > todayStr) return sum;
     return sum + (parseFloat(p.amount) || 0);
   }, 0);
+  // Use DB-authoritative advanceReceived when payment rows from current version
+  // are unavailable (e.g. payments recorded on a previous finalized version).
+  const credited = advanceReceived !== undefined && advanceReceived > creditedFromRows
+    ? advanceReceived
+    : creditedFromRows;
 
   const duePercent = getDuePercent(functionDate, isPartyOver);
 

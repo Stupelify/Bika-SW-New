@@ -21,6 +21,7 @@ interface PaymentRow {
 interface Props {
   payments: PaymentRow[];
   isReadOnly: boolean;
+  advanceReceived?: number;  // DB-authoritative total (may include prior version payments)
   onAdd: (payment: PaymentRow) => void;
   onUpdate: (index: number, patch: Partial<PaymentRow>) => void;
   onRemove: (index: number) => void;
@@ -44,7 +45,7 @@ const emptyDraft = (): PaymentRow => ({
 });
 
 export default function BookingPaymentsLedger({
-  payments, isReadOnly, onAdd, onUpdate, onRemove,
+  payments, isReadOnly, advanceReceived, onAdd, onUpdate, onRemove,
 }: Props) {
   const [showDraft, setShowDraft] = useState(false);
   const [draft, setDraft] = useState<PaymentRow>(emptyDraft());
@@ -305,12 +306,25 @@ export default function BookingPaymentsLedger({
         )}
 
         {/* Footer totals */}
-        {payments.length > 0 && (
+        {(payments.length > 0 || (advanceReceived !== undefined && advanceReceived > 0)) && (
           <div className="border-t border-[var(--border)] bg-[var(--surface-2)] dark:bg-[var(--surface-3)] px-4 py-3 space-y-1 text-sm">
-            <div className="flex justify-between text-[var(--text-2)]">
-              <span>Total Received (credited)</span>
-              <span className="font-semibold">₹{credited.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+            {payments.length > 0 && (
+              <div className="flex justify-between text-[var(--text-2)]">
+                <span>Total Received (this version)</span>
+                <span className="font-semibold">₹{credited.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {advanceReceived !== undefined && advanceReceived > credited && (
+              <div className="flex justify-between text-blue-700 dark:text-blue-300 text-xs font-medium">
+                <span>Total Received (all versions, from DB)</span>
+                <span>₹{advanceReceived.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {advanceReceived !== undefined && advanceReceived > credited && payments.length === 0 && (
+              <p className="text-xs text-[var(--text-4)] pt-1">
+                ₹{advanceReceived.toLocaleString('en-IN')} received on a previous booking version. New payments recorded here apply to this version.
+              </p>
+            )}
             {pendingCheques > 0 && (
               <div className="flex justify-between text-amber-600 dark:text-amber-400 text-xs">
                 <span>Pending — cheque not yet cleared</span>
