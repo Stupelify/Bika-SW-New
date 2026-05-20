@@ -164,34 +164,35 @@ export default function BookingPartyOverForm({
             </div>
           </div>
 
-          {/* Settlement */}
-          <div className={`rounded-xl border border-[var(--border-2)] p-4 space-y-3${!unlocked ? ' opacity-60' : ''}`}>
-            <p className="text-sm font-semibold text-[var(--text-1)]">Settlement</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <label className="text-xs text-[var(--text-4)] block mb-1">Settlement Discount %</label>
+          {/* Settlement — styled to match booking form disc/net rows */}
+          <div className={`rounded-xl border border-[var(--border-2)] overflow-hidden${!unlocked ? ' opacity-60' : ''}`}>
+            {/* Disc % row */}
+            <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)]">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[var(--text-3)]">Settlement Disc %</span>
                 <input
                   type="number"
                   min={0}
                   max={100}
                   step="0.01"
                   disabled={!unlocked}
-                  className="input py-1 text-sm disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
+                  className="input py-1 text-sm w-24 text-right disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
                   value={settlementDiscountPct}
                   onChange={(e) => setSettlementDiscountPct(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="text-xs text-[var(--text-4)] block mb-1">Settlement Discount Amt</label>
-                <div className="input py-1 text-sm bg-[var(--surface-2)] cursor-not-allowed text-[var(--text-2)]">
-                  ₹{fmt(settleDiscAmt)}
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-semibold text-red-600 dark:text-red-400">Settlement Discount</span>
+                <div className="input py-1 text-sm w-36 text-right bg-[var(--surface-2)] cursor-not-allowed text-red-600 dark:text-red-400 font-semibold">
+                  {fmt(settleDiscAmt)}
                 </div>
               </div>
-              <div className="md:col-span-2">
-                <label className="text-xs text-[var(--text-4)] block mb-1">Settlement Amount</label>
-                <div className="input py-1 text-sm bg-[var(--surface-2)] cursor-not-allowed font-semibold text-[var(--text-1)]">
-                  ₹{fmt(settleTotalAmt)}
-                </div>
+            </div>
+            {/* Settlement Amount row */}
+            <div className="flex items-center justify-end gap-4 px-4 py-3 bg-[var(--surface-2)]">
+              <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Settlement Amount</span>
+              <div className="input py-1 text-sm w-36 text-right bg-[var(--surface)] cursor-not-allowed text-emerald-700 dark:text-emerald-400 font-bold">
+                ₹{fmt(settleTotalAmt)}
               </div>
             </div>
           </div>
