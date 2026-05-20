@@ -884,12 +884,15 @@ export default function BookingsPage() {
     return Math.max(0, parsed);
   }, []);
 
+  // Pack-only amount — matches server sumBookingLines pack portion.
+  // Hall rate is excluded here; it is summed separately and deduped per hall id.
   const calculatePackAmount = useCallback(
     (row: BookingPackRow): number => {
-      const hallRate = row.withHall ? toNonNegativeNumber(row.hallRate) : 0;
       const ratePerPlate = row.withCatering ? toNonNegativeNumber(row.ratePerPlate) : 0;
       const pax = row.withCatering ? toNonNegativeNumber(row.pax) : 0;
-      return hallRate + ratePerPlate * pax;
+      const setupCost = toNonNegativeNumber(row.setupCost || '0');
+      const extraCharges = Math.max(0, Number(row.extraCharges || 0));
+      return ratePerPlate * pax + setupCost + extraCharges;
     },
     [toNonNegativeNumber]
   );
@@ -910,6 +913,23 @@ export default function BookingsPage() {
     [calculatePackAmount, formData.packs]
   );
 
+  // Deduped hall total — same logic as submit hallChargeMap — each hall charged once at
+  // the maximum rate across packs sharing it. Matches server sumBookingLines hall portion.
+  const totalHallAmount = useMemo(() => {
+    const hallChargeMap = new Map<string, number>();
+    (Object.keys(formData.packs) as PackKey[]).forEach((key) => {
+      const row = formData.packs[key];
+      if (!row.enabled || !row.withHall) return;
+      const validHallIds = (row.hallIds || []).filter(Boolean);
+      if (validHallIds.length === 0) return;
+      const charge = toNonNegativeNumber(row.hallRate);
+      validHallIds.forEach((hallId) => {
+        hallChargeMap.set(hallId, Math.max(hallChargeMap.get(hallId) || 0, charge));
+      });
+    });
+    return Array.from(hallChargeMap.values()).reduce((s, c) => s + c, 0);
+  }, [formData.packs, toNonNegativeNumber]);
+
   const totalAdditionalRequirementsAmount = useMemo(
     () =>
       formData.additionalRequirements.reduce((sum, requirement) => {
@@ -920,10 +940,15 @@ export default function BookingsPage() {
     [formData.additionalRequirements]
   );
 
-  const totalBillAmount = useMemo(
-    () => totalPackAmount + totalAdditionalRequirementsAmount,
-    [totalAdditionalRequirementsAmount, totalPackAmount]
+  // Full billing base = halls (deduped) + packs + extras. Matches server totalAmount.
+  // This is the correct base for discount % calculation.
+  const totalBillBase = useMemo(
+    () => totalHallAmount + totalPackAmount + totalAdditionalRequirementsAmount,
+    [totalHallAmount, totalPackAmount, totalAdditionalRequirementsAmount]
   );
+
+  // Keep for backward-compat references (same value as totalBillBase)
+  const totalBillAmount = totalBillBase;
 
   // Keep dueAmount in sync: always = grandTotal (finalAmount + extras) minus what's been paid.
   // When there are no payments, due = full amount automatically.
@@ -934,11 +959,13 @@ export default function BookingsPage() {
 
   useEffect(() => {
     if (!showCreateForm) return;
-    const netAmount = parseFloat(formData.finalAmount || '0') || totalPackAmount;
-    const grandTotal = netAmount + totalAdditionalRequirementsAmount;
+    // finalAmount = pack+hall subtotal after discount (extras NOT included).
+    // grandTotal = finalAmount + extras = full amount owed.
+    const netAmount = parseFloat(formData.finalAmount || '0') || totalBillBase;
+    const grandTotal = Number.isFinite(netAmount) ? netAmount + totalAdditionalRequirementsAmount : totalBillBase;
     const due = Math.max(0, grandTotal - totalPayments);
     setFormData((prev) => ({ ...prev, dueAmount: due.toFixed(2) }));
-  }, [formData.finalAmount, totalPayments, totalPackAmount, totalAdditionalRequirementsAmount, showCreateForm]);
+  }, [formData.finalAmount, totalPayments, totalBillBase, totalAdditionalRequirementsAmount, showCreateForm]);
 
   const enabledPackAmountRows = useMemo(
     () =>
@@ -1354,7 +1381,7 @@ export default function BookingsPage() {
             ? prev.finalDiscountAmount
             : prev.finalAmount;
       // Discount is applied to pack amounts only (not extras)
-      const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, totalPackAmount);
+      const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, totalBillBase);
       if (
         prev.finalDiscountAmount === nextValues.finalDiscountAmount &&
         prev.finalDiscountPercent === nextValues.finalDiscountPercent &&
@@ -1367,25 +1394,25 @@ export default function BookingsPage() {
         ...nextValues,
       };
     });
-  }, [amountSyncMode, discountManuallySet, normalizeAmountSnapshot, showCreateForm, totalPackAmount]);
+  }, [amountSyncMode, discountManuallySet, normalizeAmountSnapshot, showCreateForm, totalBillBase]);
 
   useEffect(() => {
     if (!showCreateForm) return;
     if (prevTotalPackAmountRef.current === null) {
-      prevTotalPackAmountRef.current = totalPackAmount;
+      prevTotalPackAmountRef.current = totalBillBase;
       return;
     }
-    if (prevTotalPackAmountRef.current === totalPackAmount) return;
-    prevTotalPackAmountRef.current = totalPackAmount;
+    if (prevTotalPackAmountRef.current === totalBillBase) return;
+    prevTotalPackAmountRef.current = totalBillBase;
     if (!discountManuallySet) return;
-    // Pack amounts changed while discount was manually set — reset discount to blank, net = new total
+    // Billing base changed while discount was manually set — reset discount, net = new base
     setFormData((prev) => ({
       ...prev,
       finalDiscountPercent: '',
       finalDiscountAmount: '',
-      finalAmount: formatComputedAmount(totalPackAmount),
+      finalAmount: formatComputedAmount(totalBillBase),
     }));
-  }, [totalPackAmount, discountManuallySet, showCreateForm, formatComputedAmount]);
+  }, [totalBillBase, discountManuallySet, showCreateForm, formatComputedAmount]);
 
   const addPaymentRow = () => {
     setFormData((prev) => ({
@@ -2046,11 +2073,21 @@ export default function BookingsPage() {
           booking.discountPercentage !== null && booking.discountPercentage !== undefined
             ? String(booking.discountPercentage)
             : '0',
-        finalAmount:
-          booking.finalAmount ||
-          (booking.grandTotal !== null && booking.grandTotal !== undefined
-            ? String(booking.grandTotal)
-            : '0'),
+        finalAmount: (() => {
+          // Server finalAmount / grandTotal = halls + packs + extras - discount (everything).
+          // Form displays: finalAmount + additionals = grand total.
+          // To avoid double-adding extras, subtract additionals so form re-adds them correctly.
+          const serverTotal =
+            booking.finalAmountValue ??
+            (booking.finalAmount ? Number(booking.finalAmount) : null) ??
+            booking.grandTotal ??
+            0;
+          const serverAdditionals = (booking.additionalItems || []).reduce(
+            (s: number, i: any) => s + Math.max(0, Number(i.charges || 0)),
+            0
+          );
+          return String(Math.max(0, serverTotal - serverAdditionals));
+        })(),
         notes: booking.notes || '',
         additionalRequirements: (booking.additionalItems || [])
           .map((entry: any) => ({
@@ -2337,7 +2374,7 @@ export default function BookingsPage() {
           .filter((value) => value > 0)
       );
       const normalizedDiscountAmount = Math.min(
-        totalPackAmount,
+        totalBillBase,
         Math.max(0, toNumber(formData.finalDiscountAmount || '0'))
       );
       const normalizedDiscountPercent = Math.min(
@@ -2345,7 +2382,7 @@ export default function BookingsPage() {
         Math.max(0, toNumber(formData.finalDiscountPercent || '0'))
       );
       const normalizedFinalAmount = Math.min(
-        totalPackAmount,
+        totalBillBase,
         Math.max(0, toNumber(formData.finalAmount || '0'))
       );
       const functionTime = enabledPackEntries[0]?.row.startTime || '12:00';
@@ -3345,7 +3382,7 @@ export default function BookingsPage() {
                         <td colSpan={7} />
                         <td className="px-2 py-2 text-right text-xs font-bold text-[var(--text-1)] whitespace-nowrap">Total</td>
                         <td className="px-2 py-2 text-right text-sm font-bold text-[var(--text-1)]">
-                          ₹{totalPackAmount.toLocaleString('en-IN')}
+                          ₹{(totalHallAmount + totalPackAmount).toLocaleString('en-IN')}
                         </td>
                       </tr>
 
@@ -3368,7 +3405,7 @@ export default function BookingsPage() {
                                 setDiscountManuallySet(true);
                                 setFormData((prev) => ({
                                   ...prev,
-                                  ...normalizeAmountSnapshot('discountPercent', e.target.value, totalPackAmount),
+                                  ...normalizeAmountSnapshot('discountPercent', e.target.value, totalBillBase),
                                 }));
                               }}
                             />
@@ -3389,7 +3426,7 @@ export default function BookingsPage() {
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('discountAmount', e.target.value, totalPackAmount),
+                                ...normalizeAmountSnapshot('discountAmount', e.target.value, totalBillBase),
                               }));
                             }}
                           />
@@ -3414,7 +3451,7 @@ export default function BookingsPage() {
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('finalAmount', e.target.value, totalPackAmount),
+                                ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillBase),
                               }));
                             }}
                             aria-label="Net Amount"
@@ -3522,7 +3559,7 @@ export default function BookingsPage() {
 
                       {/* Grand Total row */}
                       {(() => {
-                        const netAmount = parseFloat(formData.finalAmount || '0') || totalPackAmount;
+                        const netAmount = parseFloat(formData.finalAmount || '0') || totalBillBase;
                         const grandTotal = netAmount + totalAdditionalRequirementsAmount;
                         return (
                           <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]">
@@ -3741,22 +3778,22 @@ export default function BookingsPage() {
                         <div>
                           <label className="label text-xs">Discount %</label>
                           <input className="input text-right" type="number" min={0} max={100} step="0.01" value={formData.finalDiscountPercent}
-                            onChange={(e) => { setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', e.target.value, totalPackAmount) })); }} />
+                            onChange={(e) => { setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', e.target.value, totalBillBase) })); }} />
                         </div>
                         <div>
                           <label className="label text-xs">Discount ₹</label>
                           <input className="input text-right" type="number" min={0} step="0.01" value={formData.finalDiscountAmount}
-                            onChange={(e) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', e.target.value, totalPackAmount) })); }} />
+                            onChange={(e) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', e.target.value, totalBillBase) })); }} />
                         </div>
                         <div>
                           <label className="label text-xs">Net Amount</label>
                           <input className="input text-right font-semibold text-teal-700 dark:text-teal-200" type="number" min={0} value={formData.finalAmount}
-                            onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, totalPackAmount) })); }}
+                            onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillBase) })); }}
                             aria-label="Net Amount" />
                         </div>
                       </div>
                       {(() => {
-                        const netAmount = parseFloat(formData.finalAmount || '0') || totalPackAmount;
+                        const netAmount = parseFloat(formData.finalAmount || '0') || totalBillBase;
                         const grandTotal = netAmount + totalAdditionalRequirementsAmount;
                         return (
                           <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
@@ -3822,6 +3859,7 @@ export default function BookingsPage() {
                 />
 
                 <BookingFinancialSummary
+                  extraBaseAmount={totalHallAmount}
                   packs={
                     (Object.entries(formData.packs) as Array<[string, typeof formData.packs[keyof typeof formData.packs]]>)
                       .filter(([, p]) => p.enabled)

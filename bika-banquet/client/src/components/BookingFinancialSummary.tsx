@@ -13,6 +13,7 @@ interface PaymentRow {
 
 interface Props {
   packs: PackSummary[];
+  extraBaseAmount?: number;   // hall charges (deduped) — added to billing base alongside packs
   payments: PaymentRow[];
   functionDate: string;
   discountPercent: number;
@@ -35,13 +36,17 @@ function getDuePercent(functionDate: string, isPartyOver: boolean): number {
 }
 
 export default function BookingFinancialSummary({
-  packs, payments, functionDate, discountPercent,
+  packs, extraBaseAmount = 0, payments, functionDate, discountPercent,
   isPartyOver, advanceReceived, totalBilledAmount, settlementTotalAmount, settlementDiscountAmount,
 }: Props) {
   const discRate = (rpp: number) => rpp * (1 - discountPercent / 100);
 
-  const totalQuoteAmount = packs.reduce((sum, p) => sum + p.ratePerPlate * p.packCount, 0);
-  const totalDiscountedAmount = packs.reduce((sum, p) => sum + discRate(p.ratePerPlate) * p.packCount, 0);
+  const packQuote = packs.reduce((sum, p) => sum + p.ratePerPlate * p.packCount, 0);
+  const packDiscounted = packs.reduce((sum, p) => sum + discRate(p.ratePerPlate) * p.packCount, 0);
+  // Hall charges are also discounted at the same rate (consistent with server)
+  const hallDiscounted = extraBaseAmount * (1 - discountPercent / 100);
+  const totalQuoteAmount = packQuote + extraBaseAmount;
+  const totalDiscountedAmount = packDiscounted + hallDiscounted;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const creditedFromRows = payments.reduce((sum, p) => {
