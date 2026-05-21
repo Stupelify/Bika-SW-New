@@ -123,7 +123,7 @@ services:
 
   # Metabase BI dashboard for operational reporting
   metabase:
-    image: metabase/metabase:v0.52.0
+    image: metabase/metabase:v0.52.17
     restart: always
     depends_on:
       db:
