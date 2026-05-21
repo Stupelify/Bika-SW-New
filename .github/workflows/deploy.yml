@@ -41,9 +41,6 @@ jobs:
           echo "==> Ensure all services up"
           docker compose up -d
 
-          echo "==> Syncing DB schema (additive only)"
-          docker compose exec -T server npx prisma db push --skip-generate --accept-data-loss=false 2>&1 || echo "Schema sync skipped"
-
           echo "==> Health check"
           for i in 1 2 3 4 5 6; do
             if docker compose exec -T server curl -fs http://localhost:5000/health >/dev/null 2>&1; then
