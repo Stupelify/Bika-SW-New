@@ -24,7 +24,7 @@ jobs:
 
       - name: Deploy
         run: |
-          ssh -i "$HOME/.ssh/deploy_key" root@${{ secrets.VPS_HOST }} << 'ENDSSH'
+          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=120 -i "$HOME/.ssh/deploy_key" root@${{ secrets.VPS_HOST }} << 'ENDSSH'
           set -e
           cd /root/bika-banquet-v2/bika-banquet
 
