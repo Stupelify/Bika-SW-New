@@ -10,6 +10,7 @@ interface FormPromptModalProps {
   onClose: () => void;
   children: ReactNode;
   widthClass?: string;
+  isDirty?: boolean;
 }
 
 export default function FormPromptModal({
@@ -18,12 +19,18 @@ export default function FormPromptModal({
   onClose,
   children,
   widthClass = 'max-w-4xl',
+  isDirty = false,
 }: FormPromptModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open) setShowCloseConfirm(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
@@ -42,6 +49,14 @@ export default function FormPromptModal({
     };
   }, [open]);
 
+  const handleCloseRequest = () => {
+    if (isDirty) {
+      setShowCloseConfirm(true);
+    } else {
+      onClose();
+    }
+  };
+
   if (!open || !mounted || typeof document === 'undefined') return null;
 
   return createPortal(
@@ -52,7 +67,7 @@ export default function FormPromptModal({
       <button
         type="button"
         className="absolute inset-0 bg-slate-900/45 z-0"
-        onClick={onClose}
+        onClick={handleCloseRequest}
         aria-label="Close form prompt backdrop"
       />
       <div
@@ -62,7 +77,7 @@ export default function FormPromptModal({
           <h2 className="text-lg font-display font-semibold text-[var(--text-1)]">{title}</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseRequest}
             className="min-h-11 min-w-11 p-2 rounded-lg text-[var(--text-4)] hover:bg-surface-2 hover:text-[var(--text-2)] border border-transparent hover:border-[var(--border)]"
             aria-label="Close form prompt"
           >
@@ -71,6 +86,38 @@ export default function FormPromptModal({
         </div>
         <div className="p-4 sm:p-5 pb-[calc(1rem+var(--safe-bottom))]">{children}</div>
       </div>
+
+      {showCloseConfirm && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl border border-[var(--border)] shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-[var(--text-1)] mb-1">Unsaved Changes</h3>
+              <p className="text-sm text-[var(--text-3)]">
+                You have unsaved changes. Are you sure you want to close without saving?
+              </p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCloseConfirm(false)}
+                className="btn btn-secondary"
+              >
+                Stay on Page
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCloseConfirm(false);
+                  onClose();
+                }}
+                className="btn btn-danger"
+              >
+                Discard & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );

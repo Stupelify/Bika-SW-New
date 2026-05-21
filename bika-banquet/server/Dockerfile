@@ -4,7 +4,7 @@ FROM node:20-slim AS builder
 WORKDIR /app
 
 # x86 Debian server — use debian-openssl target
-ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
+ENV PRISMA_CLI_BINARY_TARGETS="debian-openssl-3.0.x,linux-arm64-openssl-3.0.x"
 
 # Prisma needs OpenSSL available during generate/build
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
@@ -32,7 +32,7 @@ FROM node:20-slim
 WORKDIR /app
 
 # Force Prisma CLI to use OpenSSL 3-compatible engines at runtime
-ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
+ENV PRISMA_CLI_BINARY_TARGETS="debian-openssl-3.0.x,linux-arm64-openssl-3.0.x"
 
 # Prisma runtime requires OpenSSL shared libraries
 RUN apt-get update -y && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*

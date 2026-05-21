@@ -404,6 +404,14 @@ const FUNCTION_TYPE_OPTIONS = [
   'Other',
 ] as const;
 
+const LONGEST_FUNCTION_TYPE_OPTION = FUNCTION_TYPE_OPTIONS.reduce(
+  (longest, option) => (option.length > longest.length ? option : longest),
+  FUNCTION_TYPE_OPTIONS[0]
+);
+
+/** Typical primary display: name (~20) + phone (~12) + " ()" */
+const PRIMARY_CUSTOMER_FIELD_CH = 20 + 12 + 4;
+
 const initialColumnSearch = {
   functionName: '',
   customer: '',
@@ -539,6 +547,7 @@ export default function BookingsPage() {
   // view mode: 'table' (default on desktop) or 'cards'
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
+  const [isFormDirty, setIsFormDirty] = useState(false);
   const [inlineCustomerFormData, setInlineCustomerFormData] = useState<InlineCustomerFormData>(
     initialInlineCustomerFormData
   );
@@ -1041,6 +1050,7 @@ export default function BookingsPage() {
 
   const setCustomerIdForField = useCallback(
     (field: CustomerSearchField, customerId: string) => {
+      setIsFormDirty(true);
       setFormData((prev) => {
         if (field === 'primary') {
           const selectedCustomer = customers.find((customer) => customer.id === customerId);
@@ -1269,6 +1279,7 @@ export default function BookingsPage() {
   );
 
   const updatePackRow = (packKey: PackKey, patch: Partial<BookingPackRow>) => {
+    setIsFormDirty(true);
     setFormData((prev) => ({
       ...prev,
       packs: {
@@ -1279,6 +1290,7 @@ export default function BookingsPage() {
   };
 
   const togglePackMenuItem = (packKey: PackKey, itemId: string) => {
+    setIsFormDirty(true);
     setFormData((prev) => {
       const row = prev.packs[packKey];
       const alreadySelected = row.menuItemIds.includes(itemId);
@@ -1903,6 +1915,7 @@ export default function BookingsPage() {
     setAmountSyncMode('discountPercent');
     setDiscountManuallySet(false);
     setFormData(initialFormData);
+    setIsFormDirty(false);
     setActiveBookingTab('details');
     setActiveBookingObj(null);
     // Clear any active search so the freshly-saved booking is always visible
@@ -1928,6 +1941,7 @@ export default function BookingsPage() {
     setAmountSyncMode('discountPercent');
     setDiscountManuallySet(false);
     setFormData(initialFormData);
+    setIsFormDirty(false);
     setShowCreateForm(true);
   };
 
@@ -2117,6 +2131,7 @@ export default function BookingsPage() {
         packs: nextPacks,
       };
       setFormData(loadedFormData);
+      setIsFormDirty(false);
       setActiveBookingObj(booking);
       // Snapshot of server state — used to reset on submission failure.
       savedFormDataRef.current = loadedFormData;
@@ -2495,10 +2510,7 @@ export default function BookingsPage() {
 
       const payload = {
         customerId: formData.customerId,
-        secondCustomerId:
-          formData.includeSecondCustomer && formData.secondCustomerId
-            ? formData.secondCustomerId
-            : undefined,
+        secondCustomerId: formData.secondCustomerId || undefined,
         referredById: formData.referredById || undefined,
         priority: formData.priority ? Number(formData.priority) : undefined,
         functionName,
@@ -2588,6 +2600,7 @@ export default function BookingsPage() {
         closeBookingForm();
         await loadBookings();
       } else {
+        setIsFormDirty(false);
         await loadBookings();
       }
       return savedBookingId;
@@ -2613,7 +2626,7 @@ export default function BookingsPage() {
 
   const handleSubmitBooking = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await doSaveBooking({ keepOpen: false });
+    await doSaveBooking({ keepOpen: true });
   };
 
   const handleFinalizeBooking = async (e: React.MouseEvent) => {
@@ -2645,17 +2658,21 @@ export default function BookingsPage() {
     label,
     required = false,
     placeholder,
+    wrapperClassName,
+    inputClassName,
   }: {
     field: CustomerSearchField;
     label?: string;
     required?: boolean;
     placeholder: string;
+    wrapperClassName?: string;
+    inputClassName?: string;
   }) => {
     const suggestions = getCustomerSuggestions(field);
     const isActive = activeCustomerSearchField === field;
 
     return (
-      <div className="relative">
+      <div className={['relative', wrapperClassName].filter(Boolean).join(' ')}>
         {label ? (
           <label className="label">
             {label}
@@ -2665,11 +2682,12 @@ export default function BookingsPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-4)]" />
           <input
-            className="input pl-10"
+            className={['input pl-10', inputClassName].filter(Boolean).join(' ')}
             placeholder={placeholder}
             value={customerSearchInputs[field]}
             required={required}
             autoComplete="off"
+            title={customerSearchInputs[field] || undefined}
             onFocus={() => setActiveCustomerSearchField(field)}
             onBlur={() => {
               window.setTimeout(() => {
@@ -2753,6 +2771,7 @@ export default function BookingsPage() {
         title={editingBookingId ? 'Edit Booking' : 'Booking Form'}
         onClose={closeBookingForm}
         widthClass="max-w-[1400px]"
+        isDirty={isFormDirty}
       >
         {/* Tab bar */}
         <div className="flex border-b border-[var(--border)] -mt-2 mb-4">
@@ -2786,7 +2805,7 @@ export default function BookingsPage() {
         </div>
 
         <fieldset disabled={isReadOnlyBooking}>
-        <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} className="space-y-5">
+        <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} onChange={() => setIsFormDirty(true)} className="space-y-5">
           <div ref={actionSentinelRef} />
             <div className="flex items-center gap-3 flex-wrap">
               {!isReadOnlyBooking && (
@@ -2835,21 +2854,24 @@ export default function BookingsPage() {
             <section className="rounded-2xl border border-[var(--border-2)] p-4">
               <div className="space-y-3">
                 <h3 className="text-2xl font-semibold text-[var(--text-1)]">Booking Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-[1fr,100px] gap-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="label m-0">Primary Customer <span className="text-red-500">*</span></span>
-                      {canAddCustomer && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary text-xs px-2.5 py-1.5"
-                          onClick={openQuickCustomerForm}
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Add Customer
-                        </button>
-                      )}
+                {/* Row 1 mobile */}
+                <div className="space-y-3 md:hidden">
+                  {canAddCustomer && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-secondary text-xs px-2.5 py-1.5"
+                        onClick={openQuickCustomerForm}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Customer
+                      </button>
                     </div>
+                  )}
+                  <div className="space-y-1.5 min-w-0">
+                    <span className="label block">
+                      Primary Customer <span className="text-red-500">*</span>
+                    </span>
                     {renderCustomerTypeahead({
                       field: 'primary',
                       label: '',
@@ -2866,84 +2888,154 @@ export default function BookingsPage() {
                       value={formData.priority}
                       title="Priority is set from the selected customer's profile"
                     />
-                    <p className="mt-1 text-xs text-[var(--text-4)]">Auto-set from customer profile</p>
+                    <p className="mt-1 text-xs text-[var(--text-4)]">
+                      Auto-set from customer profile
+                    </p>
+                  </div>
+                  <div>
+                    <label className="label">
+                      Function Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      className="input"
+                      type="date"
+                      value={formData.functionDate}
+                      min={!editingBookingId ? todayIsoDate : undefined}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, functionDate: e.target.value }))
+                      }
+                      required
+                    />
                   </div>
                 </div>
 
-                <label className="inline-flex items-center gap-2 text-base text-[var(--text-2)]">
-                  <input
-                    type="checkbox"
-                    checked={formData.includeSecondCustomer}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setFormData((prev) => ({
-                        ...prev,
-                        includeSecondCustomer: checked,
-                        secondCustomerId: checked ? prev.secondCustomerId : '',
-                      }));
-                      if (!checked) {
-                        setCustomerSearchInputs((prev) => ({
-                          ...prev,
-                          second: '',
-                        }));
-                        setActiveCustomerSearchField((field) =>
-                          field === 'second' ? null : field
-                        );
+                {/* Row 1 desktop: primary | add customer | priority | date */}
+                <div className="hidden md:flex md:flex-wrap md:items-end md:gap-3">
+                  <div
+                    className="min-w-0 shrink-0 space-y-1.5"
+                    style={{ width: `calc(${PRIMARY_CUSTOMER_FIELD_CH}ch + 2.5rem)` }}
+                  >
+                    <span className="label block">
+                      Primary Customer <span className="text-red-500">*</span>
+                    </span>
+                    {renderCustomerTypeahead({
+                      field: 'primary',
+                      label: '',
+                      required: true,
+                      placeholder: 'Type customer name or number',
+                      inputClassName: 'truncate',
+                    })}
+                  </div>
+                  {canAddCustomer && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary shrink-0 text-xs px-2.5 py-1.5"
+                      onClick={openQuickCustomerForm}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Customer
+                    </button>
+                  )}
+                  <div className="w-[4.5rem] shrink-0 space-y-1.5">
+                    <label className="label block">Priority</label>
+                    <input
+                      className="input bg-[var(--surface-2)] dark:bg-slate-800/30 cursor-not-allowed"
+                      type="number"
+                      readOnly
+                      value={formData.priority}
+                      title="Priority is set from the selected customer's profile"
+                    />
+                  </div>
+                  <div className="w-[11.5rem] shrink-0 space-y-1.5">
+                    <label className="label block">
+                      Function Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      className="input"
+                      type="date"
+                      value={formData.functionDate}
+                      min={!editingBookingId ? todayIsoDate : undefined}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, functionDate: e.target.value }))
                       }
-                    }}
-                  />
-                  Add Second Customer
-                </label>
+                      required
+                    />
+                  </div>
+                </div>
 
-                {formData.includeSecondCustomer && (
-                  renderCustomerTypeahead({
+                {/* Row 2 mobile */}
+                <div className="space-y-3 md:hidden">
+                  <div>
+                    <label className="label">
+                      Function Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      className="input"
+                      value={formData.functionType}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, functionType: e.target.value }))
+                      }
+                      required
+                    >
+                      <option value="">Select function type</option>
+                      {FUNCTION_TYPE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {renderCustomerTypeahead({
+                    field: 'referred',
+                    label: 'Referred By',
+                    placeholder: 'Type customer name or number',
+                  })}
+                  {renderCustomerTypeahead({
                     field: 'second',
                     label: 'Second Customer',
                     placeholder: 'Type customer name or number',
-                  })
-                )}
-
-                {renderCustomerTypeahead({
-                  field: 'referred',
-                  label: 'Referred By',
-                  placeholder: 'Type customer name or number',
-                })}
-
-                <div>
-                  <label className="label">
-                    Function Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="input"
-                    value={formData.functionType}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, functionType: e.target.value }))
-                    }
-                    required
-                  >
-                    <option value="">Select function type</option>
-                    {FUNCTION_TYPE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  })}
                 </div>
 
-                <div>
-                  <label className="label">
-                    Function Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    className="input"
-                    type="date"
-                    value={formData.functionDate}
-                    min={!editingBookingId ? todayIsoDate : undefined}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, functionDate: e.target.value }))
-                    }
-                    required
-                  />
+                {/* Row 2 desktop: function type (fit longest option) | referred | second */}
+                <div className="hidden md:flex md:items-end md:gap-3">
+                  <div
+                    className="shrink-0 space-y-1.5"
+                    style={{ width: `${LONGEST_FUNCTION_TYPE_OPTION.length + 3}ch` }}
+                  >
+                    <label className="label block">
+                      Function Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      className="input w-full max-w-full"
+                      value={formData.functionType}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, functionType: e.target.value }))
+                      }
+                      required
+                    >
+                      <option value="">Select function type</option>
+                      {FUNCTION_TYPE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {renderCustomerTypeahead({
+                      field: 'referred',
+                      label: 'Referred By',
+                      placeholder: 'Type customer name or number',
+                    })}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {renderCustomerTypeahead({
+                      field: 'second',
+                      label: 'Second Customer',
+                      placeholder: 'Type customer name or number',
+                    })}
+                  </div>
                 </div>
 
                 {/* Pencil booking toggle */}
@@ -3460,15 +3552,16 @@ export default function BookingsPage() {
                             <button
                               type="button"
                               className="inline-flex h-6 items-center gap-1 rounded-full border border-primary-600 px-2 text-xs font-medium text-primary-700 hover:bg-primary-50"
-                              onClick={() =>
+                              onClick={() => {
+                                setIsFormDirty(true);
                                 setFormData((prev) => ({
                                   ...prev,
                                   additionalRequirements: [
                                     ...prev.additionalRequirements,
                                     { description: '', amount: '' },
                                   ],
-                                }))
-                              }
+                                }));
+                              }}
                             >
                               <Plus className="h-3 w-3" />
                               Add
@@ -3522,14 +3615,15 @@ export default function BookingsPage() {
                               <button
                                 type="button"
                                 className="text-xs text-red-500 hover:text-red-700 dark:text-red-200 whitespace-nowrap"
-                                onClick={() =>
+                                onClick={() => {
+                                  setIsFormDirty(true);
                                   setFormData((prev) => ({
                                     ...prev,
                                     additionalRequirements: prev.additionalRequirements.filter(
                                       (_, entryIndex) => entryIndex !== index
                                     ),
-                                  }))
-                                }
+                                  }));
+                                }}
                               >✕</button>
                             </div>
                           </td>
@@ -3743,7 +3837,7 @@ export default function BookingsPage() {
                     <h3 className="text-base font-semibold text-[var(--text-1)]">Amount Summary</h3>
                     <button type="button"
                       className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
-                      onClick={() => setFormData((prev) => ({ ...prev, additionalRequirements: [...prev.additionalRequirements, { description: '', amount: '' }] }))}>
+                      onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: [...prev.additionalRequirements, { description: '', amount: '' }] })); }}>
                       <Plus className="h-3.5 w-3.5" /> Add Extra
                     </button>
                   </div>
@@ -3758,7 +3852,7 @@ export default function BookingsPage() {
                       <div key={`mob-req-${index}`} className="grid grid-cols-[1fr,120px,auto] gap-2 items-center">
                         <input className="input" value={item.description} placeholder="Extra item" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) }))} />
                         <input className="input text-right" type="number" min={0} value={item.amount} placeholder="0" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: e.target.value } : r) }))} />
-                        <button type="button" className="text-red-500 text-xs" onClick={() => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.filter((_, i) => i !== index) }))}>✕</button>
+                        <button type="button" className="text-red-500 text-xs" onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.filter((_, i) => i !== index) })); }}>✕</button>
                       </div>
                     ))}
                     <div className="border-t border-[var(--border)] pt-2 space-y-2">

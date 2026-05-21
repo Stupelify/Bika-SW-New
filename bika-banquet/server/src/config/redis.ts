@@ -22,7 +22,6 @@ export function getRedisClient(): Redis | null {
 
   const client = new Redis(redisUrl, {
     maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
   });
 
   client.on('error', (error) => {

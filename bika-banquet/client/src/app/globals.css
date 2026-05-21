@@ -43,14 +43,14 @@
 [data-theme="dark"] {
   --bg:        #0f1011;
   --surface:   #141516;
-  --surface-2: #1b1c1e;
-  --surface-3: #222426;
+  --surface-2: #1e1f21;
+  --surface-3: #2a2c2e;
   --text-1:    #f8fafc;
-  --text-2:    #e2e8f0;
-  --text-3:    #b3b8c2;
-  --text-4:    #8b93a1;
-  --border:    #1f1f1f;
-  --border-2:  #2a2a2a;
+  --text-2:    #f1f5f9;
+  --text-3:    #cbd5e1;
+  --text-4:    #94a3b8;
+  --border:    #262626;
+  --border-2:  #333333;
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
   --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 8px 18px rgba(0, 0, 0, 0.55);
@@ -60,6 +60,17 @@
 }
 
 /* Dark mode specific overrides */
+[data-theme="dark"] .input {
+  background-color: #1a1b1d;
+  border-color: #404040;
+}
+[data-theme="dark"] .input:focus {
+  border-color: var(--teal-500);
+}
+[data-theme="dark"] .input:disabled {
+  background-color: #141516;
+  opacity: 0.6;
+}
 [data-theme="dark"] .skeleton {
   background: linear-gradient(90deg, #0b0b0b 25%, #141414 50%, #0b0b0b 75%);
 }
