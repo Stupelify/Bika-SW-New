@@ -4,6 +4,7 @@ import './globals.css';
 import './mobile.css';
 import { Toaster } from 'sonner';
 import IonicProvider from '@/components/IonicProvider';
+import CapacitorNativeShell from '@/components/CapacitorNativeShell';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -16,6 +17,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
   themeColor: '#0d9488',
 };
 
@@ -45,6 +47,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.variable}>
+        <CapacitorNativeShell />
         <IonicProvider>{children}</IonicProvider>
         <Toaster position="top-right" richColors />
       </body>

@@ -1,13 +1,63 @@
 /* Native Mobile Style Overrides */
 
-/* ── OVERRIDE IONIC SCROLL FREEZING ──────────────────────────────── */
-/* Ionic's core.css aggressively locks HTML/Body scrolling because it
-   expects the app to use <IonContent>. Since we are bypassing IonApp/IonContent
-   to preserve the Next.js Tailwind DOM layout, we must force the browser
-   to re-enable natural page scrolling on mobile devices. */
-html, body {
+/* Capacitor: lock body; scroll happens in .dashboard-main */
+html.capacitor-native,
+html.capacitor-native body {
+  overflow: hidden;
+  height: 100%;
+  touch-action: manipulation;
+}
+
+html.capacitor-native .dashboard-main {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Web-only: Ionic locks body scroll; re-enable for mobile browsers (not Capacitor). */
+html:not(.capacitor-native),
+html:not(.capacitor-native) body {
   overflow-y: auto !important;
   touch-action: auto !important;
+}
+
+/* Capacitor: single scroll owner + fixed header on phone/tablet portrait */
+@media (max-width: 1023px) {
+  html.capacitor-native .dashboard-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+  }
+
+  html.capacitor-native .content-wrapper {
+    padding-top: calc(52px + var(--safe-top));
+  }
+}
+
+html.capacitor-native .capacitor-modal-panel {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+html.capacitor-native .input,
+html.capacitor-native select,
+html.capacitor-native textarea {
+  font-size: 16px;
+  min-height: 44px;
+}
+
+html.capacitor-native .btn:active,
+html.capacitor-native .bottom-nav-item:active,
+html.capacitor-native .mobile-card-action-btn:active {
+  transform: scale(0.98);
+  transition: transform 75ms ease-out;
+}
+
+html.capacitor-android .btn,
+html.capacitor-android .bottom-nav-item {
+  -webkit-tap-highlight-color: rgba(13, 148, 136, 0.15);
 }
 
 /* iOS Liquid Glass Effect (Capacitor + Ionic) */
