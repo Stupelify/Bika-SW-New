@@ -62,6 +62,7 @@ export default function FormPromptModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4"
+      data-capacitor-overlay="open"
       style={{ overscrollBehavior: 'contain' }}
     >
       <button
@@ -71,7 +72,7 @@ export default function FormPromptModal({
         aria-label="Close form prompt backdrop"
       />
       <div
-        className={`relative z-10 w-full ${widthClass} max-h-[calc(100dvh-var(--safe-top))] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-surface shadow-xl transform-gpu`}
+        className={`capacitor-modal-panel relative z-10 w-full ${widthClass} max-h-[calc(100dvh-var(--safe-top)-var(--keyboard-offset,0px))] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-surface shadow-xl`}
       >
         <div className="sticky top-0 z-10 bg-surface/95 border-b border-[var(--border)] px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-display font-semibold text-[var(--text-1)]">{title}</h2>
@@ -84,7 +85,7 @@ export default function FormPromptModal({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-4 sm:p-5 pb-[calc(1rem+var(--safe-bottom))]">{children}</div>
+        <div className="p-4 sm:p-5 pb-[calc(1rem+var(--safe-bottom)+var(--keyboard-offset,0px))]">{children}</div>
       </div>
 
       {showCloseConfirm && (
