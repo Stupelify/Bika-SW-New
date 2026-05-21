@@ -27,9 +27,7 @@ jobs:
           ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=120 -i "$HOME/.ssh/deploy_key" root@${{ secrets.VPS_HOST }} << 'ENDSSH'
           set -e
           cd /root/bika-banquet-v2/bika-banquet
-          set -a
-          . ./.env
-          set +a
+          DB_NAME="$(grep -m1 '^DB_NAME=' .env | cut -d'=' -f2- | tr -d '"' | tr -d "'")"
 
           echo "==> Pulling latest code"
           git fetch origin
