@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
-import { httpCache } from '../middleware/cache.middleware';
 import {
   createItemType,
   createItemTypeSchema,
@@ -22,8 +21,8 @@ router.post(
   validate(createItemTypeSchema),
   createItemType
 );
-router.get('/', httpCache(300), requirePermission('view_itemtype', 'add_itemtype', 'edit_itemtype', 'add_item', 'manage_menu'), getItemTypes);
-router.get('/:id', httpCache(300), requirePermission('view_itemtype', 'add_itemtype', 'edit_itemtype', 'manage_menu'), getItemTypeById);
+router.get('/', requirePermission('view_itemtype', 'add_itemtype', 'edit_itemtype', 'add_item', 'manage_menu'), getItemTypes);
+router.get('/:id', requirePermission('view_itemtype', 'add_itemtype', 'edit_itemtype', 'manage_menu'), getItemTypeById);
 router.put(
   '/:id',
   requirePermission('edit_itemtype', 'manage_menu'),

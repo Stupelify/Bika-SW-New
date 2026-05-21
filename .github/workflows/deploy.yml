@@ -27,10 +27,33 @@ jobs:
           ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=120 -i "$HOME/.ssh/deploy_key" root@${{ secrets.VPS_HOST }} << 'ENDSSH'
           set -e
           cd /root/bika-banquet-v2/bika-banquet
+          set -a
+          . ./.env
+          set +a
 
           echo "==> Pulling latest code"
           git fetch origin
           git reset --hard origin/master
+
+          echo "==> Applying tracked SQL patches"
+          docker exec -i bika-banquet-db-1 psql -U postgres -d "$DB_NAME" <<'SQL'
+          CREATE TABLE IF NOT EXISTS _raw_migrations (
+            name TEXT PRIMARY KEY,
+            applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+          );
+          SQL
+
+          find server/prisma -maxdepth 2 -type f -name '*.sql' ! -name 'legacy_schema.sql' | sort | while read -r file; do
+            name="${file#server/prisma/}"
+            already_applied="$(docker exec -i bika-banquet-db-1 psql -U postgres -d "$DB_NAME" -tAc "SELECT 1 FROM _raw_migrations WHERE name = '$name'")"
+            if [ "$already_applied" = "1" ]; then
+              echo "  skip  $name"
+              continue
+            fi
+            echo "  apply $name"
+            docker exec -i bika-banquet-db-1 psql -U postgres -d "$DB_NAME" < "$file"
+            docker exec -i bika-banquet-db-1 psql -U postgres -d "$DB_NAME" -c "INSERT INTO _raw_migrations (name) VALUES ('$name')"
+          done
 
           echo "==> Building images (BuildKit cache enabled)"
           DOCKER_BUILDKIT=1 docker compose build --parallel

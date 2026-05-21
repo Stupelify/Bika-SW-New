@@ -41,6 +41,11 @@ apiClient.interceptors.request.use(
             headers: {},
             config,
           });
+      } else {
+        // Bypass the browser's HTTP cache so mutations immediately reflect in
+        // subsequent fetches (the server sets max-age=120 on GET routes).
+        config.headers['Cache-Control'] = 'no-cache';
+        config.headers['Pragma'] = 'no-cache';
       }
     }
 

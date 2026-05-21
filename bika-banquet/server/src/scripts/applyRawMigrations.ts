@@ -7,7 +7,7 @@ import { PrismaClient } from '@prisma/client';
 dotenv.config({ path: path.join(__dirname, '../../.env.local'), override: true });
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
-const MIGRATIONS_DIR = path.join(__dirname, '../../prisma/migrations');
+const MIGRATION_ROOT = path.join(__dirname, '../../prisma');
 const prisma = new PrismaClient();
 
 function parseDatabaseUrl(url: string) {
@@ -59,8 +59,10 @@ async function run(): Promise<void> {
   const applied = await getApplied();
 
   const files = fs
-    .readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
+    .readdirSync(MIGRATION_ROOT, { recursive: true })
+    .filter((entry): entry is string => typeof entry === 'string')
+    .filter((file) => file.endsWith('.sql'))
+    .filter((file) => file !== 'legacy_schema.sql')
     .sort();
 
   let ran = 0;
@@ -69,7 +71,7 @@ async function run(): Promise<void> {
       console.log(`  skip  ${file}`);
       continue;
     }
-    const filePath = path.join(MIGRATIONS_DIR, file);
+    const filePath = path.join(MIGRATION_ROOT, file);
     console.log(`  apply ${file}`);
     runSql(filePath, conn);
     await prisma.$executeRaw`INSERT INTO _raw_migrations (name) VALUES (${file})`;

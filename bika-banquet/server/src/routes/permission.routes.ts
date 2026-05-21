@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
-import { httpCache } from '../middleware/cache.middleware';
 import {
   createPermission,
   createPermissionSchema,
@@ -25,13 +24,11 @@ router.post(
 router.get(
   '/',
   requirePermission('view_permission', 'manage_permission', 'manage_roles'),
-  httpCache(120),
   getPermissions
 );
 router.get(
   '/:id',
   requirePermission('view_permission', 'manage_permission', 'manage_roles'),
-  httpCache(120),
   getPermissionById
 );
 router.put(
