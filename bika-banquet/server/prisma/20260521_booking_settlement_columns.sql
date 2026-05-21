@@ -1,0 +1,8 @@
+BEGIN;
+
+ALTER TABLE "bookings"
+  ADD COLUMN IF NOT EXISTS "settlementDiscountPercent" DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS "settlementDiscountAmount" DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS "settlementTotalAmount" DOUBLE PRECISION;
+
+COMMIT;

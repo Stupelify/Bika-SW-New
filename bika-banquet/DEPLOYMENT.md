@@ -113,7 +113,10 @@ docker-compose logs -f
 
 ### 3.2 Database setup
 
-The database migrations run automatically on server startup. To seed initial data:
+Database changes should be applied during deployment, before restarting the server.
+Do not rely on app startup to run Prisma migrations automatically. For this repo,
+tracked SQL patches live under `server/prisma/*.sql` and should be applied
+explicitly on the VPS when a release includes schema changes. To seed initial data:
 
 ```bash
 # Access the server container

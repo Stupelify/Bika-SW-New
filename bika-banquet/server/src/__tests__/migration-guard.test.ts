@@ -8,9 +8,9 @@ describe('migration guard — entrypoint.sh', () => {
     expect(fs.existsSync(entrypointPath)).toBe(true);
   });
 
-  it('contains prisma migrate deploy', () => {
+  it('does not run prisma migrate deploy on startup', () => {
     const content = fs.readFileSync(entrypointPath, 'utf8');
-    expect(content).toContain('prisma migrate deploy');
+    expect(content).not.toContain('prisma migrate deploy');
   });
 
   it('contains pm2-runtime', () => {
