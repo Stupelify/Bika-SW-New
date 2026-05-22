@@ -2598,6 +2598,8 @@ export default function BookingsPage() {
         const created = await api.createBooking(payload);
         // Server: { success, data: { booking: { id, ... } } } → axios wraps in .data
         savedBookingId = created?.data?.data?.booking?.id || created?.data?.booking?.id || '';
+        // Transition the open form to edit mode so a second submit updates rather than creates.
+        if (savedBookingId) setEditingBookingId(savedBookingId);
       }
 
       if (savedBookingId) {
@@ -2855,7 +2857,7 @@ export default function BookingsPage() {
         </div>
 
         <fieldset disabled={isReadOnlyBooking}>
-        <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} onChange={() => setIsFormDirty(true)} className="space-y-5">
+        <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} onChange={() => setIsFormDirty(true)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') e.preventDefault(); }} className="space-y-5">
           <div ref={actionSentinelRef} />
             <div className="flex items-center gap-3 flex-wrap">
               {!isReadOnlyBooking && (
@@ -3492,6 +3494,20 @@ export default function BookingsPage() {
                                 disabled={!row.enabled}
                                 onFocus={(e) => { e.target.select(); setFocusedPackAmount({ key: packKey, value: e.target.value }); }}
                                 onChange={(e) => setFocusedPackAmount({ key: packKey, value: e.target.value })}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    setFocusedPackAmount(null);
+                                    const enteredAmount = parseFloat((e.target as HTMLInputElement).value) || 0;
+                                    const hr = row.withHall ? toNonNegativeNumber(row.hallRate) : 0;
+                                    const pax = row.withCatering ? toNonNegativeNumber(row.pax) : 0;
+                                    if (pax > 0) {
+                                      const newRate = Math.round(((enteredAmount - hr) / pax) * 100) / 100;
+                                      updatePackRow(packKey, { ratePerPlate: String(Math.max(0, newRate)) });
+                                    }
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
                                 onBlur={(e) => {
                                   setFocusedPackAmount(null);
                                   const enteredAmount = parseFloat(e.target.value) || 0;
@@ -3502,7 +3518,7 @@ export default function BookingsPage() {
                                     updatePackRow(packKey, { ratePerPlate: String(Math.max(0, newRate)) });
                                   }
                                 }}
-                                title="Tab out after editing to update Rate/Plate"
+                                title="Edit to override total; Rate/Plate is back-calculated"
                               />
                             </td>
                           </tr>
