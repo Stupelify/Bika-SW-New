@@ -1096,11 +1096,35 @@ export default function BookingsPage() {
   const getCustomerSuggestions = useCallback(
     (field: CustomerSearchField): CustomerOption[] => {
       const query = (customerSearchInputs[field] || '').trim().toLowerCase();
-      let filtered = [...customers].sort(compareCustomersByName);
+      let filtered = [...customers];
+
       if (query) {
         filtered = filtered.filter((customer) =>
           matchesCustomerSearch(customer, query)
         );
+
+        // Rank by relevance so the most obvious matches appear first.
+        // 0: name starts with query  (best)
+        // 1: name contains query
+        // 2: phone starts with query
+        // 3: phone contains query
+        // 4: matched elsewhere (email, alt-phone, etc.)
+        const score = (c: CustomerOption): number => {
+          const name = (c.name || '').toLowerCase();
+          const phone = (c.phone || '').toLowerCase();
+          if (name.startsWith(query)) return 0;
+          if (name.includes(query)) return 1;
+          if (phone.startsWith(query)) return 2;
+          if (phone.includes(query)) return 3;
+          return 4;
+        };
+
+        filtered.sort((a, b) => {
+          const diff = score(a) - score(b);
+          return diff !== 0 ? diff : compareCustomersByName(a, b);
+        });
+      } else {
+        filtered.sort(compareCustomersByName);
       }
 
       const selectedCustomerId = getSelectedCustomerId(field);
