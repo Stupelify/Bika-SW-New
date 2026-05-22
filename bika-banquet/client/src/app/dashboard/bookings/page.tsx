@@ -84,6 +84,7 @@ interface Booking {
   customer: {
     name: string;
     phone: string;
+    email?: string | null;
   };
   _count?: {
     payments: number;
@@ -679,6 +680,7 @@ export default function BookingsPage() {
           customerSearchText({
             name: booking.customer?.name,
             phone: booking.customer?.phone,
+            email: booking.customer?.email,
           }),
       },
       {
@@ -1112,7 +1114,7 @@ export default function BookingsPage() {
         }
       }
 
-      return filtered;
+      return filtered.slice(0, 80);
     },
     [customerSearchInputs, customers, getSelectedCustomerId]
   );
