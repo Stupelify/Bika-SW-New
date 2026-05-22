@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import { KeyboardResize } from '@capacitor/keyboard';
 
 const serverUrl =
   process.env.CAPACITOR_SERVER_URL || 'https://banquet.bikafood.com';
@@ -16,12 +17,10 @@ const config: CapacitorConfig = {
     contentInset: 'never',
     scrollEnabled: true,
   },
-  android: {
-    adjustMarginsForEdgeToEdge: 'auto',
-  },
+  android: {},
   plugins: {
     Keyboard: {
-      resize: 'body',
+      resize: KeyboardResize.Body,
     },
     StatusBar: {
       overlaysWebView: true,

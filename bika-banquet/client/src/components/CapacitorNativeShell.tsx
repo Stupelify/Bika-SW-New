@@ -32,8 +32,8 @@ export default function CapacitorNativeShell() {
     let removeKeyboard: (() => void) | undefined;
     void (async () => {
       try {
-        const { Keyboard } = await import('@capacitor/keyboard');
-        await Keyboard.setResizeMode({ mode: 'body' });
+        const { Keyboard, KeyboardResize } = await import('@capacitor/keyboard');
+        await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
         const show = await Keyboard.addListener('keyboardWillShow', (info) => {
           document.documentElement.style.setProperty(
             '--keyboard-offset',
