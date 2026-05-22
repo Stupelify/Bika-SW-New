@@ -316,7 +316,7 @@ function DashboardLayoutContent({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, loadUser, logout, isAuthenticated } = useAuthStore();
+  const { user, loadUser, logout, isAuthenticated, isLoading } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -449,10 +449,10 @@ function DashboardLayoutContent({
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated && typeof window !== 'undefined') {
+    if (!isAuthenticated && !isLoading && typeof window !== 'undefined') {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
     setSidebarOpen(false);
