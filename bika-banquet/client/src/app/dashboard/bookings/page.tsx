@@ -679,12 +679,6 @@ export default function BookingsPage() {
           customerSearchText({
             name: booking.customer?.name,
             phone: booking.customer?.phone,
-            phoneCountryCode: booking.customer?.phoneCountryCode,
-            alterPhone: booking.customer?.alterPhone,
-            alternatePhone: booking.customer?.alternatePhone,
-            whatsappNumber: booking.customer?.whatsappNumber,
-            whatsapp: booking.customer?.whatsapp,
-            email: booking.customer?.email,
           }),
       },
       {
@@ -1658,7 +1652,7 @@ export default function BookingsPage() {
   };
 
   const loadCustomerOptions = async (): Promise<CustomerOption[]> => {
-    const customerRows = (await fetchAllCustomers()) as CustomerOption[];
+    const customerRows = (await fetchAllCustomers()) as unknown as CustomerOption[];
     const sortedCustomers = [...customerRows].sort(compareCustomersByName);
     setCustomers(sortedCustomers);
     return sortedCustomers;

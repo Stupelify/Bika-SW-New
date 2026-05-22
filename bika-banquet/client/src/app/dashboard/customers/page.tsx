@@ -325,7 +325,7 @@ export default function CustomersPage() {
         return;
       }
       setLoading(true);
-      const customerRows = (await fetchAllCustomers()) as CustomerRow[];
+      const customerRows = (await fetchAllCustomers()) as unknown as CustomerRow[];
       setCustomers(customerRows);
     } catch (error) {
       toast.error('Failed to load customers');

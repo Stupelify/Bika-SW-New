@@ -200,12 +200,6 @@ export default function EnquiriesPage() {
           customerSearchText({
             name: enquiry.customer?.name,
             phone: enquiry.customer?.phone,
-            phoneCountryCode: enquiry.customer?.phoneCountryCode,
-            alterPhone: enquiry.customer?.alterPhone,
-            alternatePhone: enquiry.customer?.alternatePhone,
-            whatsappNumber: enquiry.customer?.whatsappNumber,
-            whatsapp: enquiry.customer?.whatsapp,
-            email: enquiry.customer?.email,
           }),
       },
       {
@@ -281,13 +275,14 @@ export default function EnquiriesPage() {
         setTemplateMenus([]);
         return;
       }
-      const [customerRows, hallRes, templateRes] = await Promise.all([
+      const [rawCustomerRows, hallRes, templateRes] = await Promise.all([
         fetchAllCustomers(),
         api.getHalls({ page: 1, limit: 200 }),
         api.getTemplateMenus({ page: 1, limit: 200 }),
       ]);
       const hallRows = hallRes.data?.data?.halls || [];
       const templateRows = templateRes.data?.data?.templateMenus || [];
+      const customerRows = rawCustomerRows as unknown as CustomerOption[];
       setCustomers(customerRows);
       setHalls(hallRows);
       setTemplateMenus(templateRows);
