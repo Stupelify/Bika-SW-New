@@ -690,6 +690,7 @@ export default function BookingsPage() {
       {
         key: 'expectedGuests',
         accessor: (booking) => booking.expectedGuests,
+        searchable: false,
       },
       {
         key: 'status',
@@ -699,6 +700,7 @@ export default function BookingsPage() {
       {
         key: 'grandTotal',
         accessor: (booking) => booking.grandTotal ?? 0,
+        searchable: false,
       },
     ],
     []

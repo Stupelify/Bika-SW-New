@@ -42,8 +42,19 @@ export function textMatchesSearch(text: string, query: string): boolean {
 
   const queryDigits = trimmed.replace(/\D/g, '');
   if (queryDigits.length >= 2) {
-    const textDigits = text.replace(/\D/g, '');
-    if (textDigits.includes(queryDigits)) return true;
+    // Check each whitespace-separated token individually so digits from different
+    // fields (e.g. name "Kumar1" and phone "23456") don't concatenate into a
+    // spurious match for a query like "12".
+    for (const token of text.split(/\s+/)) {
+      const tokenDigits = token.replace(/\D/g, '');
+      if (tokenDigits.includes(queryDigits)) return true;
+    }
+    // Also allow full-concatenated match for long queries (≥6 digits) so that
+    // E164-style input like "919876543210" can still match "+91 9876543210".
+    if (queryDigits.length >= 6) {
+      const textDigits = text.replace(/\D/g, '');
+      if (textDigits.includes(queryDigits)) return true;
+    }
   }
 
   return false;
