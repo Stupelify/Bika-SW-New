@@ -1,5 +1,24 @@
 {
 	"appId": "com.bika.banquet",
 	"appName": "Bika Banquet",
-	"webDir": "public"
+	"webDir": "public",
+	"server": {
+		"url": "https://banquet.bikafood.com",
+		"cleartext": true
+	},
+	"ios": {
+		"contentInset": "never",
+		"scrollEnabled": true
+	},
+	"android": {},
+	"plugins": {
+		"Keyboard": {
+			"resize": "body"
+		},
+		"StatusBar": {
+			"overlaysWebView": true,
+			"style": "DARK",
+			"backgroundColor": "#00000000"
+		}
+	}
 }

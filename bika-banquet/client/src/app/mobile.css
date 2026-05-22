@@ -1,14 +1,23 @@
 /* Native Mobile Style Overrides */
 
-/* Capacitor: lock body; scroll happens in .dashboard-main */
-html.capacitor-native,
+/* Capacitor: default — allow page scroll (login, etc.) */
 html.capacitor-native body {
-  overflow: hidden;
-  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 100%;
+  height: auto;
+  -webkit-overflow-scrolling: touch;
   touch-action: manipulation;
 }
 
-html.capacitor-native .dashboard-main {
+/* Dashboard only: lock body; scroll happens in .dashboard-main */
+html.capacitor-native:has(.dashboard-root),
+html.capacitor-native:has(.dashboard-root) body {
+  overflow: hidden;
+  height: 100%;
+}
+
+html.capacitor-native:has(.dashboard-root) .dashboard-main {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
@@ -58,6 +67,11 @@ html.capacitor-native .mobile-card-action-btn:active {
 html.capacitor-android .btn,
 html.capacitor-android .bottom-nav-item {
   -webkit-tap-highlight-color: rgba(13, 148, 136, 0.15);
+}
+
+/* Auth pages (login) — explicit scroll-friendly page shell */
+html.capacitor-native .native-auth-page {
+  min-height: 100dvh;
 }
 
 /* iOS Liquid Glass Effect (Capacitor + Ionic) */

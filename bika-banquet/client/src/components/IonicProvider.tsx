@@ -39,13 +39,20 @@ export default function IonicProvider({
     <>
       {isNative && (
         <style dangerouslySetInnerHTML={{ __html: `
-          html.capacitor-native,
           html.capacitor-native body {
-            overflow: hidden !important;
-            height: 100% !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            min-height: 100% !important;
+            height: auto !important;
+            -webkit-overflow-scrolling: touch !important;
             touch-action: manipulation !important;
           }
-          html.capacitor-native .dashboard-main {
+          html.capacitor-native:has(.dashboard-root),
+          html.capacitor-native:has(.dashboard-root) body {
+            overflow: hidden !important;
+            height: 100% !important;
+          }
+          html.capacitor-native:has(.dashboard-root) .dashboard-main {
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch !important;
             overscroll-behavior-y: contain;

@@ -10,12 +10,21 @@
 		"contentInset": "never",
 		"scrollEnabled": true
 	},
+	"android": {},
 	"plugins": {
+		"Keyboard": {
+			"resize": "body"
+		},
 		"StatusBar": {
 			"overlaysWebView": true,
 			"style": "DARK",
 			"backgroundColor": "#00000000"
 		}
 	},
-	"packageClassList": []
+	"packageClassList": [
+		"AppPlugin",
+		"HapticsPlugin",
+		"KeyboardPlugin",
+		"StatusBarPlugin"
+	]
 }
