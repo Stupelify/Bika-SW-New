@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Loader2, Search } from 'lucide-react';
+import { textMatchesSearch } from '@/lib/customerSearch';
 
 type ComboboxOption = {
   value: string;
   label: string;
   secondary?: string;
+  /** Extra text included in client-side search (e.g. raw phone digits). */
+  searchText?: string;
 };
 
 type ComboboxProps = {
@@ -56,7 +59,10 @@ export default function Combobox({
     }
 
     return options.filter((option) =>
-      option.label.toLowerCase().includes(normalizedQuery)
+      textMatchesSearch(
+        [option.label, option.secondary, option.searchText].filter(Boolean).join(' '),
+        normalizedQuery
+      )
     );
   }, [asyncOptions, onSearch, options, query]);
 

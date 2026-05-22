@@ -369,7 +369,7 @@ export async function getCustomers(req: Request, res: Response): Promise<void> {
       req.query.page,
       req.query.limit,
       20,
-      200
+      5000
     );
     const search = sanitizeSearchTerm(req.query.search);
 

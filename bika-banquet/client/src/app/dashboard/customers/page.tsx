@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, fetchAllCustomers } from '@/lib/api';
 import { toast } from 'sonner';
 import {
   Search,
@@ -34,6 +34,10 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import {
+  customerSearchText,
+  formatCustomerOptionLabel,
+} from '@/lib/customerSearch';
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
 import {
@@ -84,6 +88,10 @@ interface CustomerRow {
   name: string;
   phoneCountryCode?: string | null;
   phone: string;
+  alterPhone?: string | null;
+  alternatePhone?: string | null;
+  whatsappNumber?: string | null;
+  whatsapp?: string | null;
   email?: string | null;
   city?: string | null;
   state?: string | null;
@@ -166,7 +174,8 @@ export default function CustomersPage() {
     () => [
       {
         key: 'name',
-        accessor: (customer) => customer.name,
+        accessor: (customer) =>
+          `${customer.name} ${customer.phoneCountryCode ?? ''} ${customer.phone}`,
       },
       {
         key: 'contact',
@@ -316,11 +325,8 @@ export default function CustomersPage() {
         return;
       }
       setLoading(true);
-      const response = await api.getCustomers({
-        page: 1,
-        limit: 5000,
-      });
-      setCustomers(response.data.data.customers || []);
+      const customerRows = (await fetchAllCustomers()) as CustomerRow[];
+      setCustomers(customerRows);
     } catch (error) {
       toast.error('Failed to load customers');
     } finally {
@@ -1049,9 +1055,12 @@ export default function CustomersPage() {
                     }
                     options={referrerOptions.map((customer) => ({
                       value: customer.id,
-                      label: `${customer.name} (${customer.phoneCountryCode || '+91'} ${customer.phone})`,
+                      label: formatCustomerOptionLabel(customer),
+                      secondary: customer.phone,
+                      searchText: customerSearchText(customer),
                     }))}
-                    placeholder="Select customer"
+                    placeholder="Search name or phone"
+                    searchPlaceholder="Name or phone number"
                   />
                 </div>
                 <div className="md:col-span-4">
@@ -1513,7 +1522,7 @@ export default function CustomersPage() {
         <div className="space-y-4">
           <div>
             <label className="label">Name</label>
-            <input className="input" placeholder="Search name" value={columnSearch.name} onChange={(e) => handleColumnSearch('name', e.target.value)} />
+            <input className="input" placeholder="Search name or phone" value={columnSearch.name} onChange={(e) => handleColumnSearch('name', e.target.value)} />
           </div>
           <div>
             <label className="label">Contact</label>

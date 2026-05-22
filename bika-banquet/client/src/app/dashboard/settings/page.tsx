@@ -1060,6 +1060,7 @@ function SettingsPageContent() {
               <label className="label">Full name</label>
               <input
                 className="input"
+                autoComplete="off"
                 value={userForm.name}
                 onChange={(e) => setUserForm((prev) => ({ ...prev, name: e.target.value }))}
                 required
@@ -1070,6 +1071,7 @@ function SettingsPageContent() {
               <input
                 type="email"
                 className="input"
+                autoComplete="off"
                 value={userForm.email}
                 onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))}
                 required
@@ -1080,6 +1082,7 @@ function SettingsPageContent() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 className="input"
+                autoComplete="new-password"
                 value={userForm.password}
                 onChange={(e) =>
                   setUserForm((prev) => ({ ...prev, password: e.target.value }))
@@ -1103,6 +1106,7 @@ function SettingsPageContent() {
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
                 className="input"
+                autoComplete="new-password"
                 value={userForm.confirmPassword}
                 onChange={(e) =>
                   setUserForm((prev) => ({ ...prev, confirmPassword: e.target.value }))

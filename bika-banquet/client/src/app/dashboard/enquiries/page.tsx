@@ -2,9 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, fetchAllCustomers } from '@/lib/api';
+import {
+  customerSearchText,
+  formatCustomerOptionLabel,
+} from '@/lib/customerSearch';
 import { toast } from 'sonner';
 import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users, Filter } from 'lucide-react';
+import Combobox from '@/components/Combobox';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import FormPromptModal from '@/components/FormPromptModal';
 import EmptyState from '@/components/EmptyState';
@@ -71,6 +76,12 @@ interface CustomerOption {
   id: string;
   name: string;
   phone: string;
+  phoneCountryCode?: string | null;
+  alterPhone?: string | null;
+  alternatePhone?: string | null;
+  whatsappNumber?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
 }
 
 interface HallOption {
@@ -186,7 +197,16 @@ export default function EnquiriesPage() {
       {
         key: 'customer',
         accessor: (enquiry) =>
-          `${enquiry.customer?.name ?? ''} ${enquiry.customer?.phone ?? ''}`,
+          customerSearchText({
+            name: enquiry.customer?.name,
+            phone: enquiry.customer?.phone,
+            phoneCountryCode: enquiry.customer?.phoneCountryCode,
+            alterPhone: enquiry.customer?.alterPhone,
+            alternatePhone: enquiry.customer?.alternatePhone,
+            whatsappNumber: enquiry.customer?.whatsappNumber,
+            whatsapp: enquiry.customer?.whatsapp,
+            email: enquiry.customer?.email,
+          }),
       },
       {
         key: 'functionDate',
@@ -261,12 +281,11 @@ export default function EnquiriesPage() {
         setTemplateMenus([]);
         return;
       }
-      const [customerRes, hallRes, templateRes] = await Promise.all([
-        api.getCustomers({ page: 1, limit: 200 }),
+      const [customerRows, hallRes, templateRes] = await Promise.all([
+        fetchAllCustomers(),
         api.getHalls({ page: 1, limit: 200 }),
         api.getTemplateMenus({ page: 1, limit: 200 }),
       ]);
-      const customerRows = customerRes.data?.data?.customers || [];
       const hallRows = hallRes.data?.data?.halls || [];
       const templateRows = templateRes.data?.data?.templateMenus || [];
       setCustomers(customerRows);
@@ -497,21 +516,20 @@ export default function EnquiriesPage() {
               <label className="label">
                 Customer <span className="text-red-500">*</span>
               </label>
-              <select
-                className="input"
+              <Combobox
                 value={formData.customerId}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, customerId: e.target.value }))
+                onChange={(val) =>
+                  setFormData((prev) => ({ ...prev, customerId: val }))
                 }
-                required
-              >
-                <option value="">Select customer</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name} ({customer.phone})
-                  </option>
-                ))}
-              </select>
+                options={customers.map((customer) => ({
+                  value: customer.id,
+                  label: formatCustomerOptionLabel(customer),
+                  secondary: customer.phone,
+                  searchText: customerSearchText(customer),
+                }))}
+                placeholder="Search name or phone"
+                searchPlaceholder="Name or phone number"
+              />
             </div>
             <div>
               <label className="label">
@@ -1065,7 +1083,7 @@ export default function EnquiriesPage() {
           </div>
           <div>
             <label className="label">Customer</label>
-            <input className="input" placeholder="Search customer" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
+            <input className="input" placeholder="Search name or phone" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
           </div>
           <div>
             <label className="label">Function Date</label>

@@ -255,4 +255,25 @@ export const api = {
   getAuditLogs: (params?: any) => apiClient.get('/audit-logs', { params }),
 };
 
+/** Fetches every customer page (for dropdowns / typeahead). */
+export async function fetchAllCustomers(
+  params?: { search?: string }
+): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  const limit = 500;
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const response = await api.getCustomers({ page, limit, ...params });
+    const data = response.data?.data;
+    rows.push(...((data?.customers || []) as Record<string, unknown>[]));
+    totalPages = Math.max(1, Number(data?.pagination?.totalPages || 1));
+    page += 1;
+    if (page > 100) break;
+  }
+
+  return rows;
+}
+
 export default apiClient;

@@ -140,9 +140,10 @@ export async function createUser(req: Request, res: Response): Promise<void> {
   try {
     const { name, email, password, roleId } = req.body;
     const normalizedName = toEntryCase(name);
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       select: { id: true },
     });
     if (existingUser) {
@@ -165,7 +166,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       const createdUser = await tx.user.create({
         data: {
           name: normalizedName,
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
           password: hashedPassword,
           isVerified: true,
         },

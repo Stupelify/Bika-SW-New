@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { customerSearchText, textMatchesSearch } from '@/lib/customerSearch';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { CalendarSkeleton } from '@/components/Skeletons';
 import EmptyState from '@/components/EmptyState';
@@ -928,11 +929,10 @@ export default function CalendarPage() {
           entry.functionName,
           entry.functionType,
           entry.status,
-          entry.customer?.name || '',
-          entry.customer?.phone || '',
+          customerSearchText(entry.customer ?? {}),
           getBookingHallNames(entry).join(' '),
-        ].join(' ').toLowerCase();
-        if (!haystack.includes(searchQuery)) return false;
+        ].join(' ');
+        if (!textMatchesSearch(haystack, searchQuery)) return false;
       }
       // Hall filter
       if (selectedHallIds !== null) {
@@ -960,10 +960,9 @@ export default function CalendarPage() {
           entry.functionName,
           entry.functionType,
           entry.status,
-          entry.customer?.name || '',
-          entry.customer?.phone || '',
-        ].join(' ').toLowerCase();
-        if (!haystack.includes(searchQuery)) return false;
+          customerSearchText(entry.customer ?? {}),
+        ].join(' ');
+        if (!textMatchesSearch(haystack, searchQuery)) return false;
       }
       // Status filter — map enquiry statuses
       const effectiveStatus = resolveEnquiryStatus(entry);
@@ -2101,7 +2100,7 @@ export default function CalendarPage() {
                     className="input pl-9"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search function, hall, customer, status..."
+                    placeholder="Search function, hall, customer name or phone, status..."
                   />
                 </div>
                 <button

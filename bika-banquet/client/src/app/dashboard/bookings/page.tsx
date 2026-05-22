@@ -24,7 +24,8 @@ import {
   Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, fetchAllCustomers } from '@/lib/api';
+import Combobox from '@/components/Combobox';
 import FormPromptModal from '@/components/FormPromptModal';
 import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
@@ -42,6 +43,7 @@ import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
+import { customerSearchText, matchesCustomerSearch } from '@/lib/customerSearch';
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
 import {
@@ -102,6 +104,12 @@ interface CustomerOption {
   id: string;
   name: string;
   phone: string;
+  phoneCountryCode?: string | null;
+  alterPhone?: string | null;
+  alternatePhone?: string | null;
+  whatsappNumber?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
   priority?: number | null;
 }
 
@@ -668,7 +676,16 @@ export default function BookingsPage() {
       {
         key: 'customer',
         accessor: (booking) =>
-          `${booking.customer?.name ?? ''} ${booking.customer?.phone ?? ''}`,
+          customerSearchText({
+            name: booking.customer?.name,
+            phone: booking.customer?.phone,
+            phoneCountryCode: booking.customer?.phoneCountryCode,
+            alterPhone: booking.customer?.alterPhone,
+            alternatePhone: booking.customer?.alternatePhone,
+            whatsappNumber: booking.customer?.whatsappNumber,
+            whatsapp: booking.customer?.whatsapp,
+            email: booking.customer?.email,
+          }),
       },
       {
         key: 'functionDate',
@@ -1083,16 +1100,9 @@ export default function BookingsPage() {
       const query = (customerSearchInputs[field] || '').trim().toLowerCase();
       let filtered = [...customers].sort(compareCustomersByName);
       if (query) {
-        filtered = filtered.filter((customer) => {
-          const name = (customer.name || '').toLowerCase();
-          const phone = (customer.phone || '').toLowerCase();
-          const label = formatCustomerLabel(customer).toLowerCase();
-          return (
-            name.includes(query) ||
-            phone.includes(query) ||
-            label.includes(query)
-          );
-        });
+        filtered = filtered.filter((customer) =>
+          matchesCustomerSearch(customer, query)
+        );
       }
 
       const selectedCustomerId = getSelectedCustomerId(field);
@@ -1108,7 +1118,7 @@ export default function BookingsPage() {
         }
       }
 
-      return filtered.slice(0, 80);
+      return filtered;
     },
     [customerSearchInputs, customers, getSelectedCustomerId]
   );
@@ -1124,11 +1134,19 @@ export default function BookingsPage() {
         return;
       }
 
+      const trimmedValue = rawValue.trim();
       const exactMatch = customers.find((customer) => {
-        const name = (customer.name || '').toLowerCase();
-        const phone = (customer.phone || '').toLowerCase();
+        const name = (customer.name || '').trim().toLowerCase();
+        const phone = (customer.phone || '').trim();
         const label = formatCustomerLabel(customer).toLowerCase();
-        return name === query || phone === query || label === query;
+        const queryDigits = trimmedValue.replace(/\D/g, '');
+        const phoneDigits = phone.replace(/\D/g, '');
+        return (
+          name === query ||
+          phone === trimmedValue ||
+          label === query ||
+          (queryDigits.length >= 2 && phoneDigits === queryDigits)
+        );
       });
 
       setCustomerIdForField(field, exactMatch?.id || '');
@@ -1640,8 +1658,7 @@ export default function BookingsPage() {
   };
 
   const loadCustomerOptions = async (): Promise<CustomerOption[]> => {
-    const customerRes = await api.getCustomers({ page: 1, limit: 200 });
-    const customerRows = customerRes.data?.data?.customers || [];
+    const customerRows = (await fetchAllCustomers()) as CustomerOption[];
     const sortedCustomers = [...customerRows].sort(compareCustomersByName);
     setCustomers(sortedCustomers);
     return sortedCustomers;
@@ -5022,23 +5039,23 @@ export default function BookingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-4">
                 <label className="label">Referred By</label>
-                <select
+                <Combobox
                   value={inlineCustomerFormData.referredById}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     setInlineCustomerFormData((prev) => ({
                       ...prev,
-                      referredById: e.target.value,
+                      referredById: val,
                     }))
                   }
-                  className="input"
-                >
-                  <option value="">Select customer</option>
-                  {customerReferrerOptions.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} ({customer.phone})
-                    </option>
-                  ))}
-                </select>
+                  options={customerReferrerOptions.map((customer) => ({
+                    value: customer.id,
+                    label: formatCustomerLabel(customer),
+                    secondary: customer.phone,
+                    searchText: customerSearchText(customer),
+                  }))}
+                  placeholder="Search name or phone"
+                  searchPlaceholder="Name or phone number"
+                />
               </div>
               <div className="md:col-span-4">
                 <label className="label">Priority</label>
@@ -5807,7 +5824,7 @@ export default function BookingsPage() {
           </div>
           <div>
             <label className="label">Customer</label>
-            <input className="input" placeholder="Search customer" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
+            <input className="input" placeholder="Search name or phone" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
           </div>
           <div>
             <label className="label">Date</label>
