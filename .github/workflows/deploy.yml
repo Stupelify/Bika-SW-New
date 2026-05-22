@@ -66,6 +66,14 @@ jobs:
           echo "==> Ensure all services up (no double-recreate)"
           docker compose up -d --no-recreate
 
+          echo "==> Refreshing nginx-proxy (re-resolves container IPs after recreate)"
+          if docker ps --format '{{.Names}}' | grep -q '^nginx-proxy$'; then
+            docker restart nginx-proxy
+            echo "  nginx-proxy restarted"
+          else
+            echo "  nginx-proxy not found, skipping"
+          fi
+
           echo "==> Health check (up to 90s)"
           healthy=0
           for i in $(seq 1 18); do
