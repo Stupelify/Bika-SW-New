@@ -1099,16 +1099,21 @@ export default function BookingsPage() {
       let filtered = [...customers];
 
       if (query) {
-        filtered = filtered.filter((customer) =>
-          matchesCustomerSearch(customer, query)
-        );
+        // Only match on name and phone — email/alt-phone matches are confusing
+        // in a dropdown that only displays name and phone.
+        filtered = filtered.filter((customer) => {
+          const name = (customer.name || '').toLowerCase();
+          const phone = (customer.phone || '').toLowerCase();
+          const queryDigits = query.replace(/\D/g, '');
+          if (name.includes(query)) return true;
+          if (phone.includes(query)) return true;
+          if (queryDigits.length >= 2) {
+            const phoneDigits = phone.replace(/\D/g, '');
+            if (phoneDigits.includes(queryDigits)) return true;
+          }
+          return false;
+        });
 
-        // Rank by relevance so the most obvious matches appear first.
-        // 0: name starts with query  (best)
-        // 1: name contains query
-        // 2: phone starts with query
-        // 3: phone contains query
-        // 4: matched elsewhere (email, alt-phone, etc.)
         const score = (c: CustomerOption): number => {
           const name = (c.name || '').toLowerCase();
           const phone = (c.phone || '').toLowerCase();
@@ -1681,7 +1686,13 @@ export default function BookingsPage() {
 
   const loadCustomerOptions = async (): Promise<CustomerOption[]> => {
     const customerRows = (await fetchAllCustomers()) as unknown as CustomerOption[];
-    const sortedCustomers = [...customerRows].sort(compareCustomersByName);
+    const seen = new Set<string>();
+    const unique = customerRows.filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    const sortedCustomers = unique.sort(compareCustomersByName);
     setCustomers(sortedCustomers);
     return sortedCustomers;
   };
