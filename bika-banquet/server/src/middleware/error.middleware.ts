@@ -3,23 +3,11 @@ import { ZodError } from 'zod';
 import logger from '../utils/logger';
 import { sendError, sendValidationError } from '../utils/response';
 
-export class AppError extends Error {
-  statusCode: number;
-  isOperational: boolean;
-
-  constructor(message: string, statusCode: number = 500) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-
 /**
  * Global error handler
  */
 export function errorHandler(
-  err: Error | AppError | ZodError,
+  err: Error | ZodError,
   req: Request,
   res: Response,
   next: NextFunction
@@ -39,12 +27,6 @@ export function errorHandler(
       message: e.message,
     }));
     sendValidationError(res, errors);
-    return;
-  }
-
-  // Application errors
-  if (err instanceof AppError) {
-    sendError(res, err.message, err.statusCode);
     return;
   }
 

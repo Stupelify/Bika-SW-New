@@ -12,16 +12,21 @@ const config: CapacitorConfig = {
     cleartext: true, // required for http local network test
   },
   ios: {
-    // Setting this to 'never' ensures the WebView extends all the way 
-    // to the edges of the device past the safe areas, removing black bars.
+    // WebView edge-to-edge; safe areas applied in CSS via env(safe-area-inset-*)
     contentInset: 'never',
     scrollEnabled: true,
   },
+  android: {
+    adjustMarginsForEdgeToEdge: 'auto',
+  },
   plugins: {
+    Keyboard: {
+      resize: 'body',
+    },
     StatusBar: {
       overlaysWebView: true,
       style: 'DARK',
-      backgroundColor: '#00000000', // transparent
+      backgroundColor: '#00000000',
     },
   },
 };

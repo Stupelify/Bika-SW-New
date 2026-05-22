@@ -930,9 +930,9 @@ export default function BookingsPage() {
       const row = formData.packs[key];
       if (!row.enabled || !row.withHall) return;
       const validHallIds = (row.hallIds || []).filter(Boolean);
-      if (validHallIds.length === 0) return;
+      const mapKeys = validHallIds.length > 0 ? validHallIds : [key];
       const charge = toNonNegativeNumber(row.hallRate);
-      validHallIds.forEach((hallId) => {
+      mapKeys.forEach((hallId) => {
         hallChargeMap.set(hallId, Math.max(hallChargeMap.get(hallId) || 0, charge));
       });
     });
@@ -3434,7 +3434,10 @@ export default function BookingsPage() {
                                 value={
                                   focusedPackAmount?.key === packKey
                                     ? focusedPackAmount.value
-                                    : formatComputedAmount(calculatePackAmount(row))
+                                    : formatComputedAmount(
+                                        calculatePackAmount(row) +
+                                        (row.withHall ? toNonNegativeNumber(row.hallRate) : 0)
+                                      )
                                 }
                                 disabled={!row.enabled}
                                 onFocus={(e) => { e.target.select(); setFocusedPackAmount({ key: packKey, value: e.target.value }); }}

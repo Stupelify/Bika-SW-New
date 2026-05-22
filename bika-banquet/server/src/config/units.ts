@@ -43,14 +43,3 @@ export function areUnitsCompatible(from: QuantityUnit, to: QuantityUnit): boolea
   return getUnitCategory(from) === getUnitCategory(to);
 }
 
-export function convertQuantity(
-  amount: number,
-  fromUnit: QuantityUnit,
-  toUnit: QuantityUnit
-): number | null {
-  if (!Number.isFinite(amount)) return null;
-  if (!areUnitsCompatible(fromUnit, toUnit)) return null;
-
-  const inBase = amount * UNIT_META[fromUnit].factorToBase;
-  return inBase / UNIT_META[toUnit].factorToBase;
-}

@@ -86,3 +86,4 @@ tsconfig.tsbuildinfo
 client/.env.local.example
 server/.env.local.example
 server/src/dev.ts
+server/.env.test

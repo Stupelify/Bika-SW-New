@@ -1,0 +1,14 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3030",
+      "localStorage": [
+        {
+          "name": "auth_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJkODcyN2IxMy02ZDhiLTQzYTYtODcxNy02YjRkYTdmZGZjYjkiLCJlbWFpbCI6ImFkbWluKzE3NzkzNTYwNTI3OTlAcWEudGVzdCIsInJvbGVzIjpbIkFkbWluIl0sInBlcm1pc3Npb25zIjpbInZpZXdfY3VzdG9tZXIiLCJhZGRfY3VzdG9tZXIiLCJlZGl0X2N1c3RvbWVyIiwiZGVsZXRlX2N1c3RvbWVyIiwibWFuYWdlX2N1c3RvbWVycyIsInZpZXdfYm9va2luZyIsImFkZF9ib29raW5nIiwiZWRpdF9ib29raW5nIiwiZGVsZXRlX2Jvb2tpbmciLCJtYW5hZ2VfYm9va2luZ3MiLCJ2aWV3X2VucXVpcnkiLCJhZGRfZW5xdWlyeSIsImVkaXRfZW5xdWlyeSIsImRlbGV0ZV9lbnF1aXJ5IiwibWFuYWdlX2VucXVpcmllcyIsInZpZXdfaGFsbCIsImFkZF9oYWxsIiwiZWRpdF9oYWxsIiwibWFuYWdlX2hhbGxzIiwidmlld19tZW51IiwiZWRpdF9tZW51IiwibWFuYWdlX21lbnUiLCJtYW5hZ2VfdXNlcnMiLCJtYW5hZ2Vfcm9sZXMiLCJtYW5hZ2Vfc2V0dGluZ3MiXSwiYmFucXVldElkcyI6WyI4OWViMmQ5Zi0yMzFlLTRlMzAtODNhZC0zOTAyOTU5YTUxZjIiXSwiaWF0IjoxNzc5MzU2MDc2LCJleHAiOjE3Nzk5NjA4NzYsImp0aSI6IjBiMTUxMjJlLTg0MDUtNDFlOS04YTBhLTA1MGMxODlmYmVhNyJ9.xoRwpK0Na2yKDv1myESU6VxxNlPH0ZNVzel45WGy42Q"
+        }
+      ]
+    }
+  ]
+}

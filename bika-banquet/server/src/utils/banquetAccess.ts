@@ -4,10 +4,6 @@ export function getAllowedBanquetIds(req: Pick<AuthRequest, 'user'>): string[] {
   return Array.isArray(req.user?.banquetIds) ? req.user!.banquetIds : [];
 }
 
-export function isBanquetScoped(req: Pick<AuthRequest, 'user'>): boolean {
-  return getAllowedBanquetIds(req).length > 0;
-}
-
 export function withBookingBanquetScope<T extends Record<string, unknown>>(
   where: T,
   allowedBanquetIds: string[]
