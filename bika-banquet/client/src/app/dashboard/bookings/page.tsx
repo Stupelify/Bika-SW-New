@@ -47,6 +47,20 @@ import { customerSearchText, matchesCustomerSearch } from '@/lib/customerSearch'
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
 import {
+  mapBookingPaymentsFromApi,
+  partitionPaymentsForSave,
+} from '@/lib/booking-form/payments';
+import {
+  buildItemByIdMap,
+  calculateMenuPointsFromMap,
+  countNewTemplateItems,
+  extractTemplateItemIds,
+  getItemPoints,
+  mergeTemplateItemIds,
+  templateItemsToMenuItemLikes,
+} from '@/lib/booking-form/menu-template';
+import type { MenuItemLike } from '@/lib/booking-form/types';
+import {
   CASTE_OPTIONS,
   COUNTRY_DIAL_CODE_OPTIONS,
   COUNTRY_OPTIONS,
@@ -543,6 +557,8 @@ export default function BookingsPage() {
   const actionSentinelRef = useRef<HTMLDivElement | null>(null);
   // Snapshot of formData as last loaded from the server. Reset to this on server rejection.
   const savedFormDataRef = useRef<BookingFormData | null>(null);
+  const savingInFlightRef = useRef(false);
+  const [importedTemplateExtras, setImportedTemplateExtras] = useState<MenuItemLike[]>([]);
   const [showStickyActions, setShowStickyActions] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const debouncedGlobalSearch = useDebounce(globalSearch, 150);
@@ -1052,6 +1068,16 @@ export default function BookingsPage() {
 
   const activeMenuPackRow = menuEditorPack ? formData.packs[menuEditorPack] : null;
 
+  const menuItemById = useMemo(() => {
+    const fromTemplates = templateMenus.flatMap((menu) =>
+      templateItemsToMenuItemLikes(menu.items as Parameters<typeof templateItemsToMenuItemLikes>[0])
+    );
+    return buildItemByIdMap(items as MenuItemLike[], [
+      ...fromTemplates,
+      ...importedTemplateExtras,
+    ]);
+  }, [items, templateMenus, importedTemplateExtras]);
+
   const filteredMenuItems = useMemo(() => {
     const query = menuItemSearch.trim().toLowerCase();
     if (!query) return items;
@@ -1286,9 +1312,10 @@ export default function BookingsPage() {
 
   const selectedMenuItemsByGroup = useMemo(() => {
     if (!activeMenuPackRow) return [] as Array<[string, ItemOption[]]>;
-    // Use items array (server-sorted) as the source of truth for ordering.
     const selectedIds = new Set(activeMenuPackRow.menuItemIds);
-    const selected = items.filter((item) => selectedIds.has(item.id));
+    const selected = activeMenuPackRow.menuItemIds
+      .map((id) => menuItemById.get(id))
+      .filter((item): item is MenuItemLike => Boolean(item)) as ItemOption[];
     const map = new Map<string, ItemOption[]>();
     selected.forEach((item) => {
       const group = item.itemType?.name || 'Other';
@@ -1300,27 +1327,13 @@ export default function BookingsPage() {
       map.set(groupName, [...grouped].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
     });
     return Array.from(map.entries());
-  }, [activeMenuPackRow, items]);
-
-  const getItemPoints = useCallback((item?: ItemOption | null): number => {
-    if (!item) return 0;
-    const rawPoints = item.points ?? item.point ?? 0;
-    const numericPoints = Number(rawPoints);
-    if (!Number.isFinite(numericPoints)) return 0;
-    return Math.max(0, numericPoints);
-  }, []);
+  }, [activeMenuPackRow, menuItemById]);
 
   const calculateMenuPoints = useCallback(
     (menuItemIds: string[]): string => {
-      if (!menuItemIds.length) return '';
-      const totalPoints = menuItemIds.reduce((sum, itemId) => {
-        const item = items.find((entry) => entry.id === itemId);
-        return sum + getItemPoints(item);
-      }, 0);
-      const rounded = Math.round(totalPoints * 100) / 100;
-      return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+      return calculateMenuPointsFromMap(menuItemIds, menuItemById);
     },
-    [getItemPoints, items]
+    [menuItemById]
   );
 
   const updatePackRow = (packKey: PackKey, patch: Partial<BookingPackRow>) => {
@@ -1389,14 +1402,48 @@ export default function BookingsPage() {
     }
   };
 
-  const importTemplateToPack = (packKey: PackKey, templateMenuId: string) => {
-    const template = templateMenus.find((entry) => entry.id === templateMenuId);
-    const importedItemIds = template?.items?.map((entry) => entry.item.id) || [];
-    updatePackRow(packKey, {
-      templateMenuId,
-      menuItemIds: importedItemIds,
-      menuPoints: calculateMenuPoints(importedItemIds),
-    });
+  const importTemplateToPack = async (packKey: PackKey, templateMenuId: string) => {
+    if (!templateMenuId) {
+      updatePackRow(packKey, { templateMenuId: '' });
+      return;
+    }
+
+    try {
+      const row = formData.packs[packKey];
+      const response = await api.getTemplateMenu(templateMenuId);
+      const fullTemplate = response.data?.data?.templateMenu;
+      if (!fullTemplate) {
+        toast.error('Template details not found');
+        return;
+      }
+
+      const templateItemLikes = templateItemsToMenuItemLikes(fullTemplate.items);
+      const templateIds = extractTemplateItemIds(fullTemplate.items);
+      const mergedIds = mergeTemplateItemIds(row.menuItemIds, templateIds);
+      const addedCount = countNewTemplateItems(row.menuItemIds, templateIds);
+
+      setImportedTemplateExtras((prev) => {
+        const map = new Map(prev.map((item) => [item.id, item]));
+        for (const item of templateItemLikes) map.set(item.id, item);
+        return Array.from(map.values());
+      });
+
+      updatePackRow(packKey, {
+        templateMenuId,
+        menuItemIds: mergedIds,
+        menuPoints: calculateMenuPoints(mergedIds),
+      });
+
+      if (addedCount > 0) {
+        toast.success(
+          `Added ${addedCount} item${addedCount === 1 ? '' : 's'} from template (${mergedIds.length} total selected)`
+        );
+      } else {
+        toast.info('All template items were already selected');
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to import template menu');
+    }
   };
 
   useEffect(() => {
@@ -1917,7 +1964,7 @@ export default function BookingsPage() {
         loadCustomerOptions(),
         api.getBanquets({ page: 1, limit: 200 }),
         api.getHalls({ page: 1, limit: 200 }),
-        api.getItems({ page: 1, limit: 200 }),
+        api.getItems({ page: 1, limit: 5000 }),
         api.getTemplateMenus({ page: 1, limit: 200, includeItems: true }),
         api.getItemTypes({ page: 1, limit: 500 }),
       ]);
@@ -1968,6 +2015,7 @@ export default function BookingsPage() {
     setIsFormDirty(false);
     setActiveBookingTab('details');
     setActiveBookingObj(null);
+    setImportedTemplateExtras([]);
     // Clear any active search so the freshly-saved booking is always visible
     // in the list (Bug: booking appeared to vanish because search was still active)
     clearSearch();
@@ -2154,30 +2202,7 @@ export default function BookingsPage() {
                 : '',
           }))
           .filter((entry: AdditionalRequirementRow) => entry.description || entry.amount),
-        payments: (booking.payments || []).map((payment: any) => {
-          const mode = payment.method || payment.paymentMethod || '';
-          const narration = payment.narration || '';
-          const date = payment.paymentDate ? payment.paymentDate.slice(0, 10) : '';
-          const receivedBy = payment.receiver?.name || '';
-          const amount =
-            payment.amount !== null && payment.amount !== undefined
-              ? String(payment.amount)
-              : '';
-          const reference = payment.reference || '';
-          const clearingDate = payment.clearingDate ? payment.clearingDate.slice(0, 10) : '';
-          return {
-            id: payment.id || undefined,
-            mode,
-            narration,
-            date,
-            receivedBy,
-            amount,
-            reference,
-            clearingDate,
-            // Snapshot used to detect which fields actually changed so we only PATCH those.
-            _original: { mode, narration, date, receivedBy, amount, reference, clearingDate },
-          };
-        }),
+        payments: mapBookingPaymentsFromApi(booking.payments || []),
         packs: nextPacks,
       };
       setFormData(loadedFormData);
@@ -2360,7 +2385,18 @@ export default function BookingsPage() {
     }
   }, [bookingPdfLoading]);
 
+  const applyBookingToForm = useCallback((booking: any) => {
+    const loadedPayments = mapBookingPaymentsFromApi(booking.payments || []);
+    setFormData((prev) => {
+      const next = { ...prev, payments: loadedPayments };
+      savedFormDataRef.current = next;
+      return next;
+    });
+    setActiveBookingObj(booking);
+  }, []);
+
   const doSaveBooking = async (opts?: { keepOpen?: boolean }): Promise<string | null> => {
+    if (savingInFlightRef.current) return null;
     if (!formData.customerId || !formData.functionType.trim() || !formData.functionDate) {
       toast.error('Primary customer, function type and date are required');
       return null;
@@ -2377,6 +2413,7 @@ export default function BookingsPage() {
     }
 
     try {
+      savingInFlightRef.current = true;
       setSaving(true);
       const toNumber = (value: string) => {
         const parsed = Number(value);
@@ -2603,24 +2640,7 @@ export default function BookingsPage() {
       }
 
       if (savedBookingId) {
-        // PATCH existing payments that were actually changed.
-        const changedPayments = formData.payments.filter((p) => {
-          if (!p.id || !p._original) return false;
-          return (
-            p.amount !== p._original.amount ||
-            p.mode !== p._original.mode ||
-            p.date !== p._original.date ||
-            p.narration !== p._original.narration ||
-            p.receivedBy !== p._original.receivedBy ||
-            p.reference !== p._original.reference ||
-            p.clearingDate !== p._original.clearingDate
-          );
-        });
-
-        // POST new payments (no DB id yet).
-        const newPayments = formData.payments.filter(
-          (p) => !p.id && p.amount.trim() && p.date.trim()
-        );
+        const { changedPayments, newPayments } = partitionPaymentsForSave(formData.payments);
 
         await Promise.all([
           ...changedPayments.map((p) =>
@@ -2644,10 +2664,15 @@ export default function BookingsPage() {
             })
           ),
         ]);
+
+        const refreshResponse = await api.getBooking(savedBookingId);
+        const refreshedBooking = refreshResponse.data?.data?.booking;
+        if (refreshedBooking) {
+          applyBookingToForm(refreshedBooking);
+        }
       }
 
       toast.success(editingBookingId ? 'Booking updated successfully' : 'Booking created successfully');
-      savedFormDataRef.current = null;
       if (!opts?.keepOpen) {
         closeBookingForm();
         await loadBookings();
@@ -2672,6 +2697,7 @@ export default function BookingsPage() {
       }
       return null;
     } finally {
+      savingInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -5214,7 +5240,9 @@ export default function BookingsPage() {
               <select
                 className="input"
                 value={activeMenuPackRow.templateMenuId}
-                onChange={(e) => importTemplateToPack(menuEditorPack, e.target.value)}
+                onChange={(e) => {
+                  void importTemplateToPack(menuEditorPack, e.target.value);
+                }}
               >
                 <option value="">Custom (no template)</option>
                 {templateMenus.map((template) => (
