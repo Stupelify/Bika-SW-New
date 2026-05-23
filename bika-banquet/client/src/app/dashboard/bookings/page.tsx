@@ -43,6 +43,10 @@ import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
+import {
+  calculateDueAmount,
+  resolveGrandTotalFromFinalAmount,
+} from '@/lib/bookingBilling.mjs';
 import { customerSearchText, matchesCustomerSearch } from '@/lib/customerSearch';
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
@@ -985,8 +989,7 @@ export default function BookingsPage() {
     if (!showCreateForm) return;
     // Model A: finalAmount = full grand total after discount (halls + packs + extras − discount).
     // No need to add extras again — they are already inside finalAmount / totalBillBase.
-    const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
-    const due = Math.max(0, grandTotal - totalPayments);
+    const due = calculateDueAmount(formData.finalAmount, totalBillBase, totalPayments);
     setFormData((prev) => ({ ...prev, dueAmount: due.toFixed(2) }));
   }, [formData.finalAmount, totalPayments, totalBillBase, showCreateForm]);
 
@@ -2376,6 +2379,8 @@ export default function BookingsPage() {
       return null;
     }
 
+    let persistedBookingId: string | null = null;
+
     try {
       setSaving(true);
       const toNumber = (value: string) => {
@@ -2601,6 +2606,7 @@ export default function BookingsPage() {
         // Transition the open form to edit mode so a second submit updates rather than creates.
         if (savedBookingId) setEditingBookingId(savedBookingId);
       }
+      persistedBookingId = savedBookingId || null;
 
       if (savedBookingId) {
         // PATCH existing payments that were actually changed.
@@ -2665,9 +2671,10 @@ export default function BookingsPage() {
         : error?.response?.data?.error ||
           (editingBookingId ? 'Failed to update booking' : 'Failed to create booking');
       toast.error(detail);
-      // Reset form to the last known server state so partial mutations don't
-      // leave the user looking at corrupted local state.
-      if (savedFormDataRef.current) {
+      if (persistedBookingId) {
+        await openEditBooking(persistedBookingId);
+        await loadBookings();
+      } else if (savedFormDataRef.current) {
         setFormData(savedFormDataRef.current);
       }
       return null;
@@ -3715,7 +3722,10 @@ export default function BookingsPage() {
                       {/* Grand Total row */}
                       {(() => {
                         // Model A: finalAmount already includes everything (halls+packs+extras−discount).
-                        const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
+                        const grandTotal = resolveGrandTotalFromFinalAmount(
+                          formData.finalAmount,
+                          totalBillBase
+                        );
                         return (
                           <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]">
                             <td colSpan={7} />
@@ -3949,7 +3959,10 @@ export default function BookingsPage() {
                       </div>
                       {(() => {
                         // Model A: finalAmount already includes everything (halls+packs+extras−discount).
-                        const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
+                        const grandTotal = resolveGrandTotalFromFinalAmount(
+                          formData.finalAmount,
+                          totalBillBase
+                        );
                         return (
                           <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
                             <span className="text-base font-extrabold text-[var(--text-1)]">Grand Total</span>
