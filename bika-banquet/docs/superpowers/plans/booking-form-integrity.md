@@ -5,7 +5,7 @@ Living reference for the booking form workflow, regression tests, and the `booki
 ## Product rules
 
 - **Payments:** Persisted via `POST/PATCH /bookings/:id/payments` after booking save. Form state must reload server IDs after each save.
-- **Template import:** **Merge** template items into the pack selection (dedupe by `itemId`). Fetch full template via `GET /template-menus/:id`.
+- **Template import:** **Replace** pack menu with template items. Confirm if the pack already has selections. Fetch full template via `GET /template-menus/:id`.
 - **Legacy data:** Duplicate historical payments are not auto-cleaned (fix forward only).
 
 ## Code map

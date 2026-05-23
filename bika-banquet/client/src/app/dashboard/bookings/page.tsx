@@ -53,10 +53,8 @@ import {
 import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
-  countNewTemplateItems,
   extractTemplateItemIds,
   getItemPoints,
-  mergeTemplateItemIds,
   templateItemsToMenuItemLikes,
 } from '@/lib/booking-form/menu-template';
 import type { MenuItemLike } from '@/lib/booking-form/types';
@@ -1408,8 +1406,18 @@ export default function BookingsPage() {
       return;
     }
 
+    const row = formData.packs[packKey];
+    const templateName =
+      templateMenus.find((entry) => entry.id === templateMenuId)?.name || 'this template';
+
+    if (row.menuItemIds.length > 0) {
+      const confirmed = window.confirm(
+        `Replace all ${row.menuItemIds.length} selected item(s) with "${templateName}"?\n\nCurrent custom selections will be removed.`
+      );
+      if (!confirmed) return;
+    }
+
     try {
-      const row = formData.packs[packKey];
       const response = await api.getTemplateMenu(templateMenuId);
       const fullTemplate = response.data?.data?.templateMenu;
       if (!fullTemplate) {
@@ -1419,8 +1427,6 @@ export default function BookingsPage() {
 
       const templateItemLikes = templateItemsToMenuItemLikes(fullTemplate.items);
       const templateIds = extractTemplateItemIds(fullTemplate.items);
-      const mergedIds = mergeTemplateItemIds(row.menuItemIds, templateIds);
-      const addedCount = countNewTemplateItems(row.menuItemIds, templateIds);
 
       setImportedTemplateExtras((prev) => {
         const map = new Map(prev.map((item) => [item.id, item]));
@@ -1430,17 +1436,13 @@ export default function BookingsPage() {
 
       updatePackRow(packKey, {
         templateMenuId,
-        menuItemIds: mergedIds,
-        menuPoints: calculateMenuPoints(mergedIds),
+        menuItemIds: templateIds,
+        menuPoints: calculateMenuPoints(templateIds),
       });
 
-      if (addedCount > 0) {
-        toast.success(
-          `Added ${addedCount} item${addedCount === 1 ? '' : 's'} from template (${mergedIds.length} total selected)`
-        );
-      } else {
-        toast.info('All template items were already selected');
-      }
+      toast.success(
+        `Imported ${templateIds.length} item${templateIds.length === 1 ? '' : 's'} from ${templateName}`
+      );
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to import template menu');
     }
@@ -5252,7 +5254,8 @@ export default function BookingsPage() {
                 ))}
               </select>
               <p className="mt-1 text-xs text-[var(--text-4)]">
-                Selecting a template imports all template items; you can still add or remove items.
+                Selecting a template replaces the current menu with all template items. You will be
+                asked to confirm if items are already selected.
               </p>
             </div>
 
