@@ -60,7 +60,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 60s
 
   redis:
     image: redis:7-alpine
@@ -121,26 +121,26 @@ services:
       - ./docker/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
-  # Metabase BI dashboard for operational reporting
-  metabase:
-    image: metabase/metabase:v0.52.0
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "${METABASE_PORT:-3001}:3000"
-    environment:
-      MB_DB_TYPE: postgres
-      MB_DB_DBNAME: ${DB_NAME}
-      MB_DB_PORT: 5432
-      MB_DB_USER: ${DB_USER}
-      MB_DB_PASS: ${DB_PASSWORD}
-      MB_DB_HOST: db
-      MB_SITE_NAME: ${METABASE_SITE_NAME:-Bika Banquet Analytics}
-      MB_SITE_URL: ${METABASE_SITE_URL:-http://localhost:${METABASE_PORT:-3001}}
-    volumes:
-      - metabase_data:/metabase-data
+  # Metabase BI dashboard for operational reporting — DORMANT (re-enable when needed)
+  # metabase:
+  #   image: metabase/metabase:v0.52.17
+  #   restart: always
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   ports:
+  #     - "${METABASE_PORT:-3001}:3000"
+  #   environment:
+  #     MB_DB_TYPE: postgres
+  #     MB_DB_DBNAME: ${DB_NAME}
+  #     MB_DB_PORT: 5432
+  #     MB_DB_USER: ${DB_USER}
+  #     MB_DB_PASS: ${DB_PASSWORD}
+  #     MB_DB_HOST: db
+  #     MB_SITE_NAME: ${METABASE_SITE_NAME:-Bika Banquet Analytics}
+  #     MB_SITE_URL: ${METABASE_SITE_URL:-http://localhost:${METABASE_PORT:-3001}}
+  #   volumes:
+  #     - metabase_data:/metabase-data
 
   # Uptime Kuma for app/service monitoring
   uptime-kuma:
@@ -158,9 +158,9 @@ volumes:
   redis_data:
     external: true
     name: bikabanquet_v2_redis_data
-  metabase_data:
-    external: true
-    name: bikabanquet_v2_metabase_data
+  # metabase_data:  # DORMANT — re-enable with metabase service
+  #   external: true
+  #   name: bikabanquet_v2_metabase_data
   uptime_kuma_data:
     external: true
     name: bikabanquet_v2_uptime_kuma_data
