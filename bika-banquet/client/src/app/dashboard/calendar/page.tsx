@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useSSE } from '@/hooks/useSSE';
 import {
   Building2,
   CalendarCheck,
@@ -904,6 +905,8 @@ export default function CalendarPage() {
   useEffect(() => {
     void loadCalendarData();
   }, [loadCalendarData]);
+
+  useSSE(['booking:', 'enquiry:'], loadCalendarData, true);
 
   useEffect(() => {
     const loadHalls = async () => {

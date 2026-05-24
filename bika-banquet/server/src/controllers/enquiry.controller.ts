@@ -12,6 +12,7 @@ import {
   syncEnquiryEventToGoogleCalendar,
 } from '../services/googleCalendar.service';
 import { createAuditLog } from '../utils/auditLog';
+import { broadcastBookingEvent } from '../sse';
 
 export async function getEnquiryCount(req: Request, res: Response): Promise<void> {
   try {
@@ -186,6 +187,7 @@ export async function createEnquiry(req: Request, res: Response): Promise<void> 
       await syncEnquiryEventToGoogleCalendar(enquiry);
     }
 
+    broadcastBookingEvent('enquiry:created', { id: enquiry?.id });
     void createAuditLog(req, 'CREATE', 'enquiry', enquiry?.id, [enquiry?.customer?.name, enquiry?.functionName].filter(Boolean).join(' – '));
     sendSuccess(res, { enquiry }, 'Enquiry created successfully', 201);
   } catch (error) {
@@ -455,6 +457,7 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
       await syncEnquiryEventToGoogleCalendar(enquiry);
     }
 
+    broadcastBookingEvent('enquiry:updated', { id });
     void createAuditLog(req, 'UPDATE', 'enquiry', id, [enquiry?.customer?.name, enquiry?.functionName].filter(Boolean).join(' – '));
     sendSuccess(res, { enquiry }, 'Enquiry updated successfully');
   } catch (error) {
@@ -472,6 +475,7 @@ export async function deleteEnquiry(req: Request, res: Response): Promise<void> 
 
     await removeEnquiryEventFromGoogleCalendar(id);
 
+    broadcastBookingEvent('enquiry:deleted', { id });
     void createAuditLog(req, 'DELETE', 'enquiry', id, '');
     sendSuccess(res, null, 'Enquiry deleted successfully');
   } catch (error: any) {

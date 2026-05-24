@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import { useSSE } from '@/hooks/useSSE';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { KpiCardSkeleton } from '@/components/Skeletons';
 import KpiCard from '@/components/KpiCard';
@@ -499,6 +500,17 @@ export default function DashboardPage() {
   useEffect(() => {
     void loadDashboardData();
   }, [loadDashboardData]);
+
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoad = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      void loadDashboardData();
+    }, 500);
+  }, [loadDashboardData]);
+
+  const isAuthenticated = Boolean(user);
+  useSSE(['booking:', 'customer:', 'enquiry:'], debouncedLoad, isAuthenticated);
 
   const hallSections = useMemo(() => {
     const allHalls = data?.hallsByRevenue || [];

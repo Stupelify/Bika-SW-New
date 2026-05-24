@@ -1,8 +1,9 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, fetchAllCustomers } from '@/lib/api';
+import { useSSE } from '@/hooks/useSSE';
 import {
   customerSearchText,
   formatCustomerOptionLabel,
@@ -238,7 +239,9 @@ export default function EnquiriesPage() {
 
   useEffect(() => {
     void loadEnquiries();
-  }, [status, canViewEnquiry]);
+  }, [status, canViewEnquiry, loadEnquiries]);
+
+  useSSE(['enquiry:'], loadEnquiries, canViewEnquiry);
 
   useEffect(() => {
     void loadLookups();
@@ -296,7 +299,7 @@ export default function EnquiriesPage() {
     }
   };
 
-  const loadEnquiries = async () => {
+  const loadEnquiries = useCallback(async () => {
     try {
       if (!hasAnyPermission(permissionSet, ['view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'])) {
         setEnquiries([]);
@@ -314,7 +317,7 @@ export default function EnquiriesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [permissionSet, status]);
 
   const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
     setColumnSearch((prev) => ({ ...prev, [key]: value }));

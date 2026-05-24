@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
+import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
 import { CreditCard, Plus, Save, Search, Filter } from 'lucide-react';
 import FormPromptModal from '@/components/FormPromptModal';
@@ -120,7 +121,9 @@ export default function PaymentsPage() {
       return;
     }
     void loadBookings();
-  }, [canViewPayments]);
+  }, [canViewPayments, loadBookings]);
+
+  useSSE(['booking:'], loadBookings, canViewPayments);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -131,7 +134,7 @@ export default function PaymentsPage() {
     setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const loadBookings = async () => {
+  const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.getBookings({
@@ -148,7 +151,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const submitPayment = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
