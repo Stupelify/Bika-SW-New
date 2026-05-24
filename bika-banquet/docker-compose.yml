@@ -25,11 +25,13 @@ services:
       context: ./server
       dockerfile: Dockerfile
     restart: always
+    ports:
+      - "5001:5000"
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -39,7 +41,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       CLIENT_URL: ${CLIENT_URL}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
@@ -58,14 +60,26 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 60s
 
   redis:
     image: redis:7-alpine
     restart: always
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    # WARNING: REDIS_PASSWORD must be set in .env — empty password causes healthcheck to hang
+    healthcheck:
+      # Try auth ping first; fall back to no-auth ping so dev envs without a password also pass
+      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping || redis-cli ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   # Frontend Next.js App
   client:
@@ -75,6 +89,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     restart: always
+    ports:
+      - "3000:3000"
     depends_on:
       - server
     env_file:
@@ -105,26 +121,26 @@ services:
       - ./docker/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
-  # Metabase BI dashboard for operational reporting
-  metabase:
-    image: metabase/metabase:latest
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "${METABASE_PORT:-3001}:3000"
-    environment:
-      MB_DB_TYPE: postgres
-      MB_DB_DBNAME: ${DB_NAME}
-      MB_DB_PORT: 5432
-      MB_DB_USER: ${DB_USER}
-      MB_DB_PASS: ${DB_PASSWORD}
-      MB_DB_HOST: db
-      MB_SITE_NAME: ${METABASE_SITE_NAME:-Bika Banquet Analytics}
-      MB_SITE_URL: ${METABASE_SITE_URL:-http://localhost:${METABASE_PORT:-3001}}
-    volumes:
-      - metabase_data:/metabase-data
+  # Metabase BI dashboard for operational reporting — DORMANT (re-enable when needed)
+  # metabase:
+  #   image: metabase/metabase:v0.52.17
+  #   restart: always
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   ports:
+  #     - "${METABASE_PORT:-3001}:3000"
+  #   environment:
+  #     MB_DB_TYPE: postgres
+  #     MB_DB_DBNAME: ${DB_NAME}
+  #     MB_DB_PORT: 5432
+  #     MB_DB_USER: ${DB_USER}
+  #     MB_DB_PASS: ${DB_PASSWORD}
+  #     MB_DB_HOST: db
+  #     MB_SITE_NAME: ${METABASE_SITE_NAME:-Bika Banquet Analytics}
+  #     MB_SITE_URL: ${METABASE_SITE_URL:-http://localhost:${METABASE_PORT:-3001}}
+  #   volumes:
+  #     - metabase_data:/metabase-data
 
   # Uptime Kuma for app/service monitoring
   uptime-kuma:
@@ -142,9 +158,9 @@ volumes:
   redis_data:
     external: true
     name: bikabanquet_v2_redis_data
-  metabase_data:
-    external: true
-    name: bikabanquet_v2_metabase_data
+  # metabase_data:  # DORMANT — re-enable with metabase service
+  #   external: true
+  #   name: bikabanquet_v2_metabase_data
   uptime_kuma_data:
     external: true
     name: bikabanquet_v2_uptime_kuma_data
