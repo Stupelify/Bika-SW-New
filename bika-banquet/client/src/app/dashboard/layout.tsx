@@ -1,12 +1,14 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import BottomNav from '@/components/BottomNav';
 import Avatar from '@/components/Avatar';
 import CommandPalette from '@/components/CommandPalette';
+import IdleTimeoutModal from '@/components/IdleTimeoutModal';
+import { useIdleTimeout } from '@/hooks/useIdleTimeout';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -308,6 +310,13 @@ function ThemeToggle() {
   );
 }
 
+// ── Idle timeout config ───────────────────────────────────────────────────────
+// Defined at module scope so they are stable references (no useCallback deps churn).
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes total idle window
+const IDLE_WARN_MS = 60 * 1000;         // show warning 60 s before logout
+const IDLE_WARN_SECONDS = IDLE_WARN_MS / 1000; // countdown start value (60)
+// ─────────────────────────────────────────────────────────────────────────────
+
 function DashboardLayoutContent({
   children,
 }: {
@@ -331,6 +340,69 @@ function DashboardLayoutContent({
   const [outstandingPayments, setOutstandingPayments] = useState(0);
 
   const sectionParam = searchParams.get('section');
+
+  // ── Idle timeout ────────────────────────────────────────────────────────────
+  // 30-minute idle window. 60-second warning before auto-logout.
+  // Staff share computers so we need to protect against walk-away sessions.
+  const [idleWarningOpen, setIdleWarningOpen] = useState(false);
+  const [idleCountdown, setIdleCountdown] = useState(IDLE_WARN_SECONDS);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearCountdownInterval = useCallback(() => {
+    if (countdownIntervalRef.current !== null) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+  }, []);
+
+  const handleIdleWarn = useCallback(() => {
+    setIdleCountdown(IDLE_WARN_SECONDS);
+    setIdleWarningOpen(true);
+    clearCountdownInterval();
+    countdownIntervalRef.current = setInterval(() => {
+      setIdleCountdown((prev) => {
+        if (prev <= 1) {
+          clearCountdownInterval();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [clearCountdownInterval]);
+
+  const handleIdleActivity = useCallback(() => {
+    clearCountdownInterval();
+    setIdleWarningOpen(false);
+  }, [clearCountdownInterval]);
+
+  const handleIdleTimeout = useCallback(async () => {
+    clearCountdownInterval();
+    setIdleWarningOpen(false);
+    await logout();
+    router.push('/login');
+  }, [clearCountdownInterval, logout, router]);
+
+  const handleStayLoggedIn = useCallback(() => {
+    // Dismissing the modal counts as activity — the hook will reschedule timers
+    // via the next real activity event. We also directly close the modal here.
+    clearCountdownInterval();
+    setIdleWarningOpen(false);
+  }, [clearCountdownInterval]);
+
+  useIdleTimeout({
+    timeoutMs: IDLE_TIMEOUT_MS,
+    warnBeforeMs: IDLE_WARN_MS,
+    onWarn: handleIdleWarn,
+    onTimeout: handleIdleTimeout,
+    onActivity: handleIdleActivity,
+    enabled: isAuthenticated,
+  });
+
+  // Clean up countdown interval on unmount
+  useEffect(() => {
+    return () => clearCountdownInterval();
+  }, [clearCountdownInterval]);
+  // ── End idle timeout ─────────────────────────────────────────────────────────
 
   const isHrefActive = (href: string) => {
     const [targetPath, queryString] = href.split('?');
@@ -1012,6 +1084,13 @@ function DashboardLayoutContent({
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
+      />
+
+      <IdleTimeoutModal
+        open={idleWarningOpen}
+        secondsRemaining={idleCountdown}
+        onStayLoggedIn={handleStayLoggedIn}
+        onLogoutNow={handleIdleTimeout}
       />
     </div>
   );
