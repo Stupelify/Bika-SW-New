@@ -312,7 +312,7 @@ function ThemeToggle() {
 
 // ── Idle timeout config ───────────────────────────────────────────────────────
 // Defined at module scope so they are stable references (no useCallback deps churn).
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes total idle window
+const IDLE_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours total idle window
 const IDLE_WARN_MS = 60 * 1000;         // show warning 60 s before logout
 const IDLE_WARN_SECONDS = IDLE_WARN_MS / 1000; // countdown start value (60)
 // ─────────────────────────────────────────────────────────────────────────────
