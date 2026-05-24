@@ -8,7 +8,7 @@
  *   - booking.write.ts       — mutating handlers (create, update, cancel, delete, finalize, partyOver)
  *   - booking.payments.ts    — payment handlers
  *   - booking.pdf.ts         — PDF generation handlers
- *   - booking.financials.ts  — scheduled financial operations (releasePencilBookings)
+ *   - booking.financials.ts  — billing ceiling helpers + releasePencilBookings
  */
 export * from './booking.shared';
 export * from './booking.read';

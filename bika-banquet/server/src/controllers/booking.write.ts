@@ -1568,18 +1568,3 @@ export async function deleteBooking(
     sendError(res, 'Failed to delete booking');
   }
 }
-
-export async function releasePencilBookings(): Promise<void> {
-  const now = new Date();
-  const expired = await prisma.booking.findMany({
-    where: { isPencilBooking: true, pencilExpiresAt: { lt: now } },
-    select: { id: true },
-  });
-  if (expired.length === 0) return;
-  const ids = expired.map((b) => b.id);
-  await prisma.booking.updateMany({
-    where: { id: { in: ids } },
-    data: { isPencilBooking: false, pencilExpiresAt: null, status: 'cancelled' },
-  });
-  logger.info(`releasePencilBookings: released ${ids.length} expired pencil booking(s)`);
-}
