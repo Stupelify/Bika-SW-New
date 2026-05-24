@@ -34,6 +34,7 @@ cd bika-banquet/client && npm run test:e2e:booking-form
 | Template UI | Selected items resolve via `buildItemByIdMap` (catalog + template extras) |
 | Native | `native-client/lib/api.ts` must not bypass payment id sync when UI is added |
 | Data | No automatic dedupe of legacy duplicate payments (fix forward only) |
+| Billing | Net/grand total ≤ line-item bill (`totalBillBase` / `sumBookingLines`); save/finalize blocked in UI; server rejects `BOOKING_NET_EXCEEDS_BILL` |
 
 ## Trigger paths
 

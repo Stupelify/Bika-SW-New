@@ -651,7 +651,9 @@ export async function recalculateBookingFinancials(
     forceFinalAmountToGrandTotal?: boolean;
   }
 ): Promise<void> {
-  const { sumBookingLines } = await import('./booking.helpers');
+  const { resolveBookingFinancials, sumBookingLines } = await import(
+    './booking.financials'
+  );
   const booking = await tx.booking.findUnique({
     where: { id: bookingId },
     include: {
@@ -688,21 +690,24 @@ export async function recalculateBookingFinancials(
     additionalItems: booking.additionalItems,
   });
   const effectiveDiscountPercent = toOptionalSafePercent(booking.discountPercentage) || 0;
-  let discountAmount = toSafeMoney(booking.discountAmount);
-  if (effectiveDiscountPercent > 0) {
-    discountAmount = toSafeMoney((totalAmount * effectiveDiscountPercent) / 100);
-  }
-
-  const grandTotal = toSafeMoney(Math.max(0, totalAmount - discountAmount));
+  const financials = resolveBookingFinancials({
+    totalAmount,
+    discountPercentage: effectiveDiscountPercent,
+    discountAmountInput: toSafeMoney(booking.discountAmount),
+    ...(options?.forceFinalAmountToGrandTotal
+      ? {}
+      : {
+          finalAmountInput:
+            booking.finalAmountValue ??
+            toOptionalSafeMoney(booking.finalAmount) ??
+            undefined,
+        }),
+  });
+  const { discountAmount, grandTotal, finalAmountValue } = financials;
   const paymentReceived =
     booking.paymentReceivedAmountValue ??
     toOptionalSafeMoney(booking.paymentReceivedAmount) ??
     toSafeMoney(booking.advanceReceived);
-  const finalAmountValue = options?.forceFinalAmountToGrandTotal
-    ? grandTotal
-    : booking.finalAmountValue ??
-    toOptionalSafeMoney(booking.finalAmount) ??
-    grandTotal;
   const dueAmountValue = toSafeMoney(finalAmountValue - paymentReceived);
   const balanceAmount = toSafeMoney(grandTotal - paymentReceived);
 

@@ -7,13 +7,14 @@ Living reference for the booking form workflow, regression tests, and the `booki
 - **Payments:** Persisted via `POST/PATCH /bookings/:id/payments` after booking save. Form state must reload server IDs after each save.
 - **Template import:** **Replace** pack menu with template items. Confirm if the pack already has selections. Fetch full template via `GET /template-menus/:id`.
 - **Legacy data:** Duplicate historical payments are not auto-cleaned (fix forward only).
+- **Billing ceiling:** Net / grand total must not exceed `totalBillBase` (deduped halls + pack lines + additional items). Enforced on save and finalize in the dashboard form; server caps discount/net on create/update and re-validates on finalize (`BOOKING_NET_EXCEEDS_BILL`).
 
 ## Code map
 
 | Concern | Location |
 |---------|----------|
 | Main UI | `client/src/app/dashboard/bookings/page.tsx` |
-| Pure helpers | `client/src/lib/booking-form/` |
+| Pure helpers | `client/src/lib/booking-form/` (`financials.ts` — ceiling validation) |
 | Payments UI | `client/src/components/BookingPaymentsLedger.tsx` |
 | Native API | `native-client/lib/api.ts` |
 | Server | `server/src/controllers/booking.write.ts`, `booking.payments.ts` |

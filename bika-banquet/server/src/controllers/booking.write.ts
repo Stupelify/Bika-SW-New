@@ -15,7 +15,11 @@ import {
   getAllowedBanquetIds,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
-import { sumBookingLines } from './booking.helpers';
+import {
+  assertFinancialsWithinCeiling,
+  resolveBookingFinancials,
+  sumBookingLines,
+} from './booking.helpers';
 import {
   toSafeNumber,
   toSafeMoney,
@@ -476,17 +480,19 @@ export async function createBooking(
         })),
       });
 
-      // Calculate discount
       const discountPercentage =
         readDualPercent(data, 'discountPercentageValue', 'discountPercentage') || 0;
-      let discountAmount =
-        readDualMoney(data, 'discountAmountValue', 'discountAmount') || 0;
-      if (discountPercentage > 0) {
-        discountAmount = toSafeMoney((totalAmount * discountPercentage) / 100);
+      const financials = resolveBookingFinancials({
+        totalAmount,
+        discountPercentage,
+        discountAmountInput:
+          readDualMoney(data, 'discountAmountValue', 'discountAmount') || 0,
+        finalAmountInput: readDualMoney(data, 'finalAmountValue', 'finalAmount'),
+      });
+      if (financials.exceededCeiling) {
+        throw new Error('BOOKING_NET_EXCEEDS_BILL');
       }
-
-      discountAmount = toSafeMoney(discountAmount);
-      const grandTotal = toSafeMoney(totalAmount - discountAmount);
+      const { discountAmount, grandTotal, finalAmountValue } = financials;
       const balanceAmount = toSafeMoney(
         grandTotal - toSafeMoney(firstDefinedValue(data.advanceReceivedValue, data.advanceReceived))
       );
@@ -517,8 +523,6 @@ export async function createBooking(
       );
       const dueAmountValue =
         readDualMoney(data, 'dueAmountValue', 'dueAmount') ?? balanceAmount;
-      const finalAmountValue =
-        readDualMoney(data, 'finalAmountValue', 'finalAmount') ?? grandTotal;
 
       // Update booking with totals
       return await tx.booking.update({
@@ -596,6 +600,14 @@ export async function createBooking(
         sendError(res, error.message, 409);
         return;
       }
+      if (error.message === 'BOOKING_NET_EXCEEDS_BILL') {
+        sendError(
+          res,
+          'Billing total is higher than hall, catering, and extra items. Adjust amounts and try again.',
+          400
+        );
+        return;
+      }
     }
     if (isHallClashConstraintError(error)) {
       sendError(
@@ -658,6 +670,24 @@ export async function finalizeBookingVersion(
         throw new Error('BOOKING_ALREADY_FINALIZED');
       }
 
+      await recalculateBookingFinancials(tx, id);
+      const financialCheck = await tx.booking.findUnique({
+        where: { id },
+        select: {
+          totalAmount: true,
+          grandTotal: true,
+          finalAmountValue: true,
+        },
+      });
+      if (financialCheck) {
+        assertFinancialsWithinCeiling({
+          totalAmount: financialCheck.totalAmount,
+          grandTotal: financialCheck.grandTotal,
+          finalAmountValue:
+            financialCheck.finalAmountValue ?? financialCheck.grandTotal,
+        });
+      }
+
       const snapshot = await fetchBookingSnapshot(tx, id);
       if (!snapshot) {
         throw new Error('BOOKING_NOT_FOUND');
@@ -715,6 +745,14 @@ export async function finalizeBookingVersion(
       }
       if (error.message === 'BOOKING_ALREADY_FINALIZED') {
         sendError(res, 'This booking version is already finalized', 409);
+        return;
+      }
+      if (error.message === 'BOOKING_NET_EXCEEDS_BILL') {
+        sendError(
+          res,
+          'Billing total is higher than hall, catering, and extra items. Save again after adjusting amounts.',
+          400
+        );
         return;
       }
     }
@@ -1323,14 +1361,18 @@ export async function updateBooking(
         inputDiscountPercentage !== undefined
           ? inputDiscountPercentage
           : toOptionalSafePercent(existingBooking.discountPercentage) || 0;
-      let discountAmount =
-        readDualMoney(data, 'discountAmountValue', 'discountAmount') ||
-        toSafeMoney(existingBooking.discountAmount);
-      if (effectiveDiscountPercentage > 0) {
-        discountAmount = toSafeMoney((totalAmount * effectiveDiscountPercentage) / 100);
+      const financials = resolveBookingFinancials({
+        totalAmount,
+        discountPercentage: effectiveDiscountPercentage,
+        discountAmountInput:
+          readDualMoney(data, 'discountAmountValue', 'discountAmount') ||
+          toSafeMoney(existingBooking.discountAmount),
+        finalAmountInput: readDualMoney(data, 'finalAmountValue', 'finalAmount'),
+      });
+      if (financials.exceededCeiling) {
+        throw new Error('BOOKING_NET_EXCEEDS_BILL');
       }
-      discountAmount = toSafeMoney(discountAmount);
-      const grandTotal = toSafeMoney(Math.max(0, totalAmount - discountAmount));
+      const { discountAmount, grandTotal, finalAmountValue } = financials;
       // Always derive paymentReceived from actual payment records — ignore any
       // client-supplied value, which can drift when versions are cloned.
       const paymentAgg = await tx.bookingPayments.aggregate({
@@ -1340,8 +1382,6 @@ export async function updateBooking(
       const paymentReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
       const balanceAmount = toSafeMoney(grandTotal - paymentReceived);
       const totalBillAmountValue = totalAmount;
-      const finalAmountValue =
-        readDualMoney(data, 'finalAmountValue', 'finalAmount') ?? grandTotal;
       const dueAmountValue =
         readDualMoney(data, 'dueAmountValue', 'dueAmount') ?? balanceAmount;
 
@@ -1417,6 +1457,14 @@ export async function updateBooking(
         error.message === 'One or more selected halls are invalid'
       ) {
         sendError(res, error.message, 400);
+        return;
+      }
+      if (error.message === 'BOOKING_NET_EXCEEDS_BILL') {
+        sendError(
+          res,
+          'Billing total is higher than hall, catering, and extra items. Adjust amounts and try again.',
+          400
+        );
         return;
       }
     }
