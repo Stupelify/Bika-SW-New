@@ -50,6 +50,7 @@ import {
   mapBookingPaymentsFromApi,
   partitionPaymentsForSave,
 } from '@/lib/booking-form/payments';
+import { validateBillingCeiling } from '@/lib/booking-form/financials';
 import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
@@ -2412,6 +2413,32 @@ export default function BookingsPage() {
         `Function date cannot be before ${formatDateDDMMYYYY(todayIsoDate)} for new bookings`
       );
       return null;
+    }
+
+    const finalAmountForCheck =
+      netAmountDraft !== null
+        ? normalizeAmountSnapshot('finalAmount', netAmountDraft, totalBillBase)
+            .finalAmount
+        : formData.finalAmount;
+    const billingCheck = validateBillingCeiling({
+      totalBillBase,
+      discountAmount: formData.finalDiscountAmount,
+      discountPercent: formData.finalDiscountPercent,
+      finalAmount: finalAmountForCheck,
+    });
+    if (!billingCheck.ok) {
+      toast.error(
+        billingCheck.message ||
+          'Net amount cannot exceed the bill total. Adjust discount or line items and try again.'
+      );
+      return null;
+    }
+    if (netAmountDraft !== null) {
+      setNetAmountDraft(null);
+      setFormData((prev) => ({
+        ...prev,
+        ...normalizeAmountSnapshot('finalAmount', netAmountDraft, totalBillBase),
+      }));
     }
 
     try {
