@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
@@ -123,7 +123,19 @@ export default function PaymentsPage() {
     void loadBookings();
   }, [canViewPayments, loadBookings]);
 
-  useSSE(['booking:'], loadBookings, canViewPayments);
+  const paymentsDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadBookings = useCallback(() => {
+    if (paymentsDebounceTimerRef.current) clearTimeout(paymentsDebounceTimerRef.current);
+    paymentsDebounceTimerRef.current = setTimeout(() => {
+      void loadBookings();
+    }, 300);
+  }, [loadBookings]);
+  useEffect(() => {
+    return () => {
+      if (paymentsDebounceTimerRef.current) clearTimeout(paymentsDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['booking:'], debouncedLoadBookings, canViewPayments);
 
   useEffect(() => {
     setCurrentPage(1);

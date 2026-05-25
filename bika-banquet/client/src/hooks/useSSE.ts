@@ -25,10 +25,6 @@ export function useSSE(
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
         eventSource = new EventSource(buildSseEventStreamUrl(baseUrl, res.data.token));
 
-        eventSource.onopen = () => {
-          onEvent();
-        };
-
         eventSource.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data) as { type?: string };

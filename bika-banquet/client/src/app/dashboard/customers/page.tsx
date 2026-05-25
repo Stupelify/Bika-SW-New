@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, fetchAllCustomers } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
@@ -228,7 +228,19 @@ export default function CustomersPage() {
     void loadCustomers();
   }, [canViewCustomer, loadCustomers]);
 
-  useSSE(['customer:'], loadCustomers, canViewCustomer);
+  const customersDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadCustomers = useCallback(() => {
+    if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
+    customersDebounceTimerRef.current = setTimeout(() => {
+      void loadCustomers();
+    }, 300);
+  }, [loadCustomers]);
+  useEffect(() => {
+    return () => {
+      if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['customer:'], debouncedLoadCustomers, canViewCustomer);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

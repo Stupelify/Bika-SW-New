@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, fetchAllCustomers } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
@@ -241,7 +241,19 @@ export default function EnquiriesPage() {
     void loadEnquiries();
   }, [status, canViewEnquiry, loadEnquiries]);
 
-  useSSE(['enquiry:'], loadEnquiries, canViewEnquiry);
+  const enquiriesDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadEnquiries = useCallback(() => {
+    if (enquiriesDebounceTimerRef.current) clearTimeout(enquiriesDebounceTimerRef.current);
+    enquiriesDebounceTimerRef.current = setTimeout(() => {
+      void loadEnquiries();
+    }, 300);
+  }, [loadEnquiries]);
+  useEffect(() => {
+    return () => {
+      if (enquiriesDebounceTimerRef.current) clearTimeout(enquiriesDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['enquiry:'], debouncedLoadEnquiries, canViewEnquiry);
 
   useEffect(() => {
     void loadLookups();

@@ -509,6 +509,12 @@ export default function DashboardPage() {
     }, 500);
   }, [loadDashboardData]);
 
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
   const isAuthenticated = Boolean(user);
   useSSE(['booking:', 'customer:', 'enquiry:'], debouncedLoad, isAuthenticated);
 

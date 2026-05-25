@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useSSE } from '@/hooks/useSSE';
+import { useAuthStore } from '@/store/authStore';
 import {
   Building2,
   CalendarCheck,
@@ -733,6 +734,8 @@ async function fetchGoogleCalendarEvents(
 }
 
 export default function CalendarPage() {
+  const { user } = useAuthStore();
+  const isAuthenticated = Boolean(user);
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
   const [viewDate, setViewDate] = useState(() => startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => formatDateKey(new Date()));
@@ -906,7 +909,19 @@ export default function CalendarPage() {
     void loadCalendarData();
   }, [loadCalendarData]);
 
-  useSSE(['booking:', 'enquiry:'], loadCalendarData, true);
+  const calendarDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadCalendar = useCallback(() => {
+    if (calendarDebounceTimerRef.current) clearTimeout(calendarDebounceTimerRef.current);
+    calendarDebounceTimerRef.current = setTimeout(() => {
+      void loadCalendarData();
+    }, 300);
+  }, [loadCalendarData]);
+  useEffect(() => {
+    return () => {
+      if (calendarDebounceTimerRef.current) clearTimeout(calendarDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['booking:', 'enquiry:'], debouncedLoadCalendar, isAuthenticated);
 
   useEffect(() => {
     const loadHalls = async () => {
