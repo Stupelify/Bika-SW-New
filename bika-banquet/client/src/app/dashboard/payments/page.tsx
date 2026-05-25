@@ -116,28 +116,6 @@ export default function PaymentsPage() {
   }, [currentPage, filteredBookings, totalPages]);
 
   useEffect(() => {
-    if (!canViewPayments) {
-      setLoading(false);
-      return;
-    }
-    void loadBookings();
-  }, [canViewPayments, loadBookings]);
-
-  const paymentsDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedLoadBookings = useCallback(() => {
-    if (paymentsDebounceTimerRef.current) clearTimeout(paymentsDebounceTimerRef.current);
-    paymentsDebounceTimerRef.current = setTimeout(() => {
-      void loadBookings();
-    }, 300);
-  }, [loadBookings]);
-  useEffect(() => {
-    return () => {
-      if (paymentsDebounceTimerRef.current) clearTimeout(paymentsDebounceTimerRef.current);
-    };
-  }, []);
-  useSSE(['booking:'], debouncedLoadBookings, canViewPayments);
-
-  useEffect(() => {
     setCurrentPage(1);
   }, [globalSearch, columnSearch, sort]);
 
@@ -164,6 +142,28 @@ export default function PaymentsPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!canViewPayments) {
+      setLoading(false);
+      return;
+    }
+    void loadBookings();
+  }, [canViewPayments, loadBookings]);
+
+  const paymentsDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadBookings = useCallback(() => {
+    if (paymentsDebounceTimerRef.current) clearTimeout(paymentsDebounceTimerRef.current);
+    paymentsDebounceTimerRef.current = setTimeout(() => {
+      void loadBookings();
+    }, 300);
+  }, [loadBookings]);
+  useEffect(() => {
+    return () => {
+      if (paymentsDebounceTimerRef.current) clearTimeout(paymentsDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['booking:'], debouncedLoadBookings, canViewPayments);
 
   const submitPayment = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
