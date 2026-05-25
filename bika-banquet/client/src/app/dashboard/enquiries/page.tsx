@@ -238,24 +238,6 @@ export default function EnquiriesPage() {
   }, [currentPage, filteredEnquiries, totalPages]);
 
   useEffect(() => {
-    void loadEnquiries();
-  }, [status, canViewEnquiry, loadEnquiries]);
-
-  const enquiriesDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedLoadEnquiries = useCallback(() => {
-    if (enquiriesDebounceTimerRef.current) clearTimeout(enquiriesDebounceTimerRef.current);
-    enquiriesDebounceTimerRef.current = setTimeout(() => {
-      void loadEnquiries();
-    }, 300);
-  }, [loadEnquiries]);
-  useEffect(() => {
-    return () => {
-      if (enquiriesDebounceTimerRef.current) clearTimeout(enquiriesDebounceTimerRef.current);
-    };
-  }, []);
-  useSSE(['enquiry:'], debouncedLoadEnquiries, canViewEnquiry);
-
-  useEffect(() => {
     void loadLookups();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAddEnquiry, canEditEnquiry]);
@@ -330,6 +312,25 @@ export default function EnquiriesPage() {
       setLoading(false);
     }
   }, [permissionSet, status]);
+
+  useEffect(() => {
+    void loadEnquiries();
+  }, [status, canViewEnquiry, loadEnquiries]);
+
+  const enquiriesDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadEnquiries = useCallback(() => {
+    if (enquiriesDebounceTimerRef.current) clearTimeout(enquiriesDebounceTimerRef.current);
+    enquiriesDebounceTimerRef.current = setTimeout(() => {
+      void loadEnquiries();
+    }, 300);
+  }, [loadEnquiries]);
+  useEffect(() => {
+    return () => {
+      if (enquiriesDebounceTimerRef.current) clearTimeout(enquiriesDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['enquiry:'], debouncedLoadEnquiries, canViewEnquiry);
+
 
   const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
     setColumnSearch((prev) => ({ ...prev, [key]: value }));

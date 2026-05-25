@@ -225,24 +225,6 @@ export default function CustomersPage() {
   const whatsappPhoneDigits = getExpectedPhoneDigits(formData.whatsappCountryIso);
 
   useEffect(() => {
-    void loadCustomers();
-  }, [canViewCustomer, loadCustomers]);
-
-  const customersDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedLoadCustomers = useCallback(() => {
-    if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
-    customersDebounceTimerRef.current = setTimeout(() => {
-      void loadCustomers();
-    }, 300);
-  }, [loadCustomers]);
-  useEffect(() => {
-    return () => {
-      if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
-    };
-  }, []);
-  useSSE(['customer:'], debouncedLoadCustomers, canViewCustomer);
-
-  useEffect(() => {
     if (typeof window === 'undefined') return;
     const payload = customers.slice(0, 40).map((customer) => ({
       id: customer.id,
@@ -348,6 +330,24 @@ export default function CustomersPage() {
       setLoading(false);
     }
   }, [permissionSet]);
+
+  useEffect(() => {
+    void loadCustomers();
+  }, [canViewCustomer, loadCustomers]);
+
+  const customersDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadCustomers = useCallback(() => {
+    if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
+    customersDebounceTimerRef.current = setTimeout(() => {
+      void loadCustomers();
+    }, 300);
+  }, [loadCustomers]);
+  useEffect(() => {
+    return () => {
+      if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['customer:'], debouncedLoadCustomers, canViewCustomer);
 
   const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
     setColumnSearch((prev) => ({ ...prev, [key]: value }));
