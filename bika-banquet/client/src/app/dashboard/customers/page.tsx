@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, fetchAllCustomers } from '@/lib/api';
+import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
 import {
   Search,
@@ -225,7 +226,21 @@ export default function CustomersPage() {
 
   useEffect(() => {
     void loadCustomers();
-  }, [canViewCustomer]);
+  }, [canViewCustomer, loadCustomers]);
+
+  const customersDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedLoadCustomers = useCallback(() => {
+    if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
+    customersDebounceTimerRef.current = setTimeout(() => {
+      void loadCustomers();
+    }, 300);
+  }, [loadCustomers]);
+  useEffect(() => {
+    return () => {
+      if (customersDebounceTimerRef.current) clearTimeout(customersDebounceTimerRef.current);
+    };
+  }, []);
+  useSSE(['customer:'], debouncedLoadCustomers, canViewCustomer);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -318,7 +333,7 @@ export default function CustomersPage() {
     setShowCreatePrompt(true);
   };
 
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
     try {
       if (!hasAnyPermission(permissionSet, ['view_customer', 'add_customer', 'edit_customer', 'manage_customers'])) {
         setCustomers([]);
@@ -332,7 +347,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [permissionSet]);
 
   const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
     setColumnSearch((prev) => ({ ...prev, [key]: value }));

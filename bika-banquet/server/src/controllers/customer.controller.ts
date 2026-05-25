@@ -9,6 +9,7 @@ import { toE164 } from '../utils/phone';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { createAuditLog } from '../utils/auditLog';
+import { broadcastBookingEvent } from '../sse';
 
 // Allows letters (including Unicode/Devanagari/Bengali etc.), spaces, dots,
 // hyphens, and apostrophes — covers Indian names, D'Souza, S.K. Sharma, etc.
@@ -349,6 +350,7 @@ export async function createCustomer(
       },
     });
 
+    broadcastBookingEvent('customer:created', { id: customer.id });
     void createAuditLog(req, 'CREATE', 'customer', customer.id, customer.name);
     sendSuccess(res, { customer }, 'Customer created successfully', 201);
   } catch (error: any) {
@@ -541,6 +543,7 @@ export async function updateCustomer(
       },
     });
 
+    broadcastBookingEvent('customer:updated', { id: customer.id });
     void createAuditLog(req, 'UPDATE', 'customer', customer.id, customer.name);
     sendSuccess(res, { customer }, 'Customer updated successfully');
   } catch (error: any) {
@@ -592,6 +595,7 @@ export async function deleteCustomer(
       where: { id },
     });
 
+    broadcastBookingEvent('customer:deleted', { id });
     void createAuditLog(req, 'DELETE', 'customer', id, '');
     sendSuccess(res, null, 'Customer deleted successfully');
   } catch (error: any) {
