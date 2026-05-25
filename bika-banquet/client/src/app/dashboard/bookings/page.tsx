@@ -2478,18 +2478,7 @@ export default function BookingsPage() {
         );
         return null;
       }
-      const belowHallRate = enabledPackEntries.find((entry) => {
-        const { row } = entry;
-        if (!row.withHall) return false;
-        const hr = toNumber(row.hallRate);
-        const packAmt = calculatePackAmount(row);
-        return hr > 0 && packAmt < hr;
-      });
-      if (belowHallRate) {
-        const hr = toNumber(belowHallRate.row.hallRate);
-        toast.error(`${PACK_LABELS[belowHallRate.key]}: Amount (₹${calculatePackAmount(belowHallRate.row).toLocaleString('en-IN')}) is less than Hall Rate (₹${hr.toLocaleString('en-IN')})`);
-        return null;
-      }
+
       const expectedGuests = Math.max(
         1,
         ...enabledPackEntries
