@@ -52,6 +52,13 @@ import {
 } from '@/lib/booking-form/payments';
 import { validateBillingCeiling } from '@/lib/booking-form/financials';
 import {
+  CATERING_UNTICK_CONFIRM_MESSAGE,
+  clearedCateringFieldsPatch,
+  inferWithCateringFromPack,
+  packRowHasCateringDataToClear,
+  validatePackCateringForSave,
+} from '@/lib/booking-form/pack-catering';
+import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
   extractTemplateItemIds,
@@ -1346,6 +1353,19 @@ export default function BookingsPage() {
     }));
   };
 
+  const handlePackCateringChange = (packKey: PackKey, checked: boolean) => {
+    if (checked) {
+      updatePackRow(packKey, { withCatering: true });
+      return;
+    }
+    const row = formData.packs[packKey];
+    if (packRowHasCateringDataToClear(row)) {
+      const confirmed = window.confirm(CATERING_UNTICK_CONFIRM_MESSAGE);
+      if (!confirmed) return;
+    }
+    updatePackRow(packKey, clearedCateringFieldsPatch());
+  };
+
   const togglePackMenuItem = (packKey: PackKey, itemId: string) => {
     setIsFormDirty(true);
     setFormData((prev) => {
@@ -2116,29 +2136,34 @@ export default function BookingsPage() {
         const resolvedPackHallIds =
           packHallIds.length > 0 ? packHallIds : bookingHallIds;
         const firstPackHall = halls.find((hall) => hall.id === resolvedPackHallIds[0]);
+        const withCatering = inferWithCateringFromPack(pack);
 
         nextPacks[packKey] = {
           bookingPackId: pack.id,
           enabled: true,
           withHall: resolvedPackHallIds.length > 0 || Boolean(pack.hallRate),
-          withCatering: true,
+          withCatering,
           banquetId: firstPackHall?.banquet?.id || primaryHall?.banquet?.id || '',
           hallIds: resolvedPackHallIds,
-          templateMenuId: matchingTemplate?.id || '',
-          menuItemIds: rowMenuItemIds,
+          templateMenuId: withCatering ? matchingTemplate?.id || '' : '',
+          menuItemIds: withCatering ? rowMenuItemIds : [],
           startTime: pack.startTime || nextPacks[packKey].startTime,
           endTime: pack.endTime || nextPacks[packKey].endTime,
           hallRate: pack.hallRate || '',
           menuPoints:
-            pack.menuPoint !== null && pack.menuPoint !== undefined
+            withCatering && pack.menuPoint !== null && pack.menuPoint !== undefined
               ? String(pack.menuPoint)
               : '',
           ratePerPlate:
-            pack.ratePerPlate !== null && pack.ratePerPlate !== undefined
+            withCatering &&
+            pack.ratePerPlate !== null &&
+            pack.ratePerPlate !== undefined
               ? String(pack.ratePerPlate)
               : '',
           pax:
-            pack.packCount !== null && pack.packCount !== undefined
+            withCatering &&
+            pack.packCount !== null &&
+            pack.packCount !== undefined
               ? String(pack.packCount)
               : '',
           amount: '',
@@ -2479,6 +2504,16 @@ export default function BookingsPage() {
         return null;
       }
 
+      const invalidCateringPack = enabledPackEntries.find((entry) => {
+        const message = validatePackCateringForSave(entry.row);
+        if (message) {
+          toast.error(`${PACK_LABELS[entry.key]}: ${message}`);
+          return true;
+        }
+        return false;
+      });
+      if (invalidCateringPack) return null;
+
       const expectedGuests = Math.max(
         1,
         ...enabledPackEntries
@@ -2537,10 +2572,13 @@ export default function BookingsPage() {
         const selectedHallNames = halls
           .filter((hall) => validHallIds.includes(hall.id))
           .map((hall) => hall.name);
+        const packCount = row.withCatering
+          ? Math.max(1, toNumber(row.pax || '1'))
+          : 1;
         return {
           packName: PACK_LABELS[key],
-          packCount: Math.max(1, toNumber(row.pax || '1')),
-          noOfPack: Math.max(1, toNumber(row.pax || '1')),
+          packCount,
+          noOfPack: packCount,
           ratePerPlate: row.withCatering ? toNumber(row.ratePerPlate) : 0,
           setupCost: row.setupCost ? toNumber(row.setupCost) : 0,
           extraCharges: row.extraCharges || 0,
@@ -2557,11 +2595,13 @@ export default function BookingsPage() {
           hallName: row.withHall ? selectedHallNames.join(', ') || undefined : undefined,
           menu: {
             name: matchingTemplate?.name || `${PACK_LABELS[key]} Menu`,
-            templateMenuId: row.templateMenuId || undefined,
-            items: row.menuItemIds.map((itemId) => ({
-              itemId,
-              quantity: 1,
-            })),
+            templateMenuId: row.withCatering ? row.templateMenuId || undefined : undefined,
+            items: row.withCatering
+              ? row.menuItemIds.map((itemId) => ({
+                  itemId,
+                  quantity: 1,
+                }))
+              : [],
           },
         };
       });
@@ -3346,7 +3386,7 @@ export default function BookingsPage() {
                                       className="h-3 w-3 rounded dark:bg-slate-700 dark:border-slate-600"
                                       checked={row.withCatering}
                                       disabled={!row.enabled}
-                                      onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })}
+                                      onChange={(e) => handlePackCateringChange(packKey, e.target.checked)}
                                     />
                                     Cat
                                   </label>
@@ -3859,7 +3899,7 @@ export default function BookingsPage() {
                           </label>
                           <label className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
                             <input type="checkbox" className="h-4 w-4 rounded" checked={row.withCatering} disabled={!row.enabled}
-                              onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })} />
+                              onChange={(e) => handlePackCateringChange(packKey, e.target.checked)} />
                             Catering
                           </label>
                         </div>

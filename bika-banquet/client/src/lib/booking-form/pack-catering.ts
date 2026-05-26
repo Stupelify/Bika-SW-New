@@ -1,0 +1,75 @@
+/**
+ * Catering toggle rules for the dashboard booking form.
+ * Keep server validation in booking.pack-catering.ts aligned.
+ */
+
+export const MIN_CATERING_RATE_PER_PLATE = 200;
+
+export interface PackCateringRateSource {
+  ratePerPlate?: number | string | null;
+  bookingMenu?: { ratePerPlate?: number | string | null } | null;
+}
+
+export interface PackCateringRowFields {
+  withCatering: boolean;
+  ratePerPlate: string;
+  pax: string;
+  menuItemIds: string[];
+}
+
+function toRateNumber(value: number | string | null | undefined): number {
+  const parsed = typeof value === 'string' ? Number(value.trim()) : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function resolvePackRatePerPlate(pack: PackCateringRateSource): number {
+  const fromPack = toRateNumber(pack.ratePerPlate);
+  if (fromPack > 0) return fromPack;
+  return toRateNumber(pack.bookingMenu?.ratePerPlate);
+}
+
+/** Stricter load rule: catering on only when persisted rate is at least minimum. */
+export function inferWithCateringFromPack(pack: PackCateringRateSource): boolean {
+  return resolvePackRatePerPlate(pack) >= MIN_CATERING_RATE_PER_PLATE;
+}
+
+export function packRowHasCateringDataToClear(row: PackCateringRowFields): boolean {
+  return (
+    row.menuItemIds.length > 0 ||
+    String(row.pax ?? '').trim() !== '' ||
+    String(row.ratePerPlate ?? '').trim() !== ''
+  );
+}
+
+export function clearedCateringFieldsPatch(): Pick<
+  PackCateringRowFields,
+  'withCatering' | 'menuItemIds' | 'pax' | 'ratePerPlate'
+> & { menuPoints: string; templateMenuId: string } {
+  return {
+    withCatering: false,
+    menuItemIds: [],
+    menuPoints: '',
+    templateMenuId: '',
+    pax: '',
+    ratePerPlate: '',
+  };
+}
+
+export function validatePackCateringForSave(row: PackCateringRowFields): string | null {
+  if (!row.withCatering) {
+    const strayRate = toRateNumber(row.ratePerPlate);
+    if (strayRate > 0 && strayRate < MIN_CATERING_RATE_PER_PLATE) {
+      return `Rate per plate must be at least ₹${MIN_CATERING_RATE_PER_PLATE}, or turn off catering.`;
+    }
+    return null;
+  }
+
+  const rate = toRateNumber(row.ratePerPlate);
+  if (rate < MIN_CATERING_RATE_PER_PLATE) {
+    return `Rate per plate must be at least ₹${MIN_CATERING_RATE_PER_PLATE} when catering is on.`;
+  }
+  return null;
+}
+
+export const CATERING_UNTICK_CONFIRM_MESSAGE =
+  'Turning off catering will clear this pack\'s menu, guest count, and rate per plate. Continue?';

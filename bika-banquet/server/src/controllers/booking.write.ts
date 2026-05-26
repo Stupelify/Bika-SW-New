@@ -48,6 +48,7 @@ import {
   resolveMealSlotId,
 } from './booking.shared';
 import logger from '../utils/logger';
+import { assertPackCateringRates } from './booking.pack-catering';
 
 // ---------------------------------------------------------------------------
 // Validation schemas (exported for use in routes)
@@ -279,6 +280,8 @@ export async function createBooking(
     }
 
     const hallRowsInput = normalizeBookingHallRows(data.halls);
+
+    assertPackCateringRates(data.packs);
 
     // Banquet access check: restricted users can only book halls in their allowed banquets
     const createAuthReq = req as AuthRequest;
@@ -591,7 +594,8 @@ export async function createBooking(
     if (error instanceof Error) {
       if (
         error.message === 'Selected halls must belong to the same banquet' ||
-        error.message === 'One or more selected halls are invalid'
+        error.message === 'One or more selected halls are invalid' ||
+        error.message.includes('rate per plate must be at least')
       ) {
         sendError(res, error.message, 400);
         return;
@@ -1038,6 +1042,10 @@ export async function updateBooking(
       return;
     }
 
+    if (Array.isArray(data.packs)) {
+      assertPackCateringRates(data.packs);
+    }
+
     // Create new version if not a quotation — deep-copy all relations via cloneBookingVersion
     if (!existingBooking.isQuotation && data.createNewVersion) {
       const newVersion = await runSerializableBookingTransaction(async (tx) => {
@@ -1454,7 +1462,8 @@ export async function updateBooking(
     if (error instanceof Error) {
       if (
         error.message === 'Selected halls must belong to the same banquet' ||
-        error.message === 'One or more selected halls are invalid'
+        error.message === 'One or more selected halls are invalid' ||
+        error.message.includes('rate per plate must be at least')
       ) {
         sendError(res, error.message, 400);
         return;
