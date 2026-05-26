@@ -62,6 +62,7 @@ import {
   buildBookingHallRows,
   computePackRowAmount,
   computePackRowAmountFromApiPack,
+  computeExtrasSubtotal,
   computePreDiscountTotal,
   sumPackHallRates,
 } from '@/lib/booking-form/billing-lines';
@@ -952,6 +953,7 @@ export default function BookingsPage() {
     return {
       preDiscountTotal,
       packHallSubtotal: sumPackHallRates(enabledRows),
+      extrasSubtotal: computeExtrasSubtotal(formData.additionalRequirements),
     };
   }, [formData.packs, formData.additionalRequirements]);
 
@@ -3709,7 +3711,7 @@ export default function BookingsPage() {
                             Extras Total
                           </td>
                           <td className="px-2 py-1.5 text-right text-xs font-bold text-[var(--text-1)]">
-                            ₹{totalAdditionalRequirementsAmount.toLocaleString('en-IN')}
+                            ₹{billingTotals.extrasSubtotal.toLocaleString('en-IN')}
                           </td>
                         </tr>
                       )}
@@ -4451,6 +4453,10 @@ export default function BookingsPage() {
                           </div>
                         ) : (
                           historyPacks.map((pack: any) => {
+                            const hallRate = Number(pack?.hallRateValue ?? pack?.hallRate ?? 0);
+                            const ratePerPlate = Number(pack?.ratePerPlate || 0);
+                            const pax = Number(pack?.packCount ?? pack?.noOfPack ?? 0);
+                            const extraPlate = Number(pack?.extraPlate || 0);
                             const computedAmount = computePackRowAmountFromApiPack(pack);
                             const menuItems = Array.isArray(pack?.bookingMenu?.items)
                               ? pack.bookingMenu.items
