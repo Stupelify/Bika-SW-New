@@ -52,19 +52,19 @@ import {
 } from '@/lib/booking-form/payments';
 import { validateBillingCeiling } from '@/lib/booking-form/financials';
 import {
-  CATERING_UNTICK_CONFIRM_MESSAGE,
-  clearedCateringFieldsPatch,
-  inferWithCateringFromPack,
-  packRowHasCateringDataToClear,
-  validatePackCateringForSave,
-} from '@/lib/booking-form/pack-catering';
-import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
   extractTemplateItemIds,
   getItemPoints,
   templateItemsToMenuItemLikes,
 } from '@/lib/booking-form/menu-template';
+import {
+  buildBookingHallRows,
+  computePackRowAmount,
+  computePackRowAmountFromApiPack,
+  computePreDiscountTotal,
+  sumPackHallRates,
+} from '@/lib/booking-form/billing-lines';
 import type { MenuItemLike } from '@/lib/booking-form/types';
 import {
   CASTE_OPTIONS,
@@ -930,68 +930,33 @@ export default function BookingsPage() {
     return Math.max(0, parsed);
   }, []);
 
-  // Pack-only amount — matches server sumBookingLines pack portion.
-  // Hall rate is excluded here; it is summed separately and deduped per hall id.
-  const calculatePackAmount = useCallback(
-    (row: BookingPackRow): number => {
-      const ratePerPlate = row.withCatering ? toNonNegativeNumber(row.ratePerPlate) : 0;
-      const pax = row.withCatering ? toNonNegativeNumber(row.pax) : 0;
-      const setupCost = toNonNegativeNumber(row.setupCost || '0');
-      const extraCharges = Math.max(0, Number(row.extraCharges || 0));
-      return ratePerPlate * pax + setupCost + extraCharges;
-    },
-    [toNonNegativeNumber]
-  );
-
   const formatComputedAmount = useCallback((amount: number): string => {
     if (!Number.isFinite(amount)) return '0';
     const rounded = Number(amount.toFixed(2));
     return Number.isInteger(rounded) ? String(rounded) : String(rounded);
   }, []);
 
-  const totalPackAmount = useMemo(
-    () =>
-      (Object.keys(formData.packs) as PackKey[]).reduce((sum, key) => {
-        const row = formData.packs[key];
-        if (!row.enabled) return sum;
-        return sum + calculatePackAmount(row);
-      }, 0),
-    [calculatePackAmount, formData.packs]
+  const packRowAmount = useCallback(
+    (row: BookingPackRow) => computePackRowAmount(row),
+    []
   );
 
-  // Deduped hall total — same logic as submit hallChargeMap — each hall charged once at
-  // the maximum rate across packs sharing it. Matches server sumBookingLines hall portion.
-  const totalHallAmount = useMemo(() => {
-    const hallChargeMap = new Map<string, number>();
-    (Object.keys(formData.packs) as PackKey[]).forEach((key) => {
-      const row = formData.packs[key];
-      if (!row.enabled || !row.withHall) return;
-      const validHallIds = (row.hallIds || []).filter(Boolean);
-      const mapKeys = validHallIds.length > 0 ? validHallIds : [key];
-      const charge = toNonNegativeNumber(row.hallRate);
-      mapKeys.forEach((hallId) => {
-        hallChargeMap.set(hallId, Math.max(hallChargeMap.get(hallId) || 0, charge));
-      });
-    });
-    return Array.from(hallChargeMap.values()).reduce((s, c) => s + c, 0);
-  }, [formData.packs, toNonNegativeNumber]);
+  const billingTotals = useMemo(() => {
+    const preDiscountTotal = computePreDiscountTotal(
+      formData.packs,
+      formData.additionalRequirements
+    );
+    const enabledRows = (Object.keys(formData.packs) as PackKey[])
+      .filter((key) => formData.packs[key].enabled)
+      .map((key) => formData.packs[key]);
+    return {
+      preDiscountTotal,
+      packHallSubtotal: sumPackHallRates(enabledRows),
+    };
+  }, [formData.packs, formData.additionalRequirements]);
 
-  const totalAdditionalRequirementsAmount = useMemo(
-    () =>
-      formData.additionalRequirements.reduce((sum, requirement) => {
-        const value = Number(requirement.amount || 0);
-        if (!Number.isFinite(value)) return sum;
-        return sum + Math.max(0, value);
-      }, 0),
-    [formData.additionalRequirements]
-  );
-
-  // Full billing base = halls (deduped) + packs + extras. Matches server totalAmount.
-  // This is the correct base for discount % calculation.
-  const totalBillBase = useMemo(
-    () => totalHallAmount + totalPackAmount + totalAdditionalRequirementsAmount,
-    [totalHallAmount, totalPackAmount, totalAdditionalRequirementsAmount]
-  );
+  const totalBillBase = billingTotals.preDiscountTotal;
+  const totalHallAmount = billingTotals.packHallSubtotal;
 
   // Keep for backward-compat references (same value as totalBillBase)
   const totalBillAmount = totalBillBase;
@@ -1021,11 +986,11 @@ export default function BookingsPage() {
             key: packKey,
             label: PACK_LABELS[packKey],
             enabled: row.enabled,
-            amount: calculatePackAmount(row),
+            amount: packRowAmount(row),
           };
         })
         .filter((entry) => entry.enabled),
-    [calculatePackAmount, formData.packs]
+    [packRowAmount, formData.packs]
   );
 
   const normalizeAmountSnapshot = useCallback(
@@ -1351,19 +1316,6 @@ export default function BookingsPage() {
         [packKey]: { ...prev.packs[packKey], ...patch },
       },
     }));
-  };
-
-  const handlePackCateringChange = (packKey: PackKey, checked: boolean) => {
-    if (checked) {
-      updatePackRow(packKey, { withCatering: true });
-      return;
-    }
-    const row = formData.packs[packKey];
-    if (packRowHasCateringDataToClear(row)) {
-      const confirmed = window.confirm(CATERING_UNTICK_CONFIRM_MESSAGE);
-      if (!confirmed) return;
-    }
-    updatePackRow(packKey, clearedCateringFieldsPatch());
   };
 
   const togglePackMenuItem = (packKey: PackKey, itemId: string) => {
@@ -2136,34 +2088,29 @@ export default function BookingsPage() {
         const resolvedPackHallIds =
           packHallIds.length > 0 ? packHallIds : bookingHallIds;
         const firstPackHall = halls.find((hall) => hall.id === resolvedPackHallIds[0]);
-        const withCatering = inferWithCateringFromPack(pack);
 
         nextPacks[packKey] = {
           bookingPackId: pack.id,
           enabled: true,
           withHall: resolvedPackHallIds.length > 0 || Boolean(pack.hallRate),
-          withCatering,
+          withCatering: true,
           banquetId: firstPackHall?.banquet?.id || primaryHall?.banquet?.id || '',
           hallIds: resolvedPackHallIds,
-          templateMenuId: withCatering ? matchingTemplate?.id || '' : '',
-          menuItemIds: withCatering ? rowMenuItemIds : [],
+          templateMenuId: matchingTemplate?.id || '',
+          menuItemIds: rowMenuItemIds,
           startTime: pack.startTime || nextPacks[packKey].startTime,
           endTime: pack.endTime || nextPacks[packKey].endTime,
           hallRate: pack.hallRate || '',
           menuPoints:
-            withCatering && pack.menuPoint !== null && pack.menuPoint !== undefined
+            pack.menuPoint !== null && pack.menuPoint !== undefined
               ? String(pack.menuPoint)
               : '',
           ratePerPlate:
-            withCatering &&
-            pack.ratePerPlate !== null &&
-            pack.ratePerPlate !== undefined
+            pack.ratePerPlate !== null && pack.ratePerPlate !== undefined
               ? String(pack.ratePerPlate)
               : '',
           pax:
-            withCatering &&
-            pack.packCount !== null &&
-            pack.packCount !== undefined
+            pack.packCount !== null && pack.packCount !== undefined
               ? String(pack.packCount)
               : '',
           amount: '',
@@ -2504,16 +2451,6 @@ export default function BookingsPage() {
         return null;
       }
 
-      const invalidCateringPack = enabledPackEntries.find((entry) => {
-        const message = validatePackCateringForSave(entry.row);
-        if (message) {
-          toast.error(`${PACK_LABELS[entry.key]}: ${message}`);
-          return true;
-        }
-        return false;
-      });
-      if (invalidCateringPack) return null;
-
       const expectedGuests = Math.max(
         1,
         ...enabledPackEntries
@@ -2535,22 +2472,11 @@ export default function BookingsPage() {
       const functionTime = enabledPackEntries[0]?.row.startTime || '12:00';
       const functionName = formData.functionType.trim();
 
-      const hallChargeMap = new Map<string, number>();
-      enabledPackEntries.forEach((entry) => {
-        if (!entry.row.withHall) return;
-        const validHallIds = getValidHallIdsForPack(entry.row);
-        if (validHallIds.length === 0) return;
-        const parsedCharge = Number(entry.row.hallRate || 0);
-        const charge = Number.isFinite(parsedCharge) ? parsedCharge : 0;
-        validHallIds.forEach((hallId) => {
-          const current = hallChargeMap.get(hallId) || 0;
-          hallChargeMap.set(hallId, Math.max(current, charge));
-        });
-      });
-      const hallsPayload = Array.from(hallChargeMap.entries()).map(([hallId, charges]) => ({
-        hallId,
-        charges,
-      }));
+      const hallsPayload = buildBookingHallRows(
+        enabledPackEntries
+          .filter((entry) => entry.row.withHall)
+          .map((entry) => ({ validHallIds: getValidHallIdsForPack(entry.row) }))
+      );
 
       const additionalItemsPayload = formData.additionalRequirements
         .map((entry) => ({
@@ -2572,13 +2498,10 @@ export default function BookingsPage() {
         const selectedHallNames = halls
           .filter((hall) => validHallIds.includes(hall.id))
           .map((hall) => hall.name);
-        const packCount = row.withCatering
-          ? Math.max(1, toNumber(row.pax || '1'))
-          : 1;
         return {
           packName: PACK_LABELS[key],
-          packCount,
-          noOfPack: packCount,
+          packCount: Math.max(1, toNumber(row.pax || '1')),
+          noOfPack: Math.max(1, toNumber(row.pax || '1')),
           ratePerPlate: row.withCatering ? toNumber(row.ratePerPlate) : 0,
           setupCost: row.setupCost ? toNumber(row.setupCost) : 0,
           extraCharges: row.extraCharges || 0,
@@ -2595,13 +2518,11 @@ export default function BookingsPage() {
           hallName: row.withHall ? selectedHallNames.join(', ') || undefined : undefined,
           menu: {
             name: matchingTemplate?.name || `${PACK_LABELS[key]} Menu`,
-            templateMenuId: row.withCatering ? row.templateMenuId || undefined : undefined,
-            items: row.withCatering
-              ? row.menuItemIds.map((itemId) => ({
-                  itemId,
-                  quantity: 1,
-                }))
-              : [],
+            templateMenuId: row.templateMenuId || undefined,
+            items: row.menuItemIds.map((itemId) => ({
+              itemId,
+              quantity: 1,
+            })),
           },
         };
       });
@@ -3386,7 +3307,7 @@ export default function BookingsPage() {
                                       className="h-3 w-3 rounded dark:bg-slate-700 dark:border-slate-600"
                                       checked={row.withCatering}
                                       disabled={!row.enabled}
-                                      onChange={(e) => handlePackCateringChange(packKey, e.target.checked)}
+                                      onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })}
                                     />
                                     Cat
                                   </label>
@@ -3570,10 +3491,7 @@ export default function BookingsPage() {
                                 value={
                                   focusedPackAmount?.key === packKey
                                     ? focusedPackAmount.value
-                                    : formatComputedAmount(
-                                        calculatePackAmount(row) +
-                                        (row.withHall ? toNonNegativeNumber(row.hallRate) : 0)
-                                      )
+                                    : formatComputedAmount(packRowAmount(row))
                                 }
                                 disabled={!row.enabled}
                                 onFocus={(e) => { e.target.select(); setFocusedPackAmount({ key: packKey, value: e.target.value }); }}
@@ -3619,7 +3537,7 @@ export default function BookingsPage() {
                         <td colSpan={7} />
                         <td className="px-2 py-2 text-right text-xs font-bold text-[var(--text-1)] whitespace-nowrap">Total</td>
                         <td className="px-2 py-2 text-right text-sm font-bold text-[var(--text-1)]">
-                          ₹{(totalHallAmount + totalPackAmount).toLocaleString('en-IN')}
+                          ₹{billingTotals.preDiscountTotal.toLocaleString('en-IN')}
                         </td>
                       </tr>
 
@@ -3899,7 +3817,7 @@ export default function BookingsPage() {
                           </label>
                           <label className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
                             <input type="checkbox" className="h-4 w-4 rounded" checked={row.withCatering} disabled={!row.enabled}
-                              onChange={(e) => handlePackCateringChange(packKey, e.target.checked)} />
+                              onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })} />
                             Catering
                           </label>
                         </div>
@@ -3976,7 +3894,7 @@ export default function BookingsPage() {
                           <div>
                             <label className="label text-xs">Amount</label>
                             <input className="input bg-[var(--surface-2)] text-right" type="number" min={0}
-                              value={formatComputedAmount(calculatePackAmount(row))} readOnly title="Hall Rate + Rate/Plate × PAX" />
+                              value={formatComputedAmount(packRowAmount(row))} readOnly title="Catering + hall rate (once per meal)" />
                           </div>
                         </div>
                       )}
@@ -4010,8 +3928,8 @@ export default function BookingsPage() {
                     ))}
                     <div className="border-t border-[var(--border)] pt-2 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-[var(--text-1)]">Total (Packs)</span>
-                        <span className="text-sm font-semibold text-[var(--text-1)]">₹{totalPackAmount.toLocaleString('en-IN')}</span>
+                        <span className="text-sm font-semibold text-[var(--text-1)]">Total</span>
+                        <span className="text-sm font-semibold text-[var(--text-1)]">₹{billingTotals.preDiscountTotal.toLocaleString('en-IN')}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
@@ -4261,13 +4179,10 @@ export default function BookingsPage() {
                   const amt = Number(item?.charges ?? item?.amount ?? 0);
                   return sum + (Number.isFinite(amt) ? Math.max(0, amt) : 0);
                 }, 0);
-                const histTotalPackAmount = historyPacks.reduce((sum: number, pack: any) => {
-                  const hallRate = Number(pack?.hallRateValue ?? pack?.hallRate ?? 0);
-                  const ratePerPlate = Number(pack?.ratePerPlate || 0);
-                  const pax = Number(pack?.packCount ?? pack?.noOfPack ?? 0);
-                  const extraCharges = Number(pack?.extraCharges || 0);
-                  return sum + hallRate + ratePerPlate * pax + extraCharges;
-                }, 0);
+                const histTotalPackAmount = historyPacks.reduce(
+                  (sum: number, pack: any) => sum + computePackRowAmountFromApiPack(pack),
+                  0
+                );
                 const histTotalBill = histTotalPackAmount + histTotalAdditional;
                 const histCustomerName =
                   resolved?.customer?.name ||
@@ -4536,12 +4451,7 @@ export default function BookingsPage() {
                           </div>
                         ) : (
                           historyPacks.map((pack: any) => {
-                            const hallRate = Number(pack?.hallRateValue ?? pack?.hallRate ?? 0);
-                            const ratePerPlate = Number(pack?.ratePerPlate || 0);
-                            const pax = Number(pack?.packCount ?? pack?.noOfPack ?? 0);
-                            const extraPlate = Number(pack?.extraPlate || 0);
-                            const extraCharges = Number(pack?.extraCharges || 0);
-                            const computedAmount = hallRate + ratePerPlate * pax + extraCharges;
+                            const computedAmount = computePackRowAmountFromApiPack(pack);
                             const menuItems = Array.isArray(pack?.bookingMenu?.items)
                               ? pack.bookingMenu.items
                               : [];

@@ -35,7 +35,8 @@ cd bika-banquet/client && npm run test:e2e:booking-form
 | Native | `native-client/lib/api.ts` must not bypass payment id sync when UI is added |
 | Data | No automatic dedupe of legacy duplicate payments (fix forward only) |
 | Billing | Net/grand total ≤ line-item bill (`totalBillBase` / `sumBookingLines`); save/finalize blocked in UI; server rejects `BOOKING_NET_EXCEEDS_BILL` |
-| Catering | Rate/plate ≥ ₹200 when catering on; untick clears menu/pax/rate (confirm once); load infers on from rate ≥ 200; server mirrors on create/update |
+| Billing rows | Pack **Amount** = catering + one `hallRate`; footer **Total** = sum of enabled row amounts + extras (not `hallRate × hall count`) |
+| Billing halls | `buildBookingHallRows` sends unique halls with `charges: 0`; hall revenue on pack `hallRate` in `sumBookingLines` |
 
 ## Trigger paths
 

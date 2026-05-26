@@ -669,6 +669,8 @@ export async function recalculateBookingFinancials(
           ratePerPlate: true,
           setupCost: true,
           extraCharges: true,
+          hallRate: true,
+          hallRateValue: true,
         },
       },
       additionalItems: {
@@ -686,7 +688,16 @@ export async function recalculateBookingFinancials(
 
   const totalAmount = sumBookingLines({
     halls: booking.halls,
-    packs: booking.packs,
+    packs: booking.packs.map((p) => ({
+      ratePerPlate: p.ratePerPlate,
+      packCount: p.packCount,
+      noOfPack: p.noOfPack,
+      setupCost: p.setupCost,
+      extraCharges: p.extraCharges,
+      hallRate:
+        p.hallRateValue ??
+        (typeof p.hallRate === 'string' ? Number(p.hallRate) : p.hallRate),
+    })),
     additionalItems: booking.additionalItems,
   });
   const effectiveDiscountPercent = toOptionalSafePercent(booking.discountPercentage) || 0;

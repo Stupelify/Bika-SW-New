@@ -27,6 +27,32 @@ describe('sumBookingLines', () => {
     expect(result).toBe(200);
   });
 
+  it('uses pack hallRate once per pack when hall table charges are zero', () => {
+    const result = sumBookingLines({
+      halls: [{ charges: 0 }],
+      packs: [
+        {
+          ratePerPlate: 100,
+          packCount: 10,
+          noOfPack: null,
+          setupCost: 0,
+          extraCharges: 0,
+          hallRate: 50000,
+        },
+        {
+          ratePerPlate: 0,
+          packCount: 1,
+          noOfPack: null,
+          setupCost: 0,
+          extraCharges: 0,
+          hallRate: 30000,
+        },
+      ],
+      additionalItems: [],
+    });
+    expect(result).toBe(1000 + 50000 + 30000);
+  });
+
   it('defaults quantity to 1 for null additional items', () => {
     const result = sumBookingLines({
       halls: [],

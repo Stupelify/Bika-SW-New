@@ -15,6 +15,8 @@ export interface PackLine {
   noOfPack: number | null | undefined;
   setupCost: number | null | undefined;
   extraCharges: number | null | undefined;
+  /** Per-meal hall charge (once per pack; not × hall count). */
+  hallRate?: number | null | undefined;
 }
 export interface AdditionalLine {
   charges: number | null | undefined;
@@ -36,7 +38,9 @@ export function sumBookingLines(input: {
   packs: PackLine[];
   additionalItems: AdditionalLine[];
 }): number {
-  const hallTotal = input.halls.reduce((s, h) => s + safeMoney(h.charges), 0);
+  const hallTableTotal = input.halls.reduce((s, h) => s + safeMoney(h.charges), 0);
+  const packHallTotal = input.packs.reduce((s, p) => s + safeMoney(p.hallRate), 0);
+  const hallTotal = packHallTotal > 0 ? packHallTotal : hallTableTotal;
   const packTotal = input.packs.reduce((s, p) => {
     const count = Math.max(1, safeNum(p.packCount ?? p.noOfPack ?? 1));
     return (
