@@ -4,9 +4,40 @@ import React, { useMemo, useState } from 'react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SH = 8, EH = 23, TOTAL_MIN = (EH - SH) * 60;
+const SH = 9, EH = 22, TOTAL_MIN = (EH - SH) * 60;
 const SH_MIN = SH * 60, EH_MIN = EH * 60;
 const HOURS = Array.from({ length: EH - SH + 1 }, (_, i) => SH + i);
+
+// ─── Time slots (Morning/Lunch/Evening/Dinner) ─────────────────────────────────
+
+interface Slot { id: string; label: string; startH: number; endH: number }
+const SLOTS: Slot[] = [
+  { id: 'morning', label: 'Morning', startH: 9,  endH: 12 },
+  { id: 'lunch',   label: 'Lunch',   startH: 12, endH: 16 },
+  { id: 'evening', label: 'Evening', startH: 16, endH: 19 },
+  { id: 'dinner',  label: 'Dinner',  startH: 19, endH: 22 },
+];
+function bucketSlot(startMinutes: number): Slot | undefined {
+  const h = startMinutes / 60;
+  return SLOTS.find(s => h >= s.startH && h < s.endH);
+}
+
+// ─── Status colors (matches Calendar.html) ─────────────────────────────────────
+
+interface StatusStyle { label: string; bg: string; text: string; accent: string }
+const STATUS: Record<string, StatusStyle> = {
+  confirmed: { label: 'Confirmed', bg: '#dcfce7', text: '#15803d', accent: '#22c55e' },
+  pencil:    { label: 'Pencil',    bg: '#fffbeb', text: '#92400e', accent: '#f59e0b' },
+  quotation: { label: 'Quotation', bg: '#eff6ff', text: '#1d4ed8', accent: '#3b82f6' },
+  enquiry:   { label: 'Enquiry',   bg: '#f0f9ff', text: '#0369a1', accent: '#0ea5e9' },
+  cancelled: { label: 'Cancelled', bg: '#fef2f2', text: '#991b1b', accent: '#ef4444' },
+};
+const STATUS_FALLBACK: StatusStyle = { label: 'Booking', bg: '#f1f5f9', text: '#334155', accent: '#94a3b8' };
+function statusOf(status?: string): StatusStyle {
+  if (!status) return STATUS_FALLBACK;
+  return STATUS[status.toLowerCase()] || STATUS_FALLBACK;
+}
+const STRIPE = 'repeating-linear-gradient(135deg,transparent 0,transparent 4px,rgba(146,64,14,.18) 4px,rgba(146,64,14,.18) 5px)';
 
 const D_SW = 188;   // desktop sidebar width
 const M_SW = 72;    // mobile sidebar width
@@ -89,16 +120,21 @@ function pencilCD(exp?: string|null) {
 
 // ─── Lane assignment ──────────────────────────────────────────────────────────
 
-interface Laned extends TimelineSlot { lane: number; totalLanes: number; ns: number; ne: number; nt: boolean }
+interface Laned extends TimelineSlot { lane: number; totalLanes: number; ns: number; ne: number; nt: boolean; conflict: boolean }
 
 function assignLanes(slots: TimelineSlot[]): Laned[] {
   if (!slots.length) return [];
-  const prep = slots.map(s => { const [ns,ne]=norm(s.startMinutes,s.endMinutes); return {...s,ns,ne,nt:noTime(s.startMinutes,s.endMinutes)}; });
+  const prep = slots.map((s,i) => { const [ns,ne]=norm(s.startMinutes,s.endMinutes); return {...s,ns,ne,nt:noTime(s.startMinutes,s.endMinutes),_i:i}; });
   const sorted=[...prep].sort((a,b)=>a.ns-b.ns);
   const ends:number[]=[];
   const wl=sorted.map(s=>{ let lane=ends.findIndex(e=>e<=s.ns); if(lane===-1)lane=ends.length; ends[lane]=s.ne; return{...s,lane}; });
   const total=ends.length;
-  return wl.map(s=>({...s,totalLanes:total}));
+  // Conflict = this slot's time range overlaps any other slot in the same set.
+  const conflictIdx = new Set<number>();
+  for (let a=0;a<prep.length;a++) for (let b=a+1;b<prep.length;b++) {
+    if (prep[a].ns < prep[b].ne && prep[b].ns < prep[a].ne) { conflictIdx.add(prep[a]._i); conflictIdx.add(prep[b]._i); }
+  }
+  return wl.map(({_i,...s})=>({...s,totalLanes:total,conflict:conflictIdx.has(_i)}));
 }
 
 // ─── Venue grouping ───────────────────────────────────────────────────────────
@@ -175,14 +211,31 @@ function Tooltip({s,x,y}:{s:Laned;x:number;y:number}) {
 
 // ─── Booking bar ──────────────────────────────────────────────────────────────
 
-function Bar({s,pal,rh,onClick}:{s:Laned;pal:Pal;rh:number;onClick:()=>void}) {
+function Bar({s,pal,rh,onClick,useStatus}:{s:Laned;pal:Pal;rh:number;onClick:()=>void;useStatus?:boolean}) {
   const [tip,setTip]=useState<{x:number;y:number}|null>(null);
   const isPencil=s.isPencilBooking||s.status==='pencil';
   const laneH=(rh-6)/s.totalLanes, top=3+s.lane*laneH, h=laneH-2;
-  const barStyle:React.CSSProperties=isPencil
-    ?{background:'transparent',border:`1.5px dashed ${pal.solid}`,color:pal.solid}
-    :s.nt?{background:`${pal.solid}66`,border:`1px dashed ${pal.border}`,color:'#fff'}
-    :{background:pal.solid,color:'#fff'};
+
+  let barStyle:React.CSSProperties;
+  let textColor:string;
+  if (useStatus) {
+    // Status-colored card with hall-color left bar (Day view design).
+    const st=statusOf(s.status);
+    textColor=st.text;
+    barStyle={
+      background:st.bg,
+      backgroundImage:isPencil?STRIPE:undefined,
+      border:s.conflict?'1.5px solid #ef4444':isPencil?`1.5px dashed ${st.accent}`:`1.5px solid ${st.accent}80`,
+      borderLeft:`4px solid ${pal.solid}`,
+      color:st.text,
+    };
+  } else {
+    textColor=isPencil?pal.solid:'#fff';
+    barStyle=isPencil
+      ?{background:'transparent',border:`1.5px dashed ${pal.solid}`,color:pal.solid}
+      :s.nt?{background:`${pal.solid}66`,border:`1px dashed ${pal.border}`,color:'#fff'}
+      :{background:pal.solid,color:'#fff'};
+  }
   return (
     <>
       <button type="button" onClick={onClick}
@@ -191,15 +244,18 @@ function Bar({s,pal,rh,onClick}:{s:Laned;pal:Pal;rh:number;onClick:()=>void}) {
         onMouseLeave={()=>setTip(null)}
         style={{
           position:'absolute',left:`${pL(s.ns)}%`,width:`${pW(s.ns,s.ne)}%`,
-          top,height:h,minWidth:3,borderRadius:4,overflow:'hidden',cursor:'pointer',zIndex:2,
+          top,height:h,minWidth:3,borderRadius:useStatus?6:4,overflow:'hidden',cursor:'pointer',zIndex:2,
           display:'flex',flexDirection:'column',justifyContent:'center',padding:'0 5px',
           textAlign:'left',...barStyle,
         }}
       >
         {h>=13&&<>
-          {isPencil&&<span style={{fontSize:8,fontWeight:700,letterSpacing:'.04em',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{pencilCD(s.pencilExpiresAt)}</span>}
-          <span style={{fontSize:10,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3}}>{s.functionName}</span>
-          {h>=26&&<span style={{fontSize:9,opacity:.8,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2}}>{[s.functionType,s.guests?`${s.guests} pax`:null].filter(Boolean).join(' · ')}</span>}
+          {isPencil&&<span style={{fontSize:8,fontWeight:700,letterSpacing:'.04em',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',color:textColor}}>{pencilCD(s.pencilExpiresAt)}</span>}
+          <span style={{fontSize:10,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3,display:'flex',alignItems:'center',gap:3,color:textColor}}>
+            {useStatus&&s.conflict&&<span style={{color:'#ef4444',flexShrink:0}}>⚠</span>}
+            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.functionName}</span>
+          </span>
+          {h>=26&&<span style={{fontSize:9,opacity:.8,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2,color:textColor}}>{[s.functionType,s.guests?`${s.guests} pax`:null].filter(Boolean).join(' · ')}</span>}
         </>}
       </button>
       {tip&&<Tooltip s={s} x={tip.x} y={tip.y}/>}
@@ -246,11 +302,14 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
   return (
     <div style={{overflowX:'auto'}}>
       <div style={{minWidth:D_SW+600}}>
-        <div style={{display:'flex',height:26,background:'#f9fafb',borderBottom:BD,position:'sticky',top:0,zIndex:10}}>
+        <div style={{display:'flex',height:38,background:'#f9fafb',borderBottom:BD,position:'sticky',top:0,zIndex:10}}>
           <div style={{width:D_SW,flexShrink:0,borderRight:BD,display:'flex',alignItems:'center',paddingLeft:10,fontSize:10,fontWeight:600,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'.06em'}}>Venue / Hall</div>
           <div style={{flex:1,position:'relative'}}>
+            {SLOTS.map(sl=>(
+              <div key={sl.id} style={{position:'absolute',left:`${pL(sl.startH*60)}%`,top:3,paddingLeft:3,fontSize:9,fontWeight:700,color:'#0d9488',textTransform:'uppercase',letterSpacing:'.04em',pointerEvents:'none',userSelect:'none'}}>{sl.label}</div>
+            ))}
             {HOURS.map(h=>(
-              <div key={h} style={{position:'absolute',left:`${pL(h*60)}%`,top:0,bottom:0,display:'flex',alignItems:'center',paddingLeft:3,fontSize:9,fontWeight:500,color:'#c0c5d0',pointerEvents:'none',userSelect:'none'}}>{fmtH(h)}</div>
+              <div key={h} style={{position:'absolute',left:`${pL(h*60)}%`,bottom:2,display:'flex',alignItems:'center',paddingLeft:3,fontSize:9,fontWeight:500,color:'#c0c5d0',pointerEvents:'none',userSelect:'none'}}>{fmtH(h)}</div>
             ))}
           </div>
         </div>
@@ -265,7 +324,7 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
                 <div style={{flex:1,position:'relative',overflow:'visible',cursor:'crosshair'}}
                   onClick={e=>{if((e.target as Element).tagName==='DIV'&&vSlots.length===0)onCreate();}}>
                   <GridLines/><NowLine/>
-                  {vSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={D_RH} onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+                  {vSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={{...s,conflict:false}} pal={g.pal} rh={D_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
                 </div>
               </div>
               {open&&g.halls.map((hall,i)=>{
@@ -281,7 +340,7 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
                           <span style={{fontSize:9,color:'#d1d5db',fontStyle:'italic'}}>Free — click to create booking</span>
                         </div>
                       )}
-                      {hSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={D_RH} onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+                      {hSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={D_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
                     </div>
                   </div>
                 );
@@ -437,7 +496,7 @@ function MobileDay({groups,selDate,exp,toggle,onBook}:{groups:VenueGroup[];selDa
       <div style={{display:'flex',height:20,background:'#f9fafb',borderBottom:BD,position:'sticky',top:0,zIndex:10}}>
         <div style={{width:M_SW,flexShrink:0,borderRight:BD}}/>
         <div style={{flex:1,position:'relative'}}>
-          {[8,11,14,17,20,23].map(h=>(
+          {[9,12,16,19,22].map(h=>(
             <div key={h} style={{position:'absolute',left:`${pL(h*60)}%`,top:0,bottom:0,display:'flex',alignItems:'center',paddingLeft:2,fontSize:8,color:'#c0c5d0',pointerEvents:'none',userSelect:'none'}}>{fmtH(h)}</div>
           ))}
         </div>
@@ -454,7 +513,7 @@ function MobileDay({groups,selDate,exp,toggle,onBook}:{groups:VenueGroup[];selDa
                 <div style={{width:20,height:20,borderRadius:5,background:g.pal.solid,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'#fff',flexShrink:0}}>{venueInitials(g.name)}</div>
               </button>
               <div style={{flex:1,position:'relative',overflow:'hidden'}}><GridLines/><NowLine/>
-                {vSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={M_RH} onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+                {vSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={{...s,conflict:false}} pal={g.pal} rh={M_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
               </div>
             </div>
             {open&&g.halls.map((hall,i)=>{
@@ -463,7 +522,7 @@ function MobileDay({groups,selDate,exp,toggle,onBook}:{groups:VenueGroup[];selDa
                 <div key={hall.hallName} style={{display:'flex',height:M_RH,background:'#fff',borderBottom:i===g.halls.length-1?BD:BD_INNER}}>
                   <div style={{width:M_SW,flexShrink:0,display:'flex',alignItems:'center',padding:'0 6px 0 18px',borderRight:BD,fontSize:9,color:'#aab0c0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{hall.hallName}</div>
                   <div style={{flex:1,position:'relative',overflow:'hidden'}}><GridLines/><NowLine/>
-                    {hSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={M_RH} onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+                    {hSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={M_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
                   </div>
                 </div>
               );
