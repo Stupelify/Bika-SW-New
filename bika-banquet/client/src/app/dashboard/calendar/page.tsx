@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSSE } from '@/hooks/useSSE';
 import { useAuthStore } from '@/store/authStore';
@@ -11,30 +12,24 @@ import dynamic from 'next/dynamic';
 import type { TimelineHallRow } from '@/components/VenueTimelineBoard';
 import CalendarToolbar from './_components/CalendarToolbar';
 import HallLegend, { type HallStat } from './_components/HallLegend';
+import CalendarLegend from './_components/CalendarLegend';
 import BookingDrawer from './_components/BookingDrawer';
 import DayPrintView from './_components/DayPrintView';
 import type {
-  AgendaEntry,
   BookingCalendarRow,
   BookingDetail,
   CalendarViewMode,
-  DayEvent,
   EnquiryCalendarRow,
   EventSourceFilter,
   GoogleCalendarEventRow,
   HallBoardRow,
   HallCalendarOption,
-  HallScheduleGroup,
-  HallScheduleParty,
-  MobileTimelineEntry,
-  ServiceSlot,
 } from './_lib/types';
 import {
   bookingSortMinutes,
   bookingTimeLabel,
   buildCalendarDays,
   buildWeekDays,
-  clamp,
   dateToKey,
   endOfDay,
   endOfWeek,
@@ -47,17 +42,14 @@ import {
   formatDateKey,
   getBookingHallNames,
   getLocationPalette,
-  getPrimaryHallName,
   googleEventRangeMinutes,
   googleEventSortMinutes,
   googleEventTimeLabel,
   monthBounds,
-  parseClockToMinutes,
   parseDateKey,
   resolveBookingStatus,
   resolveBookingTimeRange,
   resolveEnquiryStatus,
-  resolveServiceSlot,
   startOfDay,
   startOfWeek,
   toSafeNumber,
@@ -459,11 +451,6 @@ export default function CalendarPage() {
         });
   const hallBoardRangeLabel = viewMode === 'day' ? selectedDateLabel : viewLabel;
   const hallBoardDateKey = selectedDate;
-  const hallBoardSegments = [
-    { key: 'morning', label: 'Morning', range: '6am–12pm', start: 360, end: 720 },
-    { key: 'afternoon', label: 'Afternoon', range: '12pm–4pm', start: 720, end: 960 },
-    { key: 'evening', label: 'Evening', range: '4pm–12am', start: 960, end: 1440 },
-  ] as const;
   const todayKey = formatDateKey(new Date());
   const calendarDays = useMemo(
     () => buildCalendarDays(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)),
@@ -473,192 +460,6 @@ export default function CalendarPage() {
     () => buildWeekDays(parseDateKey(selectedDate)),
     [selectedDate]
   );
-  const mobileTimelineEntries = useMemo<MobileTimelineEntry[]>(() => {
-    const timelineStart = 8 * 60;
-    const timelineEnd = 20 * 60;
-    const timelineSpan = timelineEnd - timelineStart;
-    const timelineHeight = 560;
-
-    const bookingsTimeline = selectedBookings
-      .filter((booking) => resolveBookingStatus(booking) !== 'cancelled')
-      .map((booking) => {
-        const { startMinutes, endMinutes } = resolveBookingTimeRange(booking);
-        const palette = getLocationPalette(getPrimaryHallName(booking));
-        const clampedStart = clamp(startMinutes, timelineStart, timelineEnd - 30);
-        const clampedEnd = clamp(endMinutes, clampedStart + 30, timelineEnd);
-        return {
-          id: `booking-${booking.id}`,
-          kind: 'booking' as const,
-          title: booking.functionName,
-          subtitle: `${getPrimaryHallName(booking)} • ${toSafeNumber(booking.expectedGuests)} guests`,
-          timeLabel: bookingTimeLabel(booking),
-          top: ((clampedStart - timelineStart) / timelineSpan) * timelineHeight,
-          height: Math.max(((clampedEnd - clampedStart) / timelineSpan) * timelineHeight, 72),
-          borderColor: palette.border,
-          background: palette.soft,
-          textColor: palette.text,
-          source: 'software' as const,
-          bookingId: booking.id,
-        };
-      });
-
-    const enquiriesTimeline = selectedEnquiries.map((enquiry) => {
-      const start = parseClockToMinutes(enquiry.functionTime || '');
-      const clampedStart = clamp(Number.isFinite(start) ? start : 12 * 60, timelineStart, timelineEnd - 30);
-      const end = clamp(clampedStart + 60, clampedStart + 30, timelineEnd);
-      return {
-        id: `enquiry-${enquiry.id}`,
-        kind: 'enquiry' as const,
-        title: enquiry.functionName,
-        subtitle: `${enquiry.customer?.name || 'Lead'} • ${toSafeNumber(enquiry.expectedGuests)} guests`,
-        timeLabel: enquiry.functionTime || '--:--',
-        top: ((clampedStart - timelineStart) / timelineSpan) * timelineHeight,
-        height: Math.max(((end - clampedStart) / timelineSpan) * timelineHeight, 64),
-        borderColor: '#f59e0b',
-        background: 'rgba(245, 158, 11, 0.12)',
-        textColor: '#92400e',
-        source: 'software' as const,
-        enquiryId: enquiry.id,
-      };
-    });
-
-    const googleTimeline = selectedGoogleEvents.map((event) => {
-      const { startMinutes, endMinutes } = googleEventRangeMinutes(event);
-      const clampedStart = clamp(startMinutes, timelineStart, timelineEnd - 30);
-      const clampedEnd = clamp(endMinutes, clampedStart + 30, timelineEnd);
-      return {
-        id: `google-${event.id}`,
-        kind: 'google' as const,
-        title: event.title,
-        subtitle: event.venueName,
-        timeLabel: googleEventTimeLabel(event),
-        top: ((clampedStart - timelineStart) / timelineSpan) * timelineHeight,
-        height: Math.max(((clampedEnd - clampedStart) / timelineSpan) * timelineHeight, 64),
-        borderColor: '#38bdf8',
-        background: 'rgba(56, 189, 248, 0.12)',
-        textColor: '#075985',
-        source: (event.origin === 'software' ? 'software' : 'google') as 'software' | 'google',
-      };
-    });
-
-    return [...bookingsTimeline, ...enquiriesTimeline, ...googleTimeline].sort((a, b) => a.top - b.top);
-  }, [selectedBookings, selectedEnquiries, selectedGoogleEvents]);
-  const mobileTimelineSlots = [
-    { label: '08 AM', minutes: 8 * 60 },
-    { label: '10 AM', minutes: 10 * 60 },
-    { label: '12 PM', minutes: 12 * 60 },
-    { label: '02 PM', minutes: 14 * 60 },
-    { label: '04 PM', minutes: 16 * 60 },
-    { label: '06 PM', minutes: 18 * 60 },
-    { label: '08 PM', minutes: 20 * 60 },
-  ];
-  const mobileCurrentTimeTop = useMemo(() => {
-    if (selectedDate !== todayKey) return null;
-    const now = new Date();
-    const minutes = now.getHours() * 60 + now.getMinutes();
-    if (minutes < 8 * 60 || minutes > 20 * 60) return null;
-    return ((minutes - 8 * 60) / (12 * 60)) * 560;
-  }, [selectedDate, todayKey]);
-  const weekSlotMatrix = useMemo(() => {
-    const base = weekDays.map((day) => {
-      const dayKey = formatDateKey(day);
-      const buckets: Record<
-        ServiceSlot,
-        Array<
-          | { type: 'booking'; row: BookingCalendarRow }
-          | { type: 'enquiry'; row: EnquiryCalendarRow }
-          | { type: 'google'; row: GoogleCalendarEventRow }
-        >
-      > = {
-        breakfast: [],
-        lunch: [],
-        hiTea: [],
-        dinner: [],
-      };
-
-      (bookingsByDate.get(dayKey) || []).forEach((row) => {
-        buckets[resolveServiceSlot(bookingSortMinutes(row))].push({ type: 'booking', row });
-      });
-      (enquiriesByDate.get(dayKey) || []).forEach((row) => {
-        buckets[resolveServiceSlot(parseClockToMinutes(row.functionTime || ''))].push({
-          type: 'enquiry',
-          row,
-        });
-      });
-      (googleEventsByDate.get(dayKey) || []).forEach((row) => {
-        buckets[resolveServiceSlot(googleEventSortMinutes(row))].push({ type: 'google', row });
-      });
-
-      return { day, dayKey, buckets };
-    });
-
-    return base;
-  }, [weekDays, bookingsByDate, enquiriesByDate, googleEventsByDate]);
-
-  const weekHallGroups = useMemo(() => {
-    const visibleHallIds = selectedHallIds ?? new Set(halls.map((hall) => hall.id));
-    const hallRows = halls
-      .filter((hall) => visibleHallIds.has(hall.id))
-      .map((hall) => ({
-        hallId: hall.id,
-        hallName: hall.name,
-        banquetName: hall.banquetName?.trim() || 'Unassigned',
-        days: weekDays.map((day) => ({
-          dayKey: formatDateKey(day),
-          entries: [] as BookingCalendarRow[],
-          conflicts: 0,
-        })),
-      }));
-
-    const rowMap = new Map(hallRows.map((row) => [row.hallId, row]));
-
-    filteredBookings
-      .filter((booking) => resolveBookingStatus(booking) !== 'cancelled')
-      .forEach((booking) => {
-        const dayKey = dateToKey(booking.functionDate);
-        if (!dayKey) return;
-
-        const hallIds = (booking.halls || [])
-          .map((hallRow) => hallRow.hall?.id || hallRow.hallId || '')
-          .filter(Boolean);
-
-        hallIds.forEach((hallId) => {
-          const row = rowMap.get(hallId);
-          if (!row) return;
-          const cell = row.days.find((day) => day.dayKey === dayKey);
-          if (!cell) return;
-          cell.entries.push(booking);
-        });
-      });
-
-    hallRows.forEach((row) => {
-      row.days.forEach((day) => {
-        day.entries.sort((a, b) => bookingSortMinutes(a) - bookingSortMinutes(b));
-        day.conflicts = findDayHallConflicts(day.entries).filter(
-          (conflict) => conflict.hallName === row.hallName
-        ).length;
-      });
-    });
-
-    const grouped = new Map<string, typeof hallRows>();
-    hallRows.forEach((row) => {
-      const bucket = grouped.get(row.banquetName) || [];
-      bucket.push(row);
-      grouped.set(row.banquetName, bucket);
-    });
-
-    return Array.from(grouped.entries())
-      .sort(([left], [right]) => {
-        if (left === 'Unassigned') return 1;
-        if (right === 'Unassigned') return -1;
-        return left.localeCompare(right);
-      })
-      .map(([banquetName, rows]) => ({
-        banquetName,
-        rows: rows.sort((a, b) => a.hallName.localeCompare(b.hallName)),
-      }));
-  }, [filteredBookings, halls, selectedHallIds, weekDays]);
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.innerWidth >= 1024) return;
@@ -701,181 +502,8 @@ export default function CalendarPage() {
   }, [hallStats]);
   // ── End per-hall stats ────────────────────────────────────────────────────
 
-  const summary = useMemo(() => {
-    const activeBookings = filteredBookings.filter((entry) => resolveBookingStatus(entry) !== 'cancelled');
-    const cancelledBookings = filteredBookings.filter((entry) => resolveBookingStatus(entry) === 'cancelled')
-      .length;
-    const confirmedBookings = activeBookings.filter((entry) => !entry.isQuotation).length;
-    const monthlyRevenue = activeBookings.reduce(
-      (sum, entry) => sum + toSafeNumber(entry.grandTotal),
-      0
-    );
-    const guestVolume = activeBookings.reduce(
-      (sum, entry) => sum + toSafeNumber(entry.expectedGuests),
-      0
-    );
 
-    // Hall utilization: unique booked hall-days / total hall-days available this month
-    const totalHalls = halls.length || 1;
-    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
-    const totalHallDays = totalHalls * daysInMonth;
-    const bookedHallDays = new Set(
-      activeBookings.flatMap((entry) =>
-        getBookingHallNames(entry).map((h) => `${dateToKey(entry.functionDate)}::${h}`)
-      )
-    ).size;
-    const hallUtilization = totalHallDays > 0
-      ? Math.min(100, Math.round((bookedHallDays / totalHallDays) * 100))
-      : 0;
 
-    // Peak day: the date with the most active bookings
-    const countByDay = new Map<string, number>();
-    activeBookings.forEach((entry) => {
-      const key = dateToKey(entry.functionDate);
-      countByDay.set(key, (countByDay.get(key) || 0) + 1);
-    });
-    let peakDayKey = '';
-    let peakDayCount = 0;
-    countByDay.forEach((count, key) => {
-      if (count > peakDayCount) { peakDayCount = count; peakDayKey = key; }
-    });
-    const peakDayLabel = peakDayKey
-      ? parseDateKey(peakDayKey).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-      : '--';
-
-    return {
-      bookings: activeBookings.length,
-      cancelledBookings,
-      enquiries: filteredEnquiries.length,
-      googleEvents: filteredGoogleEvents.length,
-      confirmedBookings,
-      monthlyRevenue,
-      guestVolume,
-      hallUtilization,
-      peakDayLabel,
-      peakDayCount,
-    };
-  }, [filteredBookings, filteredEnquiries, filteredGoogleEvents, halls, viewDate]);
-
-  const agenda = useMemo<AgendaEntry[]>(() => {
-    const bookingItems: AgendaEntry[] = filteredBookings.map((entry) => ({
-      id: `booking-${entry.id}`,
-      kind: 'booking',
-      date: entry.functionDate,
-      title: entry.functionName,
-      subtitle: `${entry.customer?.name || 'Customer'} • ${entry.expectedGuests} guests`,
-      status: entry.isPencilBooking ? 'pencil' : entry.isQuotation ? 'quotation' : entry.status,
-      amount: toSafeNumber(entry.grandTotal),
-      source: 'software',
-    }));
-
-    const enquiryItems: AgendaEntry[] = filteredEnquiries.map((entry) => ({
-      id: `enquiry-${entry.id}`,
-      kind: 'enquiry',
-      date: entry.functionDate,
-      title: entry.functionName,
-      subtitle: `${entry.customer?.name || 'Lead'} • ${entry.expectedGuests} guests`,
-      status: entry.isPencilBooked ? 'pencil' : entry.status,
-      source: 'software',
-    }));
-
-    const googleItems: AgendaEntry[] = filteredGoogleEvents.map((entry) => ({
-      id: `google-${entry.id}`,
-      kind: 'google',
-      date: entry.start,
-      title: entry.title,
-      subtitle: `${entry.venueName}${entry.location ? ` • ${entry.location}` : ''}`,
-      status: entry.status,
-      source: entry.origin === 'software' ? 'software' : 'google',
-    }));
-
-    return [...bookingItems, ...enquiryItems, ...googleItems]
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 12);
-  }, [filteredBookings, filteredEnquiries, filteredGoogleEvents]);
-
-  const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayEvents = useMemo<DayEvent[]>(() => {
-    const bookingItems: DayEvent[] = selectedBookings.map((booking) => ({
-      id: `booking-${booking.id}`,
-      kind: 'booking' as const,
-      title: booking.functionName,
-      time: bookingTimeLabel(booking),
-      subtitle: `${booking.customer?.name || 'Customer'} • ${booking.expectedGuests} guests • ${getBookingHallNames(booking).join(', ') || 'Unassigned Hall'}`,
-      status: booking.isPencilBooking ? 'pencil' : booking.isQuotation ? 'quotation' : booking.status,
-      amount: toSafeNumber(booking.grandTotal),
-      sortMinutes: bookingSortMinutes(booking),
-      bookingId: booking.id,
-      source: 'software',
-    }));
-
-    const enquiryItems: DayEvent[] = selectedEnquiries.map((enquiry) => ({
-      id: `enquiry-${enquiry.id}`,
-      kind: 'enquiry' as const,
-      title: enquiry.functionName,
-      time: enquiry.functionTime || '--:--',
-      subtitle: `${enquiry.customer?.name || 'Lead'} • ${enquiry.expectedGuests} guests`,
-      status: enquiry.isPencilBooked ? 'pencil' : enquiry.status,
-      amount: undefined,
-      sortMinutes: parseClockToMinutes(enquiry.functionTime || ''),
-      source: 'software',
-    }));
-
-    const googleItems: DayEvent[] = selectedGoogleEvents.map((event) => ({
-      id: `google-${event.id}`,
-      kind: 'google' as const,
-      title: event.title,
-      time: googleEventTimeLabel(event),
-      subtitle: `${event.venueName}${event.location ? ` • ${event.location}` : ''}`,
-      status: event.status,
-      amount: undefined,
-      sortMinutes: googleEventSortMinutes(event),
-      source: event.origin === 'software' ? 'software' : 'google',
-    }));
-
-    return [...bookingItems, ...enquiryItems, ...googleItems].sort((a, b) => {
-      if (a.sortMinutes !== b.sortMinutes) return a.sortMinutes - b.sortMinutes;
-      return a.title.localeCompare(b.title);
-    });
-  }, [selectedBookings, selectedEnquiries, selectedGoogleEvents]);
-
-  const hallWiseSchedule = useMemo<HallScheduleGroup[]>(() => {
-    const grouped = new Map<string, HallScheduleParty[]>();
-
-    selectedBookings.forEach((booking) => {
-      const hallNames = getBookingHallNames(booking);
-      const effectiveHallNames = hallNames.length > 0 ? hallNames : ['Unassigned Hall'];
-
-      effectiveHallNames.forEach((hallName) => {
-        const bucket = grouped.get(hallName) || [];
-        const { startMinutes, endMinutes } = resolveBookingTimeRange(booking);
-        bucket.push({
-          id: booking.id,
-          title: booking.functionName,
-          date: booking.functionDate,
-          timeLabel: bookingTimeLabel(booking),
-          status: resolveBookingStatus(booking),
-          customerName: booking.customer?.name || 'Customer',
-          customerPhone: booking.customer?.phone || '--',
-          guests: toSafeNumber(booking.expectedGuests),
-          sortMinutes: bookingSortMinutes(booking),
-          startMinutes,
-          endMinutes,
-        });
-        grouped.set(hallName, bucket);
-      });
-    });
-
-    return Array.from(grouped.entries())
-      .map(([hallName, parties]) => ({
-        hallName,
-        parties: [...parties].sort((a, b) => {
-          if (a.sortMinutes !== b.sortMinutes) return a.sortMinutes - b.sortMinutes;
-          return a.title.localeCompare(b.title);
-        }),
-      }))
-      .sort((a, b) => a.hallName.localeCompare(b.hallName));
-  }, [selectedBookings]);
 
   const handlePrintDay = useCallback(async () => {
     if (selectedBookings.length === 0) {
@@ -1099,7 +727,29 @@ export default function CalendarPage() {
             googleSourceCount={googleSourceCount}
           />
 
+          {/* ── Hall + Status legend strip (desktop) ── */}
+          <CalendarLegend rows={hallBoardRows as TimelineHallRow[]} />
 
+          {/* ── Day-level conflict alert banner ── */}
+          {(viewMode === 'day' || selectedDayConflicts.length > 0) &&
+            selectedDayConflicts.length > 0 && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
+                style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}
+              >
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div className="space-y-0.5">
+                  {Array.from(new Set(selectedDayConflicts.map((c) => c.hallName))).map(
+                    (hallName) => (
+                      <div key={hallName} style={{ fontWeight: 600 }}>
+                        {hallName} has overlapping bookings on this date
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
 
           <VenueTimelineBoard
             rows={hallBoardRows as TimelineHallRow[]}
