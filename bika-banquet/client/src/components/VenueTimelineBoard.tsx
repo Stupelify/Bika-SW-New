@@ -353,24 +353,77 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
   );
 }
 
-// ─── Desktop Week View (WV1 — time bars, clickable headers) ──────────────────
+// ─── Desktop Week View (WV2 — halls × 7 days, 4-slot matrix) ─────────────────
+// Each hall row × day cell is a 4-row grid (Morning/Lunch/Evening/Dinner). A
+// booking lands in a slot by bucketSlot(startMinutes). >1 booking in the same
+// hall+day+slot ⇒ conflict (red border + ⚠). Empty slot = faint placeholder
+// (slot's first letter) that drills into that day to create.
 
-function WeekBarCell({slots,pal,today,onBook,rh}:{slots:TimelineSlot[];pal:Pal;today:boolean;onBook:(id:string)=>void;rh:number}) {
-  const laned=assignLanes(slots);
+const WEEK_DRH = 116;   // week matrix row height (fits a 4-slot cell)
+
+function WeekSlotChip({s,pal,conflict,onBook}:{s:TimelineSlot;pal:Pal;conflict:boolean;onBook:(id:string)=>void}) {
+  const st=statusOf(s.status);
+  const isPencil=s.isPencilBooking||s.status==='pencil';
+  const slot=bucketSlot(s.startMinutes);
   return (
-    <div style={{flex:1,position:'relative',height:rh,borderLeft:BD,background:today?'rgba(239,68,68,.04)':undefined,overflow:'visible'}}>
-      {laned.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={pal} rh={rh} onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+    <button type="button"
+      onClick={e=>{e.stopPropagation();s.bookingId&&onBook(s.bookingId);}}
+      title={`${s.functionName}${s.customerName?` · ${s.customerName}`:''}`}
+      style={{
+        background:st.bg,color:st.text,
+        backgroundImage:isPencil?STRIPE:undefined,
+        border:conflict?'1.5px solid #ef4444':isPencil?`1px dashed ${st.accent}`:'none',
+        borderLeft:`3px solid ${pal.solid}`,
+        borderRadius:4,padding:'2px 5px',display:'flex',flexDirection:'column',gap:1,
+        minHeight:0,overflow:'hidden',cursor:'pointer',textAlign:'left',width:'100%',height:'100%',justifyContent:'center',
+      }}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:2}}>
+        <span style={{fontSize:8,fontWeight:700,opacity:.65,textTransform:'uppercase',letterSpacing:'.03em'}}>{slot?.label.slice(0,3)}</span>
+        {conflict&&<span style={{color:'#ef4444',flexShrink:0,lineHeight:1}}>⚠</span>}
+      </div>
+      <div style={{fontSize:10,fontWeight:700,lineHeight:1.15,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.functionName}</div>
+      {s.customerName&&<div style={{fontSize:9,opacity:.8,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.customerName}</div>}
+    </button>
+  );
+}
+
+function WeekMatrixCell({slots,pal,today,onBook,onEmptyClick,aggregate}:{
+  slots:TimelineSlot[];pal:Pal;today:boolean;onBook:(id:string)=>void;onEmptyClick?:()=>void;aggregate?:boolean;
+}) {
+  // Bucket this day's slots into the 4 SLOTS.
+  const byBucket=useMemo(()=>{
+    const m=new Map<string,TimelineSlot[]>();
+    for(const s of slots){const b=bucketSlot(s.startMinutes);if(!b)continue;if(!m.has(b.id))m.set(b.id,[]);m.get(b.id)!.push(s);}
+    return m;
+  },[slots]);
+  return (
+    <div style={{flex:1,borderLeft:BD,background:today?'rgba(239,68,68,.04)':undefined,display:'grid',gridTemplateRows:'repeat(4,1fr)',padding:3,gap:2,minWidth:0}}>
+      {SLOTS.map(slot=>{
+        const list=byBucket.get(slot.id)||[];
+        const b=list[0];
+        // Aggregate (venue header) rows mix halls, so >1 here isn't a real
+        // overbooking — only flag conflicts within a single hall's cell.
+        const conflict=!aggregate&&list.length>1;
+        if(!b) return (
+          <button key={slot.id} type="button" onClick={onEmptyClick} title={`${slot.label} — click to add`}
+            style={{borderRadius:4,background:'#f6f7fb',border:'none',display:'flex',alignItems:'center',paddingLeft:5,cursor:onEmptyClick?'pointer':'default',opacity:.7}}>
+            <span style={{fontSize:8.5,color:'#b5bac6',fontWeight:700,textTransform:'uppercase'}}>{slot.label[0]}</span>
+          </button>
+        );
+        return <WeekSlotChip key={slot.id} s={b} pal={pal} conflict={conflict} onBook={onBook}/>;
+      })}
     </div>
   );
 }
 
-function DesktopWeek({groups,wdays,exp,toggle,onBook,onDrill}:{
-  groups:VenueGroup[];wdays:Date[];exp:Set<string>;toggle:(n:string)=>void;onBook:(id:string)=>void;onDrill?:(d:string)=>void;
+function DesktopWeek({groups,wdays,exp,toggle,onBook,onCreate,onDrill}:{
+  groups:VenueGroup[];wdays:Date[];exp:Set<string>;toggle:(n:string)=>void;onBook:(id:string)=>void;onCreate:()=>void;onDrill?:(d:string)=>void;
 }) {
+  const emptyClick=onDrill?(d:string)=>onDrill(d):onCreate;
   return (
     <div style={{overflowX:'auto'}}>
-      <div style={{minWidth:D_SW+wdays.length*110}}>
-        <div style={{display:'flex',height:38,background:'#f9fafb',borderBottom:BD,position:'sticky',top:0,zIndex:10}}>
+      <div style={{minWidth:D_SW+wdays.length*120}}>
+        <div style={{display:'flex',height:46,background:'#f9fafb',borderBottom:BD,position:'sticky',top:0,zIndex:10}}>
           <div style={{width:D_SW,flexShrink:0,borderRight:BD,display:'flex',alignItems:'center',paddingLeft:10,fontSize:10,fontWeight:600,color:'#9ca3af',textTransform:'uppercase',letterSpacing:'.06em'}}>Venue / Hall</div>
           {wdays.map(day=>{
             const tod=isToday(day);
@@ -378,13 +431,13 @@ function DesktopWeek({groups,wdays,exp,toggle,onBook,onDrill}:{
               <button key={dk(day)} type="button"
                 onClick={()=>onDrill?.(dk(day))}
                 title={onDrill?'Click to see day view':undefined}
-                style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderLeft:BD,background:tod?'rgba(239,68,68,.04)':undefined,cursor:onDrill?'pointer':'default',border:'none',padding:'4px 0',transition:'background .1s'}}
+                style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderLeft:BD,background:tod?'rgba(239,68,68,.04)':undefined,cursor:onDrill?'pointer':'default',border:'none',padding:'4px 0',transition:'background .1s',position:'relative'}}
                 onMouseEnter={e=>{if(onDrill)(e.currentTarget as HTMLElement).style.background=tod?'rgba(239,68,68,.09)':'#f0fdf4';}}
                 onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.background=tod?'rgba(239,68,68,.04)':'';}}
               >
-                <span style={{fontSize:9,fontWeight:500,textTransform:'uppercase',color:tod?'rgb(239,68,68)':'#c0c5d0',lineHeight:1}}>{day.toLocaleDateString('en-IN',{weekday:'short'})}</span>
-                <div style={{fontSize:13,fontWeight:tod?700:500,width:tod?20:undefined,height:tod?20:undefined,borderRadius:tod?'50%':undefined,background:tod?'rgb(239,68,68)':undefined,color:tod?'#fff':'#555',display:'flex',alignItems:'center',justifyContent:'center',marginTop:2}}>{day.getDate()}</div>
-                {onDrill&&<span style={{fontSize:7,color:'#c0c5d0',marginTop:1}}>↓ day</span>}
+                {tod&&<div style={{position:'absolute',left:0,right:0,bottom:-1,height:2,background:'rgb(239,68,68)'}}/>}
+                <span style={{fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:tod?'rgb(239,68,68)':'#c0c5d0',lineHeight:1}}>{day.toLocaleDateString('en-IN',{weekday:'short'})}</span>
+                <div style={{fontSize:16,fontWeight:tod?700:600,width:tod?24:undefined,height:tod?24:undefined,borderRadius:tod?'50%':undefined,background:tod?'rgb(239,68,68)':undefined,color:tod?'#fff':'#444',display:'flex',alignItems:'center',justifyContent:'center',marginTop:2}}>{day.getDate()}</div>
               </button>
             );
           })}
@@ -394,14 +447,14 @@ function DesktopWeek({groups,wdays,exp,toggle,onBook,onDrill}:{
           const busyHalls=g.halls.filter(h=>wdays.some(d=>h.slots.some(s=>s.date===dk(d)))).length;
           return (
             <React.Fragment key={g.name}>
-              <div style={{display:'flex',height:D_RH,background:'#f4f6fc',borderBottom:BD}}>
+              <div style={{display:'flex',minHeight:D_RH,background:'#f4f6fc',borderBottom:BD}}>
                 <VenueCell name={g.name} pal={g.pal} open={open} toggle={()=>toggle(g.name)} busyCount={busyHalls} totalHalls={g.halls.length} sw={D_SW} rh={D_RH}/>
-                {wdays.map(day=><WeekBarCell key={dk(day)} slots={g.halls.flatMap(h=>h.slots.filter(s=>s.date===dk(day)))} pal={g.pal} today={isToday(day)} onBook={onBook} rh={D_RH}/>)}
+                {wdays.map(day=><WeekMatrixCell key={dk(day)} slots={g.halls.flatMap(h=>h.slots.filter(s=>s.date===dk(day)))} pal={g.pal} today={isToday(day)} onBook={onBook} onEmptyClick={()=>emptyClick(dk(day))} aggregate/>)}
               </div>
               {open&&g.halls.map((hall,i)=>(
-                <div key={hall.hallName} style={{display:'flex',height:D_RH,background:'#fff',borderBottom:i===g.halls.length-1?BD:BD_INNER}}>
-                  <HallCell name={hall.hallName} slots={[]} sw={D_SW} rh={D_RH}/>
-                  {wdays.map(day=><WeekBarCell key={dk(day)} slots={hall.slots.filter(s=>s.date===dk(day))} pal={g.pal} today={isToday(day)} onBook={onBook} rh={D_RH}/>)}
+                <div key={hall.hallName} style={{display:'flex',minHeight:WEEK_DRH,background:'#fff',borderBottom:i===g.halls.length-1?BD:BD_INNER}}>
+                  <HallCell name={hall.hallName} slots={wdays.flatMap(d=>hall.slots.filter(s=>s.date===dk(d)))} sw={D_SW} rh={WEEK_DRH} showStatus/>
+                  {wdays.map(day=><WeekMatrixCell key={dk(day)} slots={hall.slots.filter(s=>s.date===dk(day))} pal={g.pal} today={isToday(day)} onBook={onBook} onEmptyClick={()=>emptyClick(dk(day))}/>)}
                 </div>
               ))}
             </React.Fragment>
@@ -729,7 +782,7 @@ export function VenueTimelineBoard({rows,viewMode,viewDate,weekDays,selectedDate
       {/* Desktop */}
       <div className="hidden sm:block border border-[var(--border)] rounded-xl overflow-hidden">
         {viewMode==='day'&&<DesktopDay {...shared} selDate={selectedDate} onCreate={onCreateBooking}/>}
-        {viewMode==='week'&&<DesktopWeek {...shared} wdays={weekDays} onDrill={onDateDrillDown}/>}
+        {viewMode==='week'&&<DesktopWeek {...shared} wdays={weekDays} onCreate={onCreateBooking} onDrill={onDateDrillDown}/>}
         {viewMode==='month'&&<DesktopMonth {...shared} vdate={viewDate} onDrill={onDateDrillDown}/>}
         <CreateFAB onClick={onCreateBooking}/>
       </div>
