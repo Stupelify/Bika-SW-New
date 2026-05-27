@@ -50,7 +50,6 @@ import {
   mapBookingPaymentsFromApi,
   partitionPaymentsForSave,
 } from '@/lib/booking-form/payments';
-import { validateBillingCeiling } from '@/lib/booking-form/financials';
 import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
@@ -67,6 +66,14 @@ import {
   sumPackHallRates,
 } from '@/lib/booking-form/billing-lines';
 import type { MenuItemLike } from '@/lib/booking-form/types';
+import {
+  formatDiscountPercentDisplay,
+  formatRupeeAmount,
+  roundRupee,
+  syncBillingAmounts,
+  validateBillingCeiling,
+  type BillingAmountSyncMode,
+} from '@/lib/booking-form/financials';
 import {
   CASTE_OPTIONS,
   COUNTRY_DIAL_CODE_OPTIONS,
@@ -189,7 +196,7 @@ interface TemplateMenuOption {
 }
 
 type PackKey = 'breakfast' | 'lunch' | 'hiTea' | 'dinner';
-type AmountSyncMode = 'discountPercent' | 'discountAmount' | 'finalAmount';
+type AmountSyncMode = BillingAmountSyncMode;
 
 interface BookingPackRow {
   bookingPackId?: string;
@@ -549,7 +556,6 @@ export default function BookingsPage() {
   const [menuPdfPreviewUrl, setMenuPdfPreviewUrl] = useState<string | null>(null);
   const [openHallPickerPack, setOpenHallPickerPack] = useState<PackKey | null>(null);
   const [hallPickerAnchorRect, setHallPickerAnchorRect] = useState<DOMRect | null>(null);
-  const [focusedPackAmount, setFocusedPackAmount] = useState<{ key: PackKey; value: string } | null>(null);
   const [netAmountDraft, setNetAmountDraft] = useState<string | null>(null);
   const [customerSearchInputs, setCustomerSearchInputs] =
     useState<CustomerSearchInputState>({
@@ -931,11 +937,10 @@ export default function BookingsPage() {
     return Math.max(0, parsed);
   }, []);
 
-  const formatComputedAmount = useCallback((amount: number): string => {
-    if (!Number.isFinite(amount)) return '0';
-    const rounded = Number(amount.toFixed(2));
-    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
-  }, []);
+  const formatComputedAmount = useCallback(
+    (amount: number): string => formatRupeeAmount(amount),
+    []
+  );
 
   const packRowAmount = useCallback(
     (row: BookingPackRow) => computePackRowAmount(row),
@@ -974,9 +979,11 @@ export default function BookingsPage() {
     if (!showCreateForm) return;
     // Model A: finalAmount = full grand total after discount (halls + packs + extras − discount).
     // No need to add extras again — they are already inside finalAmount / totalBillBase.
-    const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
-    const due = Math.max(0, grandTotal - totalPayments);
-    setFormData((prev) => ({ ...prev, dueAmount: due.toFixed(2) }));
+    const grandTotal = roundRupee(
+      parseFloat(formData.finalAmount || '0') || totalBillBase
+    );
+    const due = roundRupee(Math.max(0, grandTotal - totalPayments));
+    setFormData((prev) => ({ ...prev, dueAmount: formatRupeeAmount(due) }));
   }, [formData.finalAmount, totalPayments, totalBillBase, showCreateForm]);
 
   const enabledPackAmountRows = useMemo(
@@ -996,47 +1003,9 @@ export default function BookingsPage() {
   );
 
   const normalizeAmountSnapshot = useCallback(
-    (
-      mode: AmountSyncMode,
-      sourceValue: string,
-      totalAmount: number
-    ): Pick<BookingFormData, 'finalDiscountAmount' | 'finalDiscountPercent' | 'finalAmount'> => {
-      const total = Math.max(0, totalAmount);
-      const clamp = (value: number, min: number, max: number) =>
-        Math.min(max, Math.max(min, value));
-
-      if (mode === 'discountPercent') {
-        const discountPercent = clamp(toNonNegativeNumber(sourceValue), 0, 100);
-        const discountAmount = (total * discountPercent) / 100;
-        const finalAmount = Math.max(0, total - discountAmount);
-        return {
-          finalDiscountPercent: formatComputedAmount(discountPercent),
-          finalDiscountAmount: formatComputedAmount(discountAmount),
-          finalAmount: formatComputedAmount(finalAmount),
-        };
-      }
-
-      if (mode === 'discountAmount') {
-        const discountAmount = clamp(toNonNegativeNumber(sourceValue), 0, total);
-        const discountPercent = total > 0 ? (discountAmount / total) * 100 : 0;
-        const finalAmount = Math.max(0, total - discountAmount);
-        return {
-          finalDiscountPercent: formatComputedAmount(discountPercent),
-          finalDiscountAmount: formatComputedAmount(discountAmount),
-          finalAmount: formatComputedAmount(finalAmount),
-        };
-      }
-
-      const finalAmount = clamp(toNonNegativeNumber(sourceValue), 0, total);
-      const discountAmount = Math.max(0, total - finalAmount);
-      const discountPercent = total > 0 ? (discountAmount / total) * 100 : 0;
-      return {
-        finalDiscountPercent: formatComputedAmount(discountPercent),
-        finalDiscountAmount: formatComputedAmount(discountAmount),
-        finalAmount: formatComputedAmount(finalAmount),
-      };
-    },
-    [formatComputedAmount, toNonNegativeNumber]
+    (mode: AmountSyncMode, sourceValue: string, totalAmount: number) =>
+      syncBillingAmounts(mode, sourceValue, totalAmount),
+    []
   );
 
   const activeMenuPackRow = menuEditorPack ? formData.packs[menuEditorPack] : null;
@@ -2432,11 +2401,13 @@ export default function BookingsPage() {
       );
       return null;
     }
-    if (netAmountDraft !== null) {
+    const netDraftForSave = netAmountDraft;
+
+    if (netDraftForSave !== null) {
       setNetAmountDraft(null);
       setFormData((prev) => ({
         ...prev,
-        ...normalizeAmountSnapshot('finalAmount', netAmountDraft, totalBillBase),
+        ...normalizeAmountSnapshot('finalAmount', netDraftForSave, totalBillBase),
       }));
     }
 
@@ -2484,18 +2455,22 @@ export default function BookingsPage() {
           .map((entry) => Number(entry.row.pax || 0))
           .filter((value) => value > 0)
       );
-      const normalizedDiscountAmount = Math.min(
-        totalBillBase,
-        Math.max(0, toNumber(formData.finalDiscountAmount || '0'))
+      const saveSyncMode: AmountSyncMode =
+        netDraftForSave !== null ? 'finalAmount' : amountSyncMode;
+      const amountSourceValue =
+        saveSyncMode === 'discountPercent'
+          ? formData.finalDiscountPercent
+          : saveSyncMode === 'discountAmount'
+            ? formData.finalDiscountAmount
+            : netDraftForSave ?? formData.finalAmount;
+      const syncedAmounts = syncBillingAmounts(
+        saveSyncMode,
+        amountSourceValue,
+        totalBillBase
       );
-      const normalizedDiscountPercent = Math.min(
-        100,
-        Math.max(0, toNumber(formData.finalDiscountPercent || '0'))
-      );
-      const normalizedFinalAmount = Math.min(
-        totalBillBase,
-        Math.max(0, toNumber(formData.finalAmount || '0'))
-      );
+      const normalizedDiscountAmount = toNumber(syncedAmounts.finalDiscountAmount);
+      const normalizedDiscountPercent = toNumber(syncedAmounts.finalDiscountPercent);
+      const normalizedFinalAmount = toNumber(syncedAmounts.finalAmount);
       const functionTime = enabledPackEntries[0]?.row.startTime || '12:00';
       const functionName = formData.functionType.trim();
 
@@ -2625,6 +2600,8 @@ export default function BookingsPage() {
           : undefined,
         discountAmount: normalizedDiscountAmount,
         discountPercentage: normalizedDiscountPercent,
+        finalAmount: normalizedFinalAmount,
+        finalAmountValue: normalizedFinalAmount,
         advanceRequired: formData.advanceRequired || undefined,
         paymentReceivedPercent: formData.paymentReceivedPercent || undefined,
         // paymentReceivedAmount is derived server-side from actual payment records.
@@ -3509,45 +3486,17 @@ export default function BookingsPage() {
                                 <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}</p>
                               )}
                             </td>
-                            {/* Col 9: Amount (editable — back-calculates ratePerPlate on blur) */}
+                            {/* Col 9: Amount (read-only — hall + pax × rate) */}
                             <td className="px-2 py-2 align-top min-w-[100px]">
                               <input
-                                className="input py-1 text-xs w-full text-right"
+                                className="input py-1 text-xs w-full text-right bg-[var(--surface-2)]"
                                 type="number"
                                 min={0}
-                                value={
-                                  focusedPackAmount?.key === packKey
-                                    ? focusedPackAmount.value
-                                    : formatComputedAmount(packRowAmount(row))
-                                }
+                                step={1}
+                                value={formatComputedAmount(packRowAmount(row))}
                                 disabled={!row.enabled}
-                                onFocus={(e) => { e.target.select(); setFocusedPackAmount({ key: packKey, value: e.target.value }); }}
-                                onChange={(e) => setFocusedPackAmount({ key: packKey, value: e.target.value })}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    setFocusedPackAmount(null);
-                                    const enteredAmount = parseFloat((e.target as HTMLInputElement).value) || 0;
-                                    const hr = row.withHall ? toNonNegativeNumber(row.hallRate) : 0;
-                                    const pax = row.withCatering ? toNonNegativeNumber(row.pax) : 0;
-                                    if (pax > 0) {
-                                      const newRate = Math.round(((enteredAmount - hr) / pax) * 100) / 100;
-                                      updatePackRow(packKey, { ratePerPlate: String(Math.max(0, newRate)) });
-                                    }
-                                    (e.target as HTMLInputElement).blur();
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  setFocusedPackAmount(null);
-                                  const enteredAmount = parseFloat(e.target.value) || 0;
-                                  const hallRate = row.withHall ? toNonNegativeNumber(row.hallRate) : 0;
-                                  const pax = row.withCatering ? toNonNegativeNumber(row.pax) : 0;
-                                  if (pax > 0) {
-                                    const newRate = Math.round(((enteredAmount - hallRate) / pax) * 100) / 100;
-                                    updatePackRow(packKey, { ratePerPlate: String(Math.max(0, newRate)) });
-                                  }
-                                }}
-                                title="Edit to override total; Rate/Plate is back-calculated"
+                                readOnly
+                                title="Catering + hall rate (once per meal)"
                               />
                             </td>
                           </tr>
@@ -3600,7 +3549,7 @@ export default function BookingsPage() {
                             className="input py-1 text-xs w-full text-right dark:bg-slate-800/40"
                             type="number"
                             min={0}
-                            step="0.01"
+                            step={1}
                             value={formData.finalDiscountAmount}
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => {
@@ -4179,17 +4128,32 @@ export default function BookingsPage() {
                   hist?.finalizedBooking?.finalizedAt ||
                   null;
 
-                const histGrandTotal = Number(
-                  resolved?.grandTotal ?? hist?.grandTotal ?? 0
+                const histTotalPackAmount = historyPacks.reduce(
+                  (sum: number, pack: any) => sum + computePackRowAmountFromApiPack(pack),
+                  0
                 );
-                const histFinalAmount = Number(
-                  resolved?.finalAmountValue ?? resolved?.finalAmount ?? hist?.finalAmount ?? histGrandTotal
+                const histTotalAdditional = histAdditional.reduce((sum: number, item: any) => {
+                  const amt = Number(item?.charges ?? item?.amount ?? 0);
+                  return sum + (Number.isFinite(amt) ? Math.max(0, amt) : 0);
+                }, 0);
+                const histTotalBill = roundRupee(histTotalPackAmount + histTotalAdditional);
+                const histFinalAmount = roundRupee(
+                  Number(
+                    resolved?.finalAmountValue ??
+                      resolved?.finalAmount ??
+                      hist?.finalAmount ??
+                      resolved?.grandTotal ??
+                      hist?.grandTotal ??
+                      histTotalBill
+                  )
                 );
-                const histDiscountAmount = Number(
-                  resolved?.discountAmountValue ?? resolved?.discountAmount ?? hist?.discountAmount ?? 0
+                const histDiscountAmount = roundRupee(
+                  Math.max(0, histTotalBill - histFinalAmount)
                 );
                 const histDiscountPercent = Number(
-                  resolved?.discountPercentageValue ?? resolved?.discountPercentage ?? hist?.discountPercentage ?? 0
+                  formatDiscountPercentDisplay(
+                    histTotalBill > 0 ? (histDiscountAmount / histTotalBill) * 100 : 0
+                  )
                 );
                 const histAdvanceRequired = Number(
                   resolved?.advanceRequiredValue ?? resolved?.advanceRequired ?? hist?.advanceRequired ?? 0
@@ -4202,15 +4166,6 @@ export default function BookingsPage() {
                   const amt = Number(p?.amount ?? p?.amountValue ?? 0);
                   return sum + (Number.isFinite(amt) ? amt : 0);
                 }, 0);
-                const histTotalAdditional = histAdditional.reduce((sum: number, item: any) => {
-                  const amt = Number(item?.charges ?? item?.amount ?? 0);
-                  return sum + (Number.isFinite(amt) ? Math.max(0, amt) : 0);
-                }, 0);
-                const histTotalPackAmount = historyPacks.reduce(
-                  (sum: number, pack: any) => sum + computePackRowAmountFromApiPack(pack),
-                  0
-                );
-                const histTotalBill = histTotalPackAmount + histTotalAdditional;
                 const histCustomerName =
                   resolved?.customer?.name ||
                   resolved?.customerName ||

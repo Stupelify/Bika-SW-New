@@ -4,6 +4,8 @@
  * Server parity: pack hallRate in sumBookingLines; booking_halls charges are association-only (0).
  */
 
+import { roundRupee } from './financials';
+
 export const PACK_KEYS = ['breakfast', 'lunch', 'hiTea', 'dinner'] as const;
 export type MealPackKey = (typeof PACK_KEYS)[number];
 
@@ -41,7 +43,7 @@ export function computePackHallAmount(row: PackBillingRow): number {
 /** Full meal row amount shown in grid and included in meals subtotal. */
 export function computePackRowAmount(row: PackBillingRow): number {
   if (!row.enabled) return 0;
-  return computePackCateringAmount(row) + computePackHallAmount(row);
+  return roundRupee(computePackCateringAmount(row) + computePackHallAmount(row));
 }
 
 export function computeMealsSubtotal(
@@ -60,7 +62,9 @@ export function computePreDiscountTotal(
   packs: Record<MealPackKey, PackBillingRow>,
   additionalRequirements: Array<{ amount: string }>
 ): number {
-  return computeMealsSubtotal(packs) + computeExtrasSubtotal(additionalRequirements);
+  return roundRupee(
+    computeMealsSubtotal(packs) + computeExtrasSubtotal(additionalRequirements)
+  );
 }
 
 export interface BookingHallPayloadRow {
@@ -104,5 +108,5 @@ export function computePackRowAmountFromApiPack(pack: {
   const pax = toMoney(pack.packCount ?? pack.noOfPack ?? 0);
   const setupCost = toMoney(pack.setupCost ?? 0);
   const extraCharges = Math.max(0, Number(pack.extraCharges ?? 0));
-  return hallRate + ratePerPlate * pax + setupCost + extraCharges;
+  return roundRupee(hallRate + ratePerPlate * pax + setupCost + extraCharges);
 }

@@ -82,6 +82,26 @@ describe('sumBookingLines', () => {
     expect(financials.finalAmountValue).toBe(1908000);
   });
 
+  it('nearest-rupee percent discount on 22354', () => {
+    const financials = resolveBookingFinancials({
+      totalAmount: 22354,
+      discountPercentage: 10,
+    });
+    expect(financials.discountAmount).toBe(2235);
+    expect(financials.finalAmountValue).toBe(20119);
+  });
+
+  it('authoritative net when finalAmountInput provided', () => {
+    const financials = resolveBookingFinancials({
+      totalAmount: 22354,
+      discountPercentage: 10,
+      discountAmountInput: 9999,
+      finalAmountInput: 20000,
+    });
+    expect(financials.finalAmountValue).toBe(20000);
+    expect(financials.discountAmount).toBe(2354);
+  });
+
   it('defaults quantity to 1 for null additional items', () => {
     const result = sumBookingLines({
       halls: [],
@@ -127,10 +147,8 @@ describe('resolveBookingFinancials', () => {
     expect(result.exceededCeiling).toBe(true);
   });
 
-  it('does not false-positive on epsilon boundary', () => {
-    expect(exceedsBillingCeiling(10000.004, 10000)).toBe(false);
-    expect(exceedsBillingCeiling(10000 + BILLING_CEILING_EPSILON + 0.001, 10000)).toBe(
-      true
-    );
+  it('exceeds ceiling only when rounded rupee is above total', () => {
+    expect(exceedsBillingCeiling(10000, 10000)).toBe(false);
+    expect(exceedsBillingCeiling(10001, 10000)).toBe(true);
   });
 });

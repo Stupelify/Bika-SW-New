@@ -6,7 +6,7 @@ const prisma = new PrismaClient({
 });
 
 // Handle Prisma Client errors
-prisma.$use(async (params, next) => {
+prisma.$use(async (params: any, next: (p: any) => Promise<any>) => {
   const before = Date.now();
   try {
     const result = await next(params);

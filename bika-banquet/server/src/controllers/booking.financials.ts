@@ -23,9 +23,14 @@ export interface AdditionalLine {
   quantity: number | null | undefined;
 }
 
-function safeMoney(v: number | null | undefined): number {
+/** Nearest whole rupee (half-up) — canonical money unit for booking billing. */
+export function roundRupee(v: number | null | undefined): number {
   const n = Number(v);
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+function safeMoney(v: number | null | undefined): number {
+  return roundRupee(v);
 }
 
 function safeNum(v: number | null | undefined): number {
@@ -107,34 +112,74 @@ export interface ResolvedBookingFinancials {
   exceededCeiling: boolean;
 }
 
+function deriveDiscountPercentForStorage(
+  totalAmount: number,
+  discountAmount: number
+): number {
+  if (totalAmount <= 0) return 0;
+  return Math.round((discountAmount / totalAmount) * 10000) / 100;
+}
+
 export function resolveBookingFinancials(
   input: ResolveBookingFinancialsInput
 ): ResolvedBookingFinancials {
-  const totalAmount = safeMoney(input.totalAmount);
-  const discountPercentage = Math.min(
-    100,
-    Math.max(0, safeNum(input.discountPercentage ?? 0))
-  );
+  const totalAmount = roundRupee(input.totalAmount);
 
-  let rawDiscount = safeMoney(input.discountAmountInput ?? 0);
-  if (discountPercentage > 0) {
-    rawDiscount = safeMoney((totalAmount * discountPercentage) / 100);
+  const hasAuthoritativeNet =
+    input.finalAmountInput != null && input.finalAmountInput !== undefined;
+
+  let discountAmount: number;
+  let finalAmountValue: number;
+  let discountPercentage: number;
+  let exceededCeiling = false;
+
+  if (hasAuthoritativeNet) {
+    finalAmountValue = roundRupee(
+      Math.min(Math.max(0, Number(input.finalAmountInput)), totalAmount)
+    );
+    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
+    discountPercentage = deriveDiscountPercentForStorage(
+      totalAmount,
+      discountAmount
+    );
+    if (roundRupee(input.finalAmountInput) > totalAmount) {
+      exceededCeiling = true;
+    }
+  } else {
+    const inputDiscountPercent = Math.min(
+      100,
+      Math.max(0, safeNum(input.discountPercentage ?? 0))
+    );
+    if (inputDiscountPercent > 0) {
+      discountAmount = roundRupee((totalAmount * inputDiscountPercent) / 100);
+      discountPercentage = deriveDiscountPercentForStorage(
+        totalAmount,
+        discountAmount
+      );
+    } else {
+      discountAmount = roundRupee(
+        Math.min(safeMoney(input.discountAmountInput ?? 0), totalAmount)
+      );
+      discountPercentage = deriveDiscountPercentForStorage(
+        totalAmount,
+        discountAmount
+      );
+    }
+    finalAmountValue = roundRupee(Math.max(0, totalAmount - discountAmount));
+    const rawDiscountInput = roundRupee(input.discountAmountInput ?? 0);
+    if (
+      discountAmount > totalAmount ||
+      rawDiscountInput > totalAmount ||
+      (inputDiscountPercent > 0 &&
+        roundRupee((totalAmount * inputDiscountPercent) / 100) > totalAmount)
+    ) {
+      exceededCeiling = true;
+      discountAmount = Math.min(discountAmount, totalAmount);
+      finalAmountValue = roundRupee(Math.max(0, totalAmount - discountAmount));
+    }
   }
 
-  const discountExceeded = exceedsBillingCeiling(rawDiscount, totalAmount);
-  const discountAmount = safeMoney(Math.min(rawDiscount, totalAmount));
-  const grandTotal = safeMoney(Math.max(0, totalAmount - discountAmount));
-
-  const rawFinal =
-    input.finalAmountInput != null && input.finalAmountInput !== undefined
-      ? safeMoney(input.finalAmountInput)
-      : grandTotal;
-  const finalExceeded =
-    exceedsBillingCeiling(rawFinal, totalAmount) ||
-    exceedsBillingCeiling(rawFinal, grandTotal);
-  const finalAmountValue = safeMoney(
-    Math.min(rawFinal, grandTotal, totalAmount)
-  );
+  const grandTotal = finalAmountValue;
 
   return {
     totalAmount,
@@ -142,7 +187,7 @@ export function resolveBookingFinancials(
     discountPercentage,
     grandTotal,
     finalAmountValue,
-    exceededCeiling: discountExceeded || finalExceeded,
+    exceededCeiling,
   };
 }
 
