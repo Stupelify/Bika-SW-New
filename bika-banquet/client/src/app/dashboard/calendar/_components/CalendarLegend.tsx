@@ -18,15 +18,16 @@ const PALETTE = [
 ] as const;
 
 // Status legend — mirrors globals.css .status-* / the design STATUS map.
+// Colors read from the shared --cal-* CSS vars (globals.css) so the legend
+// matches the board in both light and dark themes.
 const STATUS_LEGEND: Array<{ key: string; label: string; bg: string; accent: string }> = [
-  { key: 'confirmed', label: 'Confirmed', bg: '#dcfce7', accent: '#22c55e' },
-  { key: 'pencil', label: 'Pencil', bg: '#fffbeb', accent: '#f59e0b' },
-  { key: 'quotation', label: 'Quotation', bg: '#eff6ff', accent: '#3b82f6' },
-  { key: 'enquiry', label: 'Enquiry', bg: '#f0f9ff', accent: '#0ea5e9' },
+  { key: 'confirmed', label: 'Confirmed', bg: 'var(--cal-confirmed-bg)', accent: 'var(--cal-confirmed-accent)' },
+  { key: 'pencil', label: 'Pencil', bg: 'var(--cal-pencil-bg)', accent: 'var(--cal-pencil-accent)' },
+  { key: 'quotation', label: 'Quotation', bg: 'var(--cal-quotation-bg)', accent: 'var(--cal-quotation-accent)' },
+  { key: 'enquiry', label: 'Enquiry', bg: 'var(--cal-enquiry-bg)', accent: 'var(--cal-enquiry-accent)' },
 ];
 
-const STRIPE =
-  'repeating-linear-gradient(135deg,transparent 0,transparent 4px,rgba(146,64,14,.18) 4px,rgba(146,64,14,.18) 5px)';
+const STRIPE = 'var(--cal-stripe)';
 
 interface CalendarLegendProps {
   rows: TimelineHallRow[];
