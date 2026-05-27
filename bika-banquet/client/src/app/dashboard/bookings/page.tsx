@@ -40,6 +40,7 @@ import {
 } from '@/lib/tableUtils';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
+import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
@@ -2888,7 +2889,15 @@ export default function BookingsPage() {
         </div>
 
         <fieldset disabled={isReadOnlyBooking}>
-        <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} onChange={() => setIsFormDirty(true)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') e.preventDefault(); }} className="space-y-5">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!isReadOnlyBooking) handleSubmitBooking(e);
+          }}
+          onChange={() => setIsFormDirty(true)}
+          onKeyDown={(e) => handleEnterAsTabKeyDown(e, e.currentTarget)}
+          className="space-y-5"
+        >
           <div ref={actionSentinelRef} />
             <div className="flex items-center gap-3 flex-wrap">
               {!isReadOnlyBooking && (
