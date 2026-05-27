@@ -95,17 +95,19 @@ Fixing one layer without the others regresses Submit / Finalize.
    - Catering ≈ `ratePerPlate × pax` (+ setup/extras when used).  
    - **Hall rate is once per pack**, never × number of halls selected.
 
-2. **Footer pre-discount Total** = sum of enabled pack row amounts + additional items (extras).
+2. **Meals subtotal (discount base)** = sum of enabled pack row amounts only. **Extras** are separate line items (not discounted).
 
-3. **Halls association:** `buildBookingHallRows` → `charges: 0`. Hall money lives on pack `hallRate` / `hallRateValue`.
+3. **Payable grand total** = meals net after discount + extras subtotal. **DB `grandTotal` and `finalAmountValue` must always match** (same payable amount).
 
-4. **Server save:** `sumBookingLines` must receive every pack via `mapPackLineForSumBooking()` (includes `hallRate` / `hallRateValue`). Same rules on create, update, and `recalculateBookingFinancials`.
+4. **Halls association:** `buildBookingHallRows` → `charges: 0`. Hall money lives on pack `hallRate` / `hallRateValue`.
 
-5. **Net / due:** Must not exceed bill total (ceiling). When the client does not send `finalAmount`, server derives net from computed `grandTotal`, not a stale plates-only total.
+5. **Server save:** `splitMealsAndExtrasSubtotals` + `resolveBookingFinancials` on create, update, finalize, party-over. Discount applies to meals only.
 
-6. **After save:** Reload payments (and discount/net/due) from `GET /bookings/:id`. Do not duplicate `POST` for payments that already have a server `id`.
+6. **Due / balance:** Always `payableGrandTotal − sum(payments)` on server (create, update, recalc, payment add/update). Client due effect uses the same formula.
 
-7. **Payments on new version:** Payments are not copied per version by design. Do not zero `paymentReceivedAmount` across versions unless product explicitly asks.
+7. **After save:** Reload payments (and discount/net/due) from `GET /bookings/:id`. Form `finalAmount` = meals net; display grand total = meals net + extras.
+
+8. **Payments on new version:** Payments are not copied per version by design. Do not zero `paymentReceivedAmount` across versions unless product explicitly asks.
 
 ### Testing
 

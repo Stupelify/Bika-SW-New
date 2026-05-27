@@ -17,9 +17,11 @@ import {
 } from '../utils/banquetAccess';
 import {
   assertFinancialsWithinCeiling,
+  computeMealsDiscountCarryForward,
   mapPackLineForSumBooking,
   resolveBookingFinancials,
-  sumBookingLines,
+  splitMealsAndExtrasSubtotals,
+  sumExtrasSubtotal,
 } from './booking.helpers';
 import {
   toSafeNumber,
@@ -465,20 +467,21 @@ export async function createBooking(
         });
       }
 
-      // Calculate totals
-      const totalAmount = sumBookingLines({
+      const lineInput = {
         halls: hallRowsInput.map((h: any) => ({ charges: h.charges })),
         packs: (data.packs ?? []).map((p: any) => mapPackLineForSumBooking(p)),
         additionalItems: (data.additionalItems ?? []).map((a: any) => ({
           charges: a.charges,
           quantity: a.quantity,
         })),
-      });
+      };
+      const lineTotals = splitMealsAndExtrasSubtotals(lineInput);
 
       const discountPercentage =
         readDualPercent(data, 'discountPercentageValue', 'discountPercentage') || 0;
       const financials = resolveBookingFinancials({
-        totalAmount,
+        totalAmount: lineTotals.totalAmount,
+        extrasSubtotal: lineTotals.extrasSubtotal,
         discountPercentage,
         discountAmountInput:
           readDualMoney(data, 'discountAmountValue', 'discountAmount') || 0,
@@ -487,10 +490,15 @@ export async function createBooking(
       if (financials.exceededCeiling) {
         throw new Error('BOOKING_NET_EXCEEDS_BILL');
       }
-      const { discountAmount, grandTotal, finalAmountValue } = financials;
-      const balanceAmount = toSafeMoney(
-        grandTotal - toSafeMoney(firstDefinedValue(data.advanceReceivedValue, data.advanceReceived))
+      const { discountAmount, discountPercentage: storedDiscountPercent, grandTotal, finalAmountValue } =
+        financials;
+      const paymentReceived = toSafeMoney(
+        firstDefinedValue(data.advanceReceivedValue, data.advanceReceived)
       );
+      const dueAmountValue = toSafeMoney(
+        Math.max(0, finalAmountValue - paymentReceived)
+      );
+      const balanceAmount = dueAmountValue;
       const discountAmount2ndValue = readDualMoney(
         data,
         'discountAmount2ndValue',
@@ -516,18 +524,15 @@ export async function createBooking(
         'paymentReceivedAmountValue',
         'paymentReceivedAmount'
       );
-      const dueAmountValue =
-        readDualMoney(data, 'dueAmountValue', 'dueAmount') ?? balanceAmount;
-
       // Update booking with totals
       return await tx.booking.update({
         where: { id: newBooking.id },
         data: {
-          totalAmount,
-          totalBillAmount: toStoredNumberString(totalAmount),
-          totalBillAmountValue: totalAmount,
+          totalAmount: lineTotals.totalAmount,
+          totalBillAmount: toStoredNumberString(lineTotals.totalAmount),
+          totalBillAmountValue: lineTotals.totalAmount,
           discountAmount,
-          discountPercentage,
+          discountPercentage: storedDiscountPercent,
           discountAmount2nd: toStoredNumberString(discountAmount2ndValue),
           discountAmount2ndValue,
           discountPercentage2nd: toStoredNumberString(discountPercentage2ndValue),
@@ -862,16 +867,27 @@ export async function partyOverBooking(
         });
       }
 
-      // Carry forward the prior ad-hoc net discount so party-over bills day-of extras without voiding it.
-      const priorGrandTotal = toSafeMoney(booking.grandTotal);
-      const priorNet =
+      const priorAdditional = await tx.additionalBookingItems.findMany({
+        where: { bookingId: id },
+        select: { charges: true, quantity: true },
+      });
+      const priorExtras = sumExtrasSubtotal(priorAdditional);
+      const priorTotal =
+        booking.totalBillAmountValue ??
+        toOptionalSafeMoney(booking.totalBillAmount) ??
+        toSafeMoney(booking.totalAmount);
+      const priorPayable =
         booking.finalAmountValue ??
         toOptionalSafeMoney(booking.finalAmount) ??
-        priorGrandTotal;
-      const manualDiscountDelta = Math.max(0, toSafeMoney(priorGrandTotal - priorNet));
+        toSafeMoney(booking.grandTotal);
+      const mealsDiscountCarry = computeMealsDiscountCarryForward({
+        totalAmount: priorTotal,
+        extrasSubtotal: priorExtras,
+        payableGrandTotal: priorPayable,
+      });
 
       await recalculateBookingFinancials(tx, id, {
-        carryForwardManualDiscount: manualDiscountDelta,
+        carryForwardMealsDiscount: mealsDiscountCarry,
       });
 
       const snapshot = await fetchBookingSnapshot(tx, id);
@@ -1343,14 +1359,15 @@ export async function updateBooking(
           },
         });
 
-      const totalAmount = sumBookingLines({
+      const lineInput = {
         halls: hallRows.map((h: any) => ({ charges: h.charges })),
         packs: packRows.map((p: any) => mapPackLineForSumBooking(p)),
         additionalItems: additionalItemRows.map((a: any) => ({
           charges: a.charges,
           quantity: a.quantity,
         })),
-      });
+      };
+      const lineTotals = splitMealsAndExtrasSubtotals(lineInput);
       const inputDiscountPercentage = readDualPercent(
         data,
         'discountPercentageValue',
@@ -1361,7 +1378,8 @@ export async function updateBooking(
           ? inputDiscountPercentage
           : toOptionalSafePercent(existingBooking.discountPercentage) || 0;
       const financials = resolveBookingFinancials({
-        totalAmount,
+        totalAmount: lineTotals.totalAmount,
+        extrasSubtotal: lineTotals.extrasSubtotal,
         discountPercentage: effectiveDiscountPercentage,
         discountAmountInput:
           readDualMoney(data, 'discountAmountValue', 'discountAmount') ||
@@ -1371,7 +1389,8 @@ export async function updateBooking(
       if (financials.exceededCeiling) {
         throw new Error('BOOKING_NET_EXCEEDS_BILL');
       }
-      const { discountAmount, grandTotal, finalAmountValue } = financials;
+      const { discountAmount, discountPercentage: storedDiscountPercent, grandTotal, finalAmountValue } =
+        financials;
       // Always derive paymentReceived from actual payment records — ignore any
       // client-supplied value, which can drift when versions are cloned.
       const paymentAgg = await tx.bookingPayments.aggregate({
@@ -1379,24 +1398,23 @@ export async function updateBooking(
         _sum: { amount: true },
       });
       const paymentReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
-      const balanceAmount = toSafeMoney(grandTotal - paymentReceived);
-      const totalBillAmountValue = totalAmount;
-      const dueAmountValue =
-        readDualMoney(data, 'dueAmountValue', 'dueAmount') ?? balanceAmount;
+      const dueAmountValue = toSafeMoney(Math.max(0, finalAmountValue - paymentReceived));
+      const balanceAmount = dueAmountValue;
+      const totalBillAmountValue = lineTotals.totalAmount;
 
       await tx.booking.update({
         where: { id },
         data: {
-          totalAmount,
-          totalBillAmount: toStoredNumberString(totalAmount),
+          totalAmount: lineTotals.totalAmount,
+          totalBillAmount: toStoredNumberString(lineTotals.totalAmount),
           totalBillAmountValue,
           discountAmount,
-          discountPercentage: effectiveDiscountPercentage,
+          discountPercentage: storedDiscountPercent,
           grandTotal,
-          finalAmount: toStoredNumberString(finalAmountValue) || toStoredNumberString(grandTotal),
+          finalAmount: toStoredNumberString(finalAmountValue),
           finalAmountValue,
           balanceAmount,
-          dueAmount: toStoredNumberString(dueAmountValue) || toStoredNumberString(balanceAmount),
+          dueAmount: toStoredNumberString(dueAmountValue),
           dueAmountValue,
           // Always write back the authoritative SUM so the stored value never
           // drifts (e.g. after a version clone carries a stale value forward).

@@ -62,11 +62,13 @@ import {
   computePackRowAmount,
   computePackRowAmountFromApiPack,
   computeExtrasSubtotal,
-  computePreDiscountTotal,
+  computeExtrasSubtotal,
+  computeMealsSubtotal,
   sumPackHallRates,
 } from '@/lib/booking-form/billing-lines';
 import type { MenuItemLike } from '@/lib/booking-form/types';
 import {
+  computePayableGrandTotal,
   formatDiscountPercentDisplay,
   formatRupeeAmount,
   roundRupee,
@@ -948,28 +950,34 @@ export default function BookingsPage() {
   );
 
   const billingTotals = useMemo(() => {
-    const preDiscountTotal = computePreDiscountTotal(
-      formData.packs,
-      formData.additionalRequirements
-    );
+    const mealsSubtotal = computeMealsSubtotal(formData.packs);
+    const extrasSubtotal = computeExtrasSubtotal(formData.additionalRequirements);
+    const preDiscountTotal = roundRupee(mealsSubtotal + extrasSubtotal);
     const enabledRows = (Object.keys(formData.packs) as PackKey[])
       .filter((key) => formData.packs[key].enabled)
       .map((key) => formData.packs[key]);
     return {
+      mealsSubtotal,
+      extrasSubtotal,
       preDiscountTotal,
       packHallSubtotal: sumPackHallRates(enabledRows),
-      extrasSubtotal: computeExtrasSubtotal(formData.additionalRequirements),
     };
   }, [formData.packs, formData.additionalRequirements]);
 
+  const mealsBillBase = billingTotals.mealsSubtotal;
   const totalBillBase = billingTotals.preDiscountTotal;
+  const payableGrandTotal = useMemo(() => {
+    const mealsNet = roundRupee(
+      parseFloat(formData.finalAmount || '0') || mealsBillBase
+    );
+    return computePayableGrandTotal(mealsNet, billingTotals.extrasSubtotal);
+  }, [formData.finalAmount, mealsBillBase, billingTotals.extrasSubtotal]);
   const totalHallAmount = billingTotals.packHallSubtotal;
 
   // Keep for backward-compat references (same value as totalBillBase)
   const totalBillAmount = totalBillBase;
 
-  // Keep dueAmount in sync: always = grandTotal (finalAmount + extras) minus what's been paid.
-  // When there are no payments, due = full amount automatically.
+  // Due = payable grand total (meals net + extras) − payments.
   useEffect(() => {
     void loadLookups();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -977,14 +985,9 @@ export default function BookingsPage() {
 
   useEffect(() => {
     if (!showCreateForm) return;
-    // Model A: finalAmount = full grand total after discount (halls + packs + extras − discount).
-    // No need to add extras again — they are already inside finalAmount / totalBillBase.
-    const grandTotal = roundRupee(
-      parseFloat(formData.finalAmount || '0') || totalBillBase
-    );
-    const due = roundRupee(Math.max(0, grandTotal - totalPayments));
+    const due = roundRupee(Math.max(0, payableGrandTotal - totalPayments));
     setFormData((prev) => ({ ...prev, dueAmount: formatRupeeAmount(due) }));
-  }, [formData.finalAmount, totalPayments, totalBillBase, showCreateForm]);
+  }, [payableGrandTotal, totalPayments, showCreateForm]);
 
   const enabledPackAmountRows = useMemo(
     () =>
@@ -1429,8 +1432,7 @@ export default function BookingsPage() {
           : amountSyncMode === 'discountAmount'
             ? prev.finalDiscountAmount
             : prev.finalAmount;
-      // Discount is applied to pack amounts only (not extras)
-      const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, totalBillBase);
+      const nextValues = normalizeAmountSnapshot(amountSyncMode, sourceValue, mealsBillBase);
       if (
         prev.finalDiscountAmount === nextValues.finalDiscountAmount &&
         prev.finalDiscountPercent === nextValues.finalDiscountPercent &&
@@ -1443,25 +1445,24 @@ export default function BookingsPage() {
         ...nextValues,
       };
     });
-  }, [amountSyncMode, discountManuallySet, normalizeAmountSnapshot, showCreateForm, totalBillBase]);
+  }, [amountSyncMode, discountManuallySet, mealsBillBase, normalizeAmountSnapshot, showCreateForm]);
 
   useEffect(() => {
     if (!showCreateForm) return;
     if (prevTotalPackAmountRef.current === null) {
-      prevTotalPackAmountRef.current = totalBillBase;
+      prevTotalPackAmountRef.current = mealsBillBase;
       return;
     }
-    if (prevTotalPackAmountRef.current === totalBillBase) return;
-    prevTotalPackAmountRef.current = totalBillBase;
+    if (prevTotalPackAmountRef.current === mealsBillBase) return;
+    prevTotalPackAmountRef.current = mealsBillBase;
     if (!discountManuallySet) return;
-    // Billing base changed while discount was manually set — reset discount, net = new base
     setFormData((prev) => ({
       ...prev,
       finalDiscountPercent: '',
       finalDiscountAmount: '',
-      finalAmount: formatComputedAmount(totalBillBase),
+      finalAmount: formatComputedAmount(mealsBillBase),
     }));
-  }, [totalBillBase, discountManuallySet, showCreateForm, formatComputedAmount]);
+  }, [mealsBillBase, discountManuallySet, showCreateForm, formatComputedAmount]);
 
   const addPaymentRow = () => {
     setFormData((prev) => ({
@@ -2130,14 +2131,19 @@ export default function BookingsPage() {
           booking.discountPercentage !== null && booking.discountPercentage !== undefined
             ? String(booking.discountPercentage)
             : '0',
-        finalAmount:
-          // Model A: finalAmount = full grand total (halls+packs+extras−discount). Load directly.
-          booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
-            ? String(booking.finalAmountValue)
-            : booking.finalAmount ||
-              (booking.grandTotal !== null && booking.grandTotal !== undefined
-                ? String(booking.grandTotal)
-                : '0'),
+        finalAmount: (() => {
+          const extras = (booking.additionalItems || []).reduce(
+            (sum: number, entry: { charges?: number }) =>
+              sum + Math.max(0, Number(entry?.charges ?? 0) || 0),
+            0
+          );
+          const payable =
+            booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
+              ? Number(booking.finalAmountValue)
+              : Number(booking.finalAmount ?? booking.grandTotal ?? 0);
+          const mealsNet = roundRupee(Math.max(0, payable - extras));
+          return String(mealsNet);
+        })(),
         notes: booking.notes || '',
         additionalRequirements: (booking.additionalItems || [])
           .map((entry: any) => ({
@@ -2345,14 +2351,23 @@ export default function BookingsPage() {
           booking.discountPercentage !== null && booking.discountPercentage !== undefined
             ? String(booking.discountPercentage)
             : prev.finalDiscountPercent,
-        finalAmount:
-          booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
-            ? String(booking.finalAmountValue)
-            : booking.finalAmount !== null && booking.finalAmount !== undefined
-              ? String(booking.finalAmount)
-              : booking.grandTotal !== null && booking.grandTotal !== undefined
-                ? String(booking.grandTotal)
-                : prev.finalAmount,
+        finalAmount: (() => {
+          const extras = (booking.additionalItems || []).reduce(
+            (sum: number, entry: { charges?: number }) =>
+              sum + Math.max(0, Number(entry?.charges ?? 0) || 0),
+            0
+          );
+          const payable =
+            booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
+              ? Number(booking.finalAmountValue)
+              : Number(
+                  booking.finalAmount ??
+                    booking.grandTotal ??
+                    prev.finalAmount ??
+                    0
+                );
+          return String(roundRupee(Math.max(0, payable - extras)));
+        })(),
         dueAmount:
           booking.dueAmountValue !== undefined && booking.dueAmountValue !== null
             ? String(booking.dueAmountValue)
@@ -2383,16 +2398,16 @@ export default function BookingsPage() {
       return null;
     }
 
-    const finalAmountForCheck =
+    const mealsNetForCheck =
       netAmountDraft !== null
-        ? normalizeAmountSnapshot('finalAmount', netAmountDraft, totalBillBase)
-            .finalAmount
+        ? normalizeAmountSnapshot('finalAmount', netAmountDraft, mealsBillBase).finalAmount
         : formData.finalAmount;
     const billingCheck = validateBillingCeiling({
-      totalBillBase,
+      mealsSubtotal: mealsBillBase,
+      extrasSubtotal: billingTotals.extrasSubtotal,
       discountAmount: formData.finalDiscountAmount,
       discountPercent: formData.finalDiscountPercent,
-      finalAmount: finalAmountForCheck,
+      finalAmount: mealsNetForCheck,
     });
     if (!billingCheck.ok) {
       toast.error(
@@ -2407,7 +2422,7 @@ export default function BookingsPage() {
       setNetAmountDraft(null);
       setFormData((prev) => ({
         ...prev,
-        ...normalizeAmountSnapshot('finalAmount', netDraftForSave, totalBillBase),
+        ...normalizeAmountSnapshot('finalAmount', netDraftForSave, mealsBillBase),
       }));
     }
 
@@ -2466,11 +2481,17 @@ export default function BookingsPage() {
       const syncedAmounts = syncBillingAmounts(
         saveSyncMode,
         amountSourceValue,
-        totalBillBase
+        mealsBillBase
       );
-      const normalizedDiscountAmount = toNumber(syncedAmounts.finalDiscountAmount);
+      const normalizedMealsNet = toNumber(syncedAmounts.finalAmount);
+      const normalizedPayableGrandTotal = computePayableGrandTotal(
+        normalizedMealsNet,
+        billingTotals.extrasSubtotal
+      );
+      const normalizedDiscountAmount = roundRupee(
+        totalBillBase - normalizedPayableGrandTotal
+      );
       const normalizedDiscountPercent = toNumber(syncedAmounts.finalDiscountPercent);
-      const normalizedFinalAmount = toNumber(syncedAmounts.finalAmount);
       const functionTime = enabledPackEntries[0]?.row.startTime || '12:00';
       const functionName = formData.functionType.trim();
 
@@ -2572,7 +2593,7 @@ export default function BookingsPage() {
       // don't need to duplicate them in internalNotes. Just store the financial
       // snapshot which is compact and always useful for debugging.
       const internalNotesParts = [
-        `Final Calc: discountAmt=${normalizedDiscountAmount}, discountPct=${normalizedDiscountPercent}, finalAmt=${normalizedFinalAmount}, totalBill=${totalBillAmount.toFixed(2)}, totalPaid=${totalPayments.toFixed(2)}`,
+        `Final Calc: discountAmt=${normalizedDiscountAmount}, discountPct=${normalizedDiscountPercent}, mealsNet=${normalizedMealsNet}, grandTotal=${normalizedPayableGrandTotal}, totalBill=${totalBillAmount.toFixed(2)}, totalPaid=${totalPayments.toFixed(2)}`,
       ].filter(Boolean);
       const internalNotes = internalNotesParts.join('\n').slice(0, 1990) || undefined;
 
@@ -2600,8 +2621,8 @@ export default function BookingsPage() {
           : undefined,
         discountAmount: normalizedDiscountAmount,
         discountPercentage: normalizedDiscountPercent,
-        finalAmount: normalizedFinalAmount,
-        finalAmountValue: normalizedFinalAmount,
+        finalAmount: normalizedPayableGrandTotal,
+        finalAmountValue: normalizedPayableGrandTotal,
         advanceRequired: formData.advanceRequired || undefined,
         paymentReceivedPercent: formData.paymentReceivedPercent || undefined,
         // paymentReceivedAmount is derived server-side from actual payment records.
@@ -3513,7 +3534,7 @@ export default function BookingsPage() {
                         <td colSpan={7} />
                         <td className="px-2 py-2 text-right text-xs font-bold text-[var(--text-1)] whitespace-nowrap">Total</td>
                         <td className="px-2 py-2 text-right text-sm font-bold text-[var(--text-1)]">
-                          ₹{billingTotals.preDiscountTotal.toLocaleString('en-IN')}
+                          ₹{billingTotals.mealsSubtotal.toLocaleString('en-IN')}
                         </td>
                       </tr>
 
@@ -3536,7 +3557,7 @@ export default function BookingsPage() {
                                 setDiscountManuallySet(true);
                                 setFormData((prev) => ({
                                   ...prev,
-                                  ...normalizeAmountSnapshot('discountPercent', e.target.value, totalBillBase),
+                                  ...normalizeAmountSnapshot('discountPercent', e.target.value, mealsBillBase),
                                 }));
                               }}
                             />
@@ -3557,7 +3578,7 @@ export default function BookingsPage() {
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('discountAmount', e.target.value, totalBillBase),
+                                ...normalizeAmountSnapshot('discountAmount', e.target.value, mealsBillBase),
                               }));
                             }}
                           />
@@ -3582,7 +3603,7 @@ export default function BookingsPage() {
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillBase),
+                                ...normalizeAmountSnapshot('finalAmount', e.target.value, mealsBillBase),
                               }));
                             }}
                             aria-label="Net Amount"
@@ -3691,19 +3712,13 @@ export default function BookingsPage() {
                       )}
 
                       {/* Grand Total row */}
-                      {(() => {
-                        // Model A: finalAmount already includes everything (halls+packs+extras−discount).
-                        const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
-                        return (
-                          <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]">
-                            <td colSpan={7} />
-                            <td className="px-2 py-2 text-right text-xs font-extrabold text-[var(--text-1)] whitespace-nowrap">Grand Total</td>
-                            <td className="px-2 py-2 text-right text-base font-extrabold text-[var(--text-1)]">
-                              ₹{grandTotal.toLocaleString('en-IN')}
-                            </td>
-                          </tr>
-                        );
-                      })()}
+                      <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]">
+                        <td colSpan={7} />
+                        <td className="px-2 py-2 text-right text-xs font-extrabold text-[var(--text-1)] whitespace-nowrap">Grand Total</td>
+                        <td className="px-2 py-2 text-right text-base font-extrabold text-[var(--text-1)]">
+                          ₹{payableGrandTotal.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
 
                       {/* Actions row */}
                       <tr className="border-t border-[var(--border)] bg-[var(--surface)]">
@@ -3905,36 +3920,30 @@ export default function BookingsPage() {
                     <div className="border-t border-[var(--border)] pt-2 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-[var(--text-1)]">Total</span>
-                        <span className="text-sm font-semibold text-[var(--text-1)]">₹{billingTotals.preDiscountTotal.toLocaleString('en-IN')}</span>
+                        <span className="text-sm font-semibold text-[var(--text-1)]">₹{billingTotals.mealsSubtotal.toLocaleString('en-IN')}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="label text-xs">Discount %</label>
                           <input className="input text-right" type="number" min={0} max={100} step="0.01" value={formData.finalDiscountPercent}
-                            onChange={(e) => { setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', e.target.value, totalBillBase) })); }} />
+                            onChange={(e) => { setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', e.target.value, mealsBillBase) })); }} />
                         </div>
                         <div>
                           <label className="label text-xs">Discount ₹</label>
                           <input className="input text-right" type="number" min={0} step="0.01" value={formData.finalDiscountAmount}
-                            onChange={(e) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', e.target.value, totalBillBase) })); }} />
+                            onChange={(e) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', e.target.value, mealsBillBase) })); }} />
                         </div>
                         <div>
                           <label className="label text-xs">Net Amount</label>
                           <input className="input text-right font-semibold text-teal-700 dark:text-teal-200" type="number" min={0} value={formData.finalAmount}
-                            onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, totalBillBase) })); }}
+                            onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, mealsBillBase) })); }}
                             aria-label="Net Amount" />
                         </div>
                       </div>
-                      {(() => {
-                        // Model A: finalAmount already includes everything (halls+packs+extras−discount).
-                        const grandTotal = parseFloat(formData.finalAmount || '0') || totalBillBase;
-                        return (
-                          <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
-                            <span className="text-base font-extrabold text-[var(--text-1)]">Grand Total</span>
-                            <span className="text-base font-extrabold text-[var(--text-1)]">₹{grandTotal.toLocaleString('en-IN')}</span>
-                          </div>
-                        );
-                      })()}
+                      <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
+                        <span className="text-base font-extrabold text-[var(--text-1)]">Grand Total</span>
+                        <span className="text-base font-extrabold text-[var(--text-1)]">₹{payableGrandTotal.toLocaleString('en-IN')}</span>
+                      </div>
                     </div>
                   </div>
                 </div>

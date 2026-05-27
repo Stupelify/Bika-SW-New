@@ -66,6 +66,15 @@ export function mapPackLineForSumBooking(pack: {
   };
 }
 
+export function sumExtrasSubtotal(additionalItems: AdditionalLine[]): number {
+  return safeMoney(
+    additionalItems.reduce(
+      (s, a) => s + safeMoney(a.charges) * Math.max(1, safeNum(a.quantity ?? 1)),
+      0
+    )
+  );
+}
+
 export function sumBookingLines(input: {
   halls: HallLine[];
   packs: PackLine[];
@@ -83,11 +92,23 @@ export function sumBookingLines(input: {
       safeMoney(p.extraCharges)
     );
   }, 0);
-  const additionalTotal = input.additionalItems.reduce(
-    (s, a) => s + safeMoney(a.charges) * Math.max(1, safeNum(a.quantity ?? 1)),
-    0
-  );
+  const additionalTotal = sumExtrasSubtotal(input.additionalItems);
   return safeMoney(hallTotal + packTotal + additionalTotal);
+}
+
+export function splitMealsAndExtrasSubtotals(input: {
+  halls: HallLine[];
+  packs: PackLine[];
+  additionalItems: AdditionalLine[];
+}): {
+  mealsSubtotal: number;
+  extrasSubtotal: number;
+  totalAmount: number;
+} {
+  const extrasSubtotal = sumExtrasSubtotal(input.additionalItems);
+  const totalAmount = sumBookingLines(input);
+  const mealsSubtotal = roundRupee(Math.max(0, totalAmount - extrasSubtotal));
+  return { mealsSubtotal, extrasSubtotal, totalAmount };
 }
 
 export const BILLING_CEILING_EPSILON = 0.01;
@@ -98,16 +119,23 @@ export function exceedsBillingCeiling(value: number, ceiling: number): boolean {
 
 export interface ResolveBookingFinancialsInput {
   totalAmount: number;
+  /** Additional line items total; discount applies to meals only (total − extras). */
+  extrasSubtotal?: number;
   discountPercentage?: number;
   discountAmountInput?: number;
+  /** Payable grand total (meals net after discount + extras). */
   finalAmountInput?: number | null;
-  carryForwardManualDiscount?: number;
+  /** Flat rupee discount on meals subtotal preserved through party-over. */
+  carryForwardMealsDiscount?: number;
 }
 
 export interface ResolvedBookingFinancials {
   totalAmount: number;
+  mealsSubtotal: number;
+  extrasSubtotal: number;
   discountAmount: number;
   discountPercentage: number;
+  /** Payable amount before payments (= finalAmountValue). */
   grandTotal: number;
   finalAmountValue: number;
   exceededCeiling: boolean;
@@ -121,118 +149,88 @@ function deriveDiscountPercentForStorage(
   return Math.round((discountAmount / totalAmount) * 10000) / 100;
 }
 
+function resolveMealsNetFromPercentOrAmount(
+  mealsSubtotal: number,
+  discountPercentage: number,
+  discountAmountInput: number
+): { mealsNet: number; exceededCeiling: boolean } {
+  const inputDiscountPercent = Math.min(100, Math.max(0, safeNum(discountPercentage)));
+  let mealDiscount: number;
+  if (inputDiscountPercent > 0) {
+    mealDiscount = roundRupee((mealsSubtotal * inputDiscountPercent) / 100);
+  } else {
+    mealDiscount = roundRupee(Math.min(safeMoney(discountAmountInput), mealsSubtotal));
+  }
+  let exceededCeiling = false;
+  const rawDiscountInput = roundRupee(discountAmountInput);
+  if (
+    mealDiscount > mealsSubtotal ||
+    rawDiscountInput > mealsSubtotal ||
+    (inputDiscountPercent > 0 &&
+      roundRupee((mealsSubtotal * inputDiscountPercent) / 100) > mealsSubtotal)
+  ) {
+    exceededCeiling = true;
+    mealDiscount = Math.min(mealDiscount, mealsSubtotal);
+  }
+  const mealsNet = roundRupee(Math.max(0, mealsSubtotal - mealDiscount));
+  return { mealsNet, exceededCeiling };
+}
+
 export function resolveBookingFinancials(
   input: ResolveBookingFinancialsInput
 ): ResolvedBookingFinancials {
   const totalAmount = roundRupee(input.totalAmount);
+  const extrasSubtotal = roundRupee(Math.max(0, input.extrasSubtotal ?? 0));
+  const mealsSubtotal = roundRupee(Math.max(0, totalAmount - extrasSubtotal));
 
-  const hasAuthoritativeNet =
-    input.finalAmountInput != null && input.finalAmountInput !== undefined;
-
-  let discountAmount: number;
-  let finalAmountValue: number;
-  let discountPercentage: number;
+  let mealsNet: number;
   let exceededCeiling = false;
 
-  if (hasAuthoritativeNet) {
-    finalAmountValue = roundRupee(
-      Math.min(Math.max(0, Number(input.finalAmountInput)), totalAmount)
-    );
-    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
-    discountPercentage = deriveDiscountPercentForStorage(
-      totalAmount,
-      discountAmount
-    );
-    if (roundRupee(input.finalAmountInput) > totalAmount) {
-      exceededCeiling = true;
-    }
+  if (input.carryForwardMealsDiscount != null) {
+    const carried = roundRupee(input.carryForwardMealsDiscount);
+    mealsNet = roundRupee(Math.max(0, mealsSubtotal - carried));
   } else {
-    const inputDiscountPercent = Math.min(
-      100,
-      Math.max(0, safeNum(input.discountPercentage ?? 0))
-    );
-    if (inputDiscountPercent > 0) {
-      discountAmount = roundRupee((totalAmount * inputDiscountPercent) / 100);
-      discountPercentage = deriveDiscountPercentForStorage(
-        totalAmount,
-        discountAmount
+    const hasPayableInput =
+      input.finalAmountInput != null && input.finalAmountInput !== undefined;
+    if (hasPayableInput) {
+      const payableInput = roundRupee(Number(input.finalAmountInput));
+      if (payableInput > totalAmount) {
+        exceededCeiling = true;
+      }
+      const payableGrandTotal = roundRupee(
+        Math.min(Math.max(0, payableInput), totalAmount)
       );
+      mealsNet = roundRupee(Math.max(0, payableGrandTotal - extrasSubtotal));
     } else {
-      discountAmount = roundRupee(
-        Math.min(safeMoney(input.discountAmountInput ?? 0), totalAmount)
+      const resolved = resolveMealsNetFromPercentOrAmount(
+        mealsSubtotal,
+        input.discountPercentage ?? 0,
+        input.discountAmountInput ?? 0
       );
-      discountPercentage = deriveDiscountPercentForStorage(
-        totalAmount,
-        discountAmount
-      );
-    }
-    finalAmountValue = roundRupee(Math.max(0, totalAmount - discountAmount));
-    const rawDiscountInput = roundRupee(input.discountAmountInput ?? 0);
-    if (
-      discountAmount > totalAmount ||
-      rawDiscountInput > totalAmount ||
-      (inputDiscountPercent > 0 &&
-        roundRupee((totalAmount * inputDiscountPercent) / 100) > totalAmount)
-    ) {
-      exceededCeiling = true;
-      discountAmount = Math.min(discountAmount, totalAmount);
-      finalAmountValue = roundRupee(Math.max(0, totalAmount - discountAmount));
+      mealsNet = resolved.mealsNet;
+      exceededCeiling = resolved.exceededCeiling;
     }
   }
 
-  const inputDiscountPercent = Math.min(
-    100,
-    Math.max(0, safeNum(input.discountPercentage ?? 0))
+  const payableGrandTotal = roundRupee(mealsNet + extrasSubtotal);
+  const discountAmount = roundRupee(Math.max(0, totalAmount - payableGrandTotal));
+  const discountPercentage = deriveDiscountPercentForStorage(
+    totalAmount,
+    discountAmount
   );
-  let standardDiscountAmount: number;
-  if (inputDiscountPercent > 0) {
-    standardDiscountAmount = roundRupee((totalAmount * inputDiscountPercent) / 100);
-  } else {
-    standardDiscountAmount = roundRupee(
-      Math.min(safeMoney(input.discountAmountInput ?? 0), totalAmount)
-    );
-  }
-  const grandTotal = roundRupee(Math.max(0, totalAmount - standardDiscountAmount));
 
-  if (input.carryForwardManualDiscount != null) {
-    const carried = roundRupee(input.carryForwardManualDiscount);
-    finalAmountValue = roundRupee(Math.max(0, grandTotal - carried));
-    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
-    discountPercentage = deriveDiscountPercentForStorage(
-      totalAmount,
-      discountAmount
-    );
-    if (
-      exceedsBillingCeiling(finalAmountValue, totalAmount) ||
-      exceedsBillingCeiling(finalAmountValue, grandTotal)
-    ) {
-      exceededCeiling = true;
-      finalAmountValue = roundRupee(
-        Math.min(finalAmountValue, grandTotal, totalAmount)
-      );
-      discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
-    }
-  } else if (!hasAuthoritativeNet) {
-    finalAmountValue = grandTotal;
-    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
-    discountPercentage = deriveDiscountPercentForStorage(
-      totalAmount,
-      discountAmount
-    );
-  } else {
-    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
-    discountPercentage = deriveDiscountPercentForStorage(
-      totalAmount,
-      discountAmount
-    );
+  if (exceedsBillingCeiling(payableGrandTotal, totalAmount)) {
+    exceededCeiling = true;
   }
 
   return {
     totalAmount,
+    mealsSubtotal,
+    extrasSubtotal,
     discountAmount,
     discountPercentage,
-    grandTotal,
-    finalAmountValue,
+    grandTotal: payableGrandTotal,
+    finalAmountValue: payableGrandTotal,
     exceededCeiling,
   };
 }
@@ -248,6 +246,21 @@ export function assertFinancialsWithinCeiling(financials: {
   ) {
     throw new Error('BOOKING_NET_EXCEEDS_BILL');
   }
+}
+
+/** Meals-only ad-hoc discount to preserve through party-over (excludes extras). */
+export function computeMealsDiscountCarryForward(input: {
+  totalAmount: number;
+  extrasSubtotal: number;
+  payableGrandTotal: number;
+}): number {
+  const mealsSubtotal = roundRupee(
+    Math.max(0, input.totalAmount - input.extrasSubtotal)
+  );
+  const mealsNet = roundRupee(
+    Math.max(0, input.payableGrandTotal - input.extrasSubtotal)
+  );
+  return roundRupee(Math.max(0, mealsSubtotal - mealsNet));
 }
 
 /**

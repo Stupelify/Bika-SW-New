@@ -648,11 +648,14 @@ export async function recalculateBookingFinancials(
   tx: Prisma.TransactionClient,
   bookingId: string,
   options?: {
-    carryForwardManualDiscount?: number;
+    carryForwardMealsDiscount?: number;
   }
 ): Promise<void> {
-  const { mapPackLineForSumBooking, resolveBookingFinancials, sumBookingLines } =
-    await import('./booking.financials');
+  const {
+    mapPackLineForSumBooking,
+    resolveBookingFinancials,
+    splitMealsAndExtrasSubtotals,
+  } = await import('./booking.financials');
   const booking = await tx.booking.findUnique({
     where: { id: bookingId },
     include: {
@@ -685,18 +688,19 @@ export async function recalculateBookingFinancials(
     throw new Error('Booking not found');
   }
 
-  const totalAmount = sumBookingLines({
+  const lineTotals = splitMealsAndExtrasSubtotals({
     halls: booking.halls,
     packs: booking.packs.map((p) => mapPackLineForSumBooking(p)),
     additionalItems: booking.additionalItems,
   });
   const effectiveDiscountPercent = toOptionalSafePercent(booking.discountPercentage) || 0;
   const financials = resolveBookingFinancials({
-    totalAmount,
+    totalAmount: lineTotals.totalAmount,
+    extrasSubtotal: lineTotals.extrasSubtotal,
     discountPercentage: effectiveDiscountPercent,
     discountAmountInput: toSafeMoney(booking.discountAmount),
-    ...(options?.carryForwardManualDiscount != null
-      ? { carryForwardManualDiscount: options.carryForwardManualDiscount }
+    ...(options?.carryForwardMealsDiscount != null
+      ? { carryForwardMealsDiscount: options.carryForwardMealsDiscount }
       : {
           finalAmountInput:
             booking.finalAmountValue ??
@@ -704,22 +708,23 @@ export async function recalculateBookingFinancials(
             undefined,
         }),
   });
-  const { discountAmount, grandTotal, finalAmountValue } = financials;
+  const { discountAmount, discountPercentage, grandTotal, finalAmountValue } =
+    financials;
   const paymentReceived =
     booking.paymentReceivedAmountValue ??
     toOptionalSafeMoney(booking.paymentReceivedAmount) ??
     toSafeMoney(booking.advanceReceived);
-  const dueAmountValue = toSafeMoney(finalAmountValue - paymentReceived);
-  const balanceAmount = toSafeMoney(grandTotal - paymentReceived);
+  const dueAmountValue = toSafeMoney(Math.max(0, finalAmountValue - paymentReceived));
+  const balanceAmount = dueAmountValue;
 
   await tx.booking.update({
     where: { id: bookingId },
     data: {
-      totalAmount,
-      totalBillAmount: toStoredNumberString(totalAmount),
-      totalBillAmountValue: totalAmount,
+      totalAmount: lineTotals.totalAmount,
+      totalBillAmount: toStoredNumberString(lineTotals.totalAmount),
+      totalBillAmountValue: lineTotals.totalAmount,
       discountAmount,
-      discountPercentage: effectiveDiscountPercent,
+      discountPercentage,
       grandTotal,
       finalAmount: toStoredNumberString(finalAmountValue),
       finalAmountValue,
