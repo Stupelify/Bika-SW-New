@@ -41,6 +41,7 @@ import {
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
+import { IndianAmountInput } from '@/components/IndianAmountInput';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
@@ -3489,14 +3490,11 @@ export default function BookingsPage() {
                             </td>
                             {/* Col 7: Rate/Plate */}
                             <td className="px-2 py-2 align-top min-w-[70px]">
-                              <input
-                                className={`input py-1 text-xs w-full${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`}
-                                type="number"
-                                min={0}
+                              <IndianAmountInput
+                                className={`input py-1 text-xs w-full text-right${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`}
                                 value={row.ratePerPlate}
                                 disabled={!row.enabled || !row.withCatering}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => updatePackRow(packKey, { ratePerPlate: e.target.value })}
+                                onChange={(raw) => updatePackRow(packKey, { ratePerPlate: raw })}
                               />
                               {packDiff?.ratePerPlateChange && (
                                 <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}</p>
@@ -3504,14 +3502,11 @@ export default function BookingsPage() {
                             </td>
                             {/* Col 8: Hall Rate */}
                             <td className="px-2 py-2 align-top min-w-[70px]">
-                              <input
-                                className={`input py-1 text-xs w-full${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`}
-                                type="number"
-                                min={0}
+                              <IndianAmountInput
+                                className={`input py-1 text-xs w-full text-right${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`}
                                 value={row.hallRate}
                                 disabled={!row.enabled || !row.withHall}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
+                                onChange={(raw) => updatePackRow(packKey, { hallRate: raw })}
                               />
                               {packDiff?.hallRateChange && (
                                 <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}</p>
@@ -3519,11 +3514,8 @@ export default function BookingsPage() {
                             </td>
                             {/* Col 9: Amount (read-only — hall + pax × rate) */}
                             <td className="px-2 py-2 align-top min-w-[100px]">
-                              <input
+                              <IndianAmountInput
                                 className="input py-1 text-xs w-full text-right bg-[var(--surface-2)]"
-                                type="number"
-                                min={0}
-                                step={1}
                                 value={formatComputedAmount(packRowAmount(row))}
                                 disabled={!row.enabled}
                                 readOnly
@@ -3600,19 +3592,15 @@ export default function BookingsPage() {
                         <td colSpan={1} />
                         <td className="px-2 py-1.5 text-right text-xs font-semibold text-red-700 dark:text-red-200 whitespace-nowrap">Discount</td>
                         <td className="px-2 py-1.5">
-                          <input
+                          <IndianAmountInput
                             className="input py-1 text-xs w-full text-right dark:bg-slate-800/40"
-                            type="number"
-                            min={0}
-                            step={1}
                             value={formData.finalDiscountAmount}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
+                            onChange={(raw) => {
                               setAmountSyncMode('discountAmount');
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('discountAmount', e.target.value, mealsBillBase),
+                                ...normalizeAmountSnapshot('discountAmount', raw, mealsBillBase),
                               }));
                             }}
                           />
@@ -3624,20 +3612,19 @@ export default function BookingsPage() {
                         <td colSpan={7} />
                         <td className="px-2 py-1.5 text-right text-xs font-bold text-teal-700 dark:text-teal-200 whitespace-nowrap">Net Amount</td>
                         <td className="px-2 py-1.5">
-                          <input
+                          <IndianAmountInput
                             className="input py-1 text-xs w-full text-right font-semibold text-teal-700 dark:text-teal-200 dark:bg-slate-800/40"
-                            type="number"
-                            min={0}
                             value={netAmountDraft !== null ? netAmountDraft : formData.finalAmount}
-                            onFocus={(e) => { e.target.select(); setNetAmountDraft(e.target.value); }}
-                            onChange={(e) => setNetAmountDraft(e.target.value)}
-                            onBlur={(e) => {
+                            onFocus={() => setNetAmountDraft(netAmountDraft ?? formData.finalAmount)}
+                            onChange={(raw) => setNetAmountDraft(raw)}
+                            onBlur={() => {
+                              const raw = netAmountDraft ?? formData.finalAmount;
                               setNetAmountDraft(null);
                               setAmountSyncMode('finalAmount');
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('finalAmount', e.target.value, mealsBillBase),
+                                ...normalizeAmountSnapshot('finalAmount', raw, mealsBillBase),
                               }));
                             }}
                             aria-label="Net Amount"
@@ -3695,20 +3682,17 @@ export default function BookingsPage() {
                                   }))
                                 }
                               />
-                              <input
+                              <IndianAmountInput
                                 className="input py-1 text-xs w-24 text-right"
-                                type="number"
-                                min={0}
                                 value={item.amount}
                                 placeholder="0"
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) =>
+                                onChange={(raw) =>
                                   setFormData((prev) => ({
                                     ...prev,
                                     additionalRequirements: prev.additionalRequirements.map(
                                       (entry, entryIndex) =>
                                         entryIndex === index
-                                          ? { ...entry, amount: e.target.value }
+                                          ? { ...entry, amount: raw }
                                           : entry
                                     ),
                                   }))
@@ -3906,19 +3890,19 @@ export default function BookingsPage() {
                           </div>
                           <div>
                             <label className="label text-xs">Rate/Plate</label>
-                            <input className={`input${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`} type="number" min={0} value={row.ratePerPlate}
-                              disabled={!row.withCatering} onChange={(e) => updatePackRow(packKey, { ratePerPlate: e.target.value })} />
+                            <IndianAmountInput className={`input text-right${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`} value={row.ratePerPlate}
+                              disabled={!row.withCatering} onChange={(raw) => updatePackRow(packKey, { ratePerPlate: raw })} />
                             {packDiff?.ratePerPlateChange && <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}</p>}
                           </div>
                           <div>
                             <label className="label text-xs">Hall Rate</label>
-                            <input className={`input${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`} type="number" min={0} value={row.hallRate}
-                              disabled={!row.withHall} onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })} />
+                            <IndianAmountInput className={`input text-right${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`} value={row.hallRate}
+                              disabled={!row.withHall} onChange={(raw) => updatePackRow(packKey, { hallRate: raw })} />
                             {packDiff?.hallRateChange && <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}</p>}
                           </div>
                           <div>
                             <label className="label text-xs">Amount</label>
-                            <input className="input bg-[var(--surface-2)] text-right" type="number" min={0}
+                            <IndianAmountInput className="input bg-[var(--surface-2)] text-right"
                               value={formatComputedAmount(packRowAmount(row))} readOnly title="Catering + hall rate (once per meal)" />
                           </div>
                         </div>
@@ -3941,13 +3925,13 @@ export default function BookingsPage() {
                     {enabledPackAmountRows.map((entry) => (
                       <div key={entry.key} className="flex items-center justify-between">
                         <span className="text-sm text-[var(--text-2)]">{entry.label}</span>
-                        <span className="text-sm font-medium text-[var(--text-1)]">₹{formatComputedAmount(entry.amount)}</span>
+                        <span className="text-sm font-medium text-[var(--text-1)]">₹{Number(formatComputedAmount(entry.amount)).toLocaleString('en-IN')}</span>
                       </div>
                     ))}
                     {formData.additionalRequirements.map((item, index) => (
                       <div key={`mob-req-${index}`} className="grid grid-cols-[1fr,120px,auto] gap-2 items-center">
                         <input className="input" value={item.description} placeholder="Extra item" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) }))} />
-                        <input className="input text-right" type="number" min={0} value={item.amount} placeholder="0" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: e.target.value } : r) }))} />
+                        <IndianAmountInput className="input text-right" value={item.amount} placeholder="0" onChange={(raw) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: raw } : r) }))} />
                         <button type="button" className="text-red-500 text-xs" onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.filter((_, i) => i !== index) })); }}>✕</button>
                       </div>
                     ))}
@@ -4003,13 +3987,13 @@ export default function BookingsPage() {
                         </div>
                         <div>
                           <label className="label text-xs">Discount ₹</label>
-                          <input className="input text-right" type="number" min={0} step="0.01" value={formData.finalDiscountAmount}
-                            onChange={(e) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', e.target.value, mealsBillBase) })); }} />
+                          <IndianAmountInput className="input text-right" value={formData.finalDiscountAmount}
+                            onChange={(raw) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', raw, mealsBillBase) })); }} />
                         </div>
                         <div>
                           <label className="label text-xs">Net Amount</label>
-                          <input className="input text-right font-semibold text-teal-700 dark:text-teal-200" type="number" min={0} value={formData.finalAmount}
-                            onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, mealsBillBase) })); }}
+                          <IndianAmountInput className="input text-right font-semibold text-teal-700 dark:text-teal-200" value={formData.finalAmount}
+                            onChange={(raw) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', raw, mealsBillBase) })); }}
                             aria-label="Net Amount" />
                         </div>
                       </div>

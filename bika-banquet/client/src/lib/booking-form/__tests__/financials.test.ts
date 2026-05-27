@@ -44,6 +44,12 @@ describe('roundRupee / syncBillingAmounts', () => {
     expect(computePayableGrandTotal(20000, 500)).toBe(20500);
   });
 
+  it('parses en-IN grouped discount amount (display paste safety)', () => {
+    const synced = syncBillingAmounts('discountAmount', '2,235', 22354);
+    expect(synced.finalDiscountAmount).toBe('2235');
+    expect(synced.finalAmount).toBe('20119');
+  });
+
   it('derives meals net from discount rupees', () => {
     const synced = syncBillingAmounts('discountAmount', '2350', 22354);
     expect(synced.finalAmount).toBe('20004');
