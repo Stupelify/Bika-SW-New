@@ -1,6 +1,7 @@
 import {
   BILLING_CEILING_EPSILON,
   exceedsBillingCeiling,
+  mapPackLineForSumBooking,
   resolveBookingFinancials,
   sumBookingLines,
 } from '../controllers/booking.financials';
@@ -51,6 +52,34 @@ describe('sumBookingLines', () => {
       additionalItems: [],
     });
     expect(result).toBe(1000 + 50000 + 30000);
+  });
+
+  it('matches booking form save mapping (catering + hallRate per pack)', () => {
+    const packs = [
+      {
+        ratePerPlate: 2000,
+        packCount: 400,
+        hallRate: 1200000,
+      },
+      {
+        ratePerPlate: 1200,
+        packCount: 100,
+        hallRate: 0,
+      },
+    ];
+    const total = sumBookingLines({
+      halls: [{ charges: 0 }],
+      packs: packs.map((p) => mapPackLineForSumBooking(p)),
+      additionalItems: [],
+    });
+    expect(total).toBe(2120000);
+    const financials = resolveBookingFinancials({
+      totalAmount: total,
+      discountPercentage: 10,
+    });
+    expect(financials.discountAmount).toBe(212000);
+    expect(financials.grandTotal).toBe(1908000);
+    expect(financials.finalAmountValue).toBe(1908000);
   });
 
   it('defaults quantity to 1 for null additional items', () => {

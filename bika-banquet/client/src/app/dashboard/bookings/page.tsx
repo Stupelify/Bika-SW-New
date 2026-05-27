@@ -2365,7 +2365,32 @@ export default function BookingsPage() {
   const applyBookingToForm = useCallback((booking: any) => {
     const loadedPayments = mapBookingPaymentsFromApi(booking.payments || []);
     setFormData((prev) => {
-      const next = { ...prev, payments: loadedPayments };
+      const next = {
+        ...prev,
+        payments: loadedPayments,
+        finalDiscountAmount:
+          booking.discountAmount !== null && booking.discountAmount !== undefined
+            ? String(booking.discountAmount)
+            : prev.finalDiscountAmount,
+        finalDiscountPercent:
+          booking.discountPercentage !== null && booking.discountPercentage !== undefined
+            ? String(booking.discountPercentage)
+            : prev.finalDiscountPercent,
+        finalAmount:
+          booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
+            ? String(booking.finalAmountValue)
+            : booking.finalAmount !== null && booking.finalAmount !== undefined
+              ? String(booking.finalAmount)
+              : booking.grandTotal !== null && booking.grandTotal !== undefined
+                ? String(booking.grandTotal)
+                : prev.finalAmount,
+        dueAmount:
+          booking.dueAmountValue !== undefined && booking.dueAmountValue !== null
+            ? String(booking.dueAmountValue)
+            : booking.dueAmount !== null && booking.dueAmount !== undefined
+              ? String(booking.dueAmount)
+              : prev.dueAmount,
+      };
       savedFormDataRef.current = next;
       return next;
     });

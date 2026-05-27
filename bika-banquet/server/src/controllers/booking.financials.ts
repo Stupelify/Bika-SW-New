@@ -33,6 +33,34 @@ function safeNum(v: number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Map API/DB pack row to sumBookingLines input (includes hallRate once per pack). */
+export function mapPackLineForSumBooking(pack: {
+  ratePerPlate?: number | string | null;
+  packCount?: number | null;
+  noOfPack?: number | null;
+  setupCost?: number | string | null;
+  extraCharges?: number | string | null;
+  hallRate?: number | string | null;
+  hallRateValue?: number | null;
+}): PackLine {
+  const hallFromValue = Number(pack.hallRateValue);
+  const hallFromField = Number(pack.hallRate);
+  const hallRate = Number.isFinite(hallFromValue)
+    ? hallFromValue
+    : Number.isFinite(hallFromField)
+      ? hallFromField
+      : undefined;
+
+  return {
+    ratePerPlate: safeMoney(Number(pack.ratePerPlate)),
+    packCount: pack.packCount,
+    noOfPack: pack.noOfPack,
+    setupCost: safeMoney(Number(pack.setupCost)),
+    extraCharges: safeMoney(Number(pack.extraCharges)),
+    hallRate,
+  };
+}
+
 export function sumBookingLines(input: {
   halls: HallLine[];
   packs: PackLine[];
@@ -150,11 +178,11 @@ export async function releasePencilBookings(): Promise<void> {
     if (expired.length === 0) return;
 
     await prisma.booking.updateMany({
-      where: { id: { in: expired.map((b) => b.id) } },
+      where: { id: { in: expired.map((b: { id: string }) => b.id) } },
       data: { status: 'cancelled', isPencilBooking: false },
     });
 
-    expired.forEach((b) => {
+    expired.forEach((b: { id: string }) => {
       emitBookingBroadcast('booking:updated', { id: b.id, status: 'cancelled' });
       emitBookingCalendarCancel(b.id);
     });

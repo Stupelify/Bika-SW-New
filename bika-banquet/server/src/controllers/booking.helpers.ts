@@ -45,6 +45,7 @@ export {
   assertFinancialsWithinCeiling,
   BILLING_CEILING_EPSILON,
   exceedsBillingCeiling,
+  mapPackLineForSumBooking,
   resolveBookingFinancials,
   sumBookingLines,
   type AdditionalLine,

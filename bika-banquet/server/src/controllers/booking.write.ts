@@ -17,6 +17,7 @@ import {
 } from '../utils/banquetAccess';
 import {
   assertFinancialsWithinCeiling,
+  mapPackLineForSumBooking,
   resolveBookingFinancials,
   sumBookingLines,
 } from './booking.helpers';
@@ -467,13 +468,7 @@ export async function createBooking(
       // Calculate totals
       const totalAmount = sumBookingLines({
         halls: hallRowsInput.map((h: any) => ({ charges: h.charges })),
-        packs: (data.packs ?? []).map((p: any) => ({
-          ratePerPlate: p.ratePerPlate,
-          packCount: p.packCount,
-          noOfPack: p.noOfPack,
-          setupCost: p.setupCost,
-          extraCharges: p.extraCharges,
-        })),
+        packs: (data.packs ?? []).map((p: any) => mapPackLineForSumBooking(p)),
         additionalItems: (data.additionalItems ?? []).map((a: any) => ({
           charges: a.charges,
           quantity: a.quantity,
@@ -1326,6 +1321,8 @@ export async function updateBooking(
             ratePerPlate: true,
             setupCost: true,
             extraCharges: true,
+            hallRate: true,
+            hallRateValue: true,
           },
         });
       const additionalItemRows = Array.isArray(data.additionalItems)
@@ -1340,13 +1337,7 @@ export async function updateBooking(
 
       const totalAmount = sumBookingLines({
         halls: hallRows.map((h: any) => ({ charges: h.charges })),
-        packs: packRows.map((p: any) => ({
-          ratePerPlate: p.ratePerPlate,
-          packCount: p.packCount,
-          noOfPack: p.noOfPack,
-          setupCost: p.setupCost,
-          extraCharges: p.extraCharges,
-        })),
+        packs: packRows.map((p: any) => mapPackLineForSumBooking(p)),
         additionalItems: additionalItemRows.map((a: any) => ({
           charges: a.charges,
           quantity: a.quantity,
