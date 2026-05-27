@@ -1,8 +1,11 @@
 /**
- * Server-side catering rate rules — mirror client pack-catering.ts.
+ * Server-side catering rate rules. The ₹200 floor is shared with the client
+ * via @bika/booking-core.
  */
 
-export const MIN_CATERING_RATE_PER_PLATE = 200;
+import { MIN_CATERING_RATE_PER_PLATE } from '@bika/booking-core';
+
+export { MIN_CATERING_RATE_PER_PLATE };
 
 export interface PackCateringPayload {
   packName?: string;

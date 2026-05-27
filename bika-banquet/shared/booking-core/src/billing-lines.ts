@@ -1,10 +1,11 @@
 /**
- * Booking form line totals — row amounts and pre-discount total.
+ * Booking form line totals — row amounts and pre-discount total (row-based view).
  * Hall rate is once per meal pack (never × hallIds.length).
- * Server parity: pack hallRate in sumBookingLines; booking_halls charges are association-only (0).
+ * Server parity: pack hallRate in sumBookingLines (booking-lines.ts); booking_halls
+ * charges are association-only (0).
  */
 
-import { roundRupee } from './financials';
+import { roundRupee } from './money';
 
 export const PACK_KEYS = ['breakfast', 'lunch', 'hiTea', 'dinner'] as const;
 export type MealPackKey = (typeof PACK_KEYS)[number];

@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildBookingHallRows,
+  computeExtrasSubtotal,
   computeMealsSubtotal,
+  computePackCateringAmount,
+  computePackHallAmount,
   computePackRowAmount,
+  computePackRowAmountFromApiPack,
   computePreDiscountTotal,
-} from '../billing-lines';
-import type { PackBillingRow } from '../billing-lines';
+  sumPackHallRates,
+} from '../index';
+import type { PackBillingRow } from '../index';
 
 const baseRow = (overrides: Partial<PackBillingRow> = {}): PackBillingRow => ({
   enabled: true,
@@ -26,6 +31,7 @@ const fourPacks = (patch: Partial<Record<string, Partial<PackBillingRow>>>) => (
   dinner: baseRow(patch.dinner),
 });
 
+// ---- ported verbatim from client billing-lines.test.ts ----
 describe('computePackRowAmount', () => {
   it('does not multiply hall rate by number of halls', () => {
     const row = baseRow({ hallRate: '50000' });
@@ -82,5 +88,62 @@ describe('buildBookingHallRows', () => {
     ]);
     expect(rows).toHaveLength(3);
     expect(rows.every((r) => r.charges === 0)).toBe(true);
+  });
+});
+
+// ---- added edge cases ----
+describe('computePackCateringAmount (edge cases)', () => {
+  it('is zero when the pack is disabled', () => {
+    expect(computePackCateringAmount(baseRow({ enabled: false }))).toBe(0);
+  });
+
+  it('drops rate/pax but keeps setup + extras when catering is off', () => {
+    const row = baseRow({ withCatering: false, setupCost: '500', extraCharges: 200 });
+    expect(computePackCateringAmount(row)).toBe(700);
+  });
+
+  it('clamps negative rate to zero', () => {
+    const row = baseRow({ ratePerPlate: '-50', pax: '10', setupCost: '0', extraCharges: 0, withHall: false });
+    expect(computePackCateringAmount(row)).toBe(0);
+  });
+});
+
+describe('computePackHallAmount (edge cases)', () => {
+  it('is zero when hall is not selected', () => {
+    expect(computePackHallAmount(baseRow({ withHall: false }))).toBe(0);
+  });
+  it('is the hall rate once when selected', () => {
+    expect(computePackHallAmount(baseRow({ withHall: true, hallRate: '30000' }))).toBe(30000);
+  });
+});
+
+describe('computeExtrasSubtotal (edge cases)', () => {
+  it('clamps negatives and ignores non-numeric amounts', () => {
+    expect(
+      computeExtrasSubtotal([{ amount: '500' }, { amount: '-100' }, { amount: 'abc' }])
+    ).toBe(500);
+  });
+});
+
+describe('sumPackHallRates / computePackRowAmountFromApiPack (edge cases)', () => {
+  it('sums hall amounts across rows', () => {
+    expect(
+      sumPackHallRates([
+        baseRow({ withHall: true, hallRate: '50000' }),
+        baseRow({ withHall: false, hallRate: '99999' }),
+        baseRow({ withHall: true, hallRate: '30000' }),
+      ])
+    ).toBe(80000);
+  });
+
+  it('prefers hallRateValue and rounds the API row amount', () => {
+    expect(
+      computePackRowAmountFromApiPack({
+        ratePerPlate: 100,
+        packCount: 10,
+        hallRate: 99999,
+        hallRateValue: 50000,
+      })
+    ).toBe(50000 + 1000);
   });
 });

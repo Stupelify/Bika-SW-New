@@ -1,44 +1,56 @@
 # syntax=docker/dockerfile:1
+# Build context is the monorepo root (see docker-compose.yml). The client
+# imports @bika/booking-core only at build time — Next bundles it into .next —
+# so it is a client devDependency and is NOT needed in the runtime image.
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Workspace manifests first for better install-layer caching. All workspace
+# package.json files must be present so `npm ci` can build the workspace tree.
+COPY package.json package-lock.json ./
+COPY shared/booking-core/package.json ./shared/booking-core/package.json
+COPY client/package.json ./client/package.json
+COPY server/package.json ./server/package.json
 
-# Install dependencies — cache node_modules across builds
-RUN --mount=type=cache,target=/root/.npm \
-    npm install --prefer-offline
+# Install the whole workspace (build needs the shared package + its tooling).
+RUN --mount=type=cache,target=/root/.npm npm ci
 
-# Copy source code
-COPY . .
+# Source for the parts this image builds.
+COPY shared/booking-core ./shared/booking-core
+COPY client ./client
 
-# Ensure optional static asset directory exists for multi-stage COPY
-RUN mkdir -p public
+# Build the shared package first so Next can bundle its compiled output.
+RUN npm run build --workspace=@bika/booking-core
 
 # Build arguments
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# Ensure optional static asset directory exists for multi-stage COPY
+WORKDIR /app/client
+RUN mkdir -p public
+
 # Build Next.js app
 RUN npm run build
 
-# Production stage
+# Production stage — client runs at /app exactly as before; the shared package
+# is already bundled into .next so the runtime needs no workspace wiring.
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Only the client manifest; @bika/booking-core is a devDependency and omitted.
+COPY client/package.json ./package.json
 
 # Install production dependencies only — cached
 RUN --mount=type=cache,target=/root/.npm \
     npm install --omit=dev --prefer-offline
 
 # Copy built files
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.mjs ./
+COPY --from=builder /app/client/.next ./.next
+COPY --from=builder /app/client/public ./public
+COPY --from=builder /app/client/next.config.mjs ./
 
 # Expose port
 EXPOSE 3000

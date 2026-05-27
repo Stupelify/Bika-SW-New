@@ -1,19 +1,11 @@
 /**
- * Booking form billing — integer rupees, nearest-rupee discount on meals only,
- * grand total = meals net + extras. Keep aligned with server booking.financials.ts.
+ * Booking form billing (form view) — integer rupees, nearest-rupee discount on
+ * meals only, grand total = meals net + extras.
+ * Money primitives live in money.ts; the line-array (persistence) view lives in
+ * booking-lines.ts.
  */
 
-export const BILLING_CEILING_EPSILON = 0.01;
-
-/** Nearest whole rupee (half-up). */
-export function roundRupee(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.round(value);
-}
-
-export function formatRupeeAmount(amount: number): string {
-  return String(roundRupee(amount));
-}
+import { exceedsBillingCeiling, formatRupeeAmount, roundRupee } from './money';
 
 /** Display-only; does not drive stored money after sync. */
 export function formatDiscountPercentDisplay(percent: number): string {
@@ -89,10 +81,6 @@ export function syncBillingAmounts(
     finalDiscountAmount: formatRupeeAmount(discountAmount),
     finalAmount: formatRupeeAmount(finalAmount),
   };
-}
-
-export function exceedsBillingCeiling(value: number, ceiling: number): boolean {
-  return roundRupee(value) > roundRupee(ceiling);
 }
 
 export interface ValidateBillingCeilingInput {

@@ -1,9 +1,11 @@
 /**
  * Catering toggle rules for the dashboard booking form.
- * Keep server validation in booking.pack-catering.ts aligned.
+ * The ₹200 floor is shared with the server via @bika/booking-core.
  */
 
-export const MIN_CATERING_RATE_PER_PLATE = 200;
+import { MIN_CATERING_RATE_PER_PLATE } from '@bika/booking-core';
+
+export { MIN_CATERING_RATE_PER_PLATE };
 
 export interface PackCateringRateSource {
   ratePerPlate?: number | string | null;

@@ -1,0 +1,22 @@
+{
+  "name": "@bika/booking-core",
+  "version": "1.0.0",
+  "description": "Single source of truth for Bika booking billing math and catering rules (client + server).",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json -w",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "vitest": "^3.2.4"
+  }
+}

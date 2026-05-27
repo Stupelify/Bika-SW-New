@@ -57,6 +57,7 @@ import {
   getItemPoints,
   templateItemsToMenuItemLikes,
 } from '@/lib/booking-form/menu-template';
+import type { MenuItemLike } from '@/lib/booking-form/types';
 import {
   buildBookingHallRows,
   computePackRowAmount,
@@ -64,9 +65,6 @@ import {
   computeExtrasSubtotal,
   computeMealsSubtotal,
   sumPackHallRates,
-} from '@/lib/booking-form/billing-lines';
-import type { MenuItemLike } from '@/lib/booking-form/types';
-import {
   computePayableGrandTotal,
   formatDiscountPercentDisplay,
   formatRupeeAmount,
@@ -74,7 +72,7 @@ import {
   syncBillingAmounts,
   validateBillingCeiling,
   type BillingAmountSyncMode,
-} from '@/lib/booking-form/financials';
+} from '@bika/booking-core';
 import {
   CASTE_OPTIONS,
   COUNTRY_DIAL_CODE_OPTIONS,
