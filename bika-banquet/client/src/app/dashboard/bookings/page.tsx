@@ -3550,11 +3550,23 @@ export default function BookingsPage() {
                               value={formData.finalDiscountPercent}
                               onFocus={(e) => e.target.select()}
                               onChange={(e) => {
+                                const raw = e.target.value;
                                 setAmountSyncMode('discountPercent');
                                 setDiscountManuallySet(true);
+                                setFormData((prev) => {
+                                  const synced = normalizeAmountSnapshot('discountPercent', raw, mealsBillBase);
+                                  return {
+                                    ...prev,
+                                    finalDiscountAmount: synced.finalDiscountAmount,
+                                    finalAmount: synced.finalAmount,
+                                    finalDiscountPercent: raw,
+                                  };
+                                });
+                              }}
+                              onBlur={() => {
                                 setFormData((prev) => ({
                                   ...prev,
-                                  ...normalizeAmountSnapshot('discountPercent', e.target.value, mealsBillBase),
+                                  ...normalizeAmountSnapshot('discountPercent', prev.finalDiscountPercent, mealsBillBase),
                                 }));
                               }}
                             />
@@ -3923,7 +3935,8 @@ export default function BookingsPage() {
                         <div>
                           <label className="label text-xs">Discount %</label>
                           <input className="input text-right" type="number" min={0} max={100} step="0.01" value={formData.finalDiscountPercent}
-                            onChange={(e) => { setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', e.target.value, mealsBillBase) })); }} />
+                            onChange={(e) => { const raw = e.target.value; setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => { const synced = normalizeAmountSnapshot('discountPercent', raw, mealsBillBase); return { ...prev, finalDiscountAmount: synced.finalDiscountAmount, finalAmount: synced.finalAmount, finalDiscountPercent: raw }; }); }}
+                            onBlur={() => { setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', prev.finalDiscountPercent, mealsBillBase) })); }} />
                         </div>
                         <div>
                           <label className="label text-xs">Discount ₹</label>
