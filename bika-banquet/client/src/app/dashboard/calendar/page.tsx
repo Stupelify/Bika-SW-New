@@ -28,7 +28,6 @@ import type {
 import {
   bookingSortMinutes,
   bookingTimeLabel,
-  buildCalendarDays,
   buildWeekDays,
   dateToKey,
   endOfDay,
@@ -404,18 +403,6 @@ export default function CalendarPage() {
     () => findDayHallConflicts(selectedBookings),
     [selectedBookings]
   );
-  const selectedDayRevenue = selectedBookings.reduce(
-    (sum, booking) => sum + toSafeNumber(booking.grandTotal),
-    0
-  );
-  const selectedDayGuests = selectedBookings.reduce(
-    (sum, booking) => sum + toSafeNumber(booking.expectedGuests),
-    0
-  );
-  const noSelectedEvents =
-    selectedBookings.length === 0 &&
-    selectedEnquiries.length === 0 &&
-    selectedGoogleEvents.length === 0;
   const selectedDateLabel = parseDateKey(selectedDate).toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -449,17 +436,8 @@ export default function CalendarPage() {
           month: 'long',
           year: 'numeric',
         });
-  const hallBoardRangeLabel = viewMode === 'day' ? selectedDateLabel : viewLabel;
   const hallBoardDateKey = selectedDate;
   const todayKey = formatDateKey(new Date());
-  const calendarDays = useMemo(
-    () => buildCalendarDays(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)),
-    [viewDate]
-  );
-  const mobileWeekDays = useMemo(
-    () => buildWeekDays(parseDateKey(selectedDate)),
-    [selectedDate]
-  );
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.innerWidth >= 1024) return;
