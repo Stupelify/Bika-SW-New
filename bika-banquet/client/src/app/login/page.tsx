@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
@@ -14,11 +14,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      useAuthStore.setState({ isLoading: false });
+      return;
+    }
+    void loadUser();
+  }, [loadUser]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await login(email, password);
-      await loadUser();
       const loggedInUser = useAuthStore.getState().user;
       const nextRoute = getDefaultDashboardRoute(loggedInUser?.permissions);
 
@@ -37,8 +45,16 @@ export default function LoginPage() {
         (error?.response?.status === 429
           ? 'Too many login attempts. Please wait and try again.'
           : null) ||
+        (error?.code === 'ECONNABORTED'
+          ? 'Server did not respond in time. Check that the API is running.'
+          : null) ||
+        (error?.message === 'Network Error'
+          ? 'Cannot reach the server. Check your connection and API URL.'
+          : null) ||
         'Login failed';
       toast.error(message);
+    } finally {
+      useAuthStore.setState({ isLoading: false });
     }
   };
 
