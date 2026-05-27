@@ -69,6 +69,7 @@ import type { MenuItemLike } from '@/lib/booking-form/types';
 import {
   computePayableGrandTotal,
   formatDiscountPercentDisplay,
+  formatPercentFieldOnBlur,
   formatRupeeAmount,
   roundRupee,
   syncBillingAmounts,
@@ -558,6 +559,7 @@ export default function BookingsPage() {
   const [openHallPickerPack, setOpenHallPickerPack] = useState<PackKey | null>(null);
   const [hallPickerAnchorRect, setHallPickerAnchorRect] = useState<DOMRect | null>(null);
   const [netAmountDraft, setNetAmountDraft] = useState<string | null>(null);
+  const [discountPercentDraft, setDiscountPercentDraft] = useState<string | null>(null);
   const [customerSearchInputs, setCustomerSearchInputs] =
     useState<CustomerSearchInputState>({
       primary: '',
@@ -3545,18 +3547,42 @@ export default function BookingsPage() {
                             <span className="text-xs text-[var(--text-3)] whitespace-nowrap">Disc %</span>
                             <input
                               className="input py-1 text-xs w-16 text-right dark:bg-slate-800/40"
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.01"
-                              value={formData.finalDiscountPercent}
-                              onFocus={(e) => e.target.select()}
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              value={
+                                discountPercentDraft !== null
+                                  ? discountPercentDraft
+                                  : formData.finalDiscountPercent
+                              }
+                              onFocus={(e) => {
+                                e.target.select();
+                                setDiscountPercentDraft(formData.finalDiscountPercent);
+                              }}
                               onChange={(e) => {
                                 setAmountSyncMode('discountPercent');
                                 setDiscountManuallySet(true);
+                                const raw = e.target.value;
+                                setDiscountPercentDraft(raw);
                                 setFormData((prev) => ({
                                   ...prev,
-                                  ...normalizeAmountSnapshot('discountPercent', e.target.value, mealsBillBase),
+                                  ...normalizeAmountSnapshot(
+                                    'discountPercent',
+                                    raw,
+                                    mealsBillBase
+                                  ),
+                                }));
+                              }}
+                              onBlur={(e) => {
+                                const formatted = formatPercentFieldOnBlur(e.target.value);
+                                setDiscountPercentDraft(null);
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  ...normalizeAmountSnapshot(
+                                    'discountPercent',
+                                    formatted !== '' ? formatted : e.target.value,
+                                    mealsBillBase
+                                  ),
                                 }));
                               }}
                             />
@@ -3924,8 +3950,47 @@ export default function BookingsPage() {
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="label text-xs">Discount %</label>
-                          <input className="input text-right" type="number" min={0} max={100} step="0.01" value={formData.finalDiscountPercent}
-                            onChange={(e) => { setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', e.target.value, mealsBillBase) })); }} />
+                          <input
+                            className="input text-right"
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            value={
+                              discountPercentDraft !== null
+                                ? discountPercentDraft
+                                : formData.finalDiscountPercent
+                            }
+                            onFocus={(e) => {
+                              e.target.select();
+                              setDiscountPercentDraft(formData.finalDiscountPercent);
+                            }}
+                            onChange={(e) => {
+                              setAmountSyncMode('discountPercent');
+                              setDiscountManuallySet(true);
+                              const raw = e.target.value;
+                              setDiscountPercentDraft(raw);
+                              setFormData((prev) => ({
+                                ...prev,
+                                ...normalizeAmountSnapshot(
+                                  'discountPercent',
+                                  raw,
+                                  mealsBillBase
+                                ),
+                              }));
+                            }}
+                            onBlur={(e) => {
+                              const formatted = formatPercentFieldOnBlur(e.target.value);
+                              setDiscountPercentDraft(null);
+                              setFormData((prev) => ({
+                                ...prev,
+                                ...normalizeAmountSnapshot(
+                                  'discountPercent',
+                                  formatted !== '' ? formatted : e.target.value,
+                                  mealsBillBase
+                                ),
+                              }));
+                            }}
+                          />
                         </div>
                         <div>
                           <label className="label text-xs">Discount ₹</label>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computePayableGrandTotal,
   exceedsBillingCeiling,
+  formatPercentFieldOnBlur,
   roundRupee,
   syncBillingAmounts,
   validateBillingCeiling,
@@ -12,8 +13,29 @@ describe('roundRupee / syncBillingAmounts', () => {
     const synced = syncBillingAmounts('discountPercent', '10', 22354);
     expect(synced.finalDiscountAmount).toBe('2235');
     expect(synced.finalAmount).toBe('20119');
-    expect(synced.finalDiscountPercent).toBe('10.00');
+    expect(synced.finalDiscountPercent).toBe('10');
     expect(computePayableGrandTotal(20119, 100)).toBe(20219);
+  });
+
+  it('preserves partial percent while typing (1 → 10, not 1.00)', () => {
+    const step1 = syncBillingAmounts('discountPercent', '1', 10000);
+    expect(step1.finalDiscountPercent).toBe('1');
+    expect(step1.finalDiscountAmount).toBe('100');
+
+    const step2 = syncBillingAmounts('discountPercent', '10', 10000);
+    expect(step2.finalDiscountPercent).toBe('10');
+    expect(step2.finalDiscountAmount).toBe('1000');
+  });
+
+  it('allows empty percent field without forcing 0.00', () => {
+    const synced = syncBillingAmounts('discountPercent', '', 10000);
+    expect(synced.finalDiscountPercent).toBe('');
+    expect(synced.finalDiscountAmount).toBe('0');
+  });
+
+  it('formats percent on blur', () => {
+    expect(formatPercentFieldOnBlur('10')).toBe('10.00');
+    expect(formatPercentFieldOnBlur('10.5')).toBe('10.50');
   });
 
   it('keeps meals net authoritative when typed', () => {
