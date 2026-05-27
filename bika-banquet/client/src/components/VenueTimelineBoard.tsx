@@ -551,48 +551,142 @@ function DesktopMonth({groups,vdate,exp,toggle,onBook,onDrill}:{
   );
 }
 
-// ─── Mobile Day View (MD1 — compressed timeline) ─────────────────────────────
+// ─── Mobile Day View (MD2 — slot-grouped agenda, hall-as-rows re-skin) ───────
+// Date header (weekday + date + booking-count summary) + hall-occupancy chips,
+// optional red conflict banner, then bookings GROUPED BY SLOT (bucketSlot). Each
+// group: slot label + time range + count, then large status-colored cards with a
+// hall-color dot. Pencil = dashed border + STRIPE. Conflict (within a single hall,
+// >1 booking in the same slot — matches the Week/Month proxy) → red accent + note.
+// NOTE: TimelineSlot carries no revenue/amount field, so the "₹revenue" summary
+// from the prototype is omitted gracefully.
 
-function MobileDay({groups,selDate,exp,toggle,onBook}:{groups:VenueGroup[];selDate:string;exp:Set<string>;toggle:(n:string)=>void;onBook:(id:string)=>void}) {
+const SLOT_RANGE: Record<string,string> = {
+  morning:'9 AM–12 PM', lunch:'12–4 PM', evening:'4–7 PM', dinner:'7–10 PM',
+};
+
+// Flatten this venue-group set into the day's bookings, tagged with hall context.
+interface DaySlot extends TimelineSlot { pal:Pal; hallName:string; hallId?:string }
+
+function MobileDay({groups,selDate,onBook,onCreate}:{
+  groups:VenueGroup[];selDate:string;exp:Set<string>;toggle:(n:string)=>void;onBook:(id:string)=>void;onCreate:()=>void;
+}) {
+  const dayBks:DaySlot[]=groups.flatMap(g=>g.halls.flatMap(h=>
+    h.slots.filter(s=>s.date===selDate).map(s=>({...s,pal:g.pal,hallName:h.hallName,hallId:h.hallId}))
+  )).sort((a,b)=>a.startMinutes-b.startMinutes);
+
+  const d=new Date(selDate+'T00:00:00');
+  const tod=isToday(d);
+  const weekday=d.toLocaleDateString('en-IN',{weekday:'long'});
+  const dateLabel=d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+
+  // Conflict = within a single hall, >1 booking in the same slot.
+  const conflictKeys=useMemo(()=>{
+    const counts=new Map<string,number>();
+    for(const b of dayBks){const sl=bucketSlot(b.startMinutes);if(!sl)continue;const k=`${b.hallId||b.hallName}|${sl.id}`;counts.set(k,(counts.get(k)||0)+1);}
+    return new Set(Array.from(counts.entries()).filter(([,n])=>n>1).map(([k])=>k));
+  },[dayBks]);
+  const isConflict=(b:DaySlot)=>{const sl=bucketSlot(b.startMinutes);return!!sl&&conflictKeys.has(`${b.hallId||b.hallName}|${sl.id}`);};
+  const hasConflict=conflictKeys.size>0;
+
+  // Hall-occupancy chips: one per hall that has at least one booking today.
+  const occupancy=useMemo(()=>{
+    const m=new Map<string,{name:string;pal:Pal;count:number}>();
+    for(const g of groups)for(const h of g.halls){
+      const c=h.slots.filter(s=>s.date===selDate).length;
+      if(c>0){const k=h.hallId||h.hallName;m.set(k,{name:h.hallName,pal:g.pal,count:c});}
+    }
+    return Array.from(m.values());
+  },[groups,selDate]);
+
+  // Group by SLOT (Morning/Lunch/Evening/Dinner).
+  const grouped=SLOTS.map(sl=>({slot:sl,list:dayBks.filter(b=>bucketSlot(b.startMinutes)?.id===sl.id)}));
+
   return (
-    <div style={{width:'100%',overflowX:'hidden'}}>
-      <div style={{display:'flex',height:20,background:'#f9fafb',borderBottom:BD,position:'sticky',top:0,zIndex:10}}>
-        <div style={{width:M_SW,flexShrink:0,borderRight:BD}}/>
-        <div style={{flex:1,position:'relative'}}>
-          {[9,12,16,19,22].map(h=>(
-            <div key={h} style={{position:'absolute',left:`${pL(h*60)}%`,top:0,bottom:0,display:'flex',alignItems:'center',paddingLeft:2,fontSize:8,color:'#c0c5d0',pointerEvents:'none',userSelect:'none'}}>{fmtH(h)}</div>
-          ))}
+    <div style={{width:'100%',overflowX:'hidden',display:'flex',flexDirection:'column'}}>
+      {/* Date header + summary */}
+      <div style={{padding:'12px 14px 10px',background:'#fff',borderBottom:BD}}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
+          <div>
+            <p style={{fontSize:11,fontWeight:700,color:'#0d9488',textTransform:'uppercase',letterSpacing:'.08em',margin:0}}>{tod?`Today · ${weekday}`:weekday}</p>
+            <p style={{fontSize:21,fontWeight:800,color:'#0f172a',letterSpacing:'-.02em',lineHeight:1.1,margin:'2px 0 0'}}>{dateLabel}</p>
+          </div>
+          <div style={{textAlign:'right',flexShrink:0}}>
+            <p style={{fontSize:13,fontWeight:700,color:'#0f172a',fontVariantNumeric:'tabular-nums',margin:0}}>{dayBks.length} booking{dayBks.length!==1?'s':''}</p>
+          </div>
         </div>
-      </div>
-      {groups.map(g=>{
-        const open=exp.has(g.name);
-        const vSlots=assignLanes(g.halls.flatMap(h=>h.slots.filter(s=>s.date===selDate)));
-        return (
-          <React.Fragment key={g.name}>
-            <div style={{display:'flex',height:M_RH,background:'#f4f6fc',borderBottom:BD}}>
-              <button type="button" onClick={()=>toggle(g.name)}
-                style={{width:M_SW,flexShrink:0,height:M_RH,display:'flex',alignItems:'center',gap:4,padding:'0 6px',cursor:'pointer',background:'transparent',border:'none',borderRight:BD,userSelect:'none',textAlign:'left'}}>
-                <Chevron open={open}/>
-                <div style={{width:20,height:20,borderRadius:5,background:g.pal.solid,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'#fff',flexShrink:0}}>{venueInitials(g.name)}</div>
-              </button>
-              <div style={{flex:1,position:'relative',overflow:'hidden'}}><GridLines/><NowLine/>
-                {vSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={{...s,conflict:false}} pal={g.pal} rh={M_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+        {/* Hall-occupancy chips */}
+        {occupancy.length>0&&(
+          <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
+            {occupancy.map(o=>(
+              <div key={o.name} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 9px',borderRadius:9999,background:o.pal.soft,border:`1px solid ${o.pal.border}40`}}>
+                <span style={{width:6,height:6,borderRadius:'50%',background:o.pal.solid,flexShrink:0}}/>
+                <span style={{fontSize:11,fontWeight:700,color:o.pal.text,whiteSpace:'nowrap'}}>{o.name}</span>
+                <span style={{fontSize:10.5,fontWeight:800,color:o.pal.text,background:'#fff',borderRadius:9999,padding:'0 5px',fontVariantNumeric:'tabular-nums'}}>{o.count}</span>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Conflict alert banner */}
+      {hasConflict&&(
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 14px',background:'#fef2f2',borderBottom:'1px solid #fca5a5',fontSize:12,fontWeight:600,color:'#991b1b'}}>
+          <span style={{flexShrink:0}}>⚠</span>
+          {conflictKeys.size===1?'A hall has a double-booked slot on this date':`${conflictKeys.size} slots are double-booked on this date`}
+        </div>
+      )}
+
+      {/* Slot-grouped agenda */}
+      <div style={{flex:1,padding:'12px 12px 8px'}}>
+        {dayBks.length===0?(
+          <div style={{padding:'28px 16px',textAlign:'center'}}>
+            <p style={{fontSize:13,color:'#9ca3af',marginBottom:12}}>No bookings on this day</p>
+            <button type="button" onClick={onCreate} style={{fontSize:12,fontWeight:600,color:'#fff',background:'#0d9488',border:'none',borderRadius:8,padding:'8px 20px',cursor:'pointer'}}>Create Booking</button>
+          </div>
+        ):grouped.map(g=>g.list.length===0?null:(
+          <div key={g.slot.id} style={{marginBottom:16}}>
+            <div style={{display:'flex',alignItems:'flex-end',gap:8,marginBottom:7}}>
+              <div>
+                <p style={{fontSize:9.5,fontWeight:800,color:'#6b7280',textTransform:'uppercase',letterSpacing:'.08em',margin:0}}>{g.slot.label}</p>
+                <p style={{fontSize:16,fontWeight:800,color:'#0f172a',letterSpacing:'-.02em',lineHeight:1.1,margin:'1px 0 0',fontVariantNumeric:'tabular-nums'}}>{SLOT_RANGE[g.slot.id]||''}</p>
+              </div>
+              <span style={{marginBottom:2,fontSize:11,color:'#6b7280',fontWeight:600}}>{g.list.length} event{g.list.length!==1?'s':''}</span>
             </div>
-            {open&&g.halls.map((hall,i)=>{
-              const hSlots=assignLanes(hall.slots.filter(s=>s.date===selDate));
-              return (
-                <div key={hall.hallName} style={{display:'flex',height:M_RH,background:'#fff',borderBottom:i===g.halls.length-1?BD:BD_INNER}}>
-                  <div style={{width:M_SW,flexShrink:0,display:'flex',alignItems:'center',padding:'0 6px 0 18px',borderRight:BD,fontSize:9,color:'#aab0c0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{hall.hallName}</div>
-                  <div style={{flex:1,position:'relative',overflow:'hidden'}}><GridLines/><NowLine/>
-                    {hSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={M_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
-                  </div>
-                </div>
-              );
-            })}
-          </React.Fragment>
-        );
-      })}
+            <div style={{display:'flex',flexDirection:'column',gap:7}}>
+              {g.list.map(b=>{
+                const st=statusOf(b.status);
+                const isPencil=b.isPencilBooking||b.status==='pencil';
+                const conflict=isConflict(b);
+                return (
+                  <button key={b.bookingId||b.functionName} type="button"
+                    onClick={()=>b.bookingId&&onBook(b.bookingId)}
+                    style={{
+                      textAlign:'left',width:'100%',cursor:'pointer',
+                      background:st.bg,borderRadius:14,
+                      backgroundImage:isPencil?STRIPE:undefined,
+                      border:conflict?'1.5px solid #ef4444':isPencil?`1.5px dashed ${st.accent}`:`1.5px solid ${st.accent}80`,
+                      borderLeft:`5px solid ${b.pal.solid}`,
+                      padding:'11px 12px',display:'flex',flexDirection:'column',gap:6,
+                    }}>
+                    {isPencil&&<span style={{fontSize:8.5,fontWeight:700,letterSpacing:'.04em',color:st.text,lineHeight:1.3}}>{pencilCD(b.pencilExpiresAt)}</span>}
+                    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
+                      <span style={{fontSize:14,fontWeight:800,color:'#0f172a',lineHeight:1.2,flex:1}}>{b.functionName}</span>
+                      <span style={{fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:9999,background:st.bg,color:st.text,flexShrink:0,textTransform:'uppercase',letterSpacing:'.04em',border:`1px solid ${st.accent}80`}}>{st.label}</span>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:10,fontSize:11.5,color:'#475569',flexWrap:'wrap'}}>
+                      <span style={{display:'inline-flex',alignItems:'center',gap:5}}><span style={{width:6,height:6,borderRadius:'50%',background:b.pal.solid,flexShrink:0}}/>{b.hallName}</span>
+                      {b.functionType&&<span>{b.functionType}</span>}
+                      {!!b.guests&&<span style={{display:'inline-flex',alignItems:'center',gap:4}}>{b.guests} pax</span>}
+                      <span style={{marginLeft:'auto',fontWeight:700,color:'#0f172a',fontVariantNumeric:'tabular-nums'}}>{fmtMins(b.startMinutes)}</span>
+                    </div>
+                    {conflict&&<div style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,color:'#991b1b',fontWeight:600}}>⚠ Conflict on this slot</div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -798,7 +892,7 @@ export function VenueTimelineBoard({rows,viewMode,viewDate,weekDays,selectedDate
       </div>
       {/* Mobile */}
       <div className="sm:hidden">
-        {viewMode==='day'&&<div className="border border-[var(--border)] rounded-xl overflow-hidden"><MobileDay {...shared} selDate={selectedDate}/><CreateFAB onClick={onCreateBooking}/></div>}
+        {viewMode==='day'&&<div className="border border-[var(--border)] rounded-xl overflow-hidden"><MobileDay {...shared} selDate={selectedDate} onCreate={onCreateBooking}/><CreateFAB onClick={onCreateBooking}/></div>}
         {viewMode==='week'&&<div className="border border-[var(--border)] rounded-xl overflow-hidden"><MobileWeek {...shared} wdays={weekDays} onDrill={onDateDrillDown}/><CreateFAB onClick={onCreateBooking}/></div>}
         {viewMode==='month'&&<MobileMonth groups={groups} vdate={viewDate} onBook={onBookingClick} onCreate={onCreateBooking} onDrill={onDateDrillDown}/>}
       </div>
