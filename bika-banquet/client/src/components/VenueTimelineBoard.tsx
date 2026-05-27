@@ -467,12 +467,17 @@ function DesktopWeek({groups,wdays,exp,toggle,onBook,onCreate,onDrill}:{
 
 // ─── Desktop Month View (pills + heatmap + drill-down) ────────────────────────
 
-function MonthPillCell({slots,pal,tod,wknd,onBook,onDrill,rh}:{
-  slots:TimelineSlot[];pal:Pal;tod:boolean;wknd:boolean;onBook:(id:string)=>void;onDrill?:()=>void;rh:number;
+function MonthPillCell({slots,pal,tod,wknd,onBook,onDrill,rh,aggregate}:{
+  slots:TimelineSlot[];pal:Pal;tod:boolean;wknd:boolean;onBook:(id:string)=>void;onDrill?:()=>void;rh:number;aggregate?:boolean;
 }) {
   const n=slots.length;
   const heatAlpha=n===0?0:n===1?.06:n===2?.13:n===3?.21:.32;
   const bg=wknd?'#f9fafb':n>0?`${pal.heat}${heatAlpha})`:undefined;
+  // Conflict (month): same bucketSlot with >1 booking in this cell — matches Week's
+  // "same hall + same slot + >1 booking" proxy. Slots here may span halls in the
+  // venue (rolled-up) row; we flag overlap within whatever set is passed in.
+  const bucketCount=new Map<string,number>();
+  for(const s of slots){const b=bucketSlot(s.startMinutes);if(b)bucketCount.set(b.id,(bucketCount.get(b.id)||0)+1);}
   return (
     <div onClick={onDrill}
       style={{flex:1,height:rh,borderLeft:BD,padding:'3px 3px 2px',display:'flex',flexDirection:'column',gap:2,overflow:'hidden',background:bg,outline:tod?`1.5px solid ${pal.solid}`:undefined,outlineOffset:-1,cursor:onDrill?'pointer':undefined,transition:'background .1s',minWidth:D_MCW}}
@@ -481,12 +486,17 @@ function MonthPillCell({slots,pal,tod,wknd,onBook,onDrill,rh}:{
     >
       {slots.slice(0,3).map((s,i)=>{
         const p=s.isPencilBooking||s.status==='pencil';
+        const st=statusOf(s.status);
+        const b=bucketSlot(s.startMinutes);
+        const conflict=!aggregate&&!!b&&(bucketCount.get(b.id)||0)>1;
         return (
           <button key={s.bookingId||i} type="button"
             onClick={e=>{e.stopPropagation();s.bookingId&&onBook(s.bookingId);}}
             title={s.functionName}
-            style={{padding:'1px 4px',borderRadius:3,background:p?'transparent':pal.solid,border:p?`1px dashed ${pal.solid}`:'none',cursor:'pointer',textAlign:'left',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:9,fontWeight:600,color:p?pal.solid:'#fff',lineHeight:1.45,flexShrink:0}}>
-            {p?'✏ ':''}{s.functionName.length>14?s.functionName.slice(0,13)+'…':s.functionName}
+            style={{display:'flex',alignItems:'center',gap:2,padding:'1px 4px 1px 0',borderRadius:3,background:p?'transparent':st.bg,backgroundImage:p?STRIPE:undefined,border:conflict?'1px solid #ef4444':p?`1px dashed ${st.accent}`:'none',cursor:'pointer',textAlign:'left',overflow:'hidden',whiteSpace:'nowrap',fontSize:9,fontWeight:600,color:st.text,lineHeight:1.45,flexShrink:0}}>
+            <span style={{width:2,alignSelf:'stretch',background:pal.solid,borderRadius:2,flexShrink:0}}/>
+            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.functionName.length>13?s.functionName.slice(0,12)+'…':s.functionName}</span>
+            {conflict&&<span style={{color:'#ef4444',flexShrink:0,lineHeight:1}}>⚠</span>}
           </button>
         );
       })}
@@ -525,7 +535,7 @@ function DesktopMonth({groups,vdate,exp,toggle,onBook,onDrill}:{
             <React.Fragment key={g.name}>
               <div style={{display:'flex',height:D_MRH,background:'#f4f6fc',borderBottom:BD}}>
                 <VenueCell name={g.name} pal={g.pal} open={open} toggle={()=>toggle(g.name)} busyCount={0} totalHalls={g.halls.length} sw={D_SW} rh={D_MRH}/>
-                {days.map(d=><MonthPillCell key={d} slots={g.halls.flatMap(h=>h.slots.filter(s=>s.date===mdk(d)))} pal={g.pal} tod={isCM&&d===today.getDate()} wknd={wknd(d)} onBook={onBook} onDrill={onDrill?()=>onDrill(mdk(d)):undefined} rh={D_MRH}/>)}
+                {days.map(d=><MonthPillCell key={d} slots={g.halls.flatMap(h=>h.slots.filter(s=>s.date===mdk(d)))} pal={g.pal} tod={isCM&&d===today.getDate()} wknd={wknd(d)} onBook={onBook} onDrill={onDrill?()=>onDrill(mdk(d)):undefined} rh={D_MRH} aggregate/>)}
               </div>
               {open&&g.halls.map((hall,i)=>(
                 <div key={hall.hallName} style={{display:'flex',height:D_MRH,background:'#fff',borderBottom:i===g.halls.length-1?BD:BD_INNER}}>
