@@ -68,6 +68,7 @@ export interface ResolveBookingFinancialsInput {
   discountPercentage?: number;
   discountAmountInput?: number;
   finalAmountInput?: number | null;
+  carryForwardManualDiscount?: number;
 }
 
 export interface ResolvedBookingFinancials {
@@ -97,10 +98,13 @@ export function resolveBookingFinancials(
   const discountAmount = safeMoney(Math.min(rawDiscount, totalAmount));
   const grandTotal = safeMoney(Math.max(0, totalAmount - discountAmount));
 
+  // carryForwardManualDiscount wins: net = new grandTotal minus a preserved flat ad-hoc discount.
   const rawFinal =
-    input.finalAmountInput != null && input.finalAmountInput !== undefined
-      ? safeMoney(input.finalAmountInput)
-      : grandTotal;
+    input.carryForwardManualDiscount != null
+      ? safeMoney(Math.max(0, grandTotal - safeMoney(input.carryForwardManualDiscount)))
+      : input.finalAmountInput != null && input.finalAmountInput !== undefined
+        ? safeMoney(input.finalAmountInput)
+        : grandTotal;
   const finalExceeded =
     exceedsBillingCeiling(rawFinal, totalAmount) ||
     exceedsBillingCeiling(rawFinal, grandTotal);

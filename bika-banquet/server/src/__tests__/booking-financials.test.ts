@@ -98,6 +98,37 @@ describe('resolveBookingFinancials', () => {
     expect(result.exceededCeiling).toBe(true);
   });
 
+  it('carries a flat ad-hoc discount forward against the new grandTotal', () => {
+    // Prior version: grandTotal 10000, net 5000 (5000 ad-hoc discount). Party-over adds 1000.
+    const result = resolveBookingFinancials({
+      totalAmount: 11000,
+      discountAmountInput: 0,
+      carryForwardManualDiscount: 5000,
+    });
+    expect(result.grandTotal).toBe(11000);
+    expect(result.finalAmountValue).toBe(6000);
+    expect(result.exceededCeiling).toBe(false);
+  });
+
+  it('treats a zero carry-forward discount as net equal to grandTotal, ignoring stale net', () => {
+    const result = resolveBookingFinancials({
+      totalAmount: 11000,
+      discountAmountInput: 0,
+      finalAmountInput: 5000,
+      carryForwardManualDiscount: 0,
+    });
+    expect(result.finalAmountValue).toBe(11000);
+  });
+
+  it('clamps net to zero when the carried discount exceeds grandTotal', () => {
+    const result = resolveBookingFinancials({
+      totalAmount: 4000,
+      discountAmountInput: 0,
+      carryForwardManualDiscount: 5000,
+    });
+    expect(result.finalAmountValue).toBe(0);
+  });
+
   it('does not false-positive on epsilon boundary', () => {
     expect(exceedsBillingCeiling(10000.004, 10000)).toBe(false);
     expect(exceedsBillingCeiling(10000 + BILLING_CEILING_EPSILON + 0.001, 10000)).toBe(
