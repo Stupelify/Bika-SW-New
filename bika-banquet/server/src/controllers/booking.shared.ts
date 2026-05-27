@@ -648,7 +648,7 @@ export async function recalculateBookingFinancials(
   tx: Prisma.TransactionClient,
   bookingId: string,
   options?: {
-    forceFinalAmountToGrandTotal?: boolean;
+    carryForwardManualDiscount?: number;
   }
 ): Promise<void> {
   const { mapPackLineForSumBooking, resolveBookingFinancials, sumBookingLines } =
@@ -695,8 +695,8 @@ export async function recalculateBookingFinancials(
     totalAmount,
     discountPercentage: effectiveDiscountPercent,
     discountAmountInput: toSafeMoney(booking.discountAmount),
-    ...(options?.forceFinalAmountToGrandTotal
-      ? {}
+    ...(options?.carryForwardManualDiscount != null
+      ? { carryForwardManualDiscount: options.carryForwardManualDiscount }
       : {
           finalAmountInput:
             booking.finalAmountValue ??

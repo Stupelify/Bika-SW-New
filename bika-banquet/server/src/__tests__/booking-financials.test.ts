@@ -100,6 +100,7 @@ describe('sumBookingLines', () => {
     });
     expect(financials.finalAmountValue).toBe(20000);
     expect(financials.discountAmount).toBe(2354);
+    expect(financials.grandTotal).toBe(20119);
   });
 
   it('defaults quantity to 1 for null additional items', () => {
@@ -145,6 +146,36 @@ describe('resolveBookingFinancials', () => {
     expect(result.grandTotal).toBe(10000);
     expect(result.finalAmountValue).toBe(10000);
     expect(result.exceededCeiling).toBe(true);
+  });
+
+  it('carries a flat ad-hoc discount forward against the new grandTotal', () => {
+    const result = resolveBookingFinancials({
+      totalAmount: 11000,
+      discountAmountInput: 0,
+      carryForwardManualDiscount: 5000,
+    });
+    expect(result.grandTotal).toBe(11000);
+    expect(result.finalAmountValue).toBe(6000);
+    expect(result.exceededCeiling).toBe(false);
+  });
+
+  it('treats a zero carry-forward discount as net equal to grandTotal, ignoring stale net', () => {
+    const result = resolveBookingFinancials({
+      totalAmount: 11000,
+      discountAmountInput: 0,
+      finalAmountInput: 5000,
+      carryForwardManualDiscount: 0,
+    });
+    expect(result.finalAmountValue).toBe(11000);
+  });
+
+  it('clamps net to zero when the carried discount exceeds grandTotal', () => {
+    const result = resolveBookingFinancials({
+      totalAmount: 4000,
+      discountAmountInput: 0,
+      carryForwardManualDiscount: 5000,
+    });
+    expect(result.finalAmountValue).toBe(0);
   });
 
   it('exceeds ceiling only when rounded rupee is above total', () => {

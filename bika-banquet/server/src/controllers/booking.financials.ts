@@ -101,6 +101,7 @@ export interface ResolveBookingFinancialsInput {
   discountPercentage?: number;
   discountAmountInput?: number;
   finalAmountInput?: number | null;
+  carryForwardManualDiscount?: number;
 }
 
 export interface ResolvedBookingFinancials {
@@ -179,7 +180,52 @@ export function resolveBookingFinancials(
     }
   }
 
-  const grandTotal = finalAmountValue;
+  const inputDiscountPercent = Math.min(
+    100,
+    Math.max(0, safeNum(input.discountPercentage ?? 0))
+  );
+  let standardDiscountAmount: number;
+  if (inputDiscountPercent > 0) {
+    standardDiscountAmount = roundRupee((totalAmount * inputDiscountPercent) / 100);
+  } else {
+    standardDiscountAmount = roundRupee(
+      Math.min(safeMoney(input.discountAmountInput ?? 0), totalAmount)
+    );
+  }
+  const grandTotal = roundRupee(Math.max(0, totalAmount - standardDiscountAmount));
+
+  if (input.carryForwardManualDiscount != null) {
+    const carried = roundRupee(input.carryForwardManualDiscount);
+    finalAmountValue = roundRupee(Math.max(0, grandTotal - carried));
+    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
+    discountPercentage = deriveDiscountPercentForStorage(
+      totalAmount,
+      discountAmount
+    );
+    if (
+      exceedsBillingCeiling(finalAmountValue, totalAmount) ||
+      exceedsBillingCeiling(finalAmountValue, grandTotal)
+    ) {
+      exceededCeiling = true;
+      finalAmountValue = roundRupee(
+        Math.min(finalAmountValue, grandTotal, totalAmount)
+      );
+      discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
+    }
+  } else if (!hasAuthoritativeNet) {
+    finalAmountValue = grandTotal;
+    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
+    discountPercentage = deriveDiscountPercentForStorage(
+      totalAmount,
+      discountAmount
+    );
+  } else {
+    discountAmount = roundRupee(Math.max(0, totalAmount - finalAmountValue));
+    discountPercentage = deriveDiscountPercentForStorage(
+      totalAmount,
+      discountAmount
+    );
+  }
 
   return {
     totalAmount,

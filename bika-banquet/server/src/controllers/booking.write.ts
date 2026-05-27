@@ -862,8 +862,16 @@ export async function partyOverBooking(
         });
       }
 
+      // Carry forward the prior ad-hoc net discount so party-over bills day-of extras without voiding it.
+      const priorGrandTotal = toSafeMoney(booking.grandTotal);
+      const priorNet =
+        booking.finalAmountValue ??
+        toOptionalSafeMoney(booking.finalAmount) ??
+        priorGrandTotal;
+      const manualDiscountDelta = Math.max(0, toSafeMoney(priorGrandTotal - priorNet));
+
       await recalculateBookingFinancials(tx, id, {
-        forceFinalAmountToGrandTotal: true,
+        carryForwardManualDiscount: manualDiscountDelta,
       });
 
       const snapshot = await fetchBookingSnapshot(tx, id);
