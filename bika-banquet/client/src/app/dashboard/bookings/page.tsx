@@ -62,7 +62,6 @@ import {
   computePackRowAmount,
   computePackRowAmountFromApiPack,
   computeExtrasSubtotal,
-  computeExtrasSubtotal,
   computeMealsSubtotal,
   sumPackHallRates,
 } from '@/lib/booking-form/billing-lines';
