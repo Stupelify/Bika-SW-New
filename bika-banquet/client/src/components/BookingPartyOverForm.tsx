@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Flag, Lock } from 'lucide-react';
+import { IndianAmountInput } from '@/components/IndianAmountInput';
 
 interface Props {
   booking: any | null;
@@ -200,26 +201,22 @@ export default function BookingPartyOverForm({
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-sm font-semibold text-red-600 dark:text-red-400">Settlement Discount</span>
-                <input
-                  type="number"
-                  min={0}
+                <IndianAmountInput
                   disabled={!unlocked}
                   className="input py-1 text-sm w-36 text-right text-red-600 dark:text-red-400 font-semibold disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
                   value={settleMode === 'disc' ? settleDiscDraft : Math.round(settleDiscAmt).toString()}
-                  onChange={(e) => { setSettleMode('disc'); setSettleDiscDraft(e.target.value); }}
+                  onChange={(raw) => { setSettleMode('disc'); setSettleDiscDraft(raw); }}
                 />
               </div>
             </div>
             {/* Settlement Amount row */}
             <div className="flex items-center justify-end gap-4 px-4 py-3 bg-[var(--surface-2)]">
               <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Settlement Amount</span>
-              <input
-                type="number"
-                min={0}
+              <IndianAmountInput
                 disabled={!unlocked}
                 className="input py-1 text-sm w-36 text-right text-emerald-700 dark:text-emerald-400 font-bold bg-[var(--surface)] disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
                 value={settleMode === 'total' ? settleTotalDraft : Math.round(settleTotalAmt).toString()}
-                onChange={(e) => { setSettleMode('total'); setSettleTotalDraft(e.target.value); }}
+                onChange={(raw) => { setSettleMode('total'); setSettleTotalDraft(raw); }}
               />
             </div>
           </div>

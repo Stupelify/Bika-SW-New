@@ -69,8 +69,9 @@ export interface SyncedBillingAmounts {
   finalAmount: string;
 }
 
+/** Parse money/amount strings; strips en-IN commas only (state stays digit-only). */
 function parseNonNegative(value: string): number {
-  const parsed = Number(value);
+  const parsed = Number(String(value).replace(/,/g, '').trim());
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, parsed);
 }
