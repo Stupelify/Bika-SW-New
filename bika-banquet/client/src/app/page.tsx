@@ -7,14 +7,14 @@ import { getDefaultDashboardRoute } from '@/lib/routeAccess';
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, user, loadUser } = useAuthStore();
+  const { isAuthenticated, isAuthReady, user, loadUser } = useAuthStore();
 
   useEffect(() => {
     void loadUser();
   }, [loadUser]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isAuthReady) {
       if (isAuthenticated) {
         const nextRoute = getDefaultDashboardRoute(user?.permissions);
         router.push(nextRoute || '/login');
@@ -22,7 +22,7 @@ export default function HomePage() {
         router.push('/login');
       }
     }
-  }, [isAuthenticated, isLoading, router, user?.permissions]);
+  }, [isAuthenticated, isAuthReady, router, user?.permissions]);
 
   return (
     <div
