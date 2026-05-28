@@ -48,6 +48,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.variable}>
         <CapacitorNativeShell />
+        <AuthBootstrap />
         <IonicProvider>{children}</IonicProvider>
         <Toaster position="top-right" richColors />
       </body>

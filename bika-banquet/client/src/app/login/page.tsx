@@ -9,19 +9,18 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loadUser, isLoading } = useAuthStore();
+  const { login, isLoading, isAuthenticated, isAuthReady, user } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      useAuthStore.setState({ isAuthReady: true });
-      return;
+    if (!isAuthReady || !isAuthenticated) return;
+    const nextRoute = getDefaultDashboardRoute(user?.permissions);
+    if (nextRoute) {
+      router.replace(nextRoute);
     }
-    void loadUser();
-  }, [loadUser]);
+  }, [isAuthReady, isAuthenticated, user?.permissions, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

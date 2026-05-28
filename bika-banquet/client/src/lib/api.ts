@@ -59,7 +59,8 @@ apiClient.interceptors.response.use(
   (response) => {
     const method = response.config.method?.toLowerCase();
 
-    if (method === 'get') {
+    const url = response.config.url ?? '';
+    if (method === 'get' && !url.includes('/auth/me')) {
       // Store successful GET responses
       const key = cacheKey(response.config.url, response.config.params);
       memCache.set(key, { data: response.data, exp: Date.now() + GET_TTL });

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import axios from 'axios';
 import { api } from '@/lib/api';
+import { setAuthHydrationComplete } from '@/lib/authSession';
 
 interface User {
   id: string;
@@ -23,6 +25,13 @@ interface AuthState {
   setToken: (token: string) => void;
 }
 
+export function getStoredAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('auth_token');
+}
+
+let loadUserInFlight: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
@@ -32,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setToken: (token: string) => {
     localStorage.setItem('auth_token', token);
+    setAuthHydrationComplete(true);
     set({ token, isAuthenticated: true, isAuthReady: true });
   },
 
@@ -42,6 +52,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const { token, user } = response.data.data;
 
       localStorage.setItem('auth_token', token);
+      setAuthHydrationComplete(true);
       set({
         user,
         token,
@@ -49,7 +60,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
         isAuthReady: true,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ isLoading: false });
       throw error;
     }
@@ -62,6 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('auth_token');
+      setAuthHydrationComplete(true);
       set({
         user: null,
         token: null,
@@ -72,34 +84,63 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   loadUser: async (options?: { silent?: boolean }) => {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      set({ isAuthenticated: false, isLoading: false, isAuthReady: true });
+    if (loadUserInFlight) {
+      await loadUserInFlight;
       return;
     }
 
-    if (!options?.silent) {
-      set({ isLoading: true, token });
-    } else {
-      set({ token });
-    }
+    loadUserInFlight = (async () => {
+      const token = getStoredAuthToken();
+      if (!token) {
+        setAuthHydrationComplete(true);
+        set({ isAuthenticated: false, isLoading: false, isAuthReady: true, token: null });
+        return;
+      }
+
+      setAuthHydrationComplete(false);
+      set({
+        isAuthReady: false,
+        token,
+        ...(options?.silent ? {} : { isLoading: true }),
+      });
+
+      try {
+        const response = await api.getCurrentUser();
+        setAuthHydrationComplete(true);
+        set({
+          user: response.data.data.user,
+          isAuthenticated: true,
+          isLoading: false,
+          isAuthReady: true,
+        });
+      } catch (error: unknown) {
+        const isUnauthorized =
+          axios.isAxiosError(error) && error.response?.status === 401;
+
+        setAuthHydrationComplete(true);
+        if (isUnauthorized) {
+          localStorage.removeItem('auth_token');
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+            isAuthReady: true,
+          });
+        } else {
+          set({
+            isAuthenticated: false,
+            isLoading: false,
+            isAuthReady: true,
+          });
+        }
+      }
+    })();
+
     try {
-      const response = await api.getCurrentUser();
-      set({
-        user: response.data.data.user,
-        isAuthenticated: true,
-        isLoading: false,
-        isAuthReady: true,
-      });
-    } catch (error) {
-      localStorage.removeItem('auth_token');
-      set({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-        isAuthReady: true,
-      });
+      await loadUserInFlight;
+    } finally {
+      loadUserInFlight = null;
     }
   },
 }));
