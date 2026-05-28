@@ -518,7 +518,7 @@ function DashboardLayoutContent({
 
   useEffect(() => {
     if (!isAuthReady || typeof window === 'undefined') return;
-    if (!isAuthenticated && !getStoredAuthToken()) {
+    if (!isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isAuthReady, router]);
@@ -957,12 +957,23 @@ function DashboardLayoutContent({
     </div>
   );
 
-  if (!isAuthReady || !isAuthenticated) {
+  if (!isAuthReady) {
     return (
       <div className="loading-screen">
         <div className="loading-stack">
           <div className="skeleton loading-avatar" />
           <p className="loading-text">Loading workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-stack">
+          <div className="skeleton loading-avatar" />
+          <p className="loading-text">Redirecting to sign in…</p>
         </div>
       </div>
     );
