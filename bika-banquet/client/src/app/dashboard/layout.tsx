@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/authStore';
+import { getStoredAuthToken, useAuthStore } from '@/store/authStore';
 import BottomNav from '@/components/BottomNav';
 import Avatar from '@/components/Avatar';
 import CommandPalette from '@/components/CommandPalette';
@@ -325,7 +325,7 @@ function DashboardLayoutContent({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, loadUser, logout, isAuthenticated, isLoading } = useAuthStore();
+  const { user, logout, isAuthenticated, isAuthReady } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -450,10 +450,6 @@ function DashboardLayoutContent({
   );
 
   useEffect(() => {
-    void loadUser();
-  }, [loadUser]);
-
-  useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = window.localStorage.getItem('sidebar-collapsed');
     setSidebarCollapsed(stored === 'true');
@@ -521,10 +517,11 @@ function DashboardLayoutContent({
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated && !isLoading && typeof window !== 'undefined') {
+    if (!isAuthReady || typeof window === 'undefined') return;
+    if (!isAuthenticated && !getStoredAuthToken()) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isAuthReady, router]);
 
   useEffect(() => {
     setSidebarOpen(false);
