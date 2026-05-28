@@ -9,18 +9,19 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading, isAuthenticated, isAuthReady, user } = useAuthStore();
+  const { login, loadUser, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (!isAuthReady || !isAuthenticated) return;
-    const nextRoute = getDefaultDashboardRoute(user?.permissions);
-    if (nextRoute) {
-      router.replace(nextRoute);
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      useAuthStore.setState({ isLoading: false });
+      return;
     }
-  }, [isAuthReady, isAuthenticated, user?.permissions, router]);
+    void loadUser();
+  }, [loadUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,35 +61,7 @@ export default function LoginPage() {
   return (
     <div className="native-auth-page min-h-[100dvh] min-h-screen px-4 pb-[calc(2rem+var(--safe-bottom))] md:pb-14 pt-[calc(var(--safe-top)+2rem)] md:pt-[calc(var(--safe-top)+3.5rem)]">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <section className="lg:col-span-3 card overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-100/70 via-white to-accent-100/60 pointer-events-none"></div>
-          <div className="relative p-2 md:p-4">
-            <p className="inline-flex rounded-full border border-primary-200 bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-primary-700">
-              Hospitality Operations Suite
-            </p>
-            <h1 className="mt-5 text-4xl md:text-5xl leading-tight font-display text-[var(--text-1)] text-balance">
-              Bika Banquet
-            </h1>
-            <p className="mt-3 text-base text-[var(--text-2)] max-w-2xl">
-              Run enquiries, bookings, menus, payments and reporting from one modern command center.
-            </p>
-
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
-                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Workflows</p>
-                <p className="text-xl font-display text-[var(--text-1)] mt-2">9 modules</p>
-              </div>
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
-                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Real-time</p>
-                <p className="text-xl font-display text-[var(--text-1)] mt-2">Live metrics</p>
-              </div>
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
-                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Team Access</p>
-                <p className="text-xl font-display text-[var(--text-1)] mt-2">RBAC ready</p>
-              </div>
-            </div>
-          </div>
-        </section>
+        <div className="hidden lg:block lg:col-span-3" />
 
         <div className="lg:col-span-2 card">
           <h2 className="text-2xl font-display text-[var(--text-1)]">Sign In</h2>
