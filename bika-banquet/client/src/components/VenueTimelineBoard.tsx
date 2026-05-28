@@ -176,6 +176,13 @@ function GridLines() {
   ))}</>;
 }
 
+// Alternating subtle tint per slot band (Day view, Variant A).
+function SlotBands() {
+  return <>{SLOTS.map((sl,i)=>i%2===1?(
+    <div key={sl.id} style={{position:'absolute',left:`${pL(sl.startH*60)}%`,width:`${pW(sl.startH*60,sl.endH*60)}%`,top:0,bottom:0,background:'var(--surface-2)',opacity:.5,pointerEvents:'none'}}/>
+  ):null)}</>;
+}
+
 function NowLine() {
   const n=new Date(),m=n.getHours()*60+n.getMinutes();
   if(m<SH_MIN||m>EH_MIN)return null;
@@ -291,11 +298,15 @@ function VenueCell({name,pal,open,toggle,busyCount,totalHalls,sw,rh}:{name:strin
   );
 }
 
-function HallCell({name,slots,sw,rh,showStatus}:{name:string;slots:TimelineSlot[];sw:number;rh:number;showStatus?:boolean}) {
+function HallCell({name,slots,sw,rh,showStatus,pal,subLine}:{name:string;slots:TimelineSlot[];sw:number;rh:number;showStatus?:boolean;pal?:Pal;subLine?:boolean}) {
   const busy=slots.length>0;
   return (
-    <div style={{width:sw,flexShrink:0,height:rh,display:'flex',alignItems:'center',padding:'0 8px 0 24px',borderRight:BD,gap:4}}>
-      <span style={{fontSize:10,color:'var(--text-4)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}</span>
+    <div style={{width:sw,flexShrink:0,height:rh,display:'flex',alignItems:'center',padding:'0 8px 0 24px',borderRight:BD,gap:4,position:'relative'}}>
+      {pal&&<div style={{position:'absolute',left:0,top:6,bottom:6,width:4,borderRadius:'0 3px 3px 0',background:pal.solid}}/>}
+      <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:1}}>
+        <span style={{fontSize:subLine?11:10,fontWeight:subLine?700:400,color:subLine?'var(--text-1)':'var(--text-4)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',letterSpacing:subLine?'-.01em':undefined}}>{name}</span>
+        {subLine&&<span style={{fontSize:9,color:'var(--text-4)',fontWeight:600}}>{slots.length} event{slots.length!==1?'s':''}</span>}
+      </div>
       {showStatus&&<div style={{flexShrink:0,padding:'1px 5px',borderRadius:6,fontSize:8,fontWeight:700,background:busy?'var(--cal-cancelled-bg)':'var(--cal-confirmed-bg)',color:busy?'var(--cal-cancelled-text)':'var(--cal-confirmed-text)',border:`1px solid ${busy?softBorder('var(--cal-cancelled-accent)'):softBorder('var(--cal-confirmed-accent)')}`}}>
         {busy?'Busy':'Free'}
       </div>}
@@ -332,7 +343,7 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
                 <VenueCell name={g.name} pal={g.pal} open={open} toggle={()=>toggle(g.name)} busyCount={busyHalls} totalHalls={g.halls.length} sw={D_SW} rh={D_RH}/>
                 <div style={{flex:1,position:'relative',overflow:'visible',cursor:'crosshair'}}
                   onClick={e=>{if((e.target as Element).tagName==='DIV'&&vSlots.length===0)onCreate({date:selDate});}}>
-                  <GridLines/><NowLine/>
+                  <SlotBands/><GridLines/><NowLine/>
                   {vSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={{...s,conflict:false}} pal={g.pal} rh={D_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
                 </div>
               </div>
@@ -343,7 +354,7 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
                     <HallCell name={hall.hallName} slots={hall.slots.filter(s=>s.date===selDate)} sw={D_SW} rh={D_RH} showStatus/>
                     <div style={{flex:1,position:'relative',overflow:'visible',cursor:'crosshair'}}
                       onClick={e=>{if((e.target as Element).tagName==='DIV'&&hSlots.length===0)onCreate({date:selDate,hallId:hall.hallId});}}>
-                      <GridLines/><NowLine/>
+                      <SlotBands/><GridLines/><NowLine/>
                       {hSlots.length===0&&(
                         <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
                           <span style={{fontSize:9,color:'var(--text-4)',fontStyle:'italic'}}>Free — click to create booking</span>
@@ -415,8 +426,8 @@ function WeekMatrixCell({slots,pal,today,onBook,onEmptyClick,aggregate}:{
         const conflict=!aggregate&&list.length>1;
         if(!b) return (
           <button key={slot.id} type="button" onClick={()=>onEmptyClick?.(slot.id)} title={`${slot.label} — click to add`}
-            style={{borderRadius:4,background:'var(--cal-empty)',border:'none',display:'flex',alignItems:'center',paddingLeft:5,cursor:onEmptyClick?'pointer':'default',opacity:.7}}>
-            <span style={{fontSize:8.5,color:'var(--text-4)',fontWeight:700,textTransform:'uppercase'}}>{slot.label[0]}</span>
+            style={{borderRadius:4,background:'var(--cal-hatch)',border:'none',display:'flex',alignItems:'center',paddingLeft:5,cursor:onEmptyClick?'pointer':'default',opacity:.8}}>
+            <span style={{fontSize:8.5,color:'var(--text-4)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.03em'}}>{slot.label.slice(0,3)}</span>
           </button>
         );
         return <WeekSlotChip key={slot.id} s={b} pal={pal} conflict={conflict} onBook={onBook}/>;
@@ -461,7 +472,7 @@ function DesktopWeek({groups,wdays,exp,toggle,onBook,onCreate,onDrill}:{
               </div>
               {open&&g.halls.map((hall,i)=>(
                 <div key={hall.hallName} style={{display:'flex',minHeight:WEEK_DRH,background:'var(--surface)',borderBottom:i===g.halls.length-1?BD:BD_INNER}}>
-                  <HallCell name={hall.hallName} slots={wdays.flatMap(d=>hall.slots.filter(s=>s.date===dk(d)))} sw={D_SW} rh={WEEK_DRH} showStatus/>
+                  <HallCell name={hall.hallName} slots={wdays.flatMap(d=>hall.slots.filter(s=>s.date===dk(d)))} sw={D_SW} rh={WEEK_DRH} pal={g.pal} subLine/>
                   {wdays.map(day=><WeekMatrixCell key={dk(day)} slots={hall.slots.filter(s=>s.date===dk(day))} pal={g.pal} today={isToday(day)} onBook={onBook} onEmptyClick={(slotId)=>onCreate({date:dk(day),hallId:hall.hallId,slot:slotId})}/>)}
                 </div>
               ))}
@@ -473,42 +484,93 @@ function DesktopWeek({groups,wdays,exp,toggle,onBook,onCreate,onDrill}:{
   );
 }
 
-// ─── Desktop Month View (pills + heatmap + drill-down) ────────────────────────
+// ─── Desktop Month View (Variant B — standard 7×6 calendar grid) ──────────────
 
-function MonthPillCell({slots,pal,tod,wknd,onBook,onEmpty,rh,aggregate}:{
-  slots:TimelineSlot[];pal:Pal;tod:boolean;wknd:boolean;onBook:(id:string)=>void;onEmpty?:()=>void;rh:number;aggregate?:boolean;
+// A day's bookings flattened across every venue group / hall, each tagged with
+// its venue-group palette and hall identity (for the hall-color left border and
+// per-hall conflict detection).
+interface MonthDaySlot extends TimelineSlot { pal:Pal; hallKey:string }
+
+// One day tile in the month grid (Variant B VB_Month + VB_Card). Renders the top
+// hall-composition strip (one segment per venue GROUP with ≥1 booking that day),
+// the date number (today = teal pill, weekend = red, out-of-month dimmed) + count,
+// up to 4 booking pills and a "+ N more" overflow.
+function MonthDayTile({day,inMonth,groups,onBook,onDrill,onCreate}:{
+  day:Date;inMonth:boolean;groups:VenueGroup[];onBook:(id:string)=>void;onDrill?:(d:string)=>void;onCreate:(args?:CreateBookingArgs)=>void;
 }) {
-  const n=slots.length;
-  const heatAlpha=n===0?0:n===1?.06:n===2?.13:n===3?.21:.32;
-  const bg=wknd?'var(--surface-2)':n>0?`${pal.heat}${heatAlpha})`:undefined;
-  // Conflict (month): same bucketSlot with >1 booking in this cell — matches Week's
-  // "same hall + same slot + >1 booking" proxy. Slots here may span halls in the
-  // venue (rolled-up) row; we flag overlap within whatever set is passed in.
-  const bucketCount=new Map<string,number>();
-  for(const s of slots){const b=bucketSlot(s.startMinutes);if(b)bucketCount.set(b.id,(bucketCount.get(b.id)||0)+1);}
+  const iso=dk(day);
+  const tod=isToday(day);
+  const dow=day.getDay();
+  const wknd=dow===0||dow===6;
+
+  // Flatten this day's bookings across all groups/halls, tagged with palette +
+  // hall key, sorted by start time.
+  const list:MonthDaySlot[]=groups.flatMap(g=>g.halls.flatMap(h=>
+    h.slots.filter(s=>s.date===iso).map(s=>({...s,pal:g.pal,hallKey:h.hallId||h.hallName}))
+  )).sort((a,b)=>a.startMinutes-b.startMinutes);
+  const n=list.length;
+
+  // Conflict (month): within a single hall, >1 booking in the same bucketSlot.
+  // Cross-hall same-slot is NOT a conflict.
+  const conflictKeys=new Map<string,number>();
+  for(const s of list){const b=bucketSlot(s.startMinutes);if(b)conflictKeys.set(`${s.hallKey}|${b.id}`,(conflictKeys.get(`${s.hallKey}|${b.id}`)||0)+1);}
+  const isConflict=(s:MonthDaySlot)=>{const b=bucketSlot(s.startMinutes);return!!b&&(conflictKeys.get(`${s.hallKey}|${b.id}`)||0)>1;};
+
+  // Hall-composition strip: one segment per venue GROUP with ≥1 booking today.
+  const busyGroups=groups.filter(g=>g.halls.some(h=>h.slots.some(s=>s.date===iso)));
+
+  const bg=!inMonth?'var(--surface-2)':tod?'rgba(20,184,166,0.06)':'var(--surface)';
+  const visible=list.slice(0,4);
+  const extra=n-visible.length;
+
   return (
-    <div onClick={onEmpty}
-      style={{flex:1,height:rh,borderLeft:BD,padding:'3px 3px 2px',display:'flex',flexDirection:'column',gap:2,overflow:'hidden',background:bg,outline:tod?`1.5px solid ${pal.solid}`:undefined,outlineOffset:-1,cursor:onEmpty?'pointer':undefined,transition:'background .1s',minWidth:D_MCW}}
-      onMouseEnter={e=>{if(onEmpty&&n===0)(e.currentTarget as HTMLElement).style.background='rgba(13,148,136,0.05)';}}
-      onMouseLeave={e=>{if(onEmpty&&n===0)(e.currentTarget as HTMLElement).style.background=bg||'';}}
-    >
-      {slots.slice(0,3).map((s,i)=>{
-        const p=s.isPencilBooking||s.status==='pencil';
-        const st=statusOf(s.status);
-        const b=bucketSlot(s.startMinutes);
-        const conflict=!aggregate&&!!b&&(bucketCount.get(b.id)||0)>1;
-        return (
-          <button key={s.bookingId||i} type="button"
-            onClick={e=>{e.stopPropagation();s.bookingId&&onBook(s.bookingId);}}
-            title={s.functionName}
-            style={{display:'flex',alignItems:'center',gap:2,padding:'1px 4px 1px 0',borderRadius:3,background:p?'transparent':st.bg,backgroundImage:p?STRIPE:undefined,border:conflict?`1px solid ${CONFLICT}`:p?`1px dashed ${st.accent}`:'none',cursor:'pointer',textAlign:'left',overflow:'hidden',whiteSpace:'nowrap',fontSize:9,fontWeight:600,color:st.text,lineHeight:1.45,flexShrink:0}}>
-            <span style={{width:2,alignSelf:'stretch',background:pal.solid,borderRadius:2,flexShrink:0}}/>
-            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.functionName.length>13?s.functionName.slice(0,12)+'…':s.functionName}</span>
-            {conflict&&<span style={{color:CONFLICT,flexShrink:0,lineHeight:1}}>⚠</span>}
-          </button>
-        );
-      })}
-      {n>3&&<span style={{fontSize:8,color:'var(--text-4)',paddingLeft:2,lineHeight:1}}>+{n-3} more</span>}
+    <div
+      onClick={inMonth?()=>onCreate({date:iso}):undefined}
+      style={{
+        borderRight:BD,borderBottom:BD,padding:'5px 6px 6px',background:bg,
+        opacity:inMonth?1:.55,display:'flex',flexDirection:'column',gap:3,minHeight:0,
+        overflow:'hidden',cursor:inMonth?'pointer':'default',position:'relative',
+      }}>
+      {/* Hall-composition strip */}
+      <div style={{display:'flex',gap:1,height:3,flexShrink:0}}>
+        {busyGroups.map(g=>(
+          <div key={g.name} style={{flex:1,borderRadius:1,background:g.pal.solid,opacity:.85}}/>
+        ))}
+      </div>
+      {/* Date number + count */}
+      <div style={{display:'flex',alignItems:'baseline',gap:5,flexShrink:0}}>
+        <button type="button"
+          onClick={inMonth&&onDrill?(e)=>{e.stopPropagation();onDrill(iso);}:undefined}
+          style={{
+            border:'none',background:tod?'var(--teal-600)':'transparent',padding:tod?'2px 7px':0,
+            borderRadius:tod?9:0,cursor:inMonth&&onDrill?'pointer':'default',
+            fontSize:tod?14:13,fontWeight:800,fontVariantNumeric:'tabular-nums',lineHeight:1,
+            color:tod?'#fff':wknd?'rgb(220,38,38)':'var(--text-1)',
+          }}>{day.getDate()}</button>
+        {n>0&&<span style={{fontSize:9.5,color:'var(--text-4)',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>· {n}</span>}
+      </div>
+      {/* Booking pills (VB_Card) */}
+      <div style={{display:'flex',flexDirection:'column',gap:2,overflow:'hidden',flex:1}}>
+        {visible.map((s,i)=>{
+          const p=s.isPencilBooking||s.status==='pencil';
+          const st=statusOf(s.status);
+          const conflict=isConflict(s);
+          return (
+            <button key={s.bookingId||i} type="button"
+              onClick={e=>{e.stopPropagation();s.bookingId&&onBook(s.bookingId);}}
+              title={[s.functionName,s.customerName,s.functionType].filter(Boolean).join(' · ')}
+              style={{display:'flex',flexDirection:'column',gap:0,padding:'3px 5px',borderRadius:5,background:'var(--surface)',backgroundImage:p?STRIPE:undefined,border:conflict?`1px solid ${CONFLICT}`:p?`1.5px dashed ${st.accent}`:`1px solid ${softBorder(st.accent)}`,borderLeft:`3px solid ${s.pal.solid}`,boxShadow:conflict?`0 0 0 1.5px ${CONFLICT}`:undefined,cursor:'pointer',textAlign:'left',overflow:'hidden',flexShrink:0,position:'relative'}}>
+              <span style={{display:'flex',alignItems:'center',gap:4,minWidth:0}}>
+                <span style={{width:5,height:5,borderRadius:'50%',background:st.accent,flexShrink:0}}/>
+                <span style={{fontSize:10,fontWeight:800,color:'var(--text-1)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',lineHeight:1.15,flex:1}}>{s.functionName}</span>
+                {conflict&&<span style={{color:CONFLICT,flexShrink:0,lineHeight:1,fontSize:10}}>⚠</span>}
+              </span>
+              {(s.customerName||s.functionType)&&<span style={{fontSize:9,color:'var(--text-3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',lineHeight:1.1,paddingLeft:9}}>{[s.customerName,s.functionType].filter(Boolean).join(' · ')}</span>}
+            </button>
+          );
+        })}
+        {extra>0&&<span style={{fontSize:9.5,color:'var(--text-4)',fontWeight:700,marginTop:2,paddingLeft:2}}>+ {extra} more</span>}
+      </div>
     </div>
   );
 }
@@ -516,45 +578,27 @@ function MonthPillCell({slots,pal,tod,wknd,onBook,onEmpty,rh,aggregate}:{
 function DesktopMonth({groups,vdate,exp,toggle,onBook,onDrill,onCreate}:{
   groups:VenueGroup[];vdate:Date;exp:Set<string>;toggle:(n:string)=>void;onBook:(id:string)=>void;onDrill?:(d:string)=>void;onCreate:(args?:CreateBookingArgs)=>void;
 }) {
+  void exp; void toggle; // unused in the calendar-grid month view (kept in prop type for caller stability)
   const yr=vdate.getFullYear(),mo=vdate.getMonth();
-  const dim=new Date(yr,mo+1,0).getDate();
-  const today=new Date(),isCM=today.getMonth()===mo&&today.getFullYear()===yr;
-  const days=Array.from({length:dim},(_,i)=>i+1);
-  const wknd=(d:number)=>{const dow=new Date(yr,mo,d).getDay();return dow===0||dow===6;};
-  const mdk=(d:number)=>`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  // 6-week (42 cell) Sun-start grid: from the 1st minus its weekday offset.
+  const first=new Date(yr,mo,1);
+  const start=new Date(yr,mo,1-first.getDay());
+  const days=Array.from({length:42},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return d;});
+  const headers=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   return (
-    <div style={{overflowX:'auto'}}>
-      <div style={{minWidth:D_SW+dim*D_MCW}}>
-        <div style={{display:'flex',height:26,background:'var(--surface-2)',borderBottom:BD,position:'sticky',top:0,zIndex:10}}>
-          <div style={{width:D_SW,flexShrink:0,borderRight:BD,display:'flex',alignItems:'center',paddingLeft:10,fontSize:10,fontWeight:600,color:'var(--text-4)',textTransform:'uppercase',letterSpacing:'.06em'}}>{vdate.toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</div>
-          {days.map(d=>{
-            const tod=isCM&&d===today.getDate();
-            return (
-              <button key={d} type="button" onClick={()=>onDrill?.(mdk(d))} title={onDrill?'Click to see day view':undefined}
-                style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',borderLeft:BD,background:wknd(d)?'var(--surface-2)':'transparent',minWidth:D_MCW,border:'none',borderLeftWidth:1,borderLeftStyle:'solid',borderLeftColor:'var(--border)',cursor:onDrill?'pointer':'default',padding:0}}>
-                <div style={{fontSize:8,fontWeight:tod?700:400,width:tod?14:undefined,height:tod?14:undefined,borderRadius:tod?'50%':undefined,background:tod?'rgb(239,68,68)':undefined,color:tod?'#fff':wknd(d)?'rgba(239,68,68,.45)':'var(--text-4)',display:'flex',alignItems:'center',justifyContent:'center'}}>{d}</div>
-              </button>
-            );
-          })}
-        </div>
-        {groups.map(g=>{
-          const open=exp.has(g.name);
-          return (
-            <React.Fragment key={g.name}>
-              <div style={{display:'flex',height:D_MRH,background:'var(--surface-2)',borderBottom:BD}}>
-                <VenueCell name={g.name} pal={g.pal} open={open} toggle={()=>toggle(g.name)} busyCount={0} totalHalls={g.halls.length} sw={D_SW} rh={D_MRH}/>
-                {days.map(d=><MonthPillCell key={d} slots={g.halls.flatMap(h=>h.slots.filter(s=>s.date===mdk(d)))} pal={g.pal} tod={isCM&&d===today.getDate()} wknd={wknd(d)} onBook={onBook} onEmpty={()=>onCreate({date:mdk(d)})} rh={D_MRH} aggregate/>)}
-              </div>
-              {open&&g.halls.map((hall,i)=>(
-                <div key={hall.hallName} style={{display:'flex',height:D_MRH,background:'var(--surface)',borderBottom:i===g.halls.length-1?BD:BD_INNER}}>
-                  <HallCell name={hall.hallName} slots={[]} sw={D_SW} rh={D_MRH}/>
-                  {days.map(d=><MonthPillCell key={d} slots={hall.slots.filter(s=>s.date===mdk(d))} pal={g.pal} tod={isCM&&d===today.getDate()} wknd={wknd(d)} onBook={onBook} onEmpty={()=>onCreate({date:mdk(d),hallId:hall.hallId})} rh={D_MRH}/>)}
-                </div>
-              ))}
-            </React.Fragment>
-          );
-        })}
+    <div style={{display:'flex',flexDirection:'column',width:'100%'}}>
+      {/* Weekday header */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',background:'var(--surface)',borderBottom:BD}}>
+        {headers.map((h,i)=>(
+          <div key={h} style={{padding:'8px 12px',fontSize:10.5,fontWeight:800,letterSpacing:'.1em',textTransform:'uppercase',color:(i===0||i===6)?'rgb(220,38,38)':'var(--text-3)',borderRight:i<6?BD:'none'}}>{h}</div>
+        ))}
+      </div>
+      {/* 6×7 day grid */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gridTemplateRows:'repeat(6,1fr)',background:'var(--surface)',minHeight:0}}>
+        {days.map((day,i)=>(
+          <MonthDayTile key={i} day={day} inMonth={day.getMonth()===mo} groups={groups} onBook={onBook} onDrill={onDrill} onCreate={onCreate}/>
+        ))}
       </div>
     </div>
   );
