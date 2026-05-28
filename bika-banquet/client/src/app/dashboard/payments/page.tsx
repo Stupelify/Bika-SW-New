@@ -4,21 +4,18 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { api } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
-import { CreditCard, Plus, Save, Search, Filter } from 'lucide-react';
+import { CreditCard, Plus, Save, Search } from 'lucide-react';
 import FormPromptModal from '@/components/FormPromptModal';
-import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
-import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
-import {
-  SortState,
-  TableColumnConfig,
-  filterAndSortRows,
-  getNextSort,
-} from '@/lib/tableUtils';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { applyTableState, paginateRows } from '@/lib/data-table/apply';
+import type { TableColumnConfig } from '@/lib/tableUtils';
+import type { FilterSchema } from '@/lib/data-table/types';
 import { formatDateDDMMYYYY } from '@/lib/date';
 
 interface BookingRow {
@@ -48,17 +45,6 @@ const getInitialPaymentForm = () => ({
 });
 const initialPaymentForm = getInitialPaymentForm();
 
-const initialColumnSearch = {
-  booking: '',
-  eventDate: '',
-  total: '',
-  received: '',
-  balance: '',
-  entries: '',
-};
-
-const PAYMENTS_PAGE_SIZE = 100;
-
 export default function PaymentsPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions ?? [], [user?.permissions]);
@@ -75,11 +61,6 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState('');
-  const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
-  const [sort, setSort] = useState<SortState>({ key: 'booking', direction: 'asc' });
-  const [showFilters, setShowFilters] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   const [paymentForm, setPaymentForm] = useState(initialPaymentForm);
 
   const tableColumns = useMemo<TableColumnConfig<BookingRow>[]>(
@@ -87,42 +68,73 @@ export default function PaymentsPage() {
       {
         key: 'booking',
         accessor: (booking) =>
-          `${booking.functionName} ${booking.customer?.name ?? ''} ${booking.customer?.phone ?? ''
-          }`,
+          `${booking.functionName} ${booking.customer?.name ?? ''} ${booking.customer?.phone ?? ''}`,
+        sortable: true,
+        searchable: true,
       },
-      { key: 'eventDate', accessor: (booking) => booking.functionDate },
-      { key: 'total', accessor: (booking) => booking.grandTotal ?? 0 },
-      { key: 'received', accessor: (booking) => booking.advanceReceived ?? 0 },
-      { key: 'balance', accessor: (booking) => booking.balanceAmount ?? 0 },
-      { key: 'entries', accessor: (booking) => booking._count?.payments ?? 0 },
+      { key: 'eventDate', accessor: (b) => b.functionDate, sortable: true, searchable: false },
+      { key: 'total', accessor: (b) => b.grandTotal ?? 0, sortable: true, searchable: false },
+      { key: 'received', accessor: (b) => b.advanceReceived ?? 0, sortable: true, searchable: false },
+      { key: 'balance', accessor: (b) => b.balanceAmount ?? 0, sortable: true, searchable: false },
+      { key: 'entries', accessor: (b) => b._count?.payments ?? 0, sortable: true, searchable: false },
     ],
     []
   );
 
+  const filterSchemas = useMemo<FilterSchema[]>(
+    () => [
+      { id: 'eventDate', type: 'dateRange', label: 'Event date' },
+      { id: 'total', type: 'numberRange', label: 'Total', format: 'currency' },
+      { id: 'balance', type: 'numberRange', label: 'Balance', format: 'currency' },
+      {
+        id: 'paidStatus',
+        type: 'multiSelect',
+        label: 'Paid status',
+        options: [
+          { value: 'fully_paid', label: 'Fully paid' },
+          { value: 'partially_paid', label: 'Partially paid' },
+          { value: 'unpaid', label: 'Unpaid' },
+        ],
+      },
+    ],
+    []
+  );
+
+  const filterDefs = useMemo(
+    () => [
+      { id: 'eventDate', accessor: (b: BookingRow) => b.functionDate },
+      { id: 'total', accessor: (b: BookingRow) => b.grandTotal ?? 0 },
+      { id: 'balance', accessor: (b: BookingRow) => b.balanceAmount ?? 0 },
+      {
+        id: 'paidStatus',
+        accessor: (b: BookingRow) => {
+          const total = b.grandTotal ?? 0;
+          const balance = b.balanceAmount ?? 0;
+          const received = b.advanceReceived ?? 0;
+          if (received <= 0 && total > 0) return 'unpaid';
+          if (balance <= 0 && total > 0) return 'fully_paid';
+          return 'partially_paid';
+        },
+      },
+    ],
+    []
+  );
+
+  const tableState = useTableState({
+    prefix: 'payments',
+    filters: filterSchemas,
+    defaultSort: { key: 'booking', direction: 'asc' },
+  });
+
   const filteredBookings = useMemo(
-    () => filterAndSortRows(bookings, tableColumns, globalSearch, columnSearch, sort),
-    [bookings, tableColumns, globalSearch, columnSearch, sort]
+    () => applyTableState(bookings, tableColumns, filterDefs, tableState),
+    [bookings, tableColumns, filterDefs, tableState]
   );
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredBookings.length / PAYMENTS_PAGE_SIZE)),
-    [filteredBookings.length]
+  const paginatedBookings = useMemo(
+    () => paginateRows(filteredBookings, tableState.page, tableState.pageSize),
+    [filteredBookings, tableState.page, tableState.pageSize]
   );
-
-  const paginatedBookings = useMemo(() => {
-    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-    const startIndex = (safePage - 1) * PAYMENTS_PAGE_SIZE;
-    return filteredBookings.slice(startIndex, startIndex + PAYMENTS_PAGE_SIZE);
-  }, [currentPage, filteredBookings, totalPages]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [globalSearch, columnSearch, sort]);
-
-  useEffect(() => {
-    if (currentPage <= totalPages) return;
-    setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
 
   const loadBookings = useCallback(async () => {
     try {
@@ -326,25 +338,11 @@ export default function PaymentsPage() {
             <h2 className="text-lg font-semibold">Payments table</h2>
           </div>
         </div>
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
-            <input
-              className="input pl-10"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="Overall search across all payment columns..."
-            />
-          </div>
-          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
-            <Filter className="w-5 h-5 md:mr-2" />
-            <span className="hidden md:inline">Filters</span>
-            {Object.values(columnSearch).filter(Boolean).length > 0 && (
-               <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                 {Object.values(columnSearch).filter(Boolean).length}
-               </span>
-            )}
-          </button>
+        <div className="mb-4">
+          <DataTableToolbar
+            state={tableState}
+            searchPlaceholder="Search by function, customer name, or phone…"
+          />
         </div>
 
         {!canViewPayments ? (
@@ -360,32 +358,26 @@ export default function PaymentsPage() {
           </div>
         ) : filteredBookings.length === 0 ? (
           <EmptyState
-            icon={globalSearch ? Search : CreditCard}
+            icon={tableState.search ? Search : CreditCard}
             variant={
-              globalSearch
-                ? 'search'
-                : Object.values(columnSearch).some(Boolean)
-                  ? 'filter'
-                  : 'page'
+              tableState.search ? 'search' : tableState.activeFilterCount > 0 ? 'filter' : 'page'
             }
             title={
-              globalSearch
+              tableState.search
                 ? 'No payments match your search'
-                : Object.values(columnSearch).some(Boolean)
+                : tableState.activeFilterCount > 0
                   ? 'No matches'
                   : 'No bookings found'
             }
             description={
-              globalSearch || Object.values(columnSearch).some(Boolean)
-                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
-                : 'Try adjusting the filters or date range.'
+              tableState.search || tableState.activeFilterCount > 0
+                ? 'Try adjusting the search or active filters.'
+                : 'Bookings will appear here once created.'
             }
             action={
-              globalSearch
-                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
-                : Object.values(columnSearch).some(Boolean)
-                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
-                  : undefined
+              tableState.search || tableState.activeFilterCount > 0
+                ? { label: 'Clear all', onClick: tableState.clearAll }
+                : undefined
             }
           />
         ) : (
@@ -426,14 +418,6 @@ export default function PaymentsPage() {
                   </div>
                 ))}
               </div>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredBookings.length}
-                pageSize={PAYMENTS_PAGE_SIZE}
-                itemLabel="bookings"
-                onPageChange={setCurrentPage}
-              />
             </div>
 
             {/* Desktop table view */}
@@ -441,48 +425,12 @@ export default function PaymentsPage() {
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
-                    <SortableHeader
-                      label="Booking"
-                      sortKey="booking"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
-                    />
-                    <SortableHeader
-                      label="Event date"
-                      sortKey="eventDate"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-left py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
-                    />
-                    <SortableHeader
-                      label="Total"
-                      sortKey="total"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
-                    />
-                    <SortableHeader
-                      label="Received"
-                      sortKey="received"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
-                    />
-                    <SortableHeader
-                      label="Balance"
-                      sortKey="balance"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
-                    />
-                    <SortableHeader
-                      label="Entries"
-                      sortKey="entries"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
-                    />
+                    <SortableHeader label="Booking" sortKey="booking" sort={tableState.sort} onSort={tableState.toggleSort} className="text-left py-3 px-3 text-sm font-semibold text-[var(--text-2)]" />
+                    <SortableHeader label="Event date" sortKey="eventDate" sort={tableState.sort} onSort={tableState.toggleSort} className="text-left py-3 px-3 text-sm font-semibold text-[var(--text-2)]" />
+                    <SortableHeader label="Total" sortKey="total" sort={tableState.sort} onSort={tableState.toggleSort} className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]" />
+                    <SortableHeader label="Received" sortKey="received" sort={tableState.sort} onSort={tableState.toggleSort} className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]" />
+                    <SortableHeader label="Balance" sortKey="balance" sort={tableState.sort} onSort={tableState.toggleSort} className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]" />
+                    <SortableHeader label="Entries" sortKey="entries" sort={tableState.sort} onSort={tableState.toggleSort} className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]" />
                   </tr>
                 </thead>
                 <tbody>
@@ -513,52 +461,16 @@ export default function PaymentsPage() {
                   ))}
                 </tbody>
               </table>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredBookings.length}
-                pageSize={PAYMENTS_PAGE_SIZE}
-                itemLabel="bookings"
-                onPageChange={setCurrentPage}
-              />
             </div>
+            <DataTableFooter
+              state={tableState}
+              totalItems={bookings.length}
+              filteredCount={filteredBookings.length}
+              itemLabel="bookings"
+            />
           </>
         )}
       </div>
-
-      <FilterPanel
-        open={showFilters}
-        onClose={() => setShowFilters(false)}
-        activeCount={Object.values(columnSearch).filter(Boolean).length}
-        onClearAll={() => setColumnSearch(initialColumnSearch)}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="label">Booking</label>
-            <input className="input" placeholder="Search booking" value={columnSearch.booking} onChange={(e) => setColumnSearch((prev) => ({ ...prev, booking: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Event Date</label>
-            <input className="input" type="date" value={columnSearch.eventDate} onChange={(e) => setColumnSearch((prev) => ({ ...prev, eventDate: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Total</label>
-            <input className="input" placeholder="Search total" value={columnSearch.total} onChange={(e) => setColumnSearch((prev) => ({ ...prev, total: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Received</label>
-            <input className="input" placeholder="Search received" value={columnSearch.received} onChange={(e) => setColumnSearch((prev) => ({ ...prev, received: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Balance</label>
-            <input className="input" placeholder="Search balance" value={columnSearch.balance} onChange={(e) => setColumnSearch((prev) => ({ ...prev, balance: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Entries</label>
-            <input className="input" placeholder="Search entries" value={columnSearch.entries} onChange={(e) => setColumnSearch((prev) => ({ ...prev, entries: e.target.value }))} />
-          </div>
-        </div>
-      </FilterPanel>
     </div>
   );
 }

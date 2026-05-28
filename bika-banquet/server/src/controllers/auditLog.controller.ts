@@ -3,6 +3,16 @@ import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/response';
 import { parsePagination } from '../utils/pagination';
 
+const ALLOWED_SORT_KEYS = new Set(['createdAt', 'action', 'resource', 'userName']);
+
+function parseMulti(value: unknown): string[] {
+  if (!value) return [];
+  return (value as string)
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
 export async function getAuditLogs(req: Request, res: Response): Promise<void> {
   try {
     const { page, limit, skip } = parsePagination(
@@ -12,7 +22,7 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
       200
     );
 
-    const { userId, resource, action, fromDate, toDate, search } = req.query;
+    const { userId, resource, action, fromDate, toDate, createdAtFrom, createdAtTo, search } = req.query;
 
     const whereClause: any = {};
 
@@ -20,24 +30,24 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
       whereClause.userId = userId as string;
     }
 
-    if (resource) {
-      whereClause.resource = resource as string;
-    }
+    const resources = parseMulti(resource);
+    if (resources.length === 1) whereClause.resource = resources[0];
+    else if (resources.length > 1) whereClause.resource = { in: resources };
 
-    if (action) {
-      whereClause.action = action as string;
-    }
+    const actions = parseMulti(action);
+    if (actions.length === 1) whereClause.action = actions[0];
+    else if (actions.length > 1) whereClause.action = { in: actions };
 
-    if (fromDate || toDate) {
+    // Date range accepts either {fromDate,toDate} (legacy) or {createdAtFrom,createdAtTo} (toolkit).
+    const from = (createdAtFrom ?? fromDate) as string | undefined;
+    const to = (createdAtTo ?? toDate) as string | undefined;
+    if (from || to) {
       whereClause.createdAt = {};
-      if (fromDate) {
-        whereClause.createdAt.gte = new Date(fromDate as string);
-      }
-      if (toDate) {
-        // Set to end of day
-        const to = new Date(toDate as string);
-        to.setUTCHours(23, 59, 59, 999);
-        whereClause.createdAt.lte = to;
+      if (from) whereClause.createdAt.gte = new Date(from);
+      if (to) {
+        const toDateEnd = new Date(to);
+        toDateEnd.setUTCHours(23, 59, 59, 999);
+        whereClause.createdAt.lte = toDateEnd;
       }
     }
 
@@ -50,10 +60,18 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
       ];
     }
 
+    let orderBy: any = { createdAt: 'desc' };
+    if (req.query.sort) {
+      const [key, dir] = (req.query.sort as string).split(':');
+      if (key && ALLOWED_SORT_KEYS.has(key) && (dir === 'asc' || dir === 'desc')) {
+        orderBy = { [key]: dir };
+      }
+    }
+
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
         where: whereClause,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),

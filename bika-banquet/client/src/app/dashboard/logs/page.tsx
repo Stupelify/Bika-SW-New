@@ -3,20 +3,15 @@
 import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Activity, Search, RefreshCw } from 'lucide-react';
+import { Activity, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
-import { useDebounce } from '@/lib/useDebounce';
-import { formatDateDDMMYYYY } from '@/lib/date';
 import SortableHeader from '@/components/SortableHeader';
-import {
-  SortState,
-  TableColumnConfig,
-  filterAndSortRows,
-  getNextSort,
-} from '@/lib/tableUtils';
-import TablePagination from '@/components/TablePagination';
 import EmptyState from '@/components/EmptyState';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { tableStateToServerParams } from '@/lib/data-table/apply';
+import type { FilterSchema } from '@/lib/data-table/types';
 
 interface AuditLog {
   id: string;
@@ -31,7 +26,30 @@ interface AuditLog {
   createdAt: string;
 }
 
-const PAGE_SIZE = 50;
+const ACTION_OPTIONS = [
+  { value: 'CREATE', label: 'Create' },
+  { value: 'UPDATE', label: 'Update' },
+  { value: 'DELETE', label: 'Delete' },
+  { value: 'CANCEL', label: 'Cancel' },
+  { value: 'FINALIZE', label: 'Finalize' },
+  { value: 'PARTY_OVER', label: 'Party over' },
+  { value: 'LOGIN', label: 'Login' },
+  { value: 'LOGOUT', label: 'Logout' },
+];
+
+const RESOURCE_OPTIONS = [
+  { value: 'booking', label: 'Booking' },
+  { value: 'enquiry', label: 'Enquiry' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'payment', label: 'Payment' },
+  { value: 'hall', label: 'Hall' },
+  { value: 'banquet', label: 'Banquet' },
+  { value: 'item', label: 'Item' },
+  { value: 'ingredient', label: 'Ingredient' },
+  { value: 'vendor', label: 'Vendor' },
+  { value: 'user', label: 'User' },
+  { value: 'role', label: 'Role' },
+];
 
 export default function AuditLogsPage() {
   const { user } = useAuthStore();
@@ -42,27 +60,39 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [globalSearch, setGlobalSearch] = useState('');
-  const debouncedSearch = useDebounce(globalSearch, 500);
 
-  const [sort, setSort] = useState<SortState>({ key: 'createdAt', direction: 'desc' });
+  const filterSchemas = useMemo<FilterSchema[]>(
+    () => [
+      { id: 'action', type: 'multiSelect', label: 'Action', options: ACTION_OPTIONS },
+      { id: 'resource', type: 'multiSelect', label: 'Resource', options: RESOURCE_OPTIONS },
+      { id: 'createdAt', type: 'dateRange', label: 'Date' },
+    ],
+    []
+  );
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const tableState = useTableState({
+    prefix: 'logs',
+    filters: filterSchemas,
+    defaultSort: { key: 'createdAt', direction: 'desc' },
+  });
+
+  // Stringify the server params so the effect doesn't refire on identity changes.
+  const serverParamsKey = useMemo(
+    () => JSON.stringify(tableStateToServerParams(tableState)),
+    [tableState]
+  );
 
   useEffect(() => {
-    if (canViewLogs) {
-      void fetchLogs(currentPage, debouncedSearch);
-    }
-  }, [canViewLogs, currentPage, debouncedSearch]);
+    if (!canViewLogs) return;
+    void fetchLogs(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canViewLogs, serverParamsKey]);
 
-  const fetchLogs = async (page: number, search: string, manual = false) => {
+  const fetchLogs = async (manual: boolean) => {
     try {
       if (manual) setRefreshing(true);
       else setLoading(true);
-      const params: any = { page, limit: PAGE_SIZE };
-      if (search) params.search = search;
-      const res = await api.getAuditLogs(params);
+      const res = await api.getAuditLogs(tableStateToServerParams(tableState));
       setLogs(res.data.data.logs || []);
       setTotal(res.data.data.pagination.total || 0);
     } catch (error) {
@@ -71,40 +101,6 @@ export default function AuditLogsPage() {
       if (manual) setRefreshing(false);
       else setLoading(false);
     }
-  };
-
-  const tableColumns = useMemo<TableColumnConfig<AuditLog>[]>(
-    () => [
-      {
-        key: 'createdAt',
-        accessor: (log) => log.createdAt,
-      },
-      {
-        key: 'user',
-        accessor: (log) => log.userName || 'System',
-      },
-      {
-        key: 'action',
-        accessor: (log) => log.action,
-      },
-      {
-        key: 'resource',
-        accessor: (log) => log.resource,
-      },
-      {
-        key: 'details',
-        accessor: (log) => log.resourceLabel || log.resourceId || '',
-      },
-    ],
-    []
-  );
-
-  const sortedLogs = useMemo(() => {
-    return filterAndSortRows(logs, tableColumns, '', {}, sort);
-  }, [logs, tableColumns, sort]);
-
-  const handleSort = (key: string) => {
-    setSort(getNextSort(sort, key));
   };
 
   if (!canViewLogs) {
@@ -126,7 +122,7 @@ export default function AuditLogsPage() {
         </div>
         <button
           type="button"
-          onClick={() => void fetchLogs(currentPage, debouncedSearch, true)}
+          onClick={() => void fetchLogs(true)}
           className="btn btn-secondary flex items-center gap-2"
           disabled={refreshing}
         >
@@ -136,53 +132,20 @@ export default function AuditLogsPage() {
       </div>
 
       <div className="card space-y-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-3)]" />
-            <input
-              type="text"
-              placeholder="Search logs by user, resource label, or ID..."
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              className="input pl-9"
-            />
-          </div>
-        </div>
+        <DataTableToolbar
+          state={tableState}
+          searchPlaceholder="Search logs by user, resource label, or ID…"
+        />
 
         <div className="table-shell">
           <table className="data-table">
             <thead>
               <tr className="border-b border-[var(--border)]">
-                <SortableHeader
-                  label="Date & Time"
-                  sortKey="createdAt"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <SortableHeader
-                  label="User"
-                  sortKey="user"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <SortableHeader
-                  label="Action"
-                  sortKey="action"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <SortableHeader
-                  label="Resource"
-                  sortKey="resource"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <SortableHeader
-                  label="Identifier / Label"
-                  sortKey="details"
-                  sort={sort}
-                  onSort={handleSort}
-                />
+                <SortableHeader label="Date & Time" sortKey="createdAt" sort={tableState.sort} onSort={tableState.toggleSort} />
+                <SortableHeader label="User" sortKey="userName" sort={tableState.sort} onSort={tableState.toggleSort} />
+                <SortableHeader label="Action" sortKey="action" sort={tableState.sort} onSort={tableState.toggleSort} />
+                <SortableHeader label="Resource" sortKey="resource" sort={tableState.sort} onSort={tableState.toggleSort} />
+                <th className="py-3 px-4 text-left text-sm font-semibold text-[var(--text-2)]">Identifier / Label</th>
                 <th className="py-3 px-4 text-right text-sm font-semibold text-[var(--text-2)]">IP Address</th>
               </tr>
             </thead>
@@ -193,7 +156,7 @@ export default function AuditLogsPage() {
                     Loading logs...
                   </td>
                 </tr>
-              ) : sortedLogs.length === 0 ? (
+              ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-0">
                     <EmptyState
@@ -204,7 +167,7 @@ export default function AuditLogsPage() {
                   </td>
                 </tr>
               ) : (
-                sortedLogs.map((log) => (
+                logs.map((log) => (
                   <tr key={log.id}>
                     <td className="py-4 px-4 whitespace-nowrap text-sm text-[var(--text-2)]">
                       {new Date(log.createdAt).toLocaleString()}
@@ -254,16 +217,12 @@ export default function AuditLogsPage() {
           </table>
         </div>
 
-        {totalPages > 1 && (
-          <TablePagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            totalItems={total}
-            pageSize={PAGE_SIZE}
-            itemLabel="logs"
-          />
-        )}
+        <DataTableFooter
+          state={tableState}
+          totalItems={total}
+          filteredCount={total}
+          itemLabel="logs"
+        />
       </div>
     </div>
   );
