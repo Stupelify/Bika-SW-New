@@ -95,6 +95,7 @@ import StatusBadge from '@/components/StatusBadge';
 import BookingPaymentsLedger from '@/components/BookingPaymentsLedger';
 import BookingFinancialSummary from '@/components/BookingFinancialSummary';
 import BookingPartyOverForm from '@/components/BookingPartyOverForm';
+import CurrencyInput from '@/components/CurrencyInput';
 
 interface Booking {
   id: string;
@@ -567,6 +568,7 @@ export default function BookingsPage() {
   const hallPickerContainerRef = useRef<HTMLDivElement | null>(null);
   const hallPickerPortalRef = useRef<HTMLDivElement | null>(null);
   const actionSentinelRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   // Snapshot of formData as last loaded from the server. Reset to this on server rejection.
   const savedFormDataRef = useRef<BookingFormData | null>(null);
   const savingInFlightRef = useRef(false);
@@ -1007,6 +1009,16 @@ export default function BookingsPage() {
       syncBillingAmounts(mode, sourceValue, totalAmount),
     []
   );
+
+  const focusNextField = useCallback((current: HTMLElement, container: HTMLElement) => {
+    const all = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'input:not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled])'
+      )
+    ).filter((el) => el.offsetParent !== null && el.tabIndex !== -1);
+    const idx = all.indexOf(current);
+    if (idx !== -1 && idx < all.length - 1) all[idx + 1].focus();
+  }, []);
 
   const activeMenuPackRow = menuEditorPack ? formData.packs[menuEditorPack] : null;
 
@@ -2884,7 +2896,7 @@ export default function BookingsPage() {
         </div>
 
         <fieldset disabled={isReadOnlyBooking}>
-        <form onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} onChange={() => setIsFormDirty(true)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') e.preventDefault(); }} className="space-y-5">
+        <form ref={formRef} onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} onChange={() => setIsFormDirty(true)} onKeyDown={(e) => { if (e.key !== 'Enter') return; const tag = (e.target as HTMLElement).tagName; if (tag === 'TEXTAREA') return; e.preventDefault(); if ((tag === 'INPUT' || tag === 'SELECT') && formRef.current && (e.target as HTMLElement).getAttribute('aria-expanded') !== 'true') focusNextField(e.target as HTMLElement, formRef.current); }} className="space-y-5">
           <div ref={actionSentinelRef} />
             <div className="flex items-center gap-3 flex-wrap">
               {!isReadOnlyBooking && (
@@ -3476,14 +3488,11 @@ export default function BookingsPage() {
                             </td>
                             {/* Col 7: Rate/Plate */}
                             <td className="px-2 py-2 align-top min-w-[70px]">
-                              <input
+                              <CurrencyInput
                                 className={`input py-1 text-xs w-full${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`}
-                                type="number"
-                                min={0}
                                 value={row.ratePerPlate}
                                 disabled={!row.enabled || !row.withCatering}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => updatePackRow(packKey, { ratePerPlate: e.target.value })}
+                                onChange={(raw) => updatePackRow(packKey, { ratePerPlate: raw })}
                               />
                               {packDiff?.ratePerPlateChange && (
                                 <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}</p>
@@ -3491,14 +3500,11 @@ export default function BookingsPage() {
                             </td>
                             {/* Col 8: Hall Rate */}
                             <td className="px-2 py-2 align-top min-w-[70px]">
-                              <input
+                              <CurrencyInput
                                 className={`input py-1 text-xs w-full${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`}
-                                type="number"
-                                min={0}
                                 value={row.hallRate}
                                 disabled={!row.enabled || !row.withHall}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })}
+                                onChange={(raw) => updatePackRow(packKey, { hallRate: raw })}
                               />
                               {packDiff?.hallRateChange && (
                                 <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}</p>
@@ -3575,19 +3581,15 @@ export default function BookingsPage() {
                         <td colSpan={1} />
                         <td className="px-2 py-1.5 text-right text-xs font-semibold text-red-700 dark:text-red-200 whitespace-nowrap">Discount</td>
                         <td className="px-2 py-1.5">
-                          <input
+                          <CurrencyInput
                             className="input py-1 text-xs w-full text-right dark:bg-slate-800/40"
-                            type="number"
-                            min={0}
-                            step={1}
                             value={formData.finalDiscountAmount}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
+                            onChange={(raw) => {
                               setAmountSyncMode('discountAmount');
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('discountAmount', e.target.value, mealsBillBase),
+                                ...normalizeAmountSnapshot('discountAmount', raw, mealsBillBase),
                               }));
                             }}
                           />
@@ -3599,20 +3601,19 @@ export default function BookingsPage() {
                         <td colSpan={7} />
                         <td className="px-2 py-1.5 text-right text-xs font-bold text-teal-700 dark:text-teal-200 whitespace-nowrap">Net Amount</td>
                         <td className="px-2 py-1.5">
-                          <input
+                          <CurrencyInput
                             className="input py-1 text-xs w-full text-right font-semibold text-teal-700 dark:text-teal-200 dark:bg-slate-800/40"
-                            type="number"
-                            min={0}
                             value={netAmountDraft !== null ? netAmountDraft : formData.finalAmount}
-                            onFocus={(e) => { e.target.select(); setNetAmountDraft(e.target.value); }}
-                            onChange={(e) => setNetAmountDraft(e.target.value)}
-                            onBlur={(e) => {
+                            onFocus={() => setNetAmountDraft(netAmountDraft !== null ? netAmountDraft : formData.finalAmount)}
+                            onChange={(raw) => setNetAmountDraft(raw)}
+                            onBlur={() => {
+                              const draft = netAmountDraft;
                               setNetAmountDraft(null);
                               setAmountSyncMode('finalAmount');
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('finalAmount', e.target.value, mealsBillBase),
+                                ...normalizeAmountSnapshot('finalAmount', draft ?? formData.finalAmount, mealsBillBase),
                               }));
                             }}
                             aria-label="Net Amount"
@@ -3670,20 +3671,17 @@ export default function BookingsPage() {
                                   }))
                                 }
                               />
-                              <input
+                              <CurrencyInput
                                 className="input py-1 text-xs w-24 text-right"
-                                type="number"
-                                min={0}
                                 value={item.amount}
                                 placeholder="0"
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) =>
+                                onChange={(raw) =>
                                   setFormData((prev) => ({
                                     ...prev,
                                     additionalRequirements: prev.additionalRequirements.map(
                                       (entry, entryIndex) =>
                                         entryIndex === index
-                                          ? { ...entry, amount: e.target.value }
+                                          ? { ...entry, amount: raw }
                                           : entry
                                     ),
                                   }))
@@ -3881,14 +3879,14 @@ export default function BookingsPage() {
                           </div>
                           <div>
                             <label className="label text-xs">Rate/Plate</label>
-                            <input className={`input${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`} type="number" min={0} value={row.ratePerPlate}
-                              disabled={!row.withCatering} onChange={(e) => updatePackRow(packKey, { ratePerPlate: e.target.value })} />
+                            <CurrencyInput className={`input${packDiff?.ratePerPlateChange ? ' ring-2 ring-amber-300' : ''}`} value={row.ratePerPlate}
+                              disabled={!row.withCatering} onChange={(raw) => updatePackRow(packKey, { ratePerPlate: raw })} />
                             {packDiff?.ratePerPlateChange && <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.ratePerPlateChange.from.toLocaleString('en-IN')}</p>}
                           </div>
                           <div>
                             <label className="label text-xs">Hall Rate</label>
-                            <input className={`input${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`} type="number" min={0} value={row.hallRate}
-                              disabled={!row.withHall} onChange={(e) => updatePackRow(packKey, { hallRate: e.target.value })} />
+                            <CurrencyInput className={`input${packDiff?.hallRateChange ? ' ring-2 ring-amber-300' : ''}`} value={row.hallRate}
+                              disabled={!row.withHall} onChange={(raw) => updatePackRow(packKey, { hallRate: raw })} />
                             {packDiff?.hallRateChange && <p className="mt-0.5 text-xs text-amber-600">was ₹{packDiff.hallRateChange.from.toLocaleString('en-IN')}</p>}
                           </div>
                           <div>
@@ -3922,7 +3920,7 @@ export default function BookingsPage() {
                     {formData.additionalRequirements.map((item, index) => (
                       <div key={`mob-req-${index}`} className="grid grid-cols-[1fr,120px,auto] gap-2 items-center">
                         <input className="input" value={item.description} placeholder="Extra item" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) }))} />
-                        <input className="input text-right" type="number" min={0} value={item.amount} placeholder="0" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: e.target.value } : r) }))} />
+                        <CurrencyInput className="input text-right" value={item.amount} placeholder="0" onChange={(raw) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: raw } : r) }))} />
                         <button type="button" className="text-red-500 text-xs" onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.filter((_, i) => i !== index) })); }}>✕</button>
                       </div>
                     ))}
@@ -3940,13 +3938,13 @@ export default function BookingsPage() {
                         </div>
                         <div>
                           <label className="label text-xs">Discount ₹</label>
-                          <input className="input text-right" type="number" min={0} step="0.01" value={formData.finalDiscountAmount}
-                            onChange={(e) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', e.target.value, mealsBillBase) })); }} />
+                          <CurrencyInput className="input text-right" value={formData.finalDiscountAmount}
+                            onChange={(raw) => { setAmountSyncMode('discountAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountAmount', raw, mealsBillBase) })); }} />
                         </div>
                         <div>
                           <label className="label text-xs">Net Amount</label>
-                          <input className="input text-right font-semibold text-teal-700 dark:text-teal-200" type="number" min={0} value={formData.finalAmount}
-                            onChange={(e) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', e.target.value, mealsBillBase) })); }}
+                          <CurrencyInput className="input text-right font-semibold text-teal-700 dark:text-teal-200" value={formData.finalAmount}
+                            onChange={(raw) => { setAmountSyncMode('finalAmount'); setDiscountManuallySet(true); setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('finalAmount', raw, mealsBillBase) })); }}
                             aria-label="Net Amount" />
                         </div>
                       </div>

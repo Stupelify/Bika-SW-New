@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
+import CurrencyInput from './CurrencyInput';
 
 interface PaymentRow {
   id?: string;
@@ -193,12 +194,10 @@ export default function BookingPaymentsLedger({
                           {notYetCleared && <span className="ml-1 text-xs">(pending)</span>}
                         </span>
                       ) : (
-                        <input
-                          type="number"
-                          min={0}
+                        <CurrencyInput
                           className="input py-1 text-sm w-28 text-right"
                           value={payment.amount}
-                          onChange={(e) => patch({ amount: e.target.value })}
+                          onChange={(raw) => patch({ amount: raw })}
                         />
                       )}
                     </td>
@@ -283,13 +282,11 @@ export default function BookingPaymentsLedger({
               )}
               <div>
                 <label className="text-xs text-[var(--text-4)] block mb-1">Amount (₹) *</label>
-                <input
-                  type="number"
-                  min={0}
+                <CurrencyInput
                   className="input py-1 text-sm"
                   placeholder="0"
                   value={draft.amount}
-                  onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                  onChange={(raw) => setDraft((d) => ({ ...d, amount: raw }))}
                 />
               </div>
             </div>
