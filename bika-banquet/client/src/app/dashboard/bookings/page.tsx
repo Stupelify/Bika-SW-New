@@ -1526,6 +1526,12 @@ export default function BookingsPage() {
     const id = searchParams.get('id');
     if (section === 'edit' && id) {
       void openEditBooking(id);
+    } else if (section === 'new') {
+      void openCreateBooking({
+        date: searchParams.get('date') || undefined,
+        hallId: searchParams.get('hall') || undefined,
+        slot: searchParams.get('slot') || undefined,
+      });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1900,7 +1906,7 @@ export default function BookingsPage() {
     }
   };
 
-  const loadLookups = async () => {
+  const loadLookups = async (): Promise<HallOption[]> => {
     try {
       if (!canAddBooking && !canEditBooking) {
         setCustomers([]);
@@ -1908,7 +1914,7 @@ export default function BookingsPage() {
         setHalls([]);
         setItems([]);
         setTemplateMenus([]);
-        return;
+        return [];
       }
       const [customerRows, banquetRes, hallRes, itemRes, templateRes, itemTypeRes] = await Promise.all([
         loadCustomerOptions(),
@@ -1929,8 +1935,10 @@ export default function BookingsPage() {
       setItems(itemRows);
       setItemTypes(itemTypeRows);
       setTemplateMenus(templateRows);
+      return hallRows;
     } catch (error) {
       toast.error('Failed to load booking form options');
+      return [];
     }
   };
 
@@ -1971,8 +1979,23 @@ export default function BookingsPage() {
     clearSearch();
   };
 
-  const openCreateBooking = () => {
-    void loadLookups();
+  // Maps a calendar board slot id (morning/lunch/evening/dinner) to a booking
+  // pack key (breakfast/lunch/hiTea/dinner).
+  const SLOT_TO_PACK: Record<string, PackKey> = {
+    morning: 'breakfast',
+    lunch: 'lunch',
+    evening: 'hiTea',
+    dinner: 'dinner',
+  };
+
+  const openCreateBooking = async (prefill?: {
+    date?: string;
+    hallId?: string;
+    slot?: string;
+  }) => {
+    // Kick off lookups; we await below only when we need hall metadata to
+    // resolve a hall's banquet for prefill.
+    const lookupsPromise = loadLookups();
     setEditingBookingId(null);
     setEditingBookingStatus(null);
     setBookingHistory([]);
@@ -1988,7 +2011,41 @@ export default function BookingsPage() {
     setActiveCustomerSearchField(null);
     setAmountSyncMode('discountPercent');
     setDiscountManuallySet(false);
-    setFormData(initialFormData);
+
+    // Build prefilled form data (date always; hall+slot when resolvable).
+    let nextForm: BookingFormData = {
+      ...initialFormData,
+      packs: {
+        breakfast: { ...initialFormData.packs.breakfast },
+        lunch: { ...initialFormData.packs.lunch },
+        hiTea: { ...initialFormData.packs.hiTea },
+        dinner: { ...initialFormData.packs.dinner },
+      },
+    };
+    if (prefill?.date) {
+      nextForm.functionDate = prefill.date;
+    }
+    const packKey = prefill?.slot ? SLOT_TO_PACK[prefill.slot] : undefined;
+    if (packKey) {
+      // Enable the matching meal pack so the slot is visibly selected.
+      nextForm.packs[packKey] = { ...nextForm.packs[packKey], enabled: true };
+      if (prefill?.hallId) {
+        // Resolve the hall's banquet so the hall actually shows selected.
+        // Use the awaited return value (state `halls` is stale in this closure).
+        const loadedHalls = await lookupsPromise;
+        const hall = loadedHalls.find((h) => h.id === prefill.hallId);
+        if (hall) {
+          nextForm.packs[packKey] = {
+            ...nextForm.packs[packKey],
+            banquetId: hall.banquet?.id || '',
+            hallIds: [hall.id],
+          };
+        }
+      }
+    }
+
+    void lookupsPromise;
+    setFormData(nextForm);
     setIsFormDirty(false);
     setShowCreateForm(true);
   };
