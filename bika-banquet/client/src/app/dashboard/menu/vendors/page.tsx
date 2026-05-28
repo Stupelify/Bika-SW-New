@@ -9,6 +9,11 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import MenuSectionTabs from '@/components/MenuSectionTabs';
+import SortableHeader from '@/components/SortableHeader';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { applyTableState, paginateRows } from '@/lib/data-table/apply';
+import type { TableColumnConfig } from '@/lib/tableUtils';
 
 interface Vendor {
   id: string;
@@ -93,7 +98,6 @@ export default function VendorsPage() {
   const canDelete = hasAnyPermission(permissionSet, ['delete_item', 'manage_menu']);
 
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [ingredients, setIngredients] = useState<IngredientOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
@@ -114,11 +118,65 @@ export default function VendorsPage() {
   const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null);
   const [savingSupply, setSavingSupply] = useState(false);
 
-  const filteredVendors = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return vendors;
-    return vendors.filter((vendor) => vendor.name.toLowerCase().includes(query));
-  }, [vendors, search]);
+  const ingredientSupplyCountOf = (vendor: Vendor) =>
+    (vendor.supplies || []).filter((supply) => supply.productType === 'ingredient').length;
+  const itemSupplyCountOf = (vendor: Vendor) =>
+    (vendor.supplies || []).filter((supply) => supply.productType === 'item').length;
+  const totalMappingsOf = (vendor: Vendor) =>
+    vendor._count?.supplies ?? (vendor.supplies || []).length;
+
+  const tableColumns = useMemo<TableColumnConfig<Vendor>[]>(
+    () => [
+      {
+        key: 'name',
+        accessor: (vendor) => vendor.name,
+        sortable: true,
+        searchable: true,
+      },
+      {
+        key: 'contact',
+        accessor: (vendor) =>
+          [vendor.contactPerson, vendor.phone, vendor.email, vendor.address, vendor.gstNumber]
+            .filter(Boolean)
+            .join(' '),
+        sortable: false,
+        searchable: true,
+      },
+      {
+        key: 'ingredientSupplies',
+        accessor: (vendor) => ingredientSupplyCountOf(vendor),
+        sortable: true,
+        searchable: false,
+      },
+      {
+        key: 'itemSupplies',
+        accessor: (vendor) => itemSupplyCountOf(vendor),
+        sortable: true,
+        searchable: false,
+      },
+      {
+        key: 'totalMappings',
+        accessor: (vendor) => totalMappingsOf(vendor),
+        sortable: true,
+        searchable: false,
+      },
+    ],
+    []
+  );
+
+  const tableState = useTableState({
+    prefix: 'vendors',
+    defaultSort: { key: 'name', direction: 'asc' },
+  });
+
+  const filteredVendors = useMemo(
+    () => applyTableState(vendors, tableColumns, [], tableState),
+    [vendors, tableColumns, tableState]
+  );
+  const paginatedVendors = useMemo(
+    () => paginateRows(filteredVendors, tableState.page, tableState.pageSize),
+    [filteredVendors, tableState.page, tableState.pageSize]
+  );
 
   const filteredIngredientsForPrompt = useMemo(() => {
     const query = ingredientSupplySearch.trim().toLowerCase();
@@ -490,11 +548,6 @@ export default function VendorsPage() {
       toast.error(error?.response?.data?.error || 'Failed to delete supply mapping');
     }
   };
-
-  const ingredientSupplyCount = (vendor: Vendor) =>
-    (vendor.supplies || []).filter((supply) => supply.productType === 'ingredient').length;
-  const itemSupplyCount = (vendor: Vendor) =>
-    (vendor.supplies || []).filter((supply) => supply.productType === 'item').length;
 
   return (
     <div className="space-y-6">
@@ -988,87 +1041,114 @@ export default function VendorsPage() {
             )}
           </div>
           <div className="panel-body space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
-              <input
-                className="input pl-9"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search vendor..."
-              />
-            </div>
+            <DataTableToolbar
+              state={tableState}
+              searchPlaceholder="Search vendors by name, contact, phone, email, address, GST…"
+            />
 
             {loading ? (
               <TableSkeleton rows={5} />
             ) : (
-              <div className="table-shell">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Vendor Name</th>
-                      <th>Contact</th>
-                      <th>Ingredient Supplies</th>
-                      <th>Item Supplies</th>
-                      <th>Total Mappings</th>
-                      <th className="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredVendors.length === 0 ? (
+              <>
+                <div className="table-shell">
+                  <table className="data-table">
+                    <thead>
                       <tr>
-                        <td colSpan={6} className="text-center py-6 text-sm text-[var(--text-4)]">
-                          No vendors found.
-                        </td>
+                        <SortableHeader
+                          label="Vendor Name"
+                          sortKey="name"
+                          sort={tableState.sort}
+                          onSort={tableState.toggleSort}
+                        />
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
+                          Contact
+                        </th>
+                        <SortableHeader
+                          label="Ingredient Supplies"
+                          sortKey="ingredientSupplies"
+                          sort={tableState.sort}
+                          onSort={tableState.toggleSort}
+                        />
+                        <SortableHeader
+                          label="Item Supplies"
+                          sortKey="itemSupplies"
+                          sort={tableState.sort}
+                          onSort={tableState.toggleSort}
+                        />
+                        <SortableHeader
+                          label="Total Mappings"
+                          sortKey="totalMappings"
+                          sort={tableState.sort}
+                          onSort={tableState.toggleSort}
+                        />
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
+                          Actions
+                        </th>
                       </tr>
-                    ) : (
-                      filteredVendors.map((vendor) => (
-                        <tr key={vendor.id}>
-                          <td>{vendor.name}</td>
-                          <td>
-                            <div className="text-xs text-[var(--text-2)] space-y-0.5">
-                              <p>{vendor.contactPerson || '-'}</p>
-                              <p>{vendor.phone || '-'}</p>
-                            </div>
-                          </td>
-                          <td>{ingredientSupplyCount(vendor)}</td>
-                          <td>{itemSupplyCount(vendor)}</td>
-                          <td>{vendor._count?.supplies || (vendor.supplies || []).length}</td>
-                          <td className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button className="btn btn-secondary" type="button" onClick={() => openSupplies(vendor)}>
-                                <span className="inline-flex items-center gap-2">
-                                  <Truck className="w-4 h-4" />
-                                  Supplies
-                                </span>
-                              </button>
-                              {canEdit && (
-                                <button
-                                  className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
-                                  onClick={() => {
-                                    void openEditVendor(vendor);
-                                  }}
-                                  type="button"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                              )}
-                              {canDelete && (
-                                <button
-                                  className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
-                                  onClick={() => removeVendor(vendor.id)}
-                                  type="button"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
+                    </thead>
+                    <tbody>
+                      {paginatedVendors.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-6 text-sm text-[var(--text-4)]">
+                            No vendors match the current search.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ) : (
+                        paginatedVendors.map((vendor) => (
+                          <tr key={vendor.id}>
+                            <td>{vendor.name}</td>
+                            <td>
+                              <div className="text-xs text-[var(--text-2)] space-y-0.5">
+                                <p>{vendor.contactPerson || '-'}</p>
+                                <p>{vendor.phone || '-'}</p>
+                              </div>
+                            </td>
+                            <td>{ingredientSupplyCountOf(vendor)}</td>
+                            <td>{itemSupplyCountOf(vendor)}</td>
+                            <td>{totalMappingsOf(vendor)}</td>
+                            <td className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button className="btn btn-secondary" type="button" onClick={() => openSupplies(vendor)}>
+                                  <span className="inline-flex items-center gap-2">
+                                    <Truck className="w-4 h-4" />
+                                    Supplies
+                                  </span>
+                                </button>
+                                {canEdit && (
+                                  <button
+                                    className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
+                                    onClick={() => {
+                                      void openEditVendor(vendor);
+                                    }}
+                                    type="button"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
+                                    onClick={() => removeVendor(vendor.id)}
+                                    type="button"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <DataTableFooter
+                  state={tableState}
+                  totalItems={vendors.length}
+                  filteredCount={filteredVendors.length}
+                  itemLabel="vendors"
+                />
+              </>
             )}
           </div>
         </div>

@@ -9,6 +9,12 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import MenuSectionTabs from '@/components/MenuSectionTabs';
+import SortableHeader from '@/components/SortableHeader';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { applyTableState, paginateRows } from '@/lib/data-table/apply';
+import type { TableColumnConfig } from '@/lib/tableUtils';
+import type { FilterSchema } from '@/lib/data-table/types';
 
 interface Ingredient {
   id: string;
@@ -66,7 +72,6 @@ export default function IngredientsPage() {
   const canDelete = hasAnyPermission(permissionSet, ['delete_item', 'manage_menu']);
 
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
 
@@ -85,18 +90,58 @@ export default function IngredientsPage() {
   const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null);
   const [savingSupply, setSavingSupply] = useState(false);
 
-  const filteredIngredients = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) {
-      return ingredients;
-    }
-    return ingredients.filter((ingredient) => {
-      return (
-        ingredient.name.toLowerCase().includes(query) ||
-        ingredient.defaultUnit.toLowerCase().includes(query)
-      );
-    });
-  }, [ingredients, search]);
+  const tableColumns = useMemo<TableColumnConfig<Ingredient>[]>(
+    () => [
+      { key: 'name', accessor: (i) => i.name, sortable: true, searchable: true },
+      { key: 'defaultUnit', accessor: (i) => i.defaultUnit, sortable: true, searchable: true },
+      {
+        key: 'itemRecipes',
+        accessor: (i) => i._count?.itemRecipes ?? 0,
+        sortable: true,
+        searchable: false,
+      },
+      {
+        key: 'vendorSupplies',
+        accessor: (i) => i._count?.vendorSupplies ?? 0,
+        sortable: true,
+        searchable: false,
+      },
+    ],
+    []
+  );
+
+  const filterSchemas = useMemo<FilterSchema[]>(
+    () => [
+      {
+        id: 'unit',
+        type: 'multiSelect',
+        label: 'Unit',
+        options: UNITS.map((u) => ({ value: u, label: u })),
+      },
+    ],
+    []
+  );
+
+  const filterDefs = useMemo(
+    () => [{ id: 'unit', accessor: (i: Ingredient) => i.defaultUnit }],
+    []
+  );
+
+  const tableState = useTableState({
+    prefix: 'ingredients',
+    filters: filterSchemas,
+    defaultSort: { key: 'name', direction: 'asc' },
+  });
+
+  const filteredIngredients = useMemo(
+    () => applyTableState(ingredients, tableColumns, filterDefs, tableState),
+    [ingredients, tableColumns, filterDefs, tableState]
+  );
+
+  const paginatedIngredients = useMemo(
+    () => paginateRows(filteredIngredients, tableState.page, tableState.pageSize),
+    [filteredIngredients, tableState.page, tableState.pageSize]
+  );
 
   const filteredPromptVendors = useMemo(() => {
     const query = ingredientVendorSearch.trim().toLowerCase();
@@ -709,84 +754,87 @@ export default function IngredientsPage() {
             )}
           </div>
           <div className="panel-body space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
-              <input
-                className="input pl-9"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search ingredient or unit..."
-              />
-            </div>
+            <DataTableToolbar
+              state={tableState}
+              searchPlaceholder="Search ingredient or unit…"
+            />
 
             {loading ? (
               <TableSkeleton rows={5} />
             ) : (
-              <div className="table-shell">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Default Unit</th>
-                      <th>Used In Recipes</th>
-                      <th>Supplied By Vendors</th>
-                      <th className="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredIngredients.length === 0 ? (
+              <>
+                <div className="table-shell">
+                  <table className="data-table">
+                    <thead>
                       <tr>
-                        <td colSpan={5} className="text-center py-6 text-sm text-[var(--text-4)]">
-                          No ingredients found.
-                        </td>
+                        <SortableHeader label="Name" sortKey="name" sort={tableState.sort} onSort={tableState.toggleSort} />
+                        <SortableHeader label="Default Unit" sortKey="defaultUnit" sort={tableState.sort} onSort={tableState.toggleSort} />
+                        <SortableHeader label="Used In Recipes" sortKey="itemRecipes" sort={tableState.sort} onSort={tableState.toggleSort} />
+                        <SortableHeader label="Supplied By Vendors" sortKey="vendorSupplies" sort={tableState.sort} onSort={tableState.toggleSort} />
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Actions</th>
                       </tr>
-                    ) : (
-                      filteredIngredients.map((ingredient) => (
-                        <tr key={ingredient.id}>
-                          <td>{ingredient.name}</td>
-                          <td>{ingredient.defaultUnit}</td>
-                          <td>{ingredient._count?.itemRecipes || 0}</td>
-                          <td>{ingredient._count?.vendorSupplies || 0}</td>
-                          <td className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                className="btn btn-secondary"
-                                type="button"
-                                onClick={() => openSuppliers(ingredient)}
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <Users className="w-4 h-4" />
-                                  Suppliers
-                                </span>
-                              </button>
-                              {canEdit && (
-                                <button
-                                  className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
-                                  onClick={() => {
-                                    void openEditIngredient(ingredient);
-                                  }}
-                                  type="button"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                              )}
-                              {canDelete && (
-                                <button
-                                  className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
-                                  onClick={() => removeIngredient(ingredient.id)}
-                                  type="button"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
+                    </thead>
+                    <tbody>
+                      {paginatedIngredients.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="text-center py-6 text-sm text-[var(--text-4)]">
+                            No ingredients match the current search.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ) : (
+                        paginatedIngredients.map((ingredient) => (
+                          <tr key={ingredient.id}>
+                            <td>{ingredient.name}</td>
+                            <td>{ingredient.defaultUnit}</td>
+                            <td>{ingredient._count?.itemRecipes || 0}</td>
+                            <td>{ingredient._count?.vendorSupplies || 0}</td>
+                            <td className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  className="btn btn-secondary"
+                                  type="button"
+                                  onClick={() => openSuppliers(ingredient)}
+                                >
+                                  <span className="inline-flex items-center gap-2">
+                                    <Users className="w-4 h-4" />
+                                    Suppliers
+                                  </span>
+                                </button>
+                                {canEdit && (
+                                  <button
+                                    className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
+                                    onClick={() => {
+                                      void openEditIngredient(ingredient);
+                                    }}
+                                    type="button"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
+                                    onClick={() => removeIngredient(ingredient.id)}
+                                    type="button"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <DataTableFooter
+                  state={tableState}
+                  totalItems={ingredients.length}
+                  filteredCount={filteredIngredients.length}
+                  itemLabel="ingredients"
+                />
+              </>
             )}
           </div>
         </div>
