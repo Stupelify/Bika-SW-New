@@ -342,7 +342,7 @@ function DashboardLayoutContent({
   const sectionParam = searchParams.get('section');
 
   // ── Idle timeout ────────────────────────────────────────────────────────────
-  // 30-minute idle window. 60-second warning before auto-logout.
+  // 4-hour idle window; 60-second warning before auto-logout.
   // Staff share computers so we need to protect against walk-away sessions.
   const [idleWarningOpen, setIdleWarningOpen] = useState(false);
   const [idleCountdown, setIdleCountdown] = useState(IDLE_WARN_SECONDS);

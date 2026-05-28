@@ -51,7 +51,7 @@ export default function HomePage() {
           Bika Banquet
         </p>
         <h1 style={{ margin: '10px 0 0', fontSize: 30, lineHeight: 1.2 }}>
-          {isLoading ? 'Loading your workspace...' : 'Taking you to the right page...'}
+          {!isAuthReady ? 'Loading your workspace...' : 'Taking you to the right page...'}
         </h1>
         <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.6, color: '#334155' }}>
           If this page does not move in a moment, open the login screen directly.

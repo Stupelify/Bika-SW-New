@@ -14,6 +14,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  isAuthReady: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -25,11 +26,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
   isLoading: false,
+  isAuthReady: false,
   isAuthenticated: false,
 
   setToken: async (token: string) => {
     await AsyncStorage.setItem('auth_token', token);
-    set({ token, isAuthenticated: true });
+    set({ token, isAuthenticated: true, isAuthReady: true });
   },
 
   login: async (email: string, password: string) => {
@@ -43,7 +45,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         user,
         token,
         isAuthenticated: true,
-        isLoading: false
+        isLoading: false,
+        isAuthReady: true,
       });
     } catch (error: any) {
       set({ isLoading: false });
@@ -61,7 +64,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: null,
         token: null,
-        isAuthenticated: false
+        isAuthenticated: false,
+        isAuthReady: true,
       });
     }
   },
@@ -69,7 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   loadUser: async () => {
     const token = await AsyncStorage.getItem('auth_token');
     if (!token) {
-      set({ isAuthenticated: false, isLoading: false });
+      set({ isAuthenticated: false, isLoading: false, isAuthReady: true });
       return;
     }
 
@@ -79,7 +83,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: response.data.data.user,
         isAuthenticated: true,
-        isLoading: false
+        isLoading: false,
+        isAuthReady: true,
       });
     } catch (error) {
       await AsyncStorage.removeItem('auth_token');
@@ -87,7 +92,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: null,
         token: null,
         isAuthenticated: false,
-        isLoading: false
+        isLoading: false,
+        isAuthReady: true,
       });
     }
   },
