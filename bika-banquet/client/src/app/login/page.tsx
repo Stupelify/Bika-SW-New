@@ -17,7 +17,7 @@ export default function LoginPage() {
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (!token) {
-      useAuthStore.setState({ isLoading: false });
+      useAuthStore.setState({ isAuthReady: true });
       return;
     }
     void loadUser();

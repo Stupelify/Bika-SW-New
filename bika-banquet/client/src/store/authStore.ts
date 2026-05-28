@@ -12,7 +12,10 @@ interface User {
 interface AuthState {
   user: User | null;
   token: string | null;
+  /** True while login() is in flight — drives the Sign In button only */
   isLoading: boolean;
+  /** False until the first loadUser() finishes (token restore on refresh) */
+  isAuthReady: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -23,13 +26,13 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
-  // false until loadUser/login runs — avoids /login showing "Signing in..." on first paint
   isLoading: false,
+  isAuthReady: false,
   isAuthenticated: false,
 
   setToken: (token: string) => {
     localStorage.setItem('auth_token', token);
-    set({ token, isAuthenticated: true });
+    set({ token, isAuthenticated: true, isAuthReady: true });
   },
 
   login: async (email: string, password: string) => {
@@ -37,13 +40,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const response = await api.login(email, password);
       const { token, user } = response.data.data;
-      
+
       localStorage.setItem('auth_token', token);
-      set({ 
-        user, 
-        token, 
-        isAuthenticated: true, 
-        isLoading: false 
+      set({
+        user,
+        token,
+        isAuthenticated: true,
+        isLoading: false,
+        isAuthReady: true,
       });
     } catch (error: any) {
       set({ isLoading: false });
@@ -58,10 +62,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('auth_token');
-      set({ 
-        user: null, 
-        token: null, 
-        isAuthenticated: false 
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isAuthReady: true,
       });
     }
   },
@@ -69,7 +74,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   loadUser: async (options?: { silent?: boolean }) => {
     const token = localStorage.getItem('auth_token');
     if (!token) {
-      set({ isAuthenticated: false, isLoading: false });
+      set({ isAuthenticated: false, isLoading: false, isAuthReady: true });
       return;
     }
 
@@ -80,18 +85,20 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     try {
       const response = await api.getCurrentUser();
-      set({ 
-        user: response.data.data.user, 
-        isAuthenticated: true, 
-        isLoading: false 
+      set({
+        user: response.data.data.user,
+        isAuthenticated: true,
+        isLoading: false,
+        isAuthReady: true,
       });
     } catch (error) {
       localStorage.removeItem('auth_token');
-      set({ 
-        user: null, 
-        token: null, 
-        isAuthenticated: false, 
-        isLoading: false 
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isAuthReady: true,
       });
     }
   },
