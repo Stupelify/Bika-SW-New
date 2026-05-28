@@ -504,10 +504,17 @@ function MonthDayTile({day,inMonth,groups,onBook,onDrill,onCreate}:{
   const wknd=dow===0||dow===6;
 
   // Flatten this day's bookings across all groups/halls, tagged with palette +
-  // hall key, sorted by start time.
+  // hall key, sorted by start time. Dedupe by bookingId so a multi-hall
+  // booking (replicated across hall rows in hallBoardRows) only shows once.
+  const seen=new Set<string>();
   const list:MonthDaySlot[]=groups.flatMap(g=>g.halls.flatMap(h=>
     h.slots.filter(s=>s.date===iso).map(s=>({...s,pal:g.pal,hallKey:h.hallId||h.hallName}))
-  )).sort((a,b)=>a.startMinutes-b.startMinutes);
+  )).filter(s=>{
+    const key=s.bookingId||`${s.functionName}|${s.startMinutes}|${s.hallKey}`;
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  }).sort((a,b)=>a.startMinutes-b.startMinutes);
   const n=list.length;
 
   // Conflict (month): within a single hall, >1 booking in the same bucketSlot.
