@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import CurrencyInput from './CurrencyInput';
+import { IndianAmountInput } from '@/components/IndianAmountInput';
 
 interface PaymentRow {
   id?: string;
@@ -194,7 +194,7 @@ export default function BookingPaymentsLedger({
                           {notYetCleared && <span className="ml-1 text-xs">(pending)</span>}
                         </span>
                       ) : (
-                        <CurrencyInput
+                        <IndianAmountInput
                           className="input py-1 text-sm w-28 text-right"
                           value={payment.amount}
                           onChange={(raw) => patch({ amount: raw })}
@@ -282,7 +282,7 @@ export default function BookingPaymentsLedger({
               )}
               <div>
                 <label className="text-xs text-[var(--text-4)] block mb-1">Amount (₹) *</label>
-                <CurrencyInput
+                <IndianAmountInput
                   className="input py-1 text-sm text-right"
                   placeholder="0"
                   value={draft.amount}
