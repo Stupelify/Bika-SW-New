@@ -9,23 +9,19 @@ import {
   formatCustomerOptionLabel,
 } from '@/lib/customerSearch';
 import { toast } from 'sonner';
-import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users, Filter } from 'lucide-react';
+import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users } from 'lucide-react';
 import Combobox from '@/components/Combobox';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import FormPromptModal from '@/components/FormPromptModal';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
-import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
-import FilterPanel from '@/components/FilterPanel';
-import {
-  SortState,
-  TableColumnConfig,
-  filterAndSortRows,
-  getNextSort,
-} from '@/lib/tableUtils';
+import { TableColumnConfig } from '@/lib/tableUtils';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { applyTableState, paginateRows } from '@/lib/data-table/apply';
+import type { FilterSchema } from '@/lib/data-table/types';
 import { formatDateDDMMYYYY } from '@/lib/date';
-import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import StatusBadge from '@/components/StatusBadge';
@@ -150,16 +146,6 @@ const FUNCTION_TYPE_OPTIONS = [
   'Other',
 ] as const;
 
-const initialColumnSearch = {
-  functionName: '',
-  customer: '',
-  functionDate: '',
-  expectedGuests: '',
-  status: '',
-};
-
-const ENQUIRIES_PAGE_SIZE = 75;
-
 export default function EnquiriesPage() {
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
@@ -177,23 +163,18 @@ export default function EnquiriesPage() {
   const [saving, setSaving] = useState(false);
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
   const [editingEnquiryId, setEditingEnquiryId] = useState<string | null>(null);
-  const [globalSearch, setGlobalSearch] = useState('');
-  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
-  const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
-  const [showFilters, setShowFilters] = useState(false);
-  const [status, setStatus] = useState('');
-  const [sort, setSort] = useState<SortState>({
-    key: 'functionName',
-    direction: 'asc',
-  });
-  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<EnquiryFormData>(initialFormData);
 
   const tableColumns = useMemo<TableColumnConfig<Enquiry>[]>(
     () => [
       {
         key: 'functionName',
-        accessor: (enquiry) => `${enquiry.functionName} ${enquiry.functionType}`,
+        accessor: (enquiry) =>
+          [enquiry.functionName, enquiry.functionType, enquiry.notes ?? '']
+            .filter(Boolean)
+            .join(' '),
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'customer',
@@ -202,54 +183,97 @@ export default function EnquiriesPage() {
             name: enquiry.customer?.name,
             phone: enquiry.customer?.phone,
           }),
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'functionDate',
         accessor: (enquiry) => enquiry.functionDate,
+        sortable: true,
+        searchable: false,
       },
       {
         key: 'expectedGuests',
         accessor: (enquiry) => enquiry.expectedGuests,
+        sortable: true,
+        searchable: false,
       },
       {
         key: 'status',
-        accessor: (enquiry) =>
-          `${enquiry.status} ${enquiry.quotationSent ? 'Quotation' : ''} ${enquiry.isPencilBooked ? 'Pencil' : ''
-          }`,
+        accessor: (enquiry) => enquiry.status,
+        sortable: true,
+        searchable: false,
       },
     ],
     []
   );
 
+  const filterSchemas = useMemo<FilterSchema[]>(
+    () => [
+      {
+        id: 'status',
+        type: 'multiSelect',
+        label: 'Status',
+        options: [
+          { value: 'pending', label: 'Pending' },
+          { value: 'quoted', label: 'Quoted' },
+          { value: 'converted', label: 'Converted' },
+          { value: 'cancelled', label: 'Cancelled' },
+        ],
+      },
+      { id: 'functionDate', type: 'dateRange', label: 'Function date' },
+      { id: 'expectedGuests', type: 'numberRange', label: 'Guests' },
+      {
+        id: 'flags',
+        type: 'multiSelect',
+        label: 'Flags',
+        options: [
+          { value: 'quotation', label: 'Quotation sent' },
+          { value: 'pencil', label: 'Pencil booked' },
+        ],
+      },
+    ],
+    []
+  );
+
+  const filterDefs = useMemo(
+    () => [
+      { id: 'status', accessor: (e: Enquiry) => e.status },
+      { id: 'functionDate', accessor: (e: Enquiry) => e.functionDate },
+      { id: 'expectedGuests', accessor: (e: Enquiry) => e.expectedGuests },
+      {
+        id: 'flags',
+        accessor: (e: Enquiry) => {
+          const flags: string[] = [];
+          if (e.quotationSent) flags.push('quotation');
+          if (e.isPencilBooked) flags.push('pencil');
+          return flags;
+        },
+      },
+    ],
+    []
+  );
+
+  const tableState = useTableState({
+    prefix: 'enquiries',
+    filters: filterSchemas,
+    defaultSort: { key: 'functionName', direction: 'asc' },
+  });
+
   const filteredEnquiries = useMemo(
-    () => filterAndSortRows(enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort),
-    [enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort]
+    () => applyTableState(enquiries, tableColumns, filterDefs, tableState),
+    [enquiries, tableColumns, filterDefs, tableState]
   );
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredEnquiries.length / ENQUIRIES_PAGE_SIZE)),
-    [filteredEnquiries.length]
+  const paginatedEnquiries = useMemo(
+    () => paginateRows(filteredEnquiries, tableState.page, tableState.pageSize),
+    [filteredEnquiries, tableState.page, tableState.pageSize]
   );
-
-  const paginatedEnquiries = useMemo(() => {
-    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-    const startIndex = (safePage - 1) * ENQUIRIES_PAGE_SIZE;
-    return filteredEnquiries.slice(startIndex, startIndex + ENQUIRIES_PAGE_SIZE);
-  }, [currentPage, filteredEnquiries, totalPages]);
 
   useEffect(() => {
     void loadLookups();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAddEnquiry, canEditEnquiry]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedGlobalSearch, columnSearch, sort, status]);
-
-  useEffect(() => {
-    if (currentPage <= totalPages) return;
-    setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
 
   useEffect(() => {
     const section = searchParams.get('section');
@@ -302,8 +326,7 @@ export default function EnquiriesPage() {
       setLoading(true);
       const response = await api.getEnquiries({
         page: 1,
-        limit: 200,
-        status: status || undefined,
+        limit: 5000,
       });
       setEnquiries(response.data?.data?.enquiries || []);
     } catch (error) {
@@ -311,11 +334,11 @@ export default function EnquiriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [permissionSet, status]);
+  }, [permissionSet]);
 
   useEffect(() => {
     void loadEnquiries();
-  }, [status, canViewEnquiry, loadEnquiries]);
+  }, [canViewEnquiry, loadEnquiries]);
 
   const enquiriesDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedLoadEnquiries = useCallback(() => {
@@ -331,16 +354,6 @@ export default function EnquiriesPage() {
   }, []);
   useSSE(['enquiry:'], debouncedLoadEnquiries, canViewEnquiry);
 
-
-  const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
-    setColumnSearch((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const clearSearch = () => {
-    setGlobalSearch('');
-    setColumnSearch(initialColumnSearch);
-    setCurrentPage(1);
-  };
 
   const openCreatePrompt = () => {
     void loadLookups();
@@ -786,62 +799,10 @@ export default function EnquiriesPage() {
       </FormPromptModal>
 
       <div className="card">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
-            <input
-              className="input pl-10 pr-10"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="Overall search across all enquiry columns..."
-            />
-            {globalSearch && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={clearSearch}
-                style={{
-                  position: 'absolute',
-                  right: 10,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 2,
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <select
-            className="input md:w-64"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="quoted">Quoted</option>
-            <option value="converted">Converted</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
-            <Filter className="w-5 h-5 md:mr-2" />
-            <span className="hidden md:inline">Filters</span>
-            {Object.values(columnSearch).filter(Boolean).length > 0 && (
-               <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                 {Object.values(columnSearch).filter(Boolean).length}
-               </span>
-            )}
-          </button>
-        </div>
+        <DataTableToolbar
+          state={tableState}
+          searchPlaceholder="Search by function, customer, phone, or notes…"
+        />
       </div>
 
       <div className="card">
@@ -859,34 +820,28 @@ export default function EnquiriesPage() {
           </div>
         ) : filteredEnquiries.length === 0 ? (
           <EmptyState
-            icon={globalSearch ? Search : PhoneCall}
+            icon={tableState.search ? Search : PhoneCall}
             variant={
-              globalSearch
-                ? 'search'
-                : Object.values(columnSearch).some(Boolean)
-                  ? 'filter'
-                  : 'page'
+              tableState.search ? 'search' : tableState.activeFilterCount > 0 ? 'filter' : 'page'
             }
             title={
-              globalSearch
+              tableState.search
                 ? 'No enquiries match your search'
-                : Object.values(columnSearch).some(Boolean)
+                : tableState.activeFilterCount > 0
                   ? 'No matches'
                   : 'No enquiries found'
             }
             description={
-              globalSearch || Object.values(columnSearch).some(Boolean)
-                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
+              tableState.search || tableState.activeFilterCount > 0
+                ? 'Try adjusting the search or active filters.'
                 : 'New enquiries will appear here.'
             }
             action={
-              globalSearch
-                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
-                : Object.values(columnSearch).some(Boolean)
-                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
-                  : canAddEnquiry
-                    ? { label: 'New Enquiry', onClick: openCreatePrompt }
-                    : undefined
+              tableState.search || tableState.activeFilterCount > 0
+                ? { label: 'Clear all', onClick: tableState.clearAll }
+                : canAddEnquiry
+                  ? { label: 'New Enquiry', onClick: openCreatePrompt }
+                  : undefined
             }
           />
         ) : (
@@ -955,14 +910,6 @@ export default function EnquiriesPage() {
                   </div>
                 ))}
               </div>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredEnquiries.length}
-                pageSize={ENQUIRIES_PAGE_SIZE}
-                itemLabel="enquiries"
-                onPageChange={setCurrentPage}
-              />
             </div>
 
             {/* Desktop table view */}
@@ -970,36 +917,11 @@ export default function EnquiriesPage() {
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
-                    <SortableHeader
-                      label="Function"
-                      sortKey="functionName"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Customer"
-                      sortKey="customer"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Date"
-                      sortKey="functionDate"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Guests"
-                      sortKey="expectedGuests"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Status"
-                      sortKey="status"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
+                    <SortableHeader label="Function" sortKey="functionName" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Customer" sortKey="customer" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Date" sortKey="functionDate" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Guests" sortKey="expectedGuests" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Status" sortKey="status" sort={tableState.sort} onSort={tableState.toggleSort} />
                     <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
                       Actions
                     </th>
@@ -1061,15 +983,13 @@ export default function EnquiriesPage() {
                   ))}
                 </tbody>
               </table>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredEnquiries.length}
-                pageSize={ENQUIRIES_PAGE_SIZE}
-                itemLabel="enquiries"
-                onPageChange={setCurrentPage}
-              />
             </div>
+            <DataTableFooter
+              state={tableState}
+              totalItems={enquiries.length}
+              filteredCount={filteredEnquiries.length}
+              itemLabel="enquiries"
+            />
           </>
         )}
       </div>
@@ -1080,36 +1000,6 @@ export default function EnquiriesPage() {
           label="New Enquiry"
         />
       )}
-
-      <FilterPanel
-        open={showFilters}
-        onClose={() => setShowFilters(false)}
-        activeCount={Object.values(columnSearch).filter(Boolean).length}
-        onClearAll={() => setColumnSearch({ functionName: '', customer: '', functionDate: '', expectedGuests: '', status: '' })}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="label">Function</label>
-            <input className="input" placeholder="Search function" value={columnSearch.functionName} onChange={(e) => handleColumnSearch('functionName', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Customer</label>
-            <input className="input" placeholder="Search name or phone" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Function Date</label>
-            <input type="date" className="input" value={columnSearch.functionDate} onChange={(e) => handleColumnSearch('functionDate', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Expected Guests</label>
-            <input className="input" placeholder="Search guests" value={columnSearch.expectedGuests} onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Status</label>
-            <input className="input" placeholder="Search status" value={columnSearch.status} onChange={(e) => handleColumnSearch('status', e.target.value)} />
-          </div>
-        </div>
-      </FilterPanel>
     </div>
   );
 }

@@ -10,16 +10,13 @@ import {
   CalendarDays,
   CalendarRange,
   IndianRupee,
-  Search,
   Users,
 } from 'lucide-react';
-import {
-  SortState,
-  TableColumnConfig,
-  filterAndSortRows,
-} from '@/lib/tableUtils';
+import { TableColumnConfig } from '@/lib/tableUtils';
+import DataTableToolbar from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { applyTableState } from '@/lib/data-table/apply';
 import { formatDateDDMMYYYY } from '@/lib/date';
-import { useDebounce } from '@/lib/useDebounce';
 
 interface ReportResponse {
   range: {
@@ -184,35 +181,14 @@ export default function ReportsPage() {
   const [range, setRange] = useState('1m');
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<ReportResponse | null>(null);
-  const [monthlyGlobalSearch, setMonthlyGlobalSearch] = useState('');
-  const debouncedMonthlySearch = useDebounce(monthlyGlobalSearch, 150);
-  const [monthlyColumnSearch, setMonthlyColumnSearch] = useState({
-    month: '',
-    bookings: '',
-    revenue: '',
-  });
-  const [monthlySort, setMonthlySort] = useState<SortState>({
-    key: 'month',
-    direction: 'asc',
-  });
-  const [hallGlobalSearch, setHallGlobalSearch] = useState('');
-  const debouncedHallSearch = useDebounce(hallGlobalSearch, 150);
-  const [hallColumnSearch, setHallColumnSearch] = useState({
-    hallName: '',
-    bookings: '',
-  });
-  const [hallSort, setHallSort] = useState<SortState>({
-    key: 'hallName',
-    direction: 'asc',
-  });
 
   const monthlyColumns = useMemo<
     TableColumnConfig<ReportResponse['trends']['monthly'][number]>[]
   >(
     () => [
-      { key: 'month', accessor: (row) => row.month },
-      { key: 'bookings', accessor: (row) => row.bookings },
-      { key: 'revenue', accessor: (row) => row.revenue },
+      { key: 'month', accessor: (row) => row.month, sortable: true, searchable: true },
+      { key: 'bookings', accessor: (row) => row.bookings, sortable: true, searchable: false },
+      { key: 'revenue', accessor: (row) => row.revenue, sortable: true, searchable: false },
     ],
     []
   );
@@ -221,34 +197,35 @@ export default function ReportsPage() {
     TableColumnConfig<ReportResponse['breakdown']['hallPerformance'][number]>[]
   >(
     () => [
-      { key: 'hallName', accessor: (row) => row.hallName },
-      { key: 'bookings', accessor: (row) => row.bookings },
+      { key: 'hallName', accessor: (row) => row.hallName, sortable: true, searchable: true },
+      { key: 'bookings', accessor: (row) => row.bookings, sortable: true, searchable: false },
     ],
     []
   );
 
+  const monthlyState = useTableState({
+    prefix: 'monthly',
+    defaultSort: { key: 'month', direction: 'asc' },
+  });
+  const hallPerfState = useTableState({
+    prefix: 'hallperf',
+    defaultSort: { key: 'hallName', direction: 'asc' },
+  });
+
   const filteredMonthly = useMemo(
-    () =>
-      filterAndSortRows(
-        report?.trends.monthly || [],
-        monthlyColumns,
-        debouncedMonthlySearch,
-        monthlyColumnSearch,
-        monthlySort
-      ),
-    [report, monthlyColumns, debouncedMonthlySearch, monthlyColumnSearch, monthlySort]
+    () => applyTableState(report?.trends.monthly || [], monthlyColumns, [], monthlyState),
+    [report, monthlyColumns, monthlyState]
   );
 
   const filteredHallPerformance = useMemo(
     () =>
-      filterAndSortRows(
+      applyTableState(
         report?.breakdown.hallPerformance || [],
         hallColumns,
-        debouncedHallSearch,
-        hallColumnSearch,
-        hallSort
+        [],
+        hallPerfState
       ),
-    [report, hallColumns, debouncedHallSearch, hallColumnSearch, hallSort]
+    [report, hallColumns, hallPerfState]
   );
 
   useEffect(() => {
@@ -390,18 +367,10 @@ export default function ReportsPage() {
                 </button>
               </div>
               <div className="panel-body space-y-4">
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                    style={{ color: 'var(--text-4)' }}
-                  />
-                  <input
-                    className="input pl-9"
-                    value={monthlyGlobalSearch}
-                    onChange={(e) => setMonthlyGlobalSearch(e.target.value)}
-                    placeholder="Search month..."
-                  />
-                </div>
+                <DataTableToolbar
+                  state={monthlyState}
+                  searchPlaceholder="Search month…"
+                />
                 {filteredMonthly.length === 0 ? (
                   <div className="empty-state" style={{ padding: '32px 16px' }}>
                     <div className="empty-state-icon">
@@ -509,18 +478,10 @@ export default function ReportsPage() {
               <p className="panel-title">Hall performance</p>
             </div>
             <div className="panel-body space-y-4">
-              <div className="relative">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                  style={{ color: 'var(--text-4)' }}
-                />
-                <input
-                  className="input pl-9"
-                  value={hallGlobalSearch}
-                  onChange={(e) => setHallGlobalSearch(e.target.value)}
-                  placeholder="Search hall..."
-                />
-              </div>
+              <DataTableToolbar
+                state={hallPerfState}
+                searchPlaceholder="Search hall…"
+              />
               {filteredHallPerformance.length === 0 ? (
                 <div className="empty-state" style={{ padding: '32px 16px' }}>
                   <div className="empty-state-icon">

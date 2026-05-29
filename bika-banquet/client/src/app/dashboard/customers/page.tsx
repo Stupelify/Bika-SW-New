@@ -15,7 +15,6 @@ import {
   Edit,
   Trash2,
   Star,
-  Filter,
 } from 'lucide-react';
 import Link from 'next/link';
 import FormPromptModal from '@/components/FormPromptModal';
@@ -23,14 +22,12 @@ import FloatingActionButton from '@/components/FloatingActionButton';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import { TableSkeleton } from '@/components/Skeletons';
-import FilterPanel from '@/components/FilterPanel';
 import Combobox from '@/components/Combobox';
-import {
-  SortState,
-  TableColumnConfig,
-  filterAndSortRows,
-  getNextSort,
-} from '@/lib/tableUtils';
+import { TableColumnConfig } from '@/lib/tableUtils';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { applyTableState, paginateRows } from '@/lib/data-table/apply';
+import type { FilterSchema } from '@/lib/data-table/types';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
@@ -129,16 +126,6 @@ const initialFormData: CustomerFormData = {
   notes: '',
 };
 
-const initialColumnSearch = {
-  name: '',
-  contact: '',
-  location: '',
-  stats: '',
-  createdAt: '',
-};
-
-const CUSTOMERS_PAGE_SIZE = 100;
-
 export default function CustomersPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -154,10 +141,6 @@ export default function CustomersPage() {
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [isWhatsappDifferent, setIsWhatsappDifferent] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState('');
-  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
-  const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
-  const [sort, setSort] = useState<SortState>({ key: 'name', direction: 'asc' });
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
   const [emailFieldError, setEmailFieldError] = useState('');
   const [pincodeLookupLoading, setPincodeLookupLoading] = useState(false);
@@ -167,8 +150,6 @@ export default function CustomersPage() {
     alterPhone?: string;
     whatsappNumber?: string;
   }>({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const [showFilters, setShowFilters] = useState(false);
   const debouncedPincode = useDebounce(formData.pincode, 350);
 
   const tableColumns = useMemo<TableColumnConfig<CustomerRow>[]>(
@@ -176,45 +157,75 @@ export default function CustomersPage() {
       {
         key: 'name',
         accessor: (customer) =>
-          `${customer.name} ${customer.phoneCountryCode ?? ''} ${customer.phone}`,
+          [
+            customer.name,
+            customer.phoneCountryCode ?? '',
+            customer.phone,
+            customer.alterPhone ?? customer.alternatePhone ?? '',
+            customer.whatsappNumber ?? customer.whatsapp ?? '',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'contact',
         accessor: (customer) =>
-          `${customer.phoneCountryCode ?? ''} ${customer.phone} ${customer.email ?? ''}`,
+          [customer.phoneCountryCode ?? '', customer.phone, customer.email ?? '']
+            .filter(Boolean)
+            .join(' '),
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'location',
-        accessor: (customer) => `${customer.city ?? ''} ${customer.state ?? ''}`,
+        accessor: (customer) => `${customer.city ?? ''} ${customer.state ?? ''}`.trim(),
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'stats',
         accessor: (customer) =>
-          `${customer._count?.enquiries ?? 0} ${customer._count?.bookings ?? 0}`,
+          (customer._count?.enquiries ?? 0) + (customer._count?.bookings ?? 0),
+        sortable: true,
+        searchable: false,
       },
       {
         key: 'createdAt',
         accessor: (customer) => customer.createdAt,
+        sortable: true,
+        searchable: false,
       },
     ],
     []
   );
 
+  const filterSchemas = useMemo<FilterSchema[]>(
+    () => [{ id: 'createdAt', type: 'dateRange', label: 'Created' }],
+    []
+  );
+
+  const filterDefs = useMemo(
+    () => [{ id: 'createdAt', accessor: (c: CustomerRow) => c.createdAt }],
+    []
+  );
+
+  const tableState = useTableState({
+    prefix: 'customers',
+    filters: filterSchemas,
+    defaultSort: { key: 'name', direction: 'asc' },
+  });
+
   const filteredCustomers = useMemo(
-    () => filterAndSortRows(customers, tableColumns, debouncedGlobalSearch, columnSearch, sort),
-    [customers, tableColumns, debouncedGlobalSearch, columnSearch, sort]
+    () => applyTableState(customers, tableColumns, filterDefs, tableState),
+    [customers, tableColumns, filterDefs, tableState]
   );
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredCustomers.length / CUSTOMERS_PAGE_SIZE)
+  const paginatedCustomers = useMemo(
+    () => paginateRows(filteredCustomers, tableState.page, tableState.pageSize),
+    [filteredCustomers, tableState.page, tableState.pageSize]
   );
-
-  const paginatedCustomers = useMemo(() => {
-    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-    const startIndex = (safePage - 1) * CUSTOMERS_PAGE_SIZE;
-    return filteredCustomers.slice(startIndex, startIndex + CUSTOMERS_PAGE_SIZE);
-  }, [currentPage, filteredCustomers, totalPages]);
 
   const referrerOptions = useMemo(
     () => [...customers].sort((a, b) => a.name.localeCompare(b.name)),
@@ -236,15 +247,6 @@ export default function CustomersPage() {
     }));
     window.localStorage.setItem('bika_palette_customers', JSON.stringify(payload));
   }, [customers]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedGlobalSearch, columnSearch, sort]);
-
-  useEffect(() => {
-    if (currentPage <= totalPages) return;
-    setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
 
   useEffect(() => {
     if (!showCreatePrompt) return;
@@ -348,16 +350,6 @@ export default function CustomersPage() {
     };
   }, []);
   useSSE(['customer:'], debouncedLoadCustomers, canViewCustomer);
-
-  const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
-    setColumnSearch((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const clearSearch = () => {
-    setGlobalSearch('');
-    setColumnSearch(initialColumnSearch);
-    setCurrentPage(1);
-  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this customer?')) return;
@@ -1163,52 +1155,10 @@ export default function CustomersPage() {
       </FormPromptModal>
 
       <div className="card">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
-            <input
-              type="text"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="Overall search across all customer columns..."
-              className="input pl-10 pr-10"
-            />
-            {globalSearch && (
-              <button
-              type="button"
-              aria-label="Clear search"
-              onClick={clearSearch}
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-4)',
-                display: 'flex',
-                alignItems: 'center',
-                padding: 2,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
-          </div>
-          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
-            <Filter className="w-5 h-5 md:mr-2" />
-            <span className="hidden md:inline">Filters</span>
-            {Object.values(columnSearch).filter(Boolean).length > 0 && (
-               <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                 {Object.values(columnSearch).filter(Boolean).length}
-               </span>
-            )}
-          </button>
-        </div>
+        <DataTableToolbar
+          state={tableState}
+          searchPlaceholder="Search by name, phone, alt phone, WhatsApp, email, city, state…"
+        />
       </div>
 
       <div className="card">
@@ -1226,34 +1176,28 @@ export default function CustomersPage() {
           </div>
         ) : filteredCustomers.length === 0 ? (
           <EmptyState
-            icon={globalSearch ? Search : Users}
+            icon={tableState.search ? Search : Users}
             variant={
-              globalSearch
-                ? 'search'
-                : Object.values(columnSearch).some(Boolean)
-                  ? 'filter'
-                  : 'page'
+              tableState.search ? 'search' : tableState.activeFilterCount > 0 ? 'filter' : 'page'
             }
             title={
-              globalSearch
+              tableState.search
                 ? 'No customers match your search'
-                : Object.values(columnSearch).some(Boolean)
+                : tableState.activeFilterCount > 0
                   ? 'No matches'
                   : 'No customers found'
             }
             description={
-              globalSearch || Object.values(columnSearch).some(Boolean)
-                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
+              tableState.search || tableState.activeFilterCount > 0
+                ? 'Try adjusting the search or active filters.'
                 : 'Add your first customer to get started.'
             }
             action={
-              globalSearch
-                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
-                : Object.values(columnSearch).some(Boolean)
-                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
-                  : canAddCustomer
-                    ? { label: 'New Customer', onClick: openCreatePrompt }
-                    : undefined
+              tableState.search || tableState.activeFilterCount > 0
+                ? { label: 'Clear all', onClick: tableState.clearAll }
+                : canAddCustomer
+                  ? { label: 'New Customer', onClick: openCreatePrompt }
+                  : undefined
             }
           />
         ) : (
@@ -1333,38 +1277,6 @@ export default function CustomersPage() {
                   </div>
                 ))}
               </div>
-              {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-[var(--text-2)]">
-                    Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
-                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
-                    {filteredCustomers.length} customers
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={currentPage <= 1}
-                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    >
-                      Previous
-                    </button>
-                    <span className="text-sm text-[var(--text-2)]">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={currentPage >= totalPages}
-                      onClick={() =>
-                        setCurrentPage((page) => Math.min(totalPages, page + 1))
-                      }
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Desktop table view */}
@@ -1372,36 +1284,11 @@ export default function CustomersPage() {
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
-                    <SortableHeader
-                      label="Name"
-                      sortKey="name"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Contact"
-                      sortKey="contact"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Location"
-                      sortKey="location"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Stats"
-                      sortKey="stats"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Created"
-                      sortKey="createdAt"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
+                    <SortableHeader label="Name" sortKey="name" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Contact" sortKey="contact" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Location" sortKey="location" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Stats" sortKey="stats" sort={tableState.sort} onSort={tableState.toggleSort} />
+                    <SortableHeader label="Created" sortKey="createdAt" sort={tableState.sort} onSort={tableState.toggleSort} />
                     <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
                       Actions
                     </th>
@@ -1484,39 +1371,13 @@ export default function CustomersPage() {
                   ))}
                 </tbody>
               </table>
-              {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-[var(--text-2)]">
-                    Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
-                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
-                    {filteredCustomers.length} customers
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={currentPage <= 1}
-                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    >
-                      Previous
-                    </button>
-                    <span className="text-sm text-[var(--text-2)]">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={currentPage >= totalPages}
-                      onClick={() =>
-                        setCurrentPage((page) => Math.min(totalPages, page + 1))
-                      }
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
+            <DataTableFooter
+              state={tableState}
+              totalItems={customers.length}
+              filteredCount={filteredCustomers.length}
+              itemLabel="customers"
+            />
           </>
         )}
       </div>
@@ -1527,36 +1388,6 @@ export default function CustomersPage() {
           label="New Customer"
         />
       )}
-
-      <FilterPanel
-        open={showFilters}
-        onClose={() => setShowFilters(false)}
-        activeCount={Object.values(columnSearch).filter(Boolean).length}
-        onClearAll={() => setColumnSearch({ name: '', contact: '', location: '', stats: '', createdAt: '' })}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="label">Name</label>
-            <input className="input" placeholder="Search name or phone" value={columnSearch.name} onChange={(e) => handleColumnSearch('name', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Contact</label>
-            <input className="input" placeholder="Search contact" value={columnSearch.contact} onChange={(e) => handleColumnSearch('contact', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Location</label>
-            <input className="input" placeholder="Search location" value={columnSearch.location} onChange={(e) => handleColumnSearch('location', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Stats</label>
-            <input className="input" placeholder="Search stats" value={columnSearch.stats} onChange={(e) => handleColumnSearch('stats', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Created Date</label>
-            <input type="date" className="input" value={columnSearch.createdAt} onChange={(e) => handleColumnSearch('createdAt', e.target.value)} />
-          </div>
-        </div>
-      </FilterPanel>
     </div>
   );
 }
