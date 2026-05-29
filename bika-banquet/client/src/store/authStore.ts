@@ -16,14 +16,15 @@ interface AuthState {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  loadUser: () => Promise<void>;
+  loadUser: (options?: { silent?: boolean }) => Promise<void>;
   setToken: (token: string) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
-  isLoading: true,
+  // false until loadUser/login runs — avoids /login showing "Signing in..." on first paint
+  isLoading: false,
   isAuthenticated: false,
 
   setToken: (token: string) => {
@@ -65,14 +66,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  loadUser: async () => {
+  loadUser: async (options?: { silent?: boolean }) => {
     const token = localStorage.getItem('auth_token');
     if (!token) {
       set({ isAuthenticated: false, isLoading: false });
       return;
     }
 
-    set({ isLoading: true, token });
+    if (!options?.silent) {
+      set({ isLoading: true, token });
+    } else {
+      set({ token });
+    }
     try {
       const response = await api.getCurrentUser();
       set({ 

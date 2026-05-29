@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import { useDebounce } from '@/lib/useDebounce';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSSE } from '@/hooks/useSSE';
@@ -59,15 +62,24 @@ const VenueTimelineBoard = dynamic(
   { loading: () => <CalendarSkeleton />, ssr: false },
 );
 
-export default function CalendarPage() {
+const DEFAULT_STATUSES = ['confirmed', 'enquiry', 'pencil', 'quotation', 'pending'];
+
+function CalendarPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const { user } = useAuthStore();
   const isAuthenticated = Boolean(user);
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
   const [viewDate, setViewDate] = useState(() => startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => formatDateKey(new Date()));
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<EventSourceFilter>('all');
+  const [search, setSearch] = useState(() => searchParams.get('cal_q') || '');
+  const [sourceFilter, setSourceFilter] = useState<EventSourceFilter>(() => {
+    const v = searchParams.get('cal_src');
+    return (v === 'bookings' || v === 'enquiries' || v === 'google' ? v : 'all') as EventSourceFilter;
+  });
   const [bookings, setBookings] = useState<BookingCalendarRow[]>([]);
   const [enquiries, setEnquiries] = useState<EnquiryCalendarRow[]>([]);
   const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEventRow[]>([]);
@@ -88,10 +100,20 @@ export default function CalendarPage() {
     return localStorage.getItem('cal_sidebar_open') !== 'false';
   });
   // null = all halls visible (default until halls load)
-  const [selectedHallIds, setSelectedHallIds] = useState<Set<string> | null>(null);
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(
-    () => new Set(['confirmed', 'enquiry', 'pencil', 'quotation', 'pending'])
-  );
+  const [selectedHallIds, setSelectedHallIds] = useState<Set<string> | null>(() => {
+    const v = searchParams.get('cal_halls');
+    if (!v) return null;
+    const ids = v.split(',').filter(Boolean);
+    return ids.length > 0 ? new Set(ids) : null;
+  });
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(() => {
+    const v = searchParams.get('cal_st');
+    if (v) {
+      const statuses = v.split(',').filter(Boolean);
+      if (statuses.length > 0) return new Set(statuses);
+    }
+    return new Set(DEFAULT_STATUSES);
+  });
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => {
@@ -125,6 +147,36 @@ export default function CalendarPage() {
     });
   }, []);
   // ── End sidebar filter state ──────────────────────────────────────────────
+
+  // ── URL persistence for filters ──────────────────────────────────────────
+  const debouncedSearch = useDebounce(search, 300);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (debouncedSearch) next.set('cal_q', debouncedSearch);
+    else next.delete('cal_q');
+    if (sourceFilter !== 'all') next.set('cal_src', sourceFilter);
+    else next.delete('cal_src');
+    if (selectedHallIds !== null && halls.length > 0) {
+      const allIds = new Set(halls.map((h) => h.id));
+      const isAll = selectedHallIds.size === allIds.size &&
+        Array.from(allIds).every((id) => selectedHallIds.has(id));
+      if (isAll) next.delete('cal_halls');
+      else next.set('cal_halls', Array.from(selectedHallIds).join(','));
+    } else {
+      next.delete('cal_halls');
+    }
+    const statusArr = Array.from(selectedStatuses).sort();
+    const isDefaultStatuses =
+      statusArr.length === DEFAULT_STATUSES.length &&
+      statusArr.every((s) => DEFAULT_STATUSES.includes(s));
+    if (isDefaultStatuses) next.delete('cal_st');
+    else next.set('cal_st', statusArr.join(','));
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, sourceFilter, selectedHallIds, selectedStatuses, halls]);
+  // ── End URL persistence ───────────────────────────────────────────────────
 
   const closeBookingDetails = useCallback(() => {
     setIsBookingDetailsOpen(false);
@@ -763,5 +815,13 @@ export default function CalendarPage() {
         </div>{/* end main calendar area */}
       </div>{/* end sidebar + main flex row */}
     </div>
+  );
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense>
+      <CalendarPageContent />
+    </Suspense>
   );
 }

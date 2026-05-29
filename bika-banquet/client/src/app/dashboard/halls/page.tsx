@@ -3,20 +3,16 @@
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Building2, Edit, Filter, Landmark, Save, Search, Trash2 } from 'lucide-react';
+import { Building2, Edit, Landmark, Save, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
-import FilterPanel from '@/components/FilterPanel';
 import SortableHeader from '@/components/SortableHeader';
-import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
 import HallCard from '@/components/HallCard';
-import {
-  SortState,
-  TableColumnConfig,
-  filterAndSortRows,
-  getNextSort,
-} from '@/lib/tableUtils';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { useTableState } from '@/hooks/useTableState';
+import { applyTableState, paginateRows } from '@/lib/data-table/apply';
+import { TableColumnConfig } from '@/lib/tableUtils';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 
@@ -64,20 +60,6 @@ const initialHallForm = {
   banquetId: '',
 };
 
-const initialBanquetColumnSearch = {
-  name: '',
-  location: '',
-  halls: '',
-};
-
-const initialHallColumnSearch = {
-  name: '',
-  capacity: '',
-  pricing: '',
-};
-
-const BANQUETS_PAGE_SIZE = 75;
-const HALLS_PAGE_SIZE = 75;
 type VenueSection = 'banquet' | 'hall';
 
 function isVenueSection(value: string | null): value is VenueSection {
@@ -111,36 +93,20 @@ function HallsPageContent() {
   const [editingHallId, setEditingHallId] = useState<string | null>(null);
   const [banquetForm, setBanquetForm] = useState(initialBanquetForm);
   const [hallForm, setHallForm] = useState(initialHallForm);
-  const [banquetGlobalSearch, setBanquetGlobalSearch] = useState('');
-  const [banquetColumnSearch, setBanquetColumnSearch] = useState(
-    initialBanquetColumnSearch
-  );
-  const [hallGlobalSearch, setHallGlobalSearch] = useState('');
-  const [hallColumnSearch, setHallColumnSearch] = useState(initialHallColumnSearch);
-  const [banquetSort, setBanquetSort] = useState<SortState>({
-    key: 'name',
-    direction: 'asc',
-  });
-  const [hallSort, setHallSort] = useState<SortState>({
-    key: 'name',
-    direction: 'asc',
-  });
-  const [banquetPage, setBanquetPage] = useState(1);
-  const [showBanquetFilters, setShowBanquetFilters] = useState(false);
-  const [showHallFilters, setShowHallFilters] = useState(false);
-  const [hallPage, setHallPage] = useState(1);
   const [activeVenueSection, setActiveVenueSection] = useState<VenueSection>('banquet');
   const sectionParam = searchParams.get('section');
 
   const banquetColumns = useMemo<TableColumnConfig<Banquet>[]>(
     () => [
-      { key: 'name', accessor: (banquet) => banquet.name },
+      { key: 'name', accessor: (banquet) => banquet.name, sortable: true, searchable: true },
       {
         key: 'location',
         accessor: (banquet) =>
           [banquet.location, banquet.city, banquet.state].filter(Boolean).join(', '),
+        sortable: true,
+        searchable: true,
       },
-      { key: 'halls', accessor: (banquet) => banquet.halls?.length || 0 },
+      { key: 'halls', accessor: (banquet) => banquet.halls?.length || 0, sortable: true, searchable: false },
     ],
     []
   );
@@ -150,65 +116,64 @@ function HallsPageContent() {
       {
         key: 'name',
         accessor: (hall) => `${hall.name} ${hall.banquet?.name || 'No banquet'}`,
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'capacity',
-        accessor: (hall) =>
-          `${hall.capacity}${hall.floatingCapacity ? ` ${hall.floatingCapacity}` : ''}`,
+        accessor: (hall) => hall.capacity ?? 0,
+        sortable: true,
+        searchable: false,
       },
       {
         key: 'pricing',
         accessor: (hall) => hall.basePrice ?? hall.rate ?? 0,
+        sortable: true,
+        searchable: false,
       },
     ],
     []
   );
 
+  const hallFilterDefs = useMemo(
+    () => [
+      { id: 'capacity', accessor: (h: Hall) => h.capacity ?? 0 },
+      { id: 'pricing', accessor: (h: Hall) => h.basePrice ?? h.rate ?? 0 },
+    ],
+    []
+  );
+
+  const banquetState = useTableState({
+    prefix: 'banquet',
+    defaultSort: { key: 'name', direction: 'asc' },
+  });
+
+  const hallState = useTableState({
+    prefix: 'hall',
+    filters: [
+      { id: 'capacity', type: 'numberRange', label: 'Capacity' },
+      { id: 'pricing', type: 'numberRange', label: 'Pricing', format: 'currency' },
+    ],
+    defaultSort: { key: 'name', direction: 'asc' },
+  });
+
   const filteredBanquets = useMemo(
-    () =>
-      filterAndSortRows(
-        banquets,
-        banquetColumns,
-        banquetGlobalSearch,
-        banquetColumnSearch,
-        banquetSort
-      ),
-    [
-      banquets,
-      banquetColumns,
-      banquetGlobalSearch,
-      banquetColumnSearch,
-      banquetSort,
-    ]
+    () => applyTableState(banquets, banquetColumns, [], banquetState),
+    [banquets, banquetColumns, banquetState]
   );
-
   const filteredHalls = useMemo(
-    () =>
-      filterAndSortRows(halls, hallColumns, hallGlobalSearch, hallColumnSearch, hallSort),
-    [halls, hallColumns, hallGlobalSearch, hallColumnSearch, hallSort]
+    () => applyTableState(halls, hallColumns, hallFilterDefs, hallState),
+    [halls, hallColumns, hallFilterDefs, hallState]
   );
 
-  const banquetTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredBanquets.length / BANQUETS_PAGE_SIZE)),
-    [filteredBanquets.length]
+  const paginatedBanquets = useMemo(
+    () => paginateRows(filteredBanquets, banquetState.page, banquetState.pageSize),
+    [filteredBanquets, banquetState.page, banquetState.pageSize]
   );
-
-  const hallTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredHalls.length / HALLS_PAGE_SIZE)),
-    [filteredHalls.length]
+  const paginatedHalls = useMemo(
+    () => paginateRows(filteredHalls, hallState.page, hallState.pageSize),
+    [filteredHalls, hallState.page, hallState.pageSize]
   );
-
-  const paginatedBanquets = useMemo(() => {
-    const safePage = Math.min(Math.max(banquetPage, 1), banquetTotalPages);
-    const startIndex = (safePage - 1) * BANQUETS_PAGE_SIZE;
-    return filteredBanquets.slice(startIndex, startIndex + BANQUETS_PAGE_SIZE);
-  }, [banquetPage, banquetTotalPages, filteredBanquets]);
-
-  const paginatedHalls = useMemo(() => {
-    const safePage = Math.min(Math.max(hallPage, 1), hallTotalPages);
-    const startIndex = (safePage - 1) * HALLS_PAGE_SIZE;
-    return filteredHalls.slice(startIndex, startIndex + HALLS_PAGE_SIZE);
-  }, [hallPage, hallTotalPages, filteredHalls]);
 
   useEffect(() => {
     void loadData();
@@ -264,23 +229,6 @@ function HallsPageContent() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  useEffect(() => {
-    setBanquetPage(1);
-  }, [banquetGlobalSearch, banquetColumnSearch, banquetSort]);
-
-  useEffect(() => {
-    setHallPage(1);
-  }, [hallGlobalSearch, hallColumnSearch, hallSort]);
-
-  useEffect(() => {
-    if (banquetPage <= banquetTotalPages) return;
-    setBanquetPage(banquetTotalPages);
-  }, [banquetPage, banquetTotalPages]);
-
-  useEffect(() => {
-    if (hallPage <= hallTotalPages) return;
-    setHallPage(hallTotalPages);
-  }, [hallPage, hallTotalPages]);
 
   const loadData = async () => {
     try {
@@ -727,52 +675,12 @@ function HallsPageContent() {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
-                <input
-                  className="input pl-9 w-full"
-                  value={banquetGlobalSearch}
-                  onChange={(e) => setBanquetGlobalSearch(e.target.value)}
-                  placeholder="Overall search in banquet table..."
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary inline-flex items-center gap-2"
-                onClick={() => setShowBanquetFilters(true)}
-              >
-                <Filter className="w-4 h-4" />
-                Filter
-                {Object.values(banquetColumnSearch).filter(Boolean).length > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center bg-primary-100 text-primary-700 text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] rounded-full">
-                    {Object.values(banquetColumnSearch).filter(Boolean).length}
-                  </span>
-                )}
-              </button>
+            <div className="mb-4">
+              <DataTableToolbar
+                state={banquetState}
+                searchPlaceholder="Search banquets by name or location…"
+              />
             </div>
-
-            <FilterPanel
-              open={showBanquetFilters}
-              onClose={() => setShowBanquetFilters(false)}
-              activeCount={Object.values(banquetColumnSearch).filter(Boolean).length}
-              onClearAll={() => setBanquetColumnSearch(initialBanquetColumnSearch)}
-            >
-              <div className="space-y-4">
-                <div>
-                  <label className="label">Name</label>
-                  <input className="input" placeholder="Search name" value={banquetColumnSearch.name} onChange={(e) => setBanquetColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Location</label>
-                  <input className="input" placeholder="Search location" value={banquetColumnSearch.location} onChange={(e) => setBanquetColumnSearch(prev => ({ ...prev, location: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Halls</label>
-                  <input className="input" placeholder="Search halls" value={banquetColumnSearch.halls} onChange={(e) => setBanquetColumnSearch(prev => ({ ...prev, halls: e.target.value }))} />
-                </div>
-              </div>
-            </FilterPanel>
 
             {!canViewBanquet ? (
               <p className="text-sm text-amber-700 dark:text-amber-200">No permission to view banquet table.</p>
@@ -791,27 +699,9 @@ function HallsPageContent() {
                 <table className="data-table">
                   <thead>
                     <tr className="border-b border-[var(--border)]">
-                      <SortableHeader
-                        label="Name"
-                        sortKey="name"
-                        sort={banquetSort}
-                        onSort={(key) => setBanquetSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
-                      />
-                      <SortableHeader
-                        label="Location"
-                        sortKey="location"
-                        sort={banquetSort}
-                        onSort={(key) => setBanquetSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
-                      />
-                      <SortableHeader
-                        label="Halls"
-                        sortKey="halls"
-                        sort={banquetSort}
-                        onSort={(key) => setBanquetSort((prev) => getNextSort(prev, key))}
-                        className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
-                      />
+                      <SortableHeader label="Name" sortKey="name" sort={banquetState.sort} onSort={banquetState.toggleSort} className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]" />
+                      <SortableHeader label="Location" sortKey="location" sort={banquetState.sort} onSort={banquetState.toggleSort} className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]" />
+                      <SortableHeader label="Halls" sortKey="halls" sort={banquetState.sort} onSort={banquetState.toggleSort} className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]" />
                       <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
                         Actions
                       </th>
@@ -853,15 +743,15 @@ function HallsPageContent() {
                     ))}
                   </tbody>
                 </table>
-                <TablePagination
-                  currentPage={banquetPage}
-                  totalPages={banquetTotalPages}
-                  totalItems={filteredBanquets.length}
-                  pageSize={BANQUETS_PAGE_SIZE}
-                  itemLabel="banquets"
-                  onPageChange={setBanquetPage}
-                />
               </div>
+            )}
+            {!loading && filteredBanquets.length > 0 && (
+              <DataTableFooter
+                state={banquetState}
+                totalItems={banquets.length}
+                filteredCount={filteredBanquets.length}
+                itemLabel="banquets"
+              />
             )}
           </>
         ) : (
@@ -880,52 +770,32 @@ function HallsPageContent() {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
-                <input
-                  className="input pl-9 w-full"
-                  value={hallGlobalSearch}
-                  onChange={(e) => setHallGlobalSearch(e.target.value)}
-                  placeholder="Overall search in hall table..."
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary inline-flex items-center gap-2"
-                onClick={() => setShowHallFilters(true)}
-              >
-                <Filter className="w-4 h-4" />
-                Filter
-                {Object.values(hallColumnSearch).filter(Boolean).length > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center bg-primary-100 text-primary-700 text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] rounded-full">
-                    {Object.values(hallColumnSearch).filter(Boolean).length}
-                  </span>
-                )}
-              </button>
+            <div className="mb-4">
+              <DataTableToolbar
+                state={hallState}
+                searchPlaceholder="Search halls by name or banquet…"
+                rightSlot={
+                  <select
+                    aria-label="Sort halls"
+                    className="input min-h-9 py-1 pr-7 max-w-[12rem]"
+                    value={`${hallState.sort.key}:${hallState.sort.direction}`}
+                    onChange={(e) => {
+                      const [key, direction] = e.target.value.split(':');
+                      if (direction === 'asc' || direction === 'desc') {
+                        hallState.setSort({ key, direction });
+                      }
+                    }}
+                  >
+                    <option value="name:asc">Name (A–Z)</option>
+                    <option value="name:desc">Name (Z–A)</option>
+                    <option value="capacity:asc">Capacity (low → high)</option>
+                    <option value="capacity:desc">Capacity (high → low)</option>
+                    <option value="pricing:asc">Pricing (low → high)</option>
+                    <option value="pricing:desc">Pricing (high → low)</option>
+                  </select>
+                }
+              />
             </div>
-
-            <FilterPanel
-              open={showHallFilters}
-              onClose={() => setShowHallFilters(false)}
-              activeCount={Object.values(hallColumnSearch).filter(Boolean).length}
-              onClearAll={() => setHallColumnSearch(initialHallColumnSearch)}
-            >
-              <div className="space-y-4">
-                <div>
-                  <label className="label">Name</label>
-                  <input className="input" placeholder="Search name" value={hallColumnSearch.name} onChange={(e) => setHallColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Capacity</label>
-                  <input className="input" placeholder="Search capacity" value={hallColumnSearch.capacity} onChange={(e) => setHallColumnSearch(prev => ({ ...prev, capacity: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="label">Pricing</label>
-                  <input className="input" placeholder="Search pricing" value={hallColumnSearch.pricing} onChange={(e) => setHallColumnSearch(prev => ({ ...prev, pricing: e.target.value }))} />
-                </div>
-              </div>
-            </FilterPanel>
 
             {!canViewHall ? (
               <p className="text-sm text-amber-700 dark:text-amber-200">No permission to view hall table.</p>
@@ -955,15 +825,15 @@ function HallsPageContent() {
                     />
                   ))}
                 </div>
-                <TablePagination
-                  currentPage={hallPage}
-                  totalPages={hallTotalPages}
-                  totalItems={filteredHalls.length}
-                  pageSize={HALLS_PAGE_SIZE}
-                  itemLabel="halls"
-                  onPageChange={setHallPage}
-                />
               </div>
+            )}
+            {!loading && filteredHalls.length > 0 && (
+              <DataTableFooter
+                state={hallState}
+                totalItems={halls.length}
+                filteredCount={filteredHalls.length}
+                itemLabel="halls"
+              />
             )}
           </>
         )}
