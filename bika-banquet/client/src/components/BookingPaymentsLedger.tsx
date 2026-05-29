@@ -283,7 +283,7 @@ export default function BookingPaymentsLedger({
               <div>
                 <label className="text-xs text-[var(--text-4)] block mb-1">Amount (₹) *</label>
                 <CurrencyInput
-                  className="input py-1 text-sm"
+                  className="input py-1 text-sm text-right"
                   placeholder="0"
                   value={draft.amount}
                   onChange={(raw) => setDraft((d) => ({ ...d, amount: raw }))}

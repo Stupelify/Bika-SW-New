@@ -13,6 +13,37 @@ export function formatDiscountPercentDisplay(percent: number): string {
   return (Math.round(percent * 100) / 100).toFixed(2);
 }
 
+/** Format % on blur after the user finishes typing. */
+export function formatPercentFieldOnBlur(rawInput: string): string {
+  const raw = rawInput.trim();
+  if (raw === '' || raw === '.') return '';
+  return formatDiscountPercentDisplay(parsePercentForCalculation(raw));
+}
+
+/**
+ * While the user is typing in Disc %, keep their string (e.g. "1", "10", "10.")
+ * instead of forcing "1.00" on every keystroke — that breaks typing "10".
+ */
+export function percentFieldDisplayValue(
+  rawInput: string,
+  computedPercent: number
+): string {
+  const raw = rawInput.trim();
+  if (raw === '') return '';
+  if (/^\d*\.?\d{0,2}$/.test(raw)) {
+    if (raw === '.' || raw.endsWith('.')) return raw;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0 && n <= 100) return raw;
+  }
+  return formatDiscountPercentDisplay(computedPercent);
+}
+
+export function parsePercentForCalculation(rawInput: string): number {
+  const raw = rawInput.trim();
+  if (raw === '' || raw === '.') return 0;
+  return clamp(parseNonNegative(raw), 0, 100);
+}
+
 /** Payable grand total = meals net after discount + extra line items (integer rupees). */
 export function computePayableGrandTotal(
   mealsNet: number,
@@ -30,8 +61,9 @@ export interface SyncedBillingAmounts {
   finalAmount: string;
 }
 
+/** Parse money/amount strings; strips en-IN commas only (state stays digit-only). */
 function parseNonNegative(value: string): number {
-  const parsed = Number(value);
+  const parsed = Number(String(value).replace(/,/g, '').trim());
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, parsed);
 }
@@ -52,11 +84,11 @@ export function syncBillingAmounts(
   const meals = roundRupee(Math.max(0, mealsSubtotal));
 
   if (mode === 'discountPercent') {
-    const enteredPercent = clamp(parseNonNegative(sourceValue), 0, 100);
+    const enteredPercent = parsePercentForCalculation(sourceValue);
     const discountAmount = roundRupee((meals * enteredPercent) / 100);
     const finalAmount = roundRupee(Math.max(0, meals - discountAmount));
     return {
-      finalDiscountPercent: formatDiscountPercentDisplay(enteredPercent),
+      finalDiscountPercent: percentFieldDisplayValue(sourceValue, enteredPercent),
       finalDiscountAmount: formatRupeeAmount(discountAmount),
       finalAmount: formatRupeeAmount(finalAmount),
     };

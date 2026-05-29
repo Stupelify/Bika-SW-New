@@ -1,8 +1,20 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
 import type { CalendarViewMode, EventSourceFilter } from '../_lib/types';
+import type { HallStat } from './HallLegend';
 import { formatDateKey, parseDateKey, startOfDay } from '../_lib/calendar-helpers';
+
+// Status legend pills — clickable to toggle the status filter. Keys match the
+// values stored in `selectedStatuses` (see calendar/page.tsx).
+const STATUS_PILLS = [
+  { key: 'confirmed', label: 'Confirmed', bg: 'var(--cal-confirmed-bg)', text: 'var(--cal-confirmed-text)', accent: 'var(--cal-confirmed-accent)' },
+  { key: 'pending', label: 'Pending', bg: 'var(--cal-quotation-bg)', text: 'var(--cal-quotation-text)', accent: 'var(--cal-quotation-accent)' },
+  { key: 'quotation', label: 'Quotation', bg: 'var(--cal-quotation-bg)', text: 'var(--cal-quotation-text)', accent: 'var(--cal-quotation-accent)' },
+  { key: 'enquiry', label: 'Enquiry', bg: 'var(--cal-enquiry-bg)', text: 'var(--cal-enquiry-text)', accent: 'var(--cal-enquiry-accent)' },
+  { key: 'pencil', label: 'Pencil', bg: 'var(--cal-pencil-bg)', text: 'var(--cal-pencil-text)', accent: 'var(--cal-pencil-accent)' },
+  { key: 'cancelled', label: 'Cancelled', bg: 'var(--cal-cancelled-bg)', text: 'var(--cal-cancelled-text)', accent: 'var(--cal-cancelled-accent)' },
+] as const;
 
 interface CalendarToolbarProps {
   viewMode: CalendarViewMode;
@@ -12,6 +24,7 @@ interface CalendarToolbarProps {
   selectedDate: string;
   todayKey: string;
   viewLabel: string;
+  viewSubtitle: string;
   sourceFilter: EventSourceFilter;
   setSourceFilter: (mode: EventSourceFilter) => void;
   search: string;
@@ -19,9 +32,14 @@ interface CalendarToolbarProps {
   loading: boolean;
   onJumpToDate: (dateKey: string) => void;
   onReload: () => void;
-  googleImportEnabled: boolean;
-  googleImportConfigured: boolean;
-  googleSourceCount: number;
+  onNewBooking: () => void;
+  // Hall filter (header pills, grouped by banquet/location).
+  hallStatsByLocation: Array<[string, HallStat[]]>;
+  selectedHallIds: Set<string> | null;
+  toggleHall: (hallId: string) => void;
+  // Status filter (clickable legend pills).
+  selectedStatuses: Set<string>;
+  toggleStatus: (status: string) => void;
 }
 
 export default function CalendarToolbar({
@@ -32,6 +50,7 @@ export default function CalendarToolbar({
   selectedDate,
   todayKey,
   viewLabel,
+  viewSubtitle,
   sourceFilter,
   setSourceFilter,
   search,
@@ -39,96 +58,74 @@ export default function CalendarToolbar({
   loading,
   onJumpToDate,
   onReload,
-  googleImportEnabled,
-  googleImportConfigured,
-  googleSourceCount,
+  onNewBooking,
+  hallStatsByLocation,
+  selectedHallIds,
+  toggleHall,
+  selectedStatuses,
+  toggleStatus,
 }: CalendarToolbarProps) {
+  const step = (dir: -1 | 1) =>
+    setViewDate((prev) => {
+      if (viewMode === 'month') {
+        return new Date(prev.getFullYear(), prev.getMonth() + dir, 1);
+      }
+      const next = new Date(prev);
+      next.setDate(next.getDate() + dir * (viewMode === 'week' ? 7 : 1));
+      return next;
+    });
+
   return (
-    <div className="card">
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              setViewDate((prev) => {
-                if (viewMode === 'month') {
-                  return new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
-                }
-                if (viewMode === 'week') {
-                  const next = new Date(prev);
-                  next.setDate(next.getDate() - 7);
-                  return next;
-                }
-                const next = new Date(prev);
-                next.setDate(next.getDate() - 1);
-                return next;
-              })
-            }
-            className="btn btn-secondary px-3"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <div className="w-full sm:w-auto sm:min-w-[220px] text-center">
-            <p className="text-lg font-semibold text-[var(--text-1)]">{viewLabel}</p>
+    <div className="card overflow-hidden p-0">
+      {/* ── Row 1: nav + title + view switcher + actions ───────────────── */}
+      <div className="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              aria-label="Previous"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)] hover:bg-[var(--surface-2)] transition"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              aria-label="Next"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)] hover:bg-[var(--surface-2)] transition"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date();
+                setViewDate(startOfDay(now));
+                setSelectedDate(formatDateKey(now));
+              }}
+              className="ml-1 inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text-2)] hover:bg-[var(--surface-2)] transition"
+              style={{ position: 'relative' }}
+            >
+              Today
+              {selectedDate === todayKey && (
+                <span className="absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-[var(--teal-500)]" />
+              )}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              setViewDate((prev) => {
-                if (viewMode === 'month') {
-                  return new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
-                }
-                if (viewMode === 'week') {
-                  const next = new Date(prev);
-                  next.setDate(next.getDate() + 7);
-                  return next;
-                }
-                const next = new Date(prev);
-                next.setDate(next.getDate() + 1);
-                return next;
-              })
-            }
-            className="btn btn-secondary px-3"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const now = new Date();
-              setViewDate(startOfDay(now));
-              setSelectedDate(formatDateKey(now));
-            }}
-            className="btn btn-secondary"
-            style={{ position: 'relative' }}
-          >
-            <span>Today</span>
-            {selectedDate === todayKey && (
-              <span
-                style={{
-                  position: 'absolute',
-                  bottom: 4,
-                  left: '50%',
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: 'var(--teal-500)',
-                  transform: 'translateX(-50%)',
-                }}
-              />
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-extrabold tracking-tight text-[var(--text-1)] leading-none">
+              {viewLabel}
+            </h2>
+            {viewSubtitle && (
+              <p className="mt-1 truncate text-[11px] font-medium text-[var(--text-4)]">{viewSubtitle}</p>
             )}
-          </button>
-          <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
-            <span className="text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Go to</span>
-            <input
-              type="date"
-              className="input h-8 min-h-0 border-0 p-0 text-sm shadow-none focus:shadow-none"
-              value={selectedDate}
-              onChange={(event) => onJumpToDate(event.target.value)}
-              aria-label="Jump to date"
-            />
           </div>
-          <div className="inline-flex rounded-xl border border-[var(--border)] overflow-hidden">
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Segmented Month/Week/Day */}
+          <div className="inline-flex overflow-hidden rounded-xl border border-[var(--border)]">
             {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => (
               <button
                 key={mode}
@@ -137,16 +134,19 @@ export default function CalendarToolbar({
                   setViewMode(mode);
                   setViewDate(startOfDay(parseDateKey(selectedDate)));
                 }}
-                className={`px-3 py-2 text-sm font-semibold capitalize transition ${viewMode === mode
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
-                  }`}
+                className={`px-3 py-1.5 text-sm capitalize transition ${
+                  viewMode === mode
+                    ? 'bg-[var(--text-1)] font-bold text-white'
+                    : 'bg-[var(--surface)] font-medium text-[var(--text-3)] hover:bg-[var(--surface-2)]'
+                }`}
               >
                 {mode}
               </button>
             ))}
           </div>
-          <div className="inline-flex rounded-xl border border-[var(--border)] overflow-hidden">
+
+          {/* Source filter (kept) */}
+          <div className="inline-flex overflow-hidden rounded-xl border border-[var(--border)]">
             {(
               [
                 ['all', 'All'],
@@ -158,52 +158,133 @@ export default function CalendarToolbar({
                 key={mode}
                 type="button"
                 onClick={() => setSourceFilter(mode)}
-                className={`px-3 py-2 text-sm font-semibold transition ${sourceFilter === mode
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
-                  }`}
+                className={`px-3 py-1.5 text-sm font-semibold transition ${
+                  sourceFilter === mode
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
+                }`}
               >
                 {label}
               </button>
             ))}
           </div>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative w-full sm:min-w-[260px]">
+          {/* Go to date */}
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5">
+            <span className="whitespace-nowrap text-xs font-semibold text-[var(--text-2)]">Go to</span>
+            <input
+              type="date"
+              className="input h-7 min-h-0 border-0 p-0 text-sm shadow-none focus:shadow-none"
+              value={selectedDate}
+              onChange={(event) => onJumpToDate(event.target.value)}
+              aria-label="Jump to date"
+            />
+          </div>
+
+          {/* Search (kept) */}
+          <div className="relative w-full sm:w-auto sm:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
             <input
               className="input pl-9"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search function, hall, customer name or phone, status..."
+              placeholder="Search function, hall, customer, status..."
             />
           </div>
+
           <button
             type="button"
             onClick={onReload}
-            className="btn btn-primary w-full sm:w-auto"
             disabled={loading}
+            aria-label="Refresh"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)] hover:bg-[var(--surface-2)] transition disabled:opacity-50"
           >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          {/* New Booking (teal) */}
+          <button
+            type="button"
+            onClick={onNewBooking}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--teal-600)] px-3.5 py-2 text-sm font-bold text-white shadow-sm transition hover:brightness-110"
+          >
+            <Plus className="w-4 h-4" />
+            New Booking
           </button>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">
-          Software
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">
-          Google
-        </span>
-        <span className="text-[var(--text-2)]">
-          {googleImportEnabled
-            ? googleImportConfigured
-              ? `Google import active for ${googleSourceCount} venue calendars (read-only).`
-              : 'Google import enabled, but configuration is incomplete.'
-            : 'Google import is currently disabled.'}
-        </span>
+
+      {/* ── Row 2: hall pills (grouped) + status legend ─────────────────── */}
+      <div className="flex items-center gap-3 border-t border-[var(--border)] px-4 py-2.5">
+        {/* Hall pills — horizontally scrollable WITHIN this container only */}
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
+          <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-4)]">
+            Halls
+          </span>
+          {hallStatsByLocation.length === 0 && (
+            <span className="shrink-0 text-[11px] italic text-[var(--text-4)]">No halls</span>
+          )}
+          {hallStatsByLocation.map(([locationName, locationHalls]) => (
+            <div key={locationName} className="flex shrink-0 items-center gap-1.5">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.04em] text-[var(--text-4)]">
+                {locationName}
+              </span>
+              {locationHalls.map((hall) => {
+                const active = selectedHallIds === null || selectedHallIds.has(hall.id);
+                const color = hall.palette.solid;
+                return (
+                  <button
+                    key={hall.id}
+                    type="button"
+                    onClick={() => toggleHall(hall.id)}
+                    title={hall.name}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition"
+                    style={{
+                      border: `1.5px solid ${active ? `${color}66` : 'var(--border)'}`,
+                      background: active ? `${color}1a` : 'var(--surface)',
+                      color: active ? color : 'var(--text-4)',
+                      opacity: active ? 1 : 0.7,
+                    }}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: active ? color : 'var(--text-4)' }}
+                    />
+                    {hall.name}
+                    <span className="text-[10px] font-semibold tabular-nums opacity-70">· {hall.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Status legend — clickable to toggle status filter */}
+        <div className="flex shrink-0 items-center gap-1">
+          {STATUS_PILLS.map(({ key, label, bg, text, accent }) => {
+            const active = selectedStatuses.has(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleStatus(key)}
+                title={`Toggle ${label}`}
+                className="rounded-full px-2.5 py-1 text-[10.5px] font-bold transition"
+                style={{
+                  background: active ? bg : 'var(--surface)',
+                  color: active ? text : 'var(--text-4)',
+                  border: `1px solid ${active ? `color-mix(in srgb, ${accent} 45%, transparent)` : 'var(--border)'}`,
+                  opacity: active ? 1 : 0.55,
+                  ...(key === 'pencil' && active
+                    ? { backgroundImage: 'var(--cal-stripe)' }
+                    : {}),
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

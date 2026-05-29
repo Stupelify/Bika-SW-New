@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
@@ -9,16 +9,23 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loadUser, isLoading } = useAuthStore();
+  const { login, isLoading, isAuthenticated, isAuthReady, user } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthReady || !isAuthenticated) return;
+    const nextRoute = getDefaultDashboardRoute(user?.permissions);
+    if (nextRoute) {
+      router.replace(nextRoute);
+    }
+  }, [isAuthReady, isAuthenticated, user?.permissions, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await login(email, password);
-      await loadUser();
       const loggedInUser = useAuthStore.getState().user;
       const nextRoute = getDefaultDashboardRoute(loggedInUser?.permissions);
 
@@ -37,8 +44,16 @@ export default function LoginPage() {
         (error?.response?.status === 429
           ? 'Too many login attempts. Please wait and try again.'
           : null) ||
+        (error?.code === 'ECONNABORTED'
+          ? 'Server did not respond in time. Check that the API is running.'
+          : null) ||
+        (error?.message === 'Network Error'
+          ? 'Cannot reach the server. Check your connection and API URL.'
+          : null) ||
         'Login failed';
       toast.error(message);
+    } finally {
+      useAuthStore.setState({ isLoading: false });
     }
   };
 

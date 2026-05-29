@@ -7,22 +7,17 @@ import { getDefaultDashboardRoute } from '@/lib/routeAccess';
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, user, loadUser } = useAuthStore();
+  const { isAuthenticated, isAuthReady, user } = useAuthStore();
 
   useEffect(() => {
-    void loadUser();
-  }, [loadUser]);
-
-  useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        const nextRoute = getDefaultDashboardRoute(user?.permissions);
-        router.push(nextRoute || '/login');
-      } else {
-        router.push('/login');
-      }
+    if (!isAuthReady) return;
+    if (isAuthenticated) {
+      const nextRoute = getDefaultDashboardRoute(user?.permissions);
+      router.push(nextRoute || '/login');
+    } else {
+      router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router, user?.permissions]);
+  }, [isAuthenticated, isAuthReady, router, user?.permissions]);
 
   return (
     <div
@@ -51,7 +46,7 @@ export default function HomePage() {
           Bika Banquet
         </p>
         <h1 style={{ margin: '10px 0 0', fontSize: 30, lineHeight: 1.2 }}>
-          {isLoading ? 'Loading your workspace...' : 'Taking you to the right page...'}
+          {!isAuthReady ? 'Loading your workspace...' : 'Taking you to the right page...'}
         </h1>
         <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.6, color: '#334155' }}>
           If this page does not move in a moment, open the login screen directly.

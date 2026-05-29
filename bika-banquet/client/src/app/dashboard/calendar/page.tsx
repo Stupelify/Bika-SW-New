@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSSE } from '@/hooks/useSSE';
@@ -11,9 +12,8 @@ import { CalendarSkeleton } from '@/components/Skeletons';
 import dynamic from 'next/dynamic';
 import type { TimelineHallRow } from '@/components/VenueTimelineBoard';
 import CalendarToolbar from './_components/CalendarToolbar';
-import HallLegend, { type HallStat } from './_components/HallLegend';
+import type { HallStat } from './_components/HallLegend';
 import CalendarLegend from './_components/CalendarLegend';
-import BookingDrawer from './_components/BookingDrawer';
 import DayPrintView from './_components/DayPrintView';
 import type {
   BookingCalendarRow,
@@ -60,6 +60,7 @@ const VenueTimelineBoard = dynamic(
 );
 
 export default function CalendarPage() {
+  const router = useRouter();
   const { user } = useAuthStore();
   const isAuthenticated = Boolean(user);
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
@@ -75,31 +76,16 @@ export default function CalendarPage() {
   const [googleImportConfigured, setGoogleImportConfigured] = useState(false);
   const [googleSourceCount, setGoogleSourceCount] = useState(0);
   const [halls, setHalls] = useState<HallCalendarOption[]>([]);
-  const [isBookingDetailsOpen, setIsBookingDetailsOpen] = useState(false);
-  const [bookingDetailsLoading, setBookingDetailsLoading] = useState(false);
-  const [bookingDetails, setBookingDetails] = useState<BookingDetail | null>(null);
   const [printingDay, setPrintingDay] = useState(false);
   const [printBookings, setPrintBookings] = useState<BookingDetail[]>([]);
   const dayPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // ── Sidebar filter state ──────────────────────────────────────────────────
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('cal_sidebar_open') !== 'false';
-  });
+  // ── Filter state (now driven from the header) ─────────────────────────────
   // null = all halls visible (default until halls load)
   const [selectedHallIds, setSelectedHallIds] = useState<Set<string> | null>(null);
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(
     () => new Set(['confirmed', 'enquiry', 'pencil', 'quotation', 'pending'])
   );
-
-  const toggleSidebar = useCallback(() => {
-    setSidebarOpen((prev) => {
-      const next = !prev;
-      try { localStorage.setItem('cal_sidebar_open', String(next)); } catch { }
-      return next;
-    });
-  }, []);
 
   // Initialise selectedHallIds once halls load (select all by default)
   useEffect(() => {
@@ -124,37 +110,27 @@ export default function CalendarPage() {
       return next;
     });
   }, []);
-  // ── End sidebar filter state ──────────────────────────────────────────────
+  // ── End filter state ──────────────────────────────────────────────────────
 
-  const closeBookingDetails = useCallback(() => {
-    setIsBookingDetailsOpen(false);
-  }, []);
+  // Booking click → go straight to the edit form.
+  const openBookingEdit = useCallback((bookingId: string) => {
+    if (!bookingId) return;
+    router.push(`/dashboard/bookings?section=edit&id=${bookingId}`);
+  }, [router]);
+
+  // Empty-space click → New Booking, prefilled with date (+ hall/slot when known).
+  const openNewBooking = useCallback((args?: { date?: string; hallId?: string; slot?: string }) => {
+    const params = new URLSearchParams({ section: 'new' });
+    if (args?.date) params.set('date', args.date);
+    if (args?.hallId) params.set('hall', args.hallId);
+    if (args?.slot) params.set('slot', args.slot);
+    router.push(`/dashboard/bookings?${params.toString()}`);
+  }, [router]);
 
   useEffect(() => {
     const now = new Date();
     setViewDate(startOfDay(now));
     setSelectedDate(formatDateKey(now));
-  }, []);
-
-  const openBookingDetails = useCallback(async (bookingId: string) => {
-    try {
-      setIsBookingDetailsOpen(true);
-      setBookingDetailsLoading(true);
-      setBookingDetails(null);
-      const response = await api.getBooking(bookingId);
-      const booking = response.data?.data?.booking as BookingDetail | undefined;
-      if (!booking) {
-        toast.error('Booking not found');
-        setIsBookingDetailsOpen(false);
-        return;
-      }
-      setBookingDetails(booking);
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to load booking details');
-      setIsBookingDetailsOpen(false);
-    } finally {
-      setBookingDetailsLoading(false);
-    }
   }, []);
 
   const openEnquiryDetails = useCallback((enquiryId: string) => {
@@ -626,38 +602,18 @@ export default function CalendarPage() {
       .sort((a, b) => a.hallName.localeCompare(b.hallName));
   }, [filteredBookings, filteredGoogleEvents, hallMetaById, hallMetaByName, halls]);
 
-  const bookingDetailsHallBanquetLines = useMemo(() => {
-    const hallRows = bookingDetails?.halls || [];
-    const lines = hallRows
-      .map((row) => {
-        const hallId = row.hall?.id || '';
-        const hallName = row.hall?.name?.trim() || '';
-        if (!hallName) return '';
-        const hallMeta = hallId ? hallMetaById.get(hallId) : hallMetaByName.get(hallName.toLowerCase());
-        const banquetName = hallMeta?.banquetName?.trim() || '';
-        return banquetName ? `${hallName} (${banquetName})` : hallName;
-      })
-      .filter(Boolean);
-
-    if (lines.length === 0) return ['Unassigned Hall'];
-    return Array.from(new Set(lines));
-  }, [bookingDetails, hallMetaById, hallMetaByName]);
-
-  const bookingDetailsPacks = useMemo(() => bookingDetails?.packs || [], [bookingDetails]);
-  const bookingDetailsPayments = useMemo(
-    () => bookingDetails?.payments || [],
-    [bookingDetails]
-  );
-  const bookingDetailsAdditionalItems = useMemo(
-    () =>
-      (bookingDetails?.additionalItems || [])
-        .map((row) => row.description?.trim() || '')
-        .filter(Boolean),
-    [bookingDetails]
-  );
+  // Subtitle for the VB-style header: booking count + hall count for the view.
+  const viewSubtitle = useMemo(() => {
+    const bookingCount = filteredBookings.length + filteredEnquiries.length;
+    const hallCount = hallStatsByLocation.reduce((sum, [, hs]) => sum + hs.length, 0);
+    const parts = [`${bookingCount} booking${bookingCount === 1 ? '' : 's'}`];
+    if (hallCount > 0) parts.push(`${hallCount} hall${hallCount === 1 ? '' : 's'}`);
+    if (selectedDayConflicts.length > 0) parts.push(`${selectedDayConflicts.length} conflict${selectedDayConflicts.length === 1 ? '' : 's'}`);
+    return parts.join(' · ');
+  }, [filteredBookings.length, filteredEnquiries.length, hallStatsByLocation, selectedDayConflicts.length]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0 max-w-full overflow-x-hidden">
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-1)]">Calendar</h1>
         <p className="text-[var(--text-2)] mt-1">
@@ -665,25 +621,8 @@ export default function CalendarPage() {
         </p>
       </div>
 
-      {/* ── Sidebar + Main layout ── */}
-      <div className="flex gap-0 items-start">
-
-        {/* ── Collapsible Sidebar ── */}
-        <HallLegend
-          sidebarOpen={sidebarOpen}
-          toggleSidebar={toggleSidebar}
-          halls={halls}
-          hallStats={hallStats}
-          hallStatsByLocation={hallStatsByLocation}
-          selectedHallIds={selectedHallIds}
-          setSelectedHallIds={setSelectedHallIds}
-          toggleHall={toggleHall}
-          selectedStatuses={selectedStatuses}
-          toggleStatus={toggleStatus}
-        />
-
-        {/* ── Main calendar area ── */}
-        <div className="flex-1 min-w-0 space-y-4 pl-0 lg:pl-4">
+      {/* ── Main calendar area (sidebar removed; filters live in header) ── */}
+      <div className="min-w-0 space-y-4">
 
           <CalendarToolbar
             viewMode={viewMode}
@@ -693,6 +632,7 @@ export default function CalendarPage() {
             selectedDate={selectedDate}
             todayKey={todayKey}
             viewLabel={viewLabel}
+            viewSubtitle={viewSubtitle}
             sourceFilter={sourceFilter}
             setSourceFilter={setSourceFilter}
             search={search}
@@ -700,9 +640,12 @@ export default function CalendarPage() {
             loading={loading}
             onJumpToDate={handleJumpToDate}
             onReload={() => void loadCalendarData()}
-            googleImportEnabled={googleImportEnabled}
-            googleImportConfigured={googleImportConfigured}
-            googleSourceCount={googleSourceCount}
+            onNewBooking={() => openNewBooking()}
+            hallStatsByLocation={hallStatsByLocation}
+            selectedHallIds={selectedHallIds}
+            toggleHall={toggleHall}
+            selectedStatuses={selectedStatuses}
+            toggleStatus={toggleStatus}
           />
 
           {/* ── Hall + Status legend strip (desktop) ── */}
@@ -735,8 +678,8 @@ export default function CalendarPage() {
             viewDate={viewDate}
             weekDays={weekDays}
             selectedDate={hallBoardDateKey}
-            onBookingClick={(id) => { void openBookingDetails(id); }}
-            onCreateBooking={() => { window.location.href = '/dashboard/bookings'; }}
+            onBookingClick={openBookingEdit}
+            onCreateBooking={(args) => openNewBooking(args)}
             onDateDrillDown={(date) => {
               setSelectedDate(date);
               setViewDate(new Date(`${date}T12:00:00`));
@@ -744,24 +687,12 @@ export default function CalendarPage() {
             }}
           />
 
-          <BookingDrawer
-            isOpen={isBookingDetailsOpen}
-            onClose={closeBookingDetails}
-            loading={bookingDetailsLoading}
-            bookingDetails={bookingDetails}
-            hallBanquetLines={bookingDetailsHallBanquetLines}
-            packs={bookingDetailsPacks}
-            payments={bookingDetailsPayments}
-            additionalItems={bookingDetailsAdditionalItems}
-          />
-
           <DayPrintView
             selectedDateLabel={selectedDateLabel}
             printBookings={printBookings}
           />
 
-        </div>{/* end main calendar area */}
-      </div>{/* end sidebar + main flex row */}
+      </div>{/* end main calendar area */}
     </div>
   );
 }

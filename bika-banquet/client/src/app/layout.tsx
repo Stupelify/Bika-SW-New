@@ -5,6 +5,7 @@ import './mobile.css';
 import { Toaster } from 'sonner';
 import IonicProvider from '@/components/IonicProvider';
 import CapacitorNativeShell from '@/components/CapacitorNativeShell';
+import AuthBootstrap from '@/components/AuthBootstrap';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -48,6 +49,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.variable}>
         <CapacitorNativeShell />
+        <AuthBootstrap />
         <IonicProvider>{children}</IonicProvider>
         <Toaster position="top-right" richColors />
       </body>

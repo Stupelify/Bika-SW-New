@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import axios from 'axios';
 import { api } from '@/lib/api';
+import { setAuthHydrationComplete } from '@/lib/authSession';
 
 interface User {
   id: string;
@@ -12,23 +14,35 @@ interface User {
 interface AuthState {
   user: User | null;
   token: string | null;
+  /** True while login() is in flight — drives the Sign In button only */
   isLoading: boolean;
+  /** False until the first loadUser() finishes (token restore on refresh) */
+  isAuthReady: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  loadUser: () => Promise<void>;
+  loadUser: (options?: { silent?: boolean }) => Promise<void>;
   setToken: (token: string) => void;
 }
+
+export function getStoredAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('auth_token');
+}
+
+let loadUserInFlight: Promise<void> | null = null;
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
-  isLoading: true,
+  isLoading: false,
+  isAuthReady: false,
   isAuthenticated: false,
 
   setToken: (token: string) => {
     localStorage.setItem('auth_token', token);
-    set({ token, isAuthenticated: true });
+    setAuthHydrationComplete(true);
+    set({ token, isAuthenticated: true, isAuthReady: true });
   },
 
   login: async (email: string, password: string) => {
@@ -36,15 +50,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const response = await api.login(email, password);
       const { token, user } = response.data.data;
-      
+
       localStorage.setItem('auth_token', token);
-      set({ 
-        user, 
-        token, 
-        isAuthenticated: true, 
-        isLoading: false 
+      setAuthHydrationComplete(true);
+      set({
+        user,
+        token,
+        isAuthenticated: true,
+        isLoading: false,
+        isAuthReady: true,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({ isLoading: false });
       throw error;
     }
@@ -57,37 +73,74 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('auth_token');
-      set({ 
-        user: null, 
-        token: null, 
-        isAuthenticated: false 
+      setAuthHydrationComplete(true);
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isAuthReady: true,
       });
     }
   },
 
-  loadUser: async () => {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      set({ isAuthenticated: false, isLoading: false });
+  loadUser: async (options?: { silent?: boolean }) => {
+    if (loadUserInFlight) {
+      await loadUserInFlight;
       return;
     }
 
-    set({ isLoading: true, token });
+    loadUserInFlight = (async () => {
+      const token = getStoredAuthToken();
+      if (!token) {
+        setAuthHydrationComplete(true);
+        set({ isAuthenticated: false, isLoading: false, isAuthReady: true, token: null });
+        return;
+      }
+
+      setAuthHydrationComplete(false);
+      set({
+        isAuthReady: false,
+        token,
+        ...(options?.silent ? {} : { isLoading: true }),
+      });
+
+      try {
+        const response = await api.getCurrentUser();
+        setAuthHydrationComplete(true);
+        set({
+          user: response.data.data.user,
+          isAuthenticated: true,
+          isLoading: false,
+          isAuthReady: true,
+        });
+      } catch (error: unknown) {
+        const isUnauthorized =
+          axios.isAxiosError(error) && error.response?.status === 401;
+
+        setAuthHydrationComplete(true);
+        if (isUnauthorized) {
+          localStorage.removeItem('auth_token');
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+            isAuthReady: true,
+          });
+        } else {
+          set({
+            isAuthenticated: false,
+            isLoading: false,
+            isAuthReady: true,
+          });
+        }
+      }
+    })();
+
     try {
-      const response = await api.getCurrentUser();
-      set({ 
-        user: response.data.data.user, 
-        isAuthenticated: true, 
-        isLoading: false 
-      });
-    } catch (error) {
-      localStorage.removeItem('auth_token');
-      set({ 
-        user: null, 
-        token: null, 
-        isAuthenticated: false, 
-        isLoading: false 
-      });
+      await loadUserInFlight;
+    } finally {
+      loadUserInFlight = null;
     }
   },
 }));

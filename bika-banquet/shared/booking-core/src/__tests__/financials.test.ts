@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computePayableGrandTotal,
   formatDiscountPercentDisplay,
+  formatPercentFieldOnBlur,
   syncBillingAmounts,
   validateBillingCeiling,
 } from '../index';
@@ -12,8 +13,13 @@ describe('roundRupee / syncBillingAmounts', () => {
     const synced = syncBillingAmounts('discountPercent', '10', 22354);
     expect(synced.finalDiscountAmount).toBe('2235');
     expect(synced.finalAmount).toBe('20119');
-    expect(synced.finalDiscountPercent).toBe('10.00');
+    expect(synced.finalDiscountPercent).toBe('10');
     expect(computePayableGrandTotal(20119, 100)).toBe(20219);
+  });
+
+  it('formatPercentFieldOnBlur normalizes display after editing', () => {
+    expect(formatPercentFieldOnBlur('10')).toBe('10.00');
+    expect(formatPercentFieldOnBlur('10.5')).toBe('10.50');
   });
 
   it('keeps meals net authoritative when typed', () => {

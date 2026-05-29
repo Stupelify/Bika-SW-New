@@ -1,11 +1,13 @@
 import axios from 'axios';
 import type { AxiosError, AxiosInstance } from 'axios';
 import { invalidateCacheEntries } from './apiCache';
+import { isAuthHydrationComplete } from './authSession';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_URL,
+  timeout: 30_000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -58,7 +60,8 @@ apiClient.interceptors.response.use(
   (response) => {
     const method = response.config.method?.toLowerCase();
 
-    if (method === 'get') {
+    const url = response.config.url ?? '';
+    if (method === 'get' && !url.includes('/auth/me')) {
       // Store successful GET responses
       const key = cacheKey(response.config.url, response.config.params);
       memCache.set(key, { data: response.data, exp: Date.now() + GET_TTL });
@@ -74,12 +77,16 @@ apiClient.interceptors.response.use(
       requestUrl.includes('/auth/login') || requestUrl.endsWith('auth/login');
     const isRegisterRequest =
       requestUrl.includes('/auth/register') || requestUrl.endsWith('auth/register');
+    const isMeRequest =
+      requestUrl.includes('/auth/me') || requestUrl.endsWith('auth/me');
 
     if (
       error.response?.status === 401 &&
       typeof window !== 'undefined' &&
+      isAuthHydrationComplete() &&
       !isLoginRequest &&
-      !isRegisterRequest
+      !isRegisterRequest &&
+      !isMeRequest
     ) {
       localStorage.removeItem('auth_token');
       window.location.href = '/login';

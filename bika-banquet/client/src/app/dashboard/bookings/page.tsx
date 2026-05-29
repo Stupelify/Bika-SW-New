@@ -40,6 +40,7 @@ import {
 } from '@/lib/tableUtils';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
+import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
@@ -67,6 +68,7 @@ import {
   sumPackHallRates,
   computePayableGrandTotal,
   formatDiscountPercentDisplay,
+  formatPercentFieldOnBlur,
   formatRupeeAmount,
   roundRupee,
   syncBillingAmounts,
@@ -1010,16 +1012,6 @@ export default function BookingsPage() {
     []
   );
 
-  const focusNextField = useCallback((current: HTMLElement, container: HTMLElement) => {
-    const all = Array.from(
-      container.querySelectorAll<HTMLElement>(
-        'input:not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled])'
-      )
-    ).filter((el) => el.offsetParent !== null && el.tabIndex !== -1);
-    const idx = all.indexOf(current);
-    if (idx !== -1 && idx < all.length - 1) all[idx + 1].focus();
-  }, []);
-
   const activeMenuPackRow = menuEditorPack ? formData.packs[menuEditorPack] : null;
 
   const menuItemById = useMemo(() => {
@@ -1532,6 +1524,12 @@ export default function BookingsPage() {
     const id = searchParams.get('id');
     if (section === 'edit' && id) {
       void openEditBooking(id);
+    } else if (section === 'new') {
+      void openCreateBooking({
+        date: searchParams.get('date') || undefined,
+        hallId: searchParams.get('hall') || undefined,
+        slot: searchParams.get('slot') || undefined,
+      });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1906,7 +1904,7 @@ export default function BookingsPage() {
     }
   };
 
-  const loadLookups = async () => {
+  const loadLookups = async (): Promise<HallOption[]> => {
     try {
       if (!canAddBooking && !canEditBooking) {
         setCustomers([]);
@@ -1914,7 +1912,7 @@ export default function BookingsPage() {
         setHalls([]);
         setItems([]);
         setTemplateMenus([]);
-        return;
+        return [];
       }
       const [customerRows, banquetRes, hallRes, itemRes, templateRes, itemTypeRes] = await Promise.all([
         loadCustomerOptions(),
@@ -1935,8 +1933,10 @@ export default function BookingsPage() {
       setItems(itemRows);
       setItemTypes(itemTypeRows);
       setTemplateMenus(templateRows);
+      return hallRows;
     } catch (error) {
       toast.error('Failed to load booking form options');
+      return [];
     }
   };
 
@@ -1977,8 +1977,19 @@ export default function BookingsPage() {
     clearSearch();
   };
 
-  const openCreateBooking = () => {
-    void loadLookups();
+  const SLOT_TO_PACK: Record<string, PackKey> = {
+    morning: 'breakfast',
+    lunch: 'lunch',
+    evening: 'hiTea',
+    dinner: 'dinner',
+  };
+
+  const openCreateBooking = async (prefill?: {
+    date?: string;
+    hallId?: string;
+    slot?: string;
+  }) => {
+    const lookupsPromise = loadLookups();
     setEditingBookingId(null);
     setEditingBookingStatus(null);
     setBookingHistory([]);
@@ -1994,7 +2005,37 @@ export default function BookingsPage() {
     setActiveCustomerSearchField(null);
     setAmountSyncMode('discountPercent');
     setDiscountManuallySet(false);
-    setFormData(initialFormData);
+
+    let nextForm: BookingFormData = {
+      ...initialFormData,
+      packs: {
+        breakfast: { ...initialFormData.packs.breakfast },
+        lunch: { ...initialFormData.packs.lunch },
+        hiTea: { ...initialFormData.packs.hiTea },
+        dinner: { ...initialFormData.packs.dinner },
+      },
+    };
+    if (prefill?.date) {
+      nextForm.functionDate = prefill.date;
+    }
+    const packKey = prefill?.slot ? SLOT_TO_PACK[prefill.slot] : undefined;
+    if (packKey) {
+      nextForm.packs[packKey] = { ...nextForm.packs[packKey], enabled: true };
+      if (prefill?.hallId) {
+        const loadedHalls = await lookupsPromise;
+        const hall = loadedHalls.find((h) => h.id === prefill.hallId);
+        if (hall) {
+          nextForm.packs[packKey] = {
+            ...nextForm.packs[packKey],
+            banquetId: hall.banquet?.id || '',
+            hallIds: [hall.id],
+          };
+        }
+      }
+    }
+
+    void lookupsPromise;
+    setFormData(nextForm);
     setIsFormDirty(false);
     setShowCreateForm(true);
   };
@@ -2896,7 +2937,23 @@ export default function BookingsPage() {
         </div>
 
         <fieldset disabled={isReadOnlyBooking}>
-        <form ref={formRef} onSubmit={(e) => { e.preventDefault(); if (!isReadOnlyBooking) handleSubmitBooking(e); }} onChange={() => setIsFormDirty(true)} onKeyDown={(e) => { if (e.key !== 'Enter') return; const tag = (e.target as HTMLElement).tagName; if (tag === 'TEXTAREA') return; e.preventDefault(); if ((tag === 'INPUT' || tag === 'SELECT') && formRef.current && (e.target as HTMLElement).getAttribute('aria-expanded') !== 'true') focusNextField(e.target as HTMLElement, formRef.current); }} className="space-y-5">
+        <form
+          ref={formRef}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!isReadOnlyBooking) handleSubmitBooking(e);
+          }}
+          onChange={() => setIsFormDirty(true)}
+          onKeyDown={(e) => {
+            if (
+              (e.target as HTMLElement).getAttribute('aria-expanded') === 'true'
+            ) {
+              return;
+            }
+            handleEnterAsTabKeyDown(e, formRef.current);
+          }}
+          className="space-y-5"
+        >
           <div ref={actionSentinelRef} />
             <div className="flex items-center gap-3 flex-wrap">
               {!isReadOnlyBooking && (
@@ -3549,10 +3606,9 @@ export default function BookingsPage() {
                             <span className="text-xs text-[var(--text-3)] whitespace-nowrap">Disc %</span>
                             <input
                               className="input py-1 text-xs w-16 text-right dark:bg-slate-800/40"
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.01"
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
                               value={formData.finalDiscountPercent}
                               onFocus={(e) => e.target.select()}
                               onChange={(e) => {
@@ -3569,10 +3625,15 @@ export default function BookingsPage() {
                                   };
                                 });
                               }}
-                              onBlur={() => {
+                              onBlur={(e) => {
+                                const formatted = formatPercentFieldOnBlur(e.target.value);
                                 setFormData((prev) => ({
                                   ...prev,
-                                  ...normalizeAmountSnapshot('discountPercent', prev.finalDiscountPercent, mealsBillBase),
+                                  ...normalizeAmountSnapshot(
+                                    'discountPercent',
+                                    formatted !== '' ? formatted : e.target.value,
+                                    mealsBillBase
+                                  ),
                                 }));
                               }}
                             />
@@ -3932,9 +3993,38 @@ export default function BookingsPage() {
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="label text-xs">Discount %</label>
-                          <input className="input text-right" type="number" min={0} max={100} step="0.01" value={formData.finalDiscountPercent}
-                            onChange={(e) => { const raw = e.target.value; setAmountSyncMode('discountPercent'); setDiscountManuallySet(true); setFormData((prev) => { const synced = normalizeAmountSnapshot('discountPercent', raw, mealsBillBase); return { ...prev, finalDiscountAmount: synced.finalDiscountAmount, finalAmount: synced.finalAmount, finalDiscountPercent: raw }; }); }}
-                            onBlur={() => { setFormData((prev) => ({ ...prev, ...normalizeAmountSnapshot('discountPercent', prev.finalDiscountPercent, mealsBillBase) })); }} />
+                          <input
+                            className="input text-right"
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            value={formData.finalDiscountPercent}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setAmountSyncMode('discountPercent');
+                              setDiscountManuallySet(true);
+                              setFormData((prev) => {
+                                const synced = normalizeAmountSnapshot('discountPercent', raw, mealsBillBase);
+                                return {
+                                  ...prev,
+                                  finalDiscountAmount: synced.finalDiscountAmount,
+                                  finalAmount: synced.finalAmount,
+                                  finalDiscountPercent: raw,
+                                };
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const formatted = formatPercentFieldOnBlur(e.target.value);
+                              setFormData((prev) => ({
+                                ...prev,
+                                ...normalizeAmountSnapshot(
+                                  'discountPercent',
+                                  formatted !== '' ? formatted : e.target.value,
+                                  mealsBillBase
+                                ),
+                              }));
+                            }}
+                          />
                         </div>
                         <div>
                           <label className="label text-xs">Discount ₹</label>
