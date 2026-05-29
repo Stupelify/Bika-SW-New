@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -21,23 +21,19 @@ import {
   Star,
   Trash2,
   Users,
-  Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, fetchAllCustomers } from '@/lib/api';
 import Combobox from '@/components/Combobox';
 import FormPromptModal from '@/components/FormPromptModal';
-import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
-import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
-import {
-  SortState,
-  TableColumnConfig,
-  filterAndSortRows,
-  getNextSort,
-} from '@/lib/tableUtils';
+import { TableColumnConfig } from '@/lib/tableUtils';
+import { useTableState } from '@/hooks/useTableState';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { applyTableState, paginateRows, ClientFilterDef } from '@/lib/data-table/apply';
+import type { FilterSchema } from '@/lib/data-table/types';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
@@ -452,16 +448,20 @@ const LONGEST_FUNCTION_TYPE_OPTION = FUNCTION_TYPE_OPTIONS.reduce(
 /** Typical primary display: name (~20) + phone (~12) + " ()" */
 const PRIMARY_CUSTOMER_FIELD_CH = 20 + 12 + 4;
 
-const initialColumnSearch = {
-  functionName: '',
-  customer: '',
-  functionDate: '',
-  expectedGuests: '',
-  status: '',
-  grandTotal: '',
-};
+const BOOKING_STATUS_OPTIONS = [
+  { label: 'Confirmed', value: 'confirmed' },
+  { label: 'Pencil', value: 'pencil' },
+  { label: 'Quotation', value: 'quotation' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Cancelled', value: 'cancelled' },
+];
 
-const BOOKINGS_PAGE_SIZE = 75;
+const BOOKING_FILTER_SCHEMAS: FilterSchema[] = [
+  { id: 'functionDate', type: 'dateRange', label: 'Date' },
+  { id: 'status', type: 'multiSelect', label: 'Status', options: BOOKING_STATUS_OPTIONS },
+  { id: 'expectedGuests', type: 'numberRange', label: 'Guests' },
+  { id: 'grandTotal', type: 'numberRange', label: 'Amount' },
+];
 
 function formatCustomerLabel(customer?: {
   name?: string | null;
@@ -513,7 +513,7 @@ function formatDateTimeLabel(value?: string | Date | null): string {
   })}`;
 }
 
-export default function BookingsPage() {
+function BookingsPageContent() {
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -577,15 +577,20 @@ export default function BookingsPage() {
   const savingInFlightRef = useRef(false);
   const [importedTemplateExtras, setImportedTemplateExtras] = useState<MenuItemLike[]>([]);
   const [showStickyActions, setShowStickyActions] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState('');
-  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
-  const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
-  const [showFilters, setShowFilters] = useState(false);
-  const [sort, setSort] = useState<SortState>({
-    key: 'functionDate',
-    direction: 'desc',
+  const bookingState = useTableState({
+    prefix: 'bk',
+    defaultSort: { key: 'functionDate', direction: 'desc' },
+    filters: BOOKING_FILTER_SCHEMAS,
   });
-  const [currentPage, setCurrentPage] = useState(1);
+  const bookingFilterDefs = useMemo<ClientFilterDef<Booking>[]>(
+    () => [
+      { id: 'functionDate', accessor: (b) => b.functionDate },
+      { id: 'status', accessor: (b) => (b.isQuotation ? 'quotation' : b.status || '') },
+      { id: 'expectedGuests', accessor: (b) => b.expectedGuests },
+      { id: 'grandTotal', accessor: (b) => b.grandTotal ?? 0 },
+    ],
+    []
+  );
   // view mode: 'table' (default on desktop) or 'cards'
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
@@ -706,6 +711,8 @@ export default function BookingsPage() {
       {
         key: 'functionName',
         accessor: (booking) => `${booking.functionName} ${booking.functionType}`,
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'customer',
@@ -715,24 +722,32 @@ export default function BookingsPage() {
             phone: booking.customer?.phone,
             email: booking.customer?.email,
           }),
+        sortable: true,
+        searchable: true,
       },
       {
         key: 'functionDate',
         accessor: (booking) => booking.functionDate,
+        sortable: true,
+        searchable: false,
       },
       {
         key: 'expectedGuests',
         accessor: (booking) => booking.expectedGuests,
+        sortable: true,
         searchable: false,
       },
       {
         key: 'status',
         accessor: (booking) =>
-          booking.isQuotation ? 'Quotation' : booking.status,
+          booking.isQuotation ? 'quotation' : (booking.status || ''),
+        sortable: true,
+        searchable: false,
       },
       {
         key: 'grandTotal',
         accessor: (booking) => booking.grandTotal ?? 0,
+        sortable: true,
         searchable: false,
       },
     ],
@@ -740,20 +755,14 @@ export default function BookingsPage() {
   );
 
   const filteredBookings = useMemo(
-    () => filterAndSortRows(bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort),
-    [bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort]
+    () => applyTableState(bookings, tableColumns, bookingFilterDefs, bookingState),
+    [bookings, tableColumns, bookingFilterDefs, bookingState]
   );
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredBookings.length / BOOKINGS_PAGE_SIZE)),
-    [filteredBookings.length]
+  const paginatedBookings = useMemo(
+    () => paginateRows(filteredBookings, bookingState.page, bookingState.pageSize),
+    [filteredBookings, bookingState.page, bookingState.pageSize]
   );
-
-  const paginatedBookings = useMemo(() => {
-    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-    const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
-    return filteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
-  }, [currentPage, filteredBookings, totalPages]);
 
   const historicalVersions = useMemo(
     () =>
@@ -1588,14 +1597,6 @@ export default function BookingsPage() {
     return () => observer.disconnect();
   }, [actionSentinelRef]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedGlobalSearch, columnSearch, sort]);
-
-  useEffect(() => {
-    if (currentPage <= totalPages) return;
-    setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
 
   useEffect(() => {
     if (!showAddCustomerForm) return;
@@ -1933,14 +1934,8 @@ export default function BookingsPage() {
     }
   };
 
-  const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
-    setColumnSearch((prev) => ({ ...prev, [key]: value }));
-  };
-
   const clearSearch = () => {
-    setGlobalSearch('');
-    setColumnSearch(initialColumnSearch);
-    setCurrentPage(1);
+    bookingState.clearAll();
   };
 
   const closeBookingForm = () => {
@@ -5510,95 +5505,46 @@ export default function BookingsPage() {
       </FormPromptModal>
 
       <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div className="relative" style={{ flex: 1 }}>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
-            <input
-              type="text"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="Search bookings…"
-              className="input pl-10 pr-10"
-            />
-            {globalSearch && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={clearSearch}
-                style={{
-                  position: 'absolute',
-                  right: 10,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 2,
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
-            <Filter className="w-5 h-5 md:mr-2" />
-            <span className="hidden md:inline">Filters</span>
-            {Object.values(columnSearch).filter(Boolean).length > 0 && (
-               <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                 {Object.values(columnSearch).filter(Boolean).length}
-               </span>
-            )}
-          </button>
-          {/* View toggle — hidden on mobile where we always use cards */}
-          <div
-            aria-label="Toggle view"
-            role="group"
-            className="hidden md:flex"
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              overflow: 'hidden',
-              flexShrink: 0,
-            }}
-          >
-            {(['cards', 'table'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setViewMode(mode)}
-                aria-pressed={viewMode === mode}
-                title={mode === 'cards' ? 'Card view' : 'Table view'}
-                style={{
-                  padding: '6px 12px',
-                  border: 'none',
-                  background: viewMode === mode ? 'var(--teal-600)' : 'transparent',
-                  color: viewMode === mode ? 'white' : 'var(--text-3)',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {mode === 'cards' ? '⊞ Cards' : '≡ Table'}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-3 md:hidden">
-          <label className="label">Search by date</label>
-          <input
-            type="date"
-            className="input"
-            value={columnSearch.functionDate}
-            onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
-          />
-        </div>
+        <DataTableToolbar
+          state={bookingState}
+          searchPlaceholder="Search bookings…"
+          rightSlot={
+            /* View toggle — hidden on mobile where we always use cards */
+            <div
+              aria-label="Toggle view"
+              role="group"
+              className="hidden md:flex"
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                overflow: 'hidden',
+                flexShrink: 0,
+              }}
+            >
+              {(['cards', 'table'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  aria-pressed={viewMode === mode}
+                  title={mode === 'cards' ? 'Card view' : 'Table view'}
+                  style={{
+                    padding: '6px 12px',
+                    border: 'none',
+                    background: viewMode === mode ? 'var(--teal-600)' : 'transparent',
+                    color: viewMode === mode ? 'white' : 'var(--text-3)',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {mode === 'cards' ? '⊞ Cards' : '≡ Table'}
+                </button>
+              ))}
+            </div>
+          }
+        />
       </div>
 
       <div className="card">
@@ -5616,34 +5562,23 @@ export default function BookingsPage() {
           </div>
         ) : filteredBookings.length === 0 ? (
           <EmptyState
-            icon={globalSearch ? Search : CalendarCheck}
-            variant={
-              globalSearch
-                ? 'search'
-                : Object.values(columnSearch).some(Boolean)
-                  ? 'filter'
-                  : 'page'
-            }
+            icon={CalendarCheck}
             title={
-              globalSearch
-                ? 'No bookings match your search'
-                : Object.values(columnSearch).some(Boolean)
-                  ? 'No matches'
-                  : 'No bookings found'
+              bookingState.search || bookingState.activeFilterCount > 0
+                ? 'No bookings match'
+                : 'No bookings found'
             }
             description={
-              globalSearch || Object.values(columnSearch).some(Boolean)
-                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
+              bookingState.search || bookingState.activeFilterCount > 0
+                ? 'Try a different search or clear filters.'
                 : 'Create a booking to start tracking events.'
             }
             action={
-              globalSearch
-                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
-                : Object.values(columnSearch).some(Boolean)
-                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
-                  : canAddBooking
-                    ? { label: 'New Booking', onClick: () => setShowCreateForm(true) }
-                    : undefined
+              bookingState.search || bookingState.activeFilterCount > 0
+                ? { label: 'Clear all', onClick: bookingState.clearAll }
+                : canAddBooking
+                  ? { label: 'New Booking', onClick: () => setShowCreateForm(true) }
+                  : undefined
             }
           />
         ) : (
@@ -5666,13 +5601,11 @@ export default function BookingsPage() {
                       />
                     ))}
                   </div>
-                  <TablePagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={filteredBookings.length}
-                    pageSize={BOOKINGS_PAGE_SIZE}
+                  <DataTableFooter
+                    state={bookingState}
+                    totalItems={bookings.length}
+                    filteredCount={filteredBookings.length}
                     itemLabel="bookings"
-                    onPageChange={setCurrentPage}
                   />
             </div>
 
@@ -5702,13 +5635,11 @@ export default function BookingsPage() {
                         />
                       ))}
                     </div>
-                    <TablePagination
-                      currentPage={currentPage}
-                      totalPages={totalPages}
-                      totalItems={filteredBookings.length}
-                      pageSize={BOOKINGS_PAGE_SIZE}
+                    <DataTableFooter
+                      state={bookingState}
+                      totalItems={bookings.length}
+                      filteredCount={filteredBookings.length}
                       itemLabel="bookings"
-                      onPageChange={setCurrentPage}
                     />
               </div>
             )}
@@ -5721,39 +5652,39 @@ export default function BookingsPage() {
                     <SortableHeader
                       label="Function"
                       sortKey="functionName"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      sort={bookingState.sort}
+                      onSort={bookingState.toggleSort}
                     />
                     <SortableHeader
                       label="Customer"
                       sortKey="customer"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      sort={bookingState.sort}
+                      onSort={bookingState.toggleSort}
                     />
                     <SortableHeader
                       label="Date"
                       sortKey="functionDate"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      sort={bookingState.sort}
+                      onSort={bookingState.toggleSort}
                     />
                     <SortableHeader
                       label="Guests"
                       sortKey="expectedGuests"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      sort={bookingState.sort}
+                      onSort={bookingState.toggleSort}
                     />
                     <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Hall / Venue</th>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      sort={bookingState.sort}
+                      onSort={bookingState.toggleSort}
                     />
                     <SortableHeader
                       label="Amount"
                       sortKey="grandTotal"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      sort={bookingState.sort}
+                      onSort={bookingState.toggleSort}
                       className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
                     />
                     {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
@@ -5851,13 +5782,11 @@ export default function BookingsPage() {
                   }
                 </tbody>
               </table>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredBookings.length}
-                pageSize={BOOKINGS_PAGE_SIZE}
+              <DataTableFooter
+                state={bookingState}
+                totalItems={bookings.length}
+                filteredCount={filteredBookings.length}
                 itemLabel="bookings"
-                onPageChange={setCurrentPage}
               />
             </div>
           </>
@@ -5925,39 +5854,14 @@ export default function BookingsPage() {
         </form>
       </FormPromptModal>
 
-      <FilterPanel
-        open={showFilters}
-        onClose={() => setShowFilters(false)}
-        activeCount={Object.values(columnSearch).filter(Boolean).length}
-        onClearAll={() => setColumnSearch(initialColumnSearch)}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="label">Function</label>
-            <input className="input" placeholder="Search function" value={columnSearch.functionName} onChange={(e) => handleColumnSearch('functionName', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Customer</label>
-            <input className="input" placeholder="Search name or phone" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Date</label>
-            <input type="date" className="input" value={columnSearch.functionDate} onChange={(e) => handleColumnSearch('functionDate', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Guests</label>
-            <input className="input" placeholder="Search guests" value={columnSearch.expectedGuests} onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Status</label>
-            <input className="input" placeholder="Search status" value={columnSearch.status} onChange={(e) => handleColumnSearch('status', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Amount</label>
-            <input className="input" placeholder="Search amount" value={columnSearch.grandTotal} onChange={(e) => handleColumnSearch('grandTotal', e.target.value)} />
-          </div>
-        </div>
-      </FilterPanel>
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense>
+      <BookingsPageContent />
+    </Suspense>
   );
 }
