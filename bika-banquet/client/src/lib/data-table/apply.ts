@@ -50,8 +50,12 @@ export function matchesFilter(value: unknown, filter: FilterValue): boolean {
   switch (filter.type) {
     case 'multiSelect': {
       if (filter.values.length === 0) return true;
-      const v = normalizeString(value).toLowerCase();
-      return filter.values.some((option) => option.toLowerCase() === v);
+      // Accessor may return a single value (string/number) or a list of tags.
+      const candidates = Array.isArray(value)
+        ? value.map((v) => normalizeString(v).toLowerCase())
+        : [normalizeString(value).toLowerCase()];
+      const selected = filter.values.map((v) => v.toLowerCase());
+      return candidates.some((c) => selected.includes(c));
     }
     case 'dateRange': {
       if (filter.from === null && filter.to === null) return true;

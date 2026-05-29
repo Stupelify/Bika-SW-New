@@ -60,6 +60,21 @@ describe('matchesFilter', () => {
     expect(matchesFilter('quoted', { type: 'multiSelect', values: ['pending'] })).toBe(false);
   });
 
+  it('multiSelect: accepts array accessor (any tag match)', () => {
+    expect(
+      matchesFilter(['quotation', 'pencil'], {
+        type: 'multiSelect',
+        values: ['pencil'],
+      })
+    ).toBe(true);
+    expect(
+      matchesFilter([], { type: 'multiSelect', values: ['quotation'] })
+    ).toBe(false);
+    expect(
+      matchesFilter(['quotation'], { type: 'multiSelect', values: ['pencil'] })
+    ).toBe(false);
+  });
+
   it('dateRange: inclusive bounds, ISO input', () => {
     const f = { type: 'dateRange' as const, from: '2026-01-01', to: '2026-01-31' };
     expect(matchesFilter('2026-01-15T09:00:00Z', f)).toBe(true);

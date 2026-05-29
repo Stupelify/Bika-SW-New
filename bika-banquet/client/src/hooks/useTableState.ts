@@ -43,6 +43,7 @@ export interface UseTableStateReturn extends TableState {
   setFilter: (id: string, value: FilterValue) => void;
   clearFilter: (id: string) => void;
   toggleSort: (key: string) => void;
+  setSort: (sort: SortState) => void;
   setPage: (page: number) => void;
   setPageSize: (size: PageSizeOption) => void;
   clearAll: () => void;
@@ -143,6 +144,14 @@ export function useTableState(options: UseTableStateOptions): UseTableStateRetur
     [params, prefix, push, sort, defaults]
   );
 
+  const setSort = useCallback(
+    (nextSort: SortState) => {
+      const next = applyPatch(params, { sort: nextSort, page: 1 }, prefix, defaults);
+      push(next);
+    },
+    [params, prefix, push, defaults]
+  );
+
   const setPage = useCallback(
     (nextPage: number) => {
       const next = applyPatch(params, { page: nextPage }, prefix, defaults);
@@ -193,6 +202,7 @@ export function useTableState(options: UseTableStateOptions): UseTableStateRetur
     setFilter,
     clearFilter,
     toggleSort,
+    setSort,
     setPage,
     setPageSize,
     clearAll,
