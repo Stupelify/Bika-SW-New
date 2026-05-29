@@ -9,7 +9,6 @@ import {
   EyeOff,
   KeyRound,
   Save,
-  Search,
   Settings2,
   Shield,
   Trash2,
@@ -19,6 +18,9 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import EmptyState from '@/components/EmptyState';
 import FormPromptModal from '@/components/FormPromptModal';
 import { TableSkeleton } from '@/components/Skeletons';
+import { useTableState } from '@/hooks/useTableState';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { paginateRows } from '@/lib/data-table/apply';
 
 interface UserRow {
   id: string;
@@ -269,7 +271,9 @@ function SettingsPageContent() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [showUserPrompt, setShowUserPrompt] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [userSearch, setUserSearch] = useState('');
+  const userState = useTableState({ prefix: 'users', defaultSort: { key: 'name', direction: 'asc' }, defaultPageSize: 25 });
+  const roleState = useTableState({ prefix: 'roles', defaultSort: { key: 'name', direction: 'asc' }, defaultPageSize: 25 });
+  const permState = useTableState({ prefix: 'perms', defaultSort: { key: 'name', direction: 'asc' }, defaultPageSize: 25 });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -321,13 +325,35 @@ function SettingsPageContent() {
   );
 
   const filteredUsers = useMemo(() => {
-    const query = userSearch.trim().toLowerCase();
-    if (!query) return users;
-    return users.filter((user) => {
-      const haystack = `${user.name || ''} ${user.email}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [userSearch, users]);
+    const q = userState.search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) => `${u.name || ''} ${u.email}`.toLowerCase().includes(q));
+  }, [userState.search, users]);
+
+  const filteredRoles = useMemo(() => {
+    const q = roleState.search.trim().toLowerCase();
+    if (!q) return roles;
+    return roles.filter((r) => `${r.name} ${r.description || ''}`.toLowerCase().includes(q));
+  }, [roleState.search, roles]);
+
+  const filteredPermissions = useMemo(() => {
+    const q = permState.search.trim().toLowerCase();
+    if (!q) return permissions;
+    return permissions.filter((p) => `${p.name} ${p.description || ''}`.toLowerCase().includes(q));
+  }, [permState.search, permissions]);
+
+  const paginatedUsers = useMemo(
+    () => paginateRows(filteredUsers, userState.page, userState.pageSize),
+    [filteredUsers, userState.page, userState.pageSize]
+  );
+  const paginatedRoles = useMemo(
+    () => paginateRows(filteredRoles, roleState.page, roleState.pageSize),
+    [filteredRoles, roleState.page, roleState.pageSize]
+  );
+  const paginatedPermissions = useMemo(
+    () => paginateRows(filteredPermissions, permState.page, permState.pageSize),
+    [filteredPermissions, permState.page, permState.pageSize]
+  );
 
   const currentPermissionSet = useMemo(
     () => new Set(currentUser?.permissions || []),
@@ -1586,14 +1612,8 @@ function SettingsPageContent() {
             )}
           </div>
           {canViewUsers && (
-            <div className="relative mb-4">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-4)]" />
-              <input
-                className="input pl-9"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Search users by name or email"
-              />
+            <div className="mb-4">
+              <DataTableToolbar state={userState} searchPlaceholder="Search users by name or email" />
             </div>
           )}
           {loading ? (
@@ -1605,24 +1625,24 @@ function SettingsPageContent() {
           ) : filteredUsers.length === 0 ? (
             <EmptyState
               icon={Users}
-              title={userSearch.trim() ? 'No users match this search' : 'No users yet'}
+              title={userState.search.trim() ? 'No users match this search' : 'No users yet'}
               description={
-                userSearch.trim()
+                userState.search.trim()
                   ? 'Try a different name or email.'
                   : 'Create the first staff account to start assigning access.'
               }
               action={
-                userSearch.trim()
+                userState.search.trim()
                   ? {
                       label: 'Clear search',
-                      onClick: () => setUserSearch(''),
+                      onClick: () => userState.setSearch(''),
                     }
                   : undefined
               }
             />
           ) : (
             <div className="space-y-3">
-              {filteredUsers.map((user) => (
+              {paginatedUsers.map((user) => (
                 <div key={user.id} className="border border-[var(--border)] rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -1669,6 +1689,14 @@ function SettingsPageContent() {
               ))}
             </div>
           )}
+          {canViewUsers && !loading && (
+            <DataTableFooter
+              state={userState}
+              totalItems={users.length}
+              filteredCount={filteredUsers.length}
+              itemLabel="users"
+            />
+          )}
         </div>
         )}
 
@@ -1687,21 +1715,35 @@ function SettingsPageContent() {
               </button>
             )}
           </div>
+          {canViewRoles && !loading && (
+            <div className="mb-4">
+              <DataTableToolbar state={roleState} searchPlaceholder="Search roles…" />
+            </div>
+          )}
           {loading ? (
             <TableSkeleton rows={5} />
           ) : !canViewRoles ? (
             <p className="text-sm text-[var(--text-4)]">
               You can create or delete roles, but you do not have permission to view role records.
             </p>
-          ) : roles.length === 0 ? (
+          ) : filteredRoles.length === 0 ? (
             <EmptyState
               icon={Shield}
-              title="No roles yet"
-              description="Create the first role before mapping access for staff."
+              title={roleState.search.trim() ? 'No roles match this search' : 'No roles yet'}
+              description={
+                roleState.search.trim()
+                  ? 'Try a different name.'
+                  : 'Create the first role before mapping access for staff.'
+              }
+              action={
+                roleState.search.trim()
+                  ? { label: 'Clear search', onClick: () => roleState.setSearch('') }
+                  : undefined
+              }
             />
           ) : (
             <div className="space-y-3">
-              {roles.map((role) => (
+              {paginatedRoles.map((role) => (
                 <div key={role.id} className="border border-[var(--border)] rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -1726,6 +1768,14 @@ function SettingsPageContent() {
               ))}
             </div>
           )}
+          {canViewRoles && !loading && (
+            <DataTableFooter
+              state={roleState}
+              totalItems={roles.length}
+              filteredCount={filteredRoles.length}
+              itemLabel="roles"
+            />
+          )}
         </div>
         )}
 
@@ -1744,21 +1794,35 @@ function SettingsPageContent() {
               </button>
             )}
           </div>
+          {canViewPermissions && !loading && (
+            <div className="mb-4">
+              <DataTableToolbar state={permState} searchPlaceholder="Search permissions…" />
+            </div>
+          )}
           {loading ? (
             <TableSkeleton rows={5} />
           ) : !canViewPermissions ? (
             <p className="text-sm text-[var(--text-4)]">
               You can manage permission definitions, but you do not have permission to view permission records.
             </p>
-          ) : permissions.length === 0 ? (
+          ) : filteredPermissions.length === 0 ? (
             <EmptyState
               icon={KeyRound}
-              title="No permissions yet"
-              description="Add permission definitions before attaching them to roles."
+              title={permState.search.trim() ? 'No permissions match this search' : 'No permissions yet'}
+              description={
+                permState.search.trim()
+                  ? 'Try a different name.'
+                  : 'Add permission definitions before attaching them to roles.'
+              }
+              action={
+                permState.search.trim()
+                  ? { label: 'Clear search', onClick: () => permState.setSearch('') }
+                  : undefined
+              }
             />
           ) : (
             <div className="space-y-3">
-              {permissions.map((permission) => (
+              {paginatedPermissions.map((permission) => (
                 <div key={permission.id} className="border border-[var(--border)] rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -1782,6 +1846,14 @@ function SettingsPageContent() {
                 </div>
               ))}
             </div>
+          )}
+          {canViewPermissions && !loading && (
+            <DataTableFooter
+              state={permState}
+              totalItems={permissions.length}
+              filteredCount={filteredPermissions.length}
+              itemLabel="permissions"
+            />
           )}
         </div>
         )}
