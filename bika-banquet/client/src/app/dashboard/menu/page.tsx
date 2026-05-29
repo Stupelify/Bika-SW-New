@@ -3,20 +3,19 @@
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Edit, Layers, ListChecks, Plus, Save, Search, Soup, Trash2, Filter } from 'lucide-react';
+import { Edit, Layers, ListChecks, Plus, Save, Search, Soup, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import FormPromptModal from '@/components/FormPromptModal';
-import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
-import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
 import {
-  SortState,
   TableColumnConfig,
-  filterAndSortRows,
-  getNextSort,
 } from '@/lib/tableUtils';
+import { useTableState } from '@/hooks/useTableState';
+import DataTableToolbar, { DataTableFooter } from '@/components/data-table/DataTableToolbar';
+import { applyTableState, paginateRows, ClientFilterDef } from '@/lib/data-table/apply';
+import type { FilterSchema } from '@/lib/data-table/types';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 
@@ -139,28 +138,7 @@ const initialTemplateForm = {
 
 const recipeUnits = ['kg', 'g', 'liter', 'ml', 'piece', 'packet', 'dozen', 'box'];
 
-const initialTypeColumnSearch = {
-  name: '',
-  order: '',
-  itemCount: '',
-};
 
-const initialItemColumnSearch = {
-  name: '',
-  type: '',
-  cost: '',
-};
-
-const initialTemplateColumnSearch = {
-  name: '',
-  category: '',
-  ratePerPlate: '',
-  totalPoints: '',
-};
-
-const ITEM_TYPES_PAGE_SIZE = 75;
-const ITEMS_PAGE_SIZE = 75;
-const TEMPLATE_MENUS_PAGE_SIZE = 75;
 type MenuSection = 'itemType' | 'item' | 'template';
 
 function isMenuSection(value: string | null): value is MenuSection {
@@ -209,19 +187,6 @@ function MenuPageContent() {
   >([]);
   const [itemVendorSearch, setItemVendorSearch] = useState('');
 
-  const [itemTypeGlobalSearch, setItemTypeGlobalSearch] = useState('');
-  const [itemTypeColumnSearch, setItemTypeColumnSearch] = useState(
-    initialTypeColumnSearch
-  );
-  const [itemsGlobalSearch, setItemsGlobalSearch] = useState('');
-  const [itemsColumnSearch, setItemsColumnSearch] = useState(initialItemColumnSearch);
-  const [templateGlobalSearch, setTemplateGlobalSearch] = useState('');
-  const [templateColumnSearch, setTemplateColumnSearch] = useState(
-    initialTemplateColumnSearch
-  );
-  const [showTypeFilters, setShowTypeFilters] = useState(false);
-  const [showItemFilters, setShowItemFilters] = useState(false);
-  const [showTemplateFilters, setShowTemplateFilters] = useState(false);
   const [templateItemSearch, setTemplateItemSearch] = useState('');
   const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([]);
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
@@ -248,18 +213,6 @@ function MenuPageContent() {
   const [editingItemVendorId, setEditingItemVendorId] = useState<string | null>(null);
   const [savingItemVendor, setSavingItemVendor] = useState(false);
 
-  const [itemTypeSort, setItemTypeSort] = useState<SortState>({
-    key: 'order',
-    direction: 'asc',
-  });
-  const [itemSort, setItemSort] = useState<SortState>({ key: 'name', direction: 'asc' });
-  const [templateSort, setTemplateSort] = useState<SortState>({
-    key: 'name',
-    direction: 'asc',
-  });
-  const [itemTypePage, setItemTypePage] = useState(1);
-  const [itemPage, setItemPage] = useState(1);
-  const [templatePage, setTemplatePage] = useState(1);
   const [activeMenuSection, setActiveMenuSection] = useState<MenuSection>('itemType');
   const sectionParam = searchParams.get('section');
   const isIngredientsPage = pathname === '/dashboard/menu/ingredients';
@@ -267,33 +220,27 @@ function MenuPageContent() {
 
   const itemTypeColumns = useMemo<TableColumnConfig<ItemType>[]>(
     () => [
-      { key: 'name', accessor: (itemType) => itemType.name },
-      {
-        key: 'order',
-        accessor: (itemType) => itemType.order ?? itemType.displayOrder ?? 0,
-      },
-      { key: 'itemCount', accessor: (itemType) => itemType._count?.items || 0 },
+      { key: 'name', accessor: (t) => t.name, sortable: true, searchable: true },
+      { key: 'order', accessor: (t) => t.order ?? t.displayOrder ?? 0, sortable: true, searchable: false },
+      { key: 'itemCount', accessor: (t) => t._count?.items || 0, sortable: true, searchable: false },
     ],
     []
   );
 
   const itemColumns = useMemo<TableColumnConfig<Item>[]>(
     () => [
-      {
-        key: 'name',
-        accessor: (item) => `${item.name} ${item.isVeg ? 'Veg' : 'Non-veg'}`,
-      },
-      { key: 'type', accessor: (item) => item.itemType?.name || '' },
-      { key: 'points', accessor: (item) => item.points ?? item.point ?? 0 },
+      { key: 'name', accessor: (item) => `${item.name} ${item.isVeg ? 'Veg' : 'Non-veg'}`, sortable: true, searchable: true },
+      { key: 'type', accessor: (item) => item.itemType?.name || '', sortable: true, searchable: true },
+      { key: 'points', accessor: (item) => item.points ?? item.point ?? 0, sortable: true, searchable: false },
     ],
     []
   );
 
   const templateColumns = useMemo<TableColumnConfig<TemplateMenu>[]>(
     () => [
-      { key: 'name', accessor: (menu) => menu.name },
-      { key: 'category', accessor: (menu) => menu.category || 'General' },
-      { key: 'ratePerPlate', accessor: (menu) => menu.ratePerPlate ?? 0 },
+      { key: 'name', accessor: (menu) => menu.name, sortable: true, searchable: true },
+      { key: 'category', accessor: (menu) => menu.category || 'General', sortable: true, searchable: true },
+      { key: 'ratePerPlate', accessor: (menu) => menu.ratePerPlate ?? 0, sortable: true, searchable: false },
       {
         key: 'totalPoints',
         accessor: (menu) => {
@@ -303,95 +250,86 @@ function MenuPageContent() {
             return sum + (Number.isFinite(Number(pts)) ? Number(pts) : 0);
           }, 0);
         },
+        sortable: true,
+        searchable: false,
       },
     ],
     []
   );
+
+  // Derive Type options from loaded itemTypes for the items Type filter
+  const itemTypeOptions = useMemo(
+    () => itemTypes.map((t) => ({ label: t.name, value: t.name })),
+    [itemTypes]
+  );
+  const itemFilterSchemas = useMemo<FilterSchema[]>(
+    () => [
+      { id: 'type', type: 'multiSelect', label: 'Type', options: itemTypeOptions },
+      { id: 'isVeg', type: 'boolean', label: 'Diet', trueLabel: 'Veg', falseLabel: 'Non-veg' },
+    ],
+    [itemTypeOptions]
+  );
+  const templateCategories = useMemo(
+    () => Array.from(new Set(templateMenus.map((t) => t.category || 'General'))).sort(),
+    [templateMenus]
+  );
+  const templateFilterSchemas = useMemo<FilterSchema[]>(
+    () => [
+      {
+        id: 'category',
+        type: 'multiSelect',
+        label: 'Category',
+        options: templateCategories.map((c) => ({ label: c, value: c })),
+      },
+      { id: 'ratePerPlate', type: 'numberRange', label: 'Rate/plate' },
+    ],
+    [templateCategories]
+  );
+
+  const itemTypeState = useTableState({ prefix: 'itemtype', defaultSort: { key: 'order', direction: 'asc' } });
+  const itemState = useTableState({ prefix: 'item', defaultSort: { key: 'name', direction: 'asc' }, filters: itemFilterSchemas });
+  const templateState = useTableState({ prefix: 'tmpl', defaultSort: { key: 'name', direction: 'asc' }, filters: templateFilterSchemas });
+
+  const itemFilterDefs = useMemo<ClientFilterDef<Item>[]>(
+    () => [
+      { id: 'type', accessor: (item) => item.itemType?.name || '' },
+      { id: 'isVeg', accessor: (item) => item.isVeg ?? false },
+    ],
+    []
+  );
+  const templateFilterDefs = useMemo<ClientFilterDef<TemplateMenu>[]>(
+    () => [
+      { id: 'category', accessor: (t) => t.category || 'General' },
+      { id: 'ratePerPlate', accessor: (t) => t.ratePerPlate ?? 0 },
+    ],
+    []
+  );
+
   const filteredItemTypes = useMemo(
-    () =>
-      filterAndSortRows(
-        itemTypes,
-        itemTypeColumns,
-        itemTypeGlobalSearch,
-        itemTypeColumnSearch,
-        itemTypeSort
-      ),
-    [
-      itemTypes,
-      itemTypeColumns,
-      itemTypeGlobalSearch,
-      itemTypeColumnSearch,
-      itemTypeSort,
-    ]
+    () => applyTableState(itemTypes, itemTypeColumns, [], itemTypeState),
+    [itemTypes, itemTypeColumns, itemTypeState]
   );
-
   const filteredItems = useMemo(
-    () =>
-      filterAndSortRows(
-        items,
-        itemColumns,
-        itemsGlobalSearch,
-        itemsColumnSearch,
-        itemSort
-      ),
-    [items, itemColumns, itemsGlobalSearch, itemsColumnSearch, itemSort]
+    () => applyTableState(items, itemColumns, itemFilterDefs, itemState),
+    [items, itemColumns, itemFilterDefs, itemState]
   );
-
   const filteredTemplateMenus = useMemo(
-    () =>
-      filterAndSortRows(
-        templateMenus,
-        templateColumns,
-        templateGlobalSearch,
-        templateColumnSearch,
-        templateSort
-      ),
-    [
-      templateMenus,
-      templateColumns,
-      templateGlobalSearch,
-      templateColumnSearch,
-      templateSort,
-    ]
+    () => applyTableState(templateMenus, templateColumns, templateFilterDefs, templateState),
+    [templateMenus, templateColumns, templateFilterDefs, templateState]
   );
 
-  const itemTypeTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredItemTypes.length / ITEM_TYPES_PAGE_SIZE)),
-    [filteredItemTypes.length]
+  const paginatedItemTypes = useMemo(
+    () => paginateRows(filteredItemTypes, itemTypeState.page, itemTypeState.pageSize),
+    [filteredItemTypes, itemTypeState.page, itemTypeState.pageSize]
   );
-
-  const itemTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredItems.length / ITEMS_PAGE_SIZE)),
-    [filteredItems.length]
+  const paginatedItems = useMemo(
+    () => paginateRows(filteredItems, itemState.page, itemState.pageSize),
+    [filteredItems, itemState.page, itemState.pageSize]
   );
-
-  const templateTotalPages = useMemo(
-    () =>
-      Math.max(1, Math.ceil(filteredTemplateMenus.length / TEMPLATE_MENUS_PAGE_SIZE)),
-    [filteredTemplateMenus.length]
+  const paginatedTemplateMenus = useMemo(
+    () => paginateRows(filteredTemplateMenus, templateState.page, templateState.pageSize),
+    [filteredTemplateMenus, templateState.page, templateState.pageSize]
   );
-
-  const paginatedItemTypes = useMemo(() => {
-    const safePage = Math.min(Math.max(itemTypePage, 1), itemTypeTotalPages);
-    const startIndex = (safePage - 1) * ITEM_TYPES_PAGE_SIZE;
-    return filteredItemTypes.slice(startIndex, startIndex + ITEM_TYPES_PAGE_SIZE);
-  }, [filteredItemTypes, itemTypePage, itemTypeTotalPages]);
-
-  const paginatedItems = useMemo(() => {
-    const safePage = Math.min(Math.max(itemPage, 1), itemTotalPages);
-    const startIndex = (safePage - 1) * ITEMS_PAGE_SIZE;
-    return filteredItems.slice(startIndex, startIndex + ITEMS_PAGE_SIZE);
-  }, [filteredItems, itemPage, itemTotalPages]);
-
-
-  const paginatedTemplateMenus = useMemo(() => {
-    const safePage = Math.min(Math.max(templatePage, 1), templateTotalPages);
-    const startIndex = (safePage - 1) * TEMPLATE_MENUS_PAGE_SIZE;
-    return filteredTemplateMenus.slice(
-      startIndex,
-      startIndex + TEMPLATE_MENUS_PAGE_SIZE
-    );
-  }, [filteredTemplateMenus, templatePage, templateTotalPages]);
 
   useEffect(() => {
     void loadData();
@@ -455,33 +393,6 @@ function MenuPageContent() {
     params.set('section', section);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
-
-  useEffect(() => {
-    setItemTypePage(1);
-  }, [itemTypeGlobalSearch, itemTypeColumnSearch, itemTypeSort]);
-
-  useEffect(() => {
-    setItemPage(1);
-  }, [itemsGlobalSearch, itemsColumnSearch, itemSort]);
-
-  useEffect(() => {
-    setTemplatePage(1);
-  }, [templateGlobalSearch, templateColumnSearch, templateSort]);
-
-  useEffect(() => {
-    if (itemTypePage <= itemTypeTotalPages) return;
-    setItemTypePage(itemTypeTotalPages);
-  }, [itemTypePage, itemTypeTotalPages]);
-
-  useEffect(() => {
-    if (itemPage <= itemTotalPages) return;
-    setItemPage(itemTotalPages);
-  }, [itemPage, itemTotalPages]);
-
-  useEffect(() => {
-    if (templatePage <= templateTotalPages) return;
-    setTemplatePage(templateTotalPages);
-  }, [templatePage, templateTotalPages]);
 
   const loadData = async () => {
     try {
@@ -1936,58 +1847,26 @@ function MenuPageContent() {
               </button>
             )}
           </div>
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
-              <input
-                className="input pl-9"
-                value={itemTypeGlobalSearch}
-                onChange={(e) => setItemTypeGlobalSearch(e.target.value)}
-                placeholder="Overall search in item types..."
-              />
-            </div>
-            <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowTypeFilters(true)}>
-              <Filter className="w-5 h-5 md:mr-2" />
-              <span className="hidden md:inline">Filters</span>
-              {Object.values(itemTypeColumnSearch).filter(Boolean).length > 0 && (
-                 <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                   {Object.values(itemTypeColumnSearch).filter(Boolean).length}
-                 </span>
-              )}
-            </button>
+          <div className="mb-4">
+            <DataTableToolbar state={itemTypeState} searchPlaceholder="Search item types…" />
           </div>
           {loading ? (
             <TableSkeleton rows={5} />
           ) : filteredItemTypes.length === 0 ? (
             <EmptyState
-              icon={itemTypeGlobalSearch ? Search : Layers}
-              variant={
-                itemTypeGlobalSearch
-                  ? 'search'
-                  : Object.values(itemTypeColumnSearch).some(Boolean)
-                    ? 'filter'
-                    : 'page'
-              }
-              title={
-                itemTypeGlobalSearch
-                  ? 'No types match your search'
-                  : Object.values(itemTypeColumnSearch).some(Boolean)
-                    ? 'No matches'
-                    : 'No item types found'
-              }
+              icon={Layers}
+              title={itemTypeState.search || itemTypeState.activeFilterCount > 0 ? 'No item types match' : 'No item types found'}
               description={
-                itemTypeGlobalSearch || Object.values(itemTypeColumnSearch).some(Boolean)
-                  ? `"${itemTypeGlobalSearch || Object.values(itemTypeColumnSearch).find(Boolean)}" returned no results.`
+                itemTypeState.search || itemTypeState.activeFilterCount > 0
+                  ? 'Try a different search or clear filters.'
                   : 'Start by creating categories for your menu items.'
               }
               action={
-                itemTypeGlobalSearch
-                  ? { label: 'Clear search', onClick: () => setItemTypeGlobalSearch('') }
-                  : Object.values(itemTypeColumnSearch).some(Boolean)
-                    ? { label: 'Clear filters', onClick: () => setItemTypeColumnSearch(initialTypeColumnSearch) }
-                    : canAddItemType
-                      ? { label: 'Add Type', onClick: openCreateType }
-                      : undefined
+                itemTypeState.search || itemTypeState.activeFilterCount > 0
+                  ? { label: 'Clear all', onClick: itemTypeState.clearAll }
+                  : canAddItemType
+                    ? { label: 'Add Type', onClick: openCreateType }
+                    : undefined
               }
             />
           ) : (
@@ -1998,22 +1877,22 @@ function MenuPageContent() {
                     <SortableHeader
                       label="Type"
                       sortKey="name"
-                      sort={itemTypeSort}
-                      onSort={(key) => setItemTypeSort((prev) => getNextSort(prev, key))}
+                      sort={itemTypeState.sort}
+                      onSort={itemTypeState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Order"
                       sortKey="order"
-                      sort={itemTypeSort}
-                      onSort={(key) => setItemTypeSort((prev) => getNextSort(prev, key))}
+                      sort={itemTypeState.sort}
+                      onSort={itemTypeState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Items"
                       sortKey="itemCount"
-                      sort={itemTypeSort}
-                      onSort={(key) => setItemTypeSort((prev) => getNextSort(prev, key))}
+                      sort={itemTypeState.sort}
+                      onSort={itemTypeState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
@@ -2055,13 +1934,11 @@ function MenuPageContent() {
                   ))}
                 </tbody>
               </table>
-              <TablePagination
-                currentPage={itemTypePage}
-                totalPages={itemTypeTotalPages}
-                totalItems={filteredItemTypes.length}
-                pageSize={ITEM_TYPES_PAGE_SIZE}
+              <DataTableFooter
+                state={itemTypeState}
+                totalItems={itemTypes.length}
+                filteredCount={filteredItemTypes.length}
                 itemLabel="item types"
-                onPageChange={setItemTypePage}
               />
             </div>
           )}
@@ -2085,58 +1962,26 @@ function MenuPageContent() {
               </button>
             )}
           </div>
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
-              <input
-                className="input pl-9"
-                value={itemsGlobalSearch}
-                onChange={(e) => setItemsGlobalSearch(e.target.value)}
-                placeholder="Overall search in items..."
-              />
-            </div>
-            <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowItemFilters(true)}>
-              <Filter className="w-5 h-5 md:mr-2" />
-              <span className="hidden md:inline">Filters</span>
-              {Object.values(itemsColumnSearch).filter(Boolean).length > 0 && (
-                 <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                   {Object.values(itemsColumnSearch).filter(Boolean).length}
-                 </span>
-              )}
-            </button>
+          <div className="mb-4">
+            <DataTableToolbar state={itemState} searchPlaceholder="Search items…" />
           </div>
           {loading ? (
             <TableSkeleton rows={5} />
           ) : filteredItems.length === 0 ? (
             <EmptyState
-              icon={itemsGlobalSearch ? Search : Soup}
-              variant={
-                itemsGlobalSearch
-                  ? 'search'
-                  : Object.values(itemsColumnSearch).some(Boolean)
-                    ? 'filter'
-                    : 'page'
-              }
-              title={
-                itemsGlobalSearch
-                  ? 'No items match your search'
-                  : Object.values(itemsColumnSearch).some(Boolean)
-                    ? 'No matches'
-                    : 'No items found'
-              }
+              icon={Soup}
+              title={itemState.search || itemState.activeFilterCount > 0 ? 'No items match' : 'No items found'}
               description={
-                itemsGlobalSearch || Object.values(itemsColumnSearch).some(Boolean)
-                  ? `"${itemsGlobalSearch || Object.values(itemsColumnSearch).find(Boolean)}" returned no results.`
+                itemState.search || itemState.activeFilterCount > 0
+                  ? 'Try a different search or clear filters.'
                   : 'Add dishes to build your menu database.'
               }
               action={
-                itemsGlobalSearch
-                  ? { label: 'Clear search', onClick: () => setItemsGlobalSearch('') }
-                  : Object.values(itemsColumnSearch).some(Boolean)
-                    ? { label: 'Clear filters', onClick: () => setItemsColumnSearch(initialItemColumnSearch) }
-                    : canAddItem
-                      ? { label: 'Add Item', onClick: openCreateItem }
-                      : undefined
+                itemState.search || itemState.activeFilterCount > 0
+                  ? { label: 'Clear all', onClick: itemState.clearAll }
+                  : canAddItem
+                    ? { label: 'Add Item', onClick: openCreateItem }
+                    : undefined
               }
             />
           ) : (
@@ -2147,22 +1992,22 @@ function MenuPageContent() {
                     <SortableHeader
                       label="Item"
                       sortKey="name"
-                      sort={itemSort}
-                      onSort={(key) => setItemSort((prev) => getNextSort(prev, key))}
+                      sort={itemState.sort}
+                      onSort={itemState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Type"
                       sortKey="type"
-                      sort={itemSort}
-                      onSort={(key) => setItemSort((prev) => getNextSort(prev, key))}
+                      sort={itemState.sort}
+                      onSort={itemState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Points"
                       sortKey="points"
-                      sort={itemSort}
-                      onSort={(key) => setItemSort((prev) => getNextSort(prev, key))}
+                      sort={itemState.sort}
+                      onSort={itemState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
@@ -2231,13 +2076,11 @@ function MenuPageContent() {
                   ))}
                 </tbody>
               </table>
-              <TablePagination
-                currentPage={itemPage}
-                totalPages={itemTotalPages}
-                totalItems={filteredItems.length}
-                pageSize={ITEMS_PAGE_SIZE}
+              <DataTableFooter
+                state={itemState}
+                totalItems={items.length}
+                filteredCount={filteredItems.length}
                 itemLabel="items"
-                onPageChange={setItemPage}
               />
             </div>
           )}
@@ -2261,58 +2104,26 @@ function MenuPageContent() {
               </button>
             )}
           </div>
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-4)]" />
-              <input
-                className="input pl-9"
-                value={templateGlobalSearch}
-                onChange={(e) => setTemplateGlobalSearch(e.target.value)}
-                placeholder="Overall search in template menus..."
-              />
-            </div>
-            <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowTemplateFilters(true)}>
-              <Filter className="w-5 h-5 md:mr-2" />
-              <span className="hidden md:inline">Filters</span>
-              {Object.values(templateColumnSearch).filter(Boolean).length > 0 && (
-                 <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                   {Object.values(templateColumnSearch).filter(Boolean).length}
-                 </span>
-              )}
-            </button>
+          <div className="mb-4">
+            <DataTableToolbar state={templateState} searchPlaceholder="Search template menus…" />
           </div>
           {loading ? (
             <TableSkeleton rows={5} />
           ) : filteredTemplateMenus.length === 0 ? (
             <EmptyState
-              icon={templateGlobalSearch ? Search : ListChecks}
-              variant={
-                templateGlobalSearch
-                  ? 'search'
-                  : Object.values(templateColumnSearch).some(Boolean)
-                    ? 'filter'
-                    : 'page'
-              }
-              title={
-                templateGlobalSearch
-                  ? 'No templates match your search'
-                  : Object.values(templateColumnSearch).some(Boolean)
-                    ? 'No matches'
-                    : 'No templates found'
-              }
+              icon={ListChecks}
+              title={templateState.search || templateState.activeFilterCount > 0 ? 'No templates match' : 'No templates found'}
               description={
-                templateGlobalSearch || Object.values(templateColumnSearch).some(Boolean)
-                  ? `"${templateGlobalSearch || Object.values(templateColumnSearch).find(Boolean)}" returned no results.`
+                templateState.search || templateState.activeFilterCount > 0
+                  ? 'Try a different search or clear filters.'
                   : 'Create predefined plate packs for quick booking.'
               }
               action={
-                templateGlobalSearch
-                  ? { label: 'Clear search', onClick: () => setTemplateGlobalSearch('') }
-                  : Object.values(templateColumnSearch).some(Boolean)
-                    ? { label: 'Clear filters', onClick: () => setTemplateColumnSearch(initialTemplateColumnSearch) }
-                    : canAddTemplate
-                      ? { label: 'Add Template', onClick: openCreateTemplate }
-                      : undefined
+                templateState.search || templateState.activeFilterCount > 0
+                  ? { label: 'Clear all', onClick: templateState.clearAll }
+                  : canAddTemplate
+                    ? { label: 'Add Template', onClick: openCreateTemplate }
+                    : undefined
               }
             />
           ) : (
@@ -2323,29 +2134,29 @@ function MenuPageContent() {
                     <SortableHeader
                       label="Name"
                       sortKey="name"
-                      sort={templateSort}
-                      onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
+                      sort={templateState.sort}
+                      onSort={templateState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Category"
                       sortKey="category"
-                      sort={templateSort}
-                      onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
+                      sort={templateState.sort}
+                      onSort={templateState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Rate / Plate"
                       sortKey="ratePerPlate"
-                      sort={templateSort}
-                      onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
+                      sort={templateState.sort}
+                      onSort={templateState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <SortableHeader
                       label="Total Points"
                       sortKey="totalPoints"
-                      sort={templateSort}
-                      onSort={(key) => setTemplateSort((prev) => getNextSort(prev, key))}
+                      sort={templateState.sort}
+                      onSort={templateState.toggleSort}
                       className="text-left py-3 px-2 text-sm font-semibold text-[var(--text-2)]"
                     />
                     <th className="text-right py-3 px-2 text-sm font-semibold text-[var(--text-2)]">
@@ -2398,93 +2209,17 @@ function MenuPageContent() {
                   })}
                 </tbody>
               </table>
-              <TablePagination
-                currentPage={templatePage}
-                totalPages={templateTotalPages}
-                totalItems={filteredTemplateMenus.length}
-                pageSize={TEMPLATE_MENUS_PAGE_SIZE}
+              <DataTableFooter
+                state={templateState}
+                totalItems={templateMenus.length}
+                filteredCount={filteredTemplateMenus.length}
                 itemLabel="template menus"
-                onPageChange={setTemplatePage}
               />
             </div>
           )}
         </div>
       </div>
 
-      {activeMenuSection === 'itemType' && (
-        <FilterPanel
-          open={showTypeFilters}
-          onClose={() => setShowTypeFilters(false)}
-          activeCount={Object.values(itemTypeColumnSearch).filter(Boolean).length}
-          onClearAll={() => setItemTypeColumnSearch(initialTypeColumnSearch)}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="label">Type</label>
-              <input className="input" placeholder="Search type" value={itemTypeColumnSearch.name} onChange={(e) => setItemTypeColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Order</label>
-              <input className="input" placeholder="Search order" value={itemTypeColumnSearch.order} onChange={(e) => setItemTypeColumnSearch(prev => ({ ...prev, order: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Item Count</label>
-              <input className="input" placeholder="Search item count" value={itemTypeColumnSearch.itemCount} onChange={(e) => setItemTypeColumnSearch(prev => ({ ...prev, itemCount: e.target.value }))} />
-            </div>
-          </div>
-        </FilterPanel>
-      )}
-
-      {activeMenuSection === 'item' && (
-        <FilterPanel
-          open={showItemFilters}
-          onClose={() => setShowItemFilters(false)}
-          activeCount={Object.values(itemsColumnSearch).filter(Boolean).length}
-          onClearAll={() => setItemsColumnSearch(initialItemColumnSearch)}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="label">Name</label>
-              <input className="input" placeholder="Search item name" value={itemsColumnSearch.name} onChange={(e) => setItemsColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Type</label>
-              <input className="input" placeholder="Search type" value={itemsColumnSearch.type} onChange={(e) => setItemsColumnSearch(prev => ({ ...prev, type: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Cost</label>
-              <input className="input" placeholder="Search cost" value={itemsColumnSearch.cost} onChange={(e) => setItemsColumnSearch(prev => ({ ...prev, cost: e.target.value }))} />
-            </div>
-          </div>
-        </FilterPanel>
-      )}
-
-      {activeMenuSection === 'template' && (
-        <FilterPanel
-          open={showTemplateFilters}
-          onClose={() => setShowTemplateFilters(false)}
-          activeCount={Object.values(templateColumnSearch).filter(Boolean).length}
-          onClearAll={() => setTemplateColumnSearch(initialTemplateColumnSearch)}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="label">Name</label>
-              <input className="input" placeholder="Search name" value={templateColumnSearch.name} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Category</label>
-              <input className="input" placeholder="Search category" value={templateColumnSearch.category} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, category: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Rate Per Plate</label>
-              <input className="input" placeholder="Search rate" value={templateColumnSearch.ratePerPlate} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, ratePerPlate: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Total Points</label>
-              <input className="input" placeholder="Search points" value={templateColumnSearch.totalPoints} onChange={(e) => setTemplateColumnSearch(prev => ({ ...prev, totalPoints: e.target.value }))} />
-            </div>          </div>
-        </FilterPanel>
-      )}
     </div>
     </>
   );
