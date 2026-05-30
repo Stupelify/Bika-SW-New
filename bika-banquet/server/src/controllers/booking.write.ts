@@ -499,7 +499,6 @@ export async function createBooking(
       });
       const { grossReceived: paymentReceived, dueAmount: dueAmountValue } =
         resolvePaymentTotals(finalAmountValue, dbPayments);
-      const balanceAmount = dueAmountValue;
       const discountAmount2ndValue = readDualMoney(
         data,
         'discountAmount2ndValue',
@@ -531,14 +530,12 @@ export async function createBooking(
           grandTotal,
           finalAmount: toStoredNumberString(finalAmountValue),
           finalAmountValue,
-          balanceAmount,
           dueAmount: toStoredNumberString(dueAmountValue),
           dueAmountValue,
           advanceRequired: toStoredNumberString(advanceRequiredValue),
           advanceRequiredValue,
           paymentReceivedAmount: toStoredNumberString(paymentReceived),
           paymentReceivedAmountValue: paymentReceived,
-          advanceReceived: paymentReceived,
         },
         include: {
           customer: true,
@@ -1371,7 +1368,6 @@ export async function updateBooking(
       });
       const { grossReceived: paymentReceived, dueAmount: dueAmountValue } =
         resolvePaymentTotals(finalAmountValue, dbPayments);
-      const balanceAmount = dueAmountValue;
       const totalBillAmountValue = lineTotals.totalAmount;
 
       await tx.booking.update({
@@ -1385,14 +1381,10 @@ export async function updateBooking(
           grandTotal,
           finalAmount: toStoredNumberString(finalAmountValue),
           finalAmountValue,
-          balanceAmount,
           dueAmount: toStoredNumberString(dueAmountValue),
           dueAmountValue,
-          // Always write back the authoritative SUM so the stored value never
-          // drifts (e.g. after a version clone carries a stale value forward).
           paymentReceivedAmount: toStoredNumberString(paymentReceived),
           paymentReceivedAmountValue: paymentReceived,
-          advanceReceived: paymentReceived,
         },
       });
 

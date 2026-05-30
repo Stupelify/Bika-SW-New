@@ -162,8 +162,6 @@ export async function addPayment(
       await tx.booking.update({
         where: { id },
         data: {
-          advanceReceived: grossReceived,
-          balanceAmount: updatedDue,
           paymentReceivedAmount: toStoredNumberString(grossReceived),
           paymentReceivedAmountValue: grossReceived,
           dueAmount: toStoredNumberString(updatedDue),
@@ -262,8 +260,6 @@ export async function updatePayment(
       await tx.booking.update({
         where: { id },
         data: {
-          advanceReceived: grossReceived,
-          balanceAmount: updatedDue,
           paymentReceivedAmount: toStoredNumberString(grossReceived),
           paymentReceivedAmountValue: grossReceived,
           dueAmount: toStoredNumberString(updatedDue),

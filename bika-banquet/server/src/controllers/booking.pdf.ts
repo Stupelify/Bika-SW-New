@@ -18,6 +18,10 @@ import {
   getAllowedBanquetIds,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
+import {
+  resolveDueAmount,
+  resolvePaymentReceivedGross,
+} from '@bika/booking-core';
 
 // ---------------------------------------------------------------------------
 // PDF drawing utilities
@@ -751,8 +755,8 @@ export async function downloadBookingDetailsPdf(
     if (booking.grandTotal) finRows.push(['Grand Total', fmt(booking.grandTotal)]);
     if (booking.discountAmount) finRows.push(['Discount', `- ${fmt(booking.discountAmount)}`]);
     if (booking.taxAmount) finRows.push(['Tax', fmt(booking.taxAmount)]);
-    finRows.push(['Advance Received', fmt(booking.advanceReceived)]);
-    finRows.push(['Balance Due', fmt(booking.balanceAmount)]);
+    finRows.push(['Total Received', fmt(resolvePaymentReceivedGross(booking))]);
+    finRows.push(['Balance Due', fmt(resolveDueAmount(booking))]);
 
     const boxH = 16 + finRows.length * 20 + 14;
     doc.roundedRect(cL, y, cW, boxH, 8).fillColor('#f9fafb').strokeColor('#e5e7eb').lineWidth(0.8).fillAndStroke();

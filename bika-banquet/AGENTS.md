@@ -109,6 +109,8 @@ Fixing one layer without the others regresses Submit / Finalize.
 
 8. **Payments on new version:** Payments are not copied per version by design. Do not zero `paymentReceivedAmount` across versions unless product explicitly asks.
 
+9. **Canonical money columns (writes):** Persist `paymentReceivedAmountValue` (gross) and `dueAmountValue` (credited due). Do not write synonym columns `advanceReceived`, `balanceAmount`, or `paymentReceivedPercent` on new saves. Reads use `@bika/booking-core` booking-readers (legacy fallbacks for old rows).
+
 ### Testing
 
 | Suite | Command | What it guards |

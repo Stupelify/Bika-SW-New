@@ -533,16 +533,12 @@ export async function cloneBookingVersion(
       discountPercentage2ndValue: source.discountPercentage2ndValue,
       taxAmount: source.taxAmount,
       grandTotal: source.grandTotal,
-      advanceReceived: 0,
       advanceRequired: source.advanceRequired,
       advanceRequiredValue: source.advanceRequiredValue,
-      paymentReceivedPercent: toStoredNumberString(0),
-      paymentReceivedPercentValue: 0,
       paymentReceivedAmount: toStoredNumberString(0),
       paymentReceivedAmountValue: 0,
       dueAmount: toStoredNumberString(replicaPayable),
       dueAmountValue: replicaPayable,
-      balanceAmount: replicaPayable,
       status: options?.status ?? source.status,
       quotation: options?.quotation ?? source.quotation,
       isQuotation: options?.isQuotation ?? source.isQuotation,
@@ -721,7 +717,6 @@ export async function recalculateBookingFinancials(
     finalAmountValue,
     dbPayments
   );
-  const balanceAmount = dueAmountValue;
 
   await tx.booking.update({
     where: { id: bookingId },
@@ -736,10 +731,8 @@ export async function recalculateBookingFinancials(
       finalAmountValue,
       dueAmount: toStoredNumberString(dueAmountValue),
       dueAmountValue,
-      balanceAmount,
       paymentReceivedAmount: toStoredNumberString(grossReceived),
       paymentReceivedAmountValue: grossReceived,
-      advanceReceived: grossReceived,
     },
   });
 }
