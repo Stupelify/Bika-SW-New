@@ -9,7 +9,10 @@ import Avatar from '@/components/Avatar';
 import CommandPalette from '@/components/CommandPalette';
 import IdleTimeoutModal from '@/components/IdleTimeoutModal';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
-import { shouldRedirectToLogin } from '@/lib/authRedirect';
+import {
+  shouldRedirectToLogin,
+  shouldShowSessionVerificationFailure,
+} from '@/lib/authRedirect';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -970,13 +973,18 @@ function DashboardLayoutContent({
   }
 
   const hasStoredToken = Boolean(getStoredAuthToken());
+  const showSessionVerificationFailure = shouldShowSessionVerificationFailure(
+    isAuthenticated,
+    isAuthReady,
+    hasStoredToken
+  );
 
   if (!isAuthenticated) {
     return (
       <div className="loading-screen">
         <div className="loading-stack">
           <div className="skeleton loading-avatar" />
-          {hasStoredToken ? (
+          {showSessionVerificationFailure ? (
             <>
               <p className="loading-text">Could not verify your session.</p>
               <button

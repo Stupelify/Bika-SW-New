@@ -3,13 +3,21 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredAuthToken, useAuthStore } from '@/store/authStore';
-import { shouldRedirectToLogin } from '@/lib/authRedirect';
+import {
+  shouldRedirectToLogin,
+  shouldShowSessionVerificationFailure,
+} from '@/lib/authRedirect';
 import { getDefaultDashboardRoute } from '@/lib/routeAccess';
 
 export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated, isAuthReady, loadUser, user } = useAuthStore();
   const hasStoredToken = Boolean(getStoredAuthToken());
+  const showSessionVerificationFailure = shouldShowSessionVerificationFailure(
+    isAuthenticated,
+    isAuthReady,
+    hasStoredToken
+  );
 
   useEffect(() => {
     if (!isAuthReady) return;
@@ -50,17 +58,17 @@ export default function HomePage() {
         <h1 style={{ margin: '10px 0 0', fontSize: 30, lineHeight: 1.2 }}>
           {!isAuthReady
             ? 'Loading your workspace...'
-            : hasStoredToken && !isAuthenticated
+            : showSessionVerificationFailure
               ? 'Could not verify your session.'
               : 'Taking you to the right page...'}
         </h1>
         <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.6, color: '#334155' }}>
-          {hasStoredToken && !isAuthenticated
+          {showSessionVerificationFailure
             ? 'Check your connection and retry session restore.'
             : 'If this page does not move in a moment, open the login screen directly.'}
         </p>
         <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {hasStoredToken && !isAuthenticated && (
+          {showSessionVerificationFailure && (
             <button
               type="button"
               onClick={() => void loadUser({ silent: true })}
@@ -88,9 +96,9 @@ export default function HomePage() {
               justifyContent: 'center',
               borderRadius: 12,
               padding: '10px 16px',
-              background: hasStoredToken && !isAuthenticated ? '#fff' : '#0d9488',
-              color: hasStoredToken && !isAuthenticated ? '#334155' : 'white',
-              border: hasStoredToken && !isAuthenticated ? '1px solid #cbd5e1' : undefined,
+              background: showSessionVerificationFailure ? '#fff' : '#0d9488',
+              color: showSessionVerificationFailure ? '#334155' : 'white',
+              border: showSessionVerificationFailure ? '1px solid #cbd5e1' : undefined,
               textDecoration: 'none',
               fontWeight: 600,
             }}
