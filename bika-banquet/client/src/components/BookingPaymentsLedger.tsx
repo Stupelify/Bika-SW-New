@@ -1,28 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  paymentCountsTowardDue,
+  sumAllPaymentAmounts,
+  sumPaymentsTowardDue,
+} from '@/lib/booking-form/payment-credit';
+import type { PaymentRow } from '@/lib/booking-form/types';
 import { Plus } from 'lucide-react';
 import { IndianAmountInput } from '@/components/IndianAmountInput';
-
-interface PaymentRow {
-  id?: string;
-  mode: string;
-  narration: string;
-  date: string;
-  receivedBy: string;
-  amount: string;
-  reference: string;
-  clearingDate: string;
-  _original?: {
-    mode: string; narration: string; date: string; receivedBy: string;
-    amount: string; reference: string; clearingDate: string;
-  };
-}
 
 interface Props {
   payments: PaymentRow[];
   isReadOnly: boolean;
-  advanceReceived?: number;  // DB-authoritative total (may include prior version payments)
   onAdd: (payment: PaymentRow) => void;
   onUpdate: (index: number, patch: Partial<PaymentRow>) => void;
   onRemove: (index: number) => void;
@@ -46,7 +36,7 @@ const emptyDraft = (): PaymentRow => ({
 });
 
 export default function BookingPaymentsLedger({
-  payments, isReadOnly, advanceReceived, onAdd, onUpdate, onRemove,
+  payments, isReadOnly, onAdd, onUpdate, onRemove,
 }: Props) {
   const [showDraft, setShowDraft] = useState(false);
   const [draft, setDraft] = useState<PaymentRow>(emptyDraft());
@@ -59,11 +49,8 @@ export default function BookingPaymentsLedger({
   };
 
   const todayDate = new Date().toISOString().slice(0, 10);
-  const credited = payments.reduce((sum, p) => {
-    if (p.mode.toLowerCase() === 'cheque' && p.clearingDate && p.clearingDate > todayDate) return sum;
-    return sum + (parseFloat(p.amount) || 0);
-  }, 0);
-  const totalReceived = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const credited = sumPaymentsTowardDue(payments, todayDate);
+  const totalReceived = sumAllPaymentAmounts(payments);
   const pendingCheques = totalReceived - credited;
 
   return (
@@ -108,15 +95,16 @@ export default function BookingPaymentsLedger({
                 const patch = (p: Partial<PaymentRow>) => onUpdate(index, p);
                 const modeLabel = PAYMENT_MODES.find(m => m.value === payment.mode.toLowerCase())?.label ?? payment.mode;
                 const isCheque = payment.mode.toLowerCase() === 'cheque';
-                const notYetCleared = isCheque && payment.clearingDate && payment.clearingDate > todayDate;
+                const pendingClearance = isCheque && !paymentCountsTowardDue(payment, todayDate);
+                const fieldsLocked = isReadOnly || isExisting;
 
                 return (
                   <tr
                     key={payment.id || `new-${index}`}
-                    className={`border-t border-[var(--border)] hover:bg-[var(--surface-2)] ${notYetCleared ? 'opacity-70' : ''}`}
+                    className={`border-t border-[var(--border)] hover:bg-[var(--surface-2)] ${pendingClearance ? 'opacity-70' : ''}`}
                   >
                     <td className="px-2 py-1.5">
-                      {isReadOnly ? (
+                      {fieldsLocked ? (
                         <span className="text-[var(--text-2)]">{payment.date}</span>
                       ) : (
                         <input
@@ -128,7 +116,7 @@ export default function BookingPaymentsLedger({
                       )}
                     </td>
                     <td className="px-2 py-1.5">
-                      {isReadOnly ? (
+                      {fieldsLocked ? (
                         <span className="text-[var(--text-2)]">{modeLabel}</span>
                       ) : (
                         <select
@@ -144,7 +132,7 @@ export default function BookingPaymentsLedger({
                       )}
                     </td>
                     <td className="px-2 py-1.5">
-                      {isReadOnly ? (
+                      {fieldsLocked ? (
                         <span className="text-[var(--text-2)]">{payment.reference || '—'}</span>
                       ) : (
                         <input
@@ -157,7 +145,7 @@ export default function BookingPaymentsLedger({
                       )}
                     </td>
                     <td className="px-2 py-1.5">
-                      {isReadOnly ? (
+                      {fieldsLocked ? (
                         <span className="text-[var(--text-2)]">{payment.receivedBy || '—'}</span>
                       ) : (
                         <input
@@ -171,27 +159,27 @@ export default function BookingPaymentsLedger({
                     </td>
                     <td className="px-2 py-1.5">
                       {isCheque ? (
-                        isReadOnly ? (
-                          <span className={`text-sm ${notYetCleared ? 'text-amber-600' : 'text-[var(--text-2)]'}`}>
-                            {payment.clearingDate || '—'}
-                          </span>
-                        ) : (
+                        !isReadOnly ? (
                           <input
                             type="date"
                             className="input py-1 text-sm w-36"
                             value={payment.clearingDate}
                             onChange={(e) => patch({ clearingDate: e.target.value })}
                           />
+                        ) : (
+                          <span className={`text-sm ${pendingClearance ? 'text-amber-600' : 'text-[var(--text-2)]'}`}>
+                            {payment.clearingDate || '—'}
+                          </span>
                         )
                       ) : (
                         <span className="text-[var(--text-4)] text-xs">—</span>
                       )}
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      {isReadOnly ? (
-                        <span className={`font-medium ${notYetCleared ? 'text-amber-600' : 'text-[var(--text-1)]'}`}>
+                      {fieldsLocked ? (
+                        <span className={`font-medium ${pendingClearance ? 'text-amber-600' : 'text-[var(--text-1)]'}`}>
                           ₹{Number(payment.amount || 0).toLocaleString('en-IN')}
-                          {notYetCleared && <span className="ml-1 text-xs">(pending)</span>}
+                          {pendingClearance && <span className="ml-1 text-xs">(pending)</span>}
                         </span>
                       ) : (
                         <IndianAmountInput
@@ -303,33 +291,20 @@ export default function BookingPaymentsLedger({
         )}
 
         {/* Footer totals */}
-        {(payments.length > 0 || (advanceReceived !== undefined && advanceReceived > 0)) && (
+        {payments.length > 0 && (
           <div className="border-t border-[var(--border)] bg-[var(--surface-2)] dark:bg-[var(--surface-3)] px-4 py-3 space-y-1 text-sm">
-            {payments.length > 0 && (
-              <div className="flex justify-between text-[var(--text-2)]">
-                <span>Total Received (this version)</span>
-                <span className="font-semibold">₹{credited.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            {advanceReceived !== undefined && advanceReceived > credited && (
-              <div className="flex justify-between text-blue-700 dark:text-blue-300 text-xs font-medium">
-                <span>Total Received (all versions, from DB)</span>
-                <span>₹{advanceReceived.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            {advanceReceived !== undefined && advanceReceived > credited && payments.length === 0 && (
-              <p className="text-xs text-[var(--text-4)] pt-1">
-                ₹{advanceReceived.toLocaleString('en-IN')} received on a previous booking version. New payments recorded here apply to this version.
-              </p>
-            )}
+            <div className="flex justify-between text-[var(--text-2)]">
+              <span>Credited toward due (this version)</span>
+              <span className="font-semibold">₹{credited.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
             {pendingCheques > 0 && (
               <div className="flex justify-between text-amber-600 dark:text-amber-400 text-xs">
-                <span>Pending — cheque not yet cleared</span>
+                <span>Deposited — awaiting clearing date</span>
                 <span>₹{pendingCheques.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
             <p className="text-xs text-[var(--text-4)] pt-1">
-              Cheque payments are not credited until the clearing date is reached.
+              Cheques are recorded when deposited but reduce due only after a clearing date is entered and reached.
             </p>
           </div>
         )}

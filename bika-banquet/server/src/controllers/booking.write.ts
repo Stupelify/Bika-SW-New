@@ -23,6 +23,7 @@ import {
   splitMealsAndExtrasSubtotals,
   sumExtrasSubtotal,
 } from './booking.helpers';
+import { resolvePaymentTotals, readPayableGrandTotalInput } from '@bika/booking-core';
 import {
   toSafeNumber,
   toSafeMoney,
@@ -485,20 +486,19 @@ export async function createBooking(
         discountPercentage,
         discountAmountInput:
           readDualMoney(data, 'discountAmountValue', 'discountAmount') || 0,
-        finalAmountInput: readDualMoney(data, 'finalAmountValue', 'finalAmount'),
+        finalAmountInput: readPayableGrandTotalInput(data as Record<string, unknown>),
       });
       if (financials.exceededCeiling) {
         throw new Error('BOOKING_NET_EXCEEDS_BILL');
       }
       const { discountAmount, discountPercentage: storedDiscountPercent, grandTotal, finalAmountValue } =
         financials;
-      const paymentReceived = toSafeMoney(
-        firstDefinedValue(data.advanceReceivedValue, data.advanceReceived)
-      );
-      const dueAmountValue = toSafeMoney(
-        Math.max(0, finalAmountValue - paymentReceived)
-      );
-      const balanceAmount = dueAmountValue;
+      const dbPayments = await tx.bookingPayments.findMany({
+        where: { bookingId: newBooking.id },
+        select: { method: true, amount: true, clearingDate: true },
+      });
+      const { grossReceived: paymentReceived, dueAmount: dueAmountValue } =
+        resolvePaymentTotals(finalAmountValue, dbPayments);
       const discountAmount2ndValue = readDualMoney(
         data,
         'discountAmount2ndValue',
@@ -513,16 +513,6 @@ export async function createBooking(
         data,
         'advanceRequiredValue',
         'advanceRequired'
-      );
-      const paymentReceivedPercentValue = readDualPercent(
-        data,
-        'paymentReceivedPercentValue',
-        'paymentReceivedPercent'
-      );
-      const paymentReceivedAmountValue = readDualMoney(
-        data,
-        'paymentReceivedAmountValue',
-        'paymentReceivedAmount'
       );
       // Update booking with totals
       return await tx.booking.update({
@@ -540,15 +530,12 @@ export async function createBooking(
           grandTotal,
           finalAmount: toStoredNumberString(finalAmountValue),
           finalAmountValue,
-          balanceAmount,
           dueAmount: toStoredNumberString(dueAmountValue),
           dueAmountValue,
           advanceRequired: toStoredNumberString(advanceRequiredValue),
           advanceRequiredValue,
-          paymentReceivedPercent: toStoredNumberString(paymentReceivedPercentValue),
-          paymentReceivedPercentValue,
-          paymentReceivedAmount: toStoredNumberString(paymentReceivedAmountValue),
-          paymentReceivedAmountValue,
+          paymentReceivedAmount: toStoredNumberString(paymentReceived),
+          paymentReceivedAmountValue: paymentReceived,
         },
         include: {
           customer: true,
@@ -1131,17 +1118,6 @@ export async function updateBooking(
         'advanceRequiredValue',
         'advanceRequired'
       );
-      const paymentReceivedPercentValue = readDualPercent(
-        data,
-        'paymentReceivedPercentValue',
-        'paymentReceivedPercent'
-      );
-      const paymentReceivedAmountValue = readDualMoney(
-        data,
-        'paymentReceivedAmountValue',
-        'paymentReceivedAmount'
-      );
-      const dueAmountValueInput = readDualMoney(data, 'dueAmountValue', 'dueAmount');
 
       await tx.booking.update({
         where: { id },
@@ -1178,12 +1154,6 @@ export async function updateBooking(
           internalNotes: data.internalNotes,
           advanceRequired: toStoredNumberString(advanceRequiredValue),
           advanceRequiredValue,
-          paymentReceivedPercent: toStoredNumberString(paymentReceivedPercentValue),
-          paymentReceivedPercentValue,
-          paymentReceivedAmount: toStoredNumberString(paymentReceivedAmountValue),
-          paymentReceivedAmountValue,
-          dueAmount: toStoredNumberString(dueAmountValueInput),
-          dueAmountValue: dueAmountValueInput,
           discountAmount2nd: toStoredNumberString(discountAmount2ndValue),
           discountAmount2ndValue,
           discountPercentage2nd: toStoredNumberString(discountPercentage2ndValue),
@@ -1384,22 +1354,20 @@ export async function updateBooking(
         discountAmountInput:
           readDualMoney(data, 'discountAmountValue', 'discountAmount') ||
           toSafeMoney(existingBooking.discountAmount),
-        finalAmountInput: readDualMoney(data, 'finalAmountValue', 'finalAmount'),
+        finalAmountInput: readPayableGrandTotalInput(data as Record<string, unknown>),
       });
       if (financials.exceededCeiling) {
         throw new Error('BOOKING_NET_EXCEEDS_BILL');
       }
       const { discountAmount, discountPercentage: storedDiscountPercent, grandTotal, finalAmountValue } =
         financials;
-      // Always derive paymentReceived from actual payment records — ignore any
-      // client-supplied value, which can drift when versions are cloned.
-      const paymentAgg = await tx.bookingPayments.aggregate({
+      // Always derive payment totals from actual payment records — ignore client values.
+      const dbPayments = await tx.bookingPayments.findMany({
         where: { bookingId: id },
-        _sum: { amount: true },
+        select: { method: true, amount: true, clearingDate: true },
       });
-      const paymentReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
-      const dueAmountValue = toSafeMoney(Math.max(0, finalAmountValue - paymentReceived));
-      const balanceAmount = dueAmountValue;
+      const { grossReceived: paymentReceived, dueAmount: dueAmountValue } =
+        resolvePaymentTotals(finalAmountValue, dbPayments);
       const totalBillAmountValue = lineTotals.totalAmount;
 
       await tx.booking.update({
@@ -1413,14 +1381,10 @@ export async function updateBooking(
           grandTotal,
           finalAmount: toStoredNumberString(finalAmountValue),
           finalAmountValue,
-          balanceAmount,
           dueAmount: toStoredNumberString(dueAmountValue),
           dueAmountValue,
-          // Always write back the authoritative SUM so the stored value never
-          // drifts (e.g. after a version clone carries a stale value forward).
           paymentReceivedAmount: toStoredNumberString(paymentReceived),
           paymentReceivedAmountValue: paymentReceived,
-          advanceReceived: paymentReceived,
         },
       });
 

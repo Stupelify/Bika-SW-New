@@ -12,6 +12,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@bika/booking-core': path.resolve(__dirname, '../shared/booking-core/src/index.ts'),
     },
   },
 });

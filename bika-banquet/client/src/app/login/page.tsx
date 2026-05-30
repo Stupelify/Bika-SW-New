@@ -15,6 +15,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    // Session restore is not a sign-in attempt — never show "Signing in..." on page load.
+    useAuthStore.setState({ isLoading: false });
+  }, []);
+
+  useEffect(() => {
     if (!isAuthReady || !isAuthenticated) return;
     const nextRoute = getDefaultDashboardRoute(user?.permissions);
     if (nextRoute) {

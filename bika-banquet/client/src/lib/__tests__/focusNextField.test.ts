@@ -11,6 +11,10 @@ describe('focusNextField', () => {
       <input id="c" type="text" />
     `;
     document.body.appendChild(form);
+    for (const el of form.querySelectorAll('input')) {
+      Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 100 });
+      Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 20 });
+    }
 
     const a = form.querySelector('#a') as HTMLInputElement;
     const b = form.querySelector('#b') as HTMLInputElement;

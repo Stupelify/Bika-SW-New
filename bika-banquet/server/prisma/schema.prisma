@@ -529,16 +529,12 @@ model Booking {
   settlementTotalAmount      Float?
   taxAmount           Float                   @default(0)
   grandTotal          Float                   @default(0)
-  advanceReceived     Float                   @default(0)
   advanceRequired     String?
   advanceRequiredValue Float?
-  paymentReceivedPercent String?
-  paymentReceivedPercentValue Float?
   paymentReceivedAmount String?
   paymentReceivedAmountValue Float?
   dueAmount           String?
   dueAmountValue      Float?
-  balanceAmount       Float                   @default(0)
   status              String                  @default("confirmed") // confirmed, cancelled, completed
   isPencilBooking     Boolean                 @default(false)
   pencilExpiresAt     DateTime?

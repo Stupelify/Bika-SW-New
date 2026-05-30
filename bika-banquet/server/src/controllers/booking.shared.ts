@@ -14,6 +14,7 @@ import {
 } from '../services/googleCalendar.service';
 import { broadcastBookingEvent } from '../sse';
 import logger from '../utils/logger';
+import { resolvePaymentTotals, resolvePayableTotal } from '@bika/booking-core';
 
 // ---------------------------------------------------------------------------
 // Numeric helpers
@@ -498,6 +499,8 @@ export async function cloneBookingVersion(
     throw new Error('Booking not found');
   }
 
+  const replicaPayable = toSafeMoney(resolvePayableTotal(source));
+
   const clonedBooking = await tx.booking.create({
     data: {
       customerId: source.customerId,
@@ -530,16 +533,12 @@ export async function cloneBookingVersion(
       discountPercentage2ndValue: source.discountPercentage2ndValue,
       taxAmount: source.taxAmount,
       grandTotal: source.grandTotal,
-      advanceReceived: source.advanceReceived,
       advanceRequired: source.advanceRequired,
       advanceRequiredValue: source.advanceRequiredValue,
-      paymentReceivedPercent: source.paymentReceivedPercent,
-      paymentReceivedPercentValue: source.paymentReceivedPercentValue,
-      paymentReceivedAmount: source.paymentReceivedAmount,
-      paymentReceivedAmountValue: source.paymentReceivedAmountValue,
-      dueAmount: source.dueAmount,
-      dueAmountValue: source.dueAmountValue,
-      balanceAmount: source.balanceAmount,
+      paymentReceivedAmount: toStoredNumberString(0),
+      paymentReceivedAmountValue: 0,
+      dueAmount: toStoredNumberString(replicaPayable),
+      dueAmountValue: replicaPayable,
       status: options?.status ?? source.status,
       quotation: options?.quotation ?? source.quotation,
       isQuotation: options?.isQuotation ?? source.isQuotation,
@@ -710,12 +709,14 @@ export async function recalculateBookingFinancials(
   });
   const { discountAmount, discountPercentage, grandTotal, finalAmountValue } =
     financials;
-  const paymentReceived =
-    booking.paymentReceivedAmountValue ??
-    toOptionalSafeMoney(booking.paymentReceivedAmount) ??
-    toSafeMoney(booking.advanceReceived);
-  const dueAmountValue = toSafeMoney(Math.max(0, finalAmountValue - paymentReceived));
-  const balanceAmount = dueAmountValue;
+  const dbPayments = await tx.bookingPayments.findMany({
+    where: { bookingId },
+    select: { method: true, amount: true, clearingDate: true },
+  });
+  const { grossReceived, dueAmount: dueAmountValue } = resolvePaymentTotals(
+    finalAmountValue,
+    dbPayments
+  );
 
   await tx.booking.update({
     where: { id: bookingId },
@@ -730,7 +731,8 @@ export async function recalculateBookingFinancials(
       finalAmountValue,
       dueAmount: toStoredNumberString(dueAmountValue),
       dueAmountValue,
-      balanceAmount,
+      paymentReceivedAmount: toStoredNumberString(grossReceived),
+      paymentReceivedAmountValue: grossReceived,
     },
   });
 }

@@ -9,9 +9,9 @@ import { sendSuccess, sendError } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { idSchema } from '../utils/validation';
 import { createAuditLog } from '../utils/auditLog';
+import { resolvePaymentTotals, resolvePayableTotal } from '@bika/booking-core';
 import {
   toSafeMoney,
-  toOptionalSafeMoney,
   toStoredNumberString,
   bookingIsImmutable,
   bookingImmutableMessage,
@@ -148,27 +148,22 @@ export async function addPayment(
         },
       });
 
-      // Authoritative sum: every payment record for this booking version.
-      // Never accumulate by adding to the stored value, which drifts across versions.
-      const paymentAgg = await tx.bookingPayments.aggregate({
+      // Authoritative totals: gross received vs credited toward due (cheque clearing).
+      const dbPayments = await tx.bookingPayments.findMany({
         where: { bookingId: id },
-        _sum: { amount: true },
+        select: { method: true, amount: true, clearingDate: true },
       });
-      const updatedReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
-
-      const currentFinal =
-        booking.finalAmountValue ??
-        toOptionalSafeMoney(booking.finalAmount) ??
-        booking.grandTotal;
-      const updatedDue = toSafeMoney(Math.max(0, currentFinal - updatedReceived));
+      const currentFinal = resolvePayableTotal(booking);
+      const { grossReceived, dueAmount: updatedDue } = resolvePaymentTotals(
+        currentFinal,
+        dbPayments
+      );
 
       await tx.booking.update({
         where: { id },
         data: {
-          advanceReceived: updatedReceived,
-          balanceAmount: updatedDue,
-          paymentReceivedAmount: toStoredNumberString(updatedReceived),
-          paymentReceivedAmountValue: updatedReceived,
+          paymentReceivedAmount: toStoredNumberString(grossReceived),
+          paymentReceivedAmountValue: grossReceived,
           dueAmount: toStoredNumberString(updatedDue),
           dueAmountValue: updatedDue,
         },
@@ -251,25 +246,22 @@ export async function updatePayment(
         },
       });
 
-      // Recalculate from authoritative SUM — never accumulate.
-      const paymentAgg = await tx.bookingPayments.aggregate({
+      // Recalculate from authoritative payment rows — never accumulate.
+      const dbPayments = await tx.bookingPayments.findMany({
         where: { bookingId: id },
-        _sum: { amount: true },
+        select: { method: true, amount: true, clearingDate: true },
       });
-      const updatedReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
-      const currentFinal =
-        booking.finalAmountValue ??
-        toOptionalSafeMoney(booking.finalAmount) ??
-        booking.grandTotal;
-      const updatedDue = toSafeMoney(Math.max(0, currentFinal - updatedReceived));
+      const currentFinal = resolvePayableTotal(booking);
+      const { grossReceived, dueAmount: updatedDue } = resolvePaymentTotals(
+        currentFinal,
+        dbPayments
+      );
 
       await tx.booking.update({
         where: { id },
         data: {
-          advanceReceived: updatedReceived,
-          balanceAmount: updatedDue,
-          paymentReceivedAmount: toStoredNumberString(updatedReceived),
-          paymentReceivedAmountValue: updatedReceived,
+          paymentReceivedAmount: toStoredNumberString(grossReceived),
+          paymentReceivedAmountValue: grossReceived,
           dueAmount: toStoredNumberString(updatedDue),
           dueAmountValue: updatedDue,
         },

@@ -20,6 +20,10 @@ import {
   getNextSort,
 } from '@/lib/tableUtils';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import {
+  resolveDueAmount,
+  resolvePaymentReceivedGross,
+} from '@bika/booking-core';
 
 interface BookingRow {
   id: string;
@@ -31,8 +35,10 @@ interface BookingRow {
     phone: string;
   };
   grandTotal?: number;
-  advanceReceived?: number;
-  balanceAmount?: number;
+  paymentReceivedAmountValue?: number;
+  paymentReceivedAmount?: string | number | null;
+  dueAmountValue?: number;
+  dueAmount?: string | number | null;
   _count?: {
     payments: number;
   };
@@ -92,8 +98,8 @@ export default function PaymentsPage() {
       },
       { key: 'eventDate', accessor: (booking) => booking.functionDate },
       { key: 'total', accessor: (booking) => booking.grandTotal ?? 0 },
-      { key: 'received', accessor: (booking) => booking.advanceReceived ?? 0 },
-      { key: 'balance', accessor: (booking) => booking.balanceAmount ?? 0 },
+      { key: 'received', accessor: (booking) => resolvePaymentReceivedGross(booking) },
+      { key: 'balance', accessor: (booking) => resolveDueAmount(booking) },
       { key: 'entries', accessor: (booking) => booking._count?.payments ?? 0 },
     ],
     []
@@ -413,11 +419,11 @@ export default function PaymentsPage() {
                     </div>
                     <div className="mobile-card-row">
                       <span className="mobile-card-label">Received</span>
-                      <span className="mobile-card-value" style={{ color: '#15803d' }}>₹{(booking.advanceReceived || 0).toLocaleString('en-IN')}</span>
+                      <span className="mobile-card-value" style={{ color: '#15803d' }}>₹{resolvePaymentReceivedGross(booking).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="mobile-card-row">
                       <span className="mobile-card-label">Balance</span>
-                      <span className="mobile-card-amount">₹{(booking.balanceAmount || 0).toLocaleString('en-IN')}</span>
+                      <span className="mobile-card-amount">₹{resolveDueAmount(booking).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="mobile-card-row">
                       <span className="mobile-card-label">Entries</span>
@@ -501,10 +507,10 @@ export default function PaymentsPage() {
                         INR {(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
-                        INR {(booking.advanceReceived || 0).toLocaleString('en-IN')}
+                        INR {resolvePaymentReceivedGross(booking).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-3 text-right text-sm font-medium text-[var(--text-1)]">
-                        INR {(booking.balanceAmount || 0).toLocaleString('en-IN')}
+                        INR {resolveDueAmount(booking).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
                         {booking._count?.payments || 0}

@@ -41,7 +41,6 @@ import {
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
-import { IndianAmountInput } from '@/components/IndianAmountInput';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
@@ -52,6 +51,8 @@ import {
   mapBookingPaymentsFromApi,
   partitionPaymentsForSave,
 } from '@/lib/booking-form/payments';
+import { sumPaymentsTowardDue } from '@/lib/booking-form/payment-credit';
+import { validatePackCateringForSave } from '@/lib/booking-form/pack-catering';
 import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
@@ -59,16 +60,18 @@ import {
   getItemPoints,
   templateItemsToMenuItemLikes,
 } from '@/lib/booking-form/menu-template';
+import type { MenuItemLike, PaymentRow } from '@/lib/booking-form/types';
+import {
+  computeVersionDiff,
+  histToSnapshot,
+  type DiffSnapshot,
+} from '@/lib/booking-form/version-history';
 import {
   buildBookingHallRows,
   computePackRowAmount,
   computePackRowAmountFromApiPack,
   computeExtrasSubtotal,
   computeMealsSubtotal,
-  sumPackHallRates,
-} from '@/lib/booking-form/billing-lines';
-import type { MenuItemLike } from '@/lib/booking-form/types';
-import {
   computePayableGrandTotal,
   formatDiscountPercentDisplay,
   formatPercentFieldOnBlur,
@@ -77,7 +80,7 @@ import {
   syncBillingAmounts,
   validateBillingCeiling,
   type BillingAmountSyncMode,
-} from '@/lib/booking-form/financials';
+} from '@bika/booking-core';
 import {
   CASTE_OPTIONS,
   COUNTRY_DIAL_CODE_OPTIONS,
@@ -99,7 +102,9 @@ import FloatingActionButton from '@/components/FloatingActionButton';
 import StatusBadge from '@/components/StatusBadge';
 import BookingPaymentsLedger from '@/components/BookingPaymentsLedger';
 import BookingFinancialSummary from '@/components/BookingFinancialSummary';
+import FinalizedVersionHistory from '@/components/booking/FinalizedVersionHistory';
 import BookingPartyOverForm from '@/components/BookingPartyOverForm';
+import { IndianAmountInput } from '@/components/IndianAmountInput';
 
 interface Booking {
   id: string;
@@ -227,28 +232,6 @@ interface BookingPackRow {
   setupCost?: string;
 }
 
-interface PaymentRow {
-  id?: string;      // present for payments already persisted in the DB
-  mode: string;
-  narration: string;
-  date: string;
-  receivedBy: string;
-  amount: string;
-  reference: string;
-  clearingDate: string;
-  // Snapshot of the values as they existed on last load — used to detect which
-  // existing payments were actually changed so we only PATCH those.
-  _original?: {
-    mode: string;
-    narration: string;
-    date: string;
-    receivedBy: string;
-    amount: string;
-    reference: string;
-    clearingDate: string;
-  };
-}
-
 interface AdditionalRequirementRow {
   description: string;
   amount: string;
@@ -292,8 +275,8 @@ interface BookingFormData {
   pencilDays: string;
   pencilExpiresAt: string;
   advanceRequired: string;
-  paymentReceivedPercent: string;
   dueAmount: string;
+  /** Meals net after discount (UI: Net Amount). Not payable grand total. */
   finalDiscountAmount: string;
   finalDiscountPercent: string;
   finalAmount: string;
@@ -315,7 +298,6 @@ const initialFormData: BookingFormData = {
   pencilDays: '3',
   pencilExpiresAt: '',
   advanceRequired: '0',
-  paymentReceivedPercent: '0',
   dueAmount: '0',
   finalDiscountAmount: '0',
   finalDiscountPercent: '0',
@@ -504,16 +486,6 @@ function computePencilExpiry(days: number): string {
   return `${y}-${m}-${day}`;
 }
 
-function formatDateTimeLabel(value?: string | Date | null): string {
-  if (!value) return 'N/A';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return 'N/A';
-  return `${formatDateDDMMYYYY(parsed.toISOString())} ${parsed.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`;
-}
-
 export default function BookingsPage() {
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
@@ -561,7 +533,6 @@ export default function BookingsPage() {
   const [openHallPickerPack, setOpenHallPickerPack] = useState<PackKey | null>(null);
   const [hallPickerAnchorRect, setHallPickerAnchorRect] = useState<DOMRect | null>(null);
   const [netAmountDraft, setNetAmountDraft] = useState<string | null>(null);
-  const [discountPercentDraft, setDiscountPercentDraft] = useState<string | null>(null);
   const [customerSearchInputs, setCustomerSearchInputs] =
     useState<CustomerSearchInputState>({
       primary: '',
@@ -573,6 +544,7 @@ export default function BookingsPage() {
   const hallPickerContainerRef = useRef<HTMLDivElement | null>(null);
   const hallPickerPortalRef = useRef<HTMLDivElement | null>(null);
   const actionSentinelRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   // Snapshot of formData as last loaded from the server. Reset to this on server rejection.
   const savedFormDataRef = useRef<BookingFormData | null>(null);
   const savingInFlightRef = useRef(false);
@@ -610,17 +582,6 @@ export default function BookingsPage() {
   // The auto-recalc effect will NOT overwrite it when pack rates change.
   const [discountManuallySet, setDiscountManuallySet] = useState(false);
   const prevTotalPackAmountRef = useRef<number | null>(null);
-
-  // Payment modal state
-  const [paymentDraft, setPaymentDraft] = useState<PaymentRow>({
-    amount: '',
-    mode: 'Cash',
-    date: new Date().toISOString().split('T')[0],
-    receivedBy: '',
-    narration: '',
-    reference: '',
-    clearingDate: '',
-  });
 
   const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -764,127 +725,6 @@ export default function BookingsPage() {
     [bookingHistory, editingBookingId]
   );
 
-  // ── Diff helpers ─────────────────────────────────────────────────────────
-
-  /** Shape we normalise both history entries and the live form into for diffing */
-  type DiffPackSnapshot = {
-    packName: string;
-    pax: number;
-    ratePerPlate: number;
-    hallRate: number;
-    menuItemIds: string[]; // raw item IDs
-  };
-  type DiffSnapshot = {
-    functionDate: string;
-    functionType: string;
-    discountAmount: number;
-    finalAmount: number;
-    advanceRequired: number;
-    dueAmount: number;
-    packs: DiffPackSnapshot[];
-  };
-
-  /** Compute which fields differ between newer and older snapshots */
-  function computeVersionDiff(
-    newer: DiffSnapshot,
-    older: DiffSnapshot
-  ): {
-    functionDate?: { from: string; to: string };
-    functionType?: { from: string; to: string };
-    discountAmountChange?: { from: number; to: number };
-    finalAmountChange?: { from: number; to: number };
-    advanceRequiredChange?: { from: number; to: number };
-    dueAmountChange?: { from: number; to: number };
-    packs: Record<string, {
-      paxChange?: { from: number; to: number };
-      ratePerPlateChange?: { from: number; to: number };
-      hallRateChange?: { from: number; to: number };
-      addedItemIds: string[];
-      removedItemIds: string[];
-    }>;
-  } {
-    const diff: ReturnType<typeof computeVersionDiff> = { packs: {} };
-    if (newer.functionDate !== older.functionDate)
-      diff.functionDate = { from: older.functionDate, to: newer.functionDate };
-    if (newer.functionType !== older.functionType)
-      diff.functionType = { from: older.functionType, to: newer.functionType };
-    if (Math.abs(newer.discountAmount - older.discountAmount) > 0.001)
-      diff.discountAmountChange = { from: older.discountAmount, to: newer.discountAmount };
-    if (Math.abs(newer.finalAmount - older.finalAmount) > 0.001)
-      diff.finalAmountChange = { from: older.finalAmount, to: newer.finalAmount };
-    if (Math.abs(newer.advanceRequired - older.advanceRequired) > 0.001)
-      diff.advanceRequiredChange = { from: older.advanceRequired, to: newer.advanceRequired };
-    if (Math.abs(newer.dueAmount - older.dueAmount) > 0.001)
-      diff.dueAmountChange = { from: older.dueAmount, to: newer.dueAmount };
-
-    // Pack-level diffs — keyed by pack name (Breakfast, Lunch, etc.)
-    const olderPackMap = new Map(older.packs.map((p) => [p.packName.toLowerCase(), p]));
-    const newerPackMap = new Map(newer.packs.map((p) => [p.packName.toLowerCase(), p]));
-    const allPackNames = new Set([...Array.from(olderPackMap.keys()), ...Array.from(newerPackMap.keys())]);
-    allPackNames.forEach((key) => {
-      const o = olderPackMap.get(key);
-      const n = newerPackMap.get(key);
-      const packDiff: (typeof diff.packs)[string] = {
-        addedItemIds: [],
-        removedItemIds: [],
-      };
-      if (o && n) {
-        if (o.pax !== n.pax) packDiff.paxChange = { from: o.pax, to: n.pax };
-        if (Math.abs(o.ratePerPlate - n.ratePerPlate) > 0.001)
-          packDiff.ratePerPlateChange = { from: o.ratePerPlate, to: n.ratePerPlate };
-        if (Math.abs(o.hallRate - n.hallRate) > 0.001)
-          packDiff.hallRateChange = { from: o.hallRate, to: n.hallRate };
-        const oldSet = new Set(o.menuItemIds);
-        const newSet = new Set(n.menuItemIds);
-        packDiff.addedItemIds = n.menuItemIds.filter((id) => !oldSet.has(id));
-        packDiff.removedItemIds = o.menuItemIds.filter((id) => !newSet.has(id));
-      } else if (!o && n) {
-        // pack was added entirely
-        packDiff.addedItemIds = [...n.menuItemIds];
-      } else if (o && !n) {
-        // pack was removed entirely
-        packDiff.removedItemIds = [...o.menuItemIds];
-      }
-      const hasDiff =
-        packDiff.paxChange ||
-        packDiff.ratePerPlateChange ||
-        packDiff.hallRateChange ||
-        packDiff.addedItemIds.length > 0 ||
-        packDiff.removedItemIds.length > 0;
-      if (hasDiff) diff.packs[key] = packDiff;
-    });
-    return diff;
-  }
-
-  /** Converts a raw history entry to a normalised DiffSnapshot */
-  function histToSnapshot(hist: any): DiffSnapshot {
-    const resolved = hist?.snapshotData && typeof hist.snapshotData === 'object'
-      ? hist.snapshotData
-      : hist;
-    const histPacks: any[] = Array.isArray(resolved?.packs) ? resolved.packs : [];
-    return {
-      functionDate: (resolved?.functionDate || hist?.functionDate || '').slice(0, 10),
-      functionType: resolved?.functionType || hist?.functionType || '',
-      discountAmount: Number(resolved?.discountAmountValue ?? resolved?.discountAmount ?? hist?.discountAmount ?? 0),
-      finalAmount: Number(resolved?.finalAmountValue ?? resolved?.finalAmount ?? hist?.finalAmount ?? resolved?.grandTotal ?? hist?.grandTotal ?? 0),
-      advanceRequired: Number(resolved?.advanceRequiredValue ?? resolved?.advanceRequired ?? hist?.advanceRequired ?? 0),
-      dueAmount: Number(resolved?.dueAmountValue ?? resolved?.dueAmount ?? hist?.dueAmount ?? 0),
-      packs: histPacks.map((pack: any) => {
-        const packName = (pack?.packName || pack?.mealSlot?.name || '').trim();
-        const menuItemIds: string[] = (pack?.bookingMenu?.items || [])
-          .map((e: any) => e?.itemId || e?.item?.id || '')
-          .filter(Boolean);
-        return {
-          packName,
-          pax: Number(pack?.packCount ?? pack?.noOfPack ?? 0),
-          ratePerPlate: Number(pack?.ratePerPlate ?? 0),
-          hallRate: Number(pack?.hallRateValue ?? pack?.hallRate ?? 0),
-          menuItemIds,
-        };
-      }),
-    };
-  }
-
   /** Most-recent finalized version (index 0 since list is newest-first) */
   const lastFinalizedVersion = useMemo(
     () => (historicalVersions.length > 0 ? historicalVersions[0] : null),
@@ -927,11 +767,7 @@ export default function BookingsPage() {
   );
 
   const totalPayments = useMemo(
-    () =>
-      formData.payments.reduce((sum, row) => {
-        const amount = Number(row.amount || 0);
-        return sum + (Number.isFinite(amount) ? amount : 0);
-      }, 0),
+    () => sumPaymentsTowardDue(formData.payments),
     [formData.payments]
   );
 
@@ -956,14 +792,10 @@ export default function BookingsPage() {
     const mealsSubtotal = computeMealsSubtotal(formData.packs);
     const extrasSubtotal = computeExtrasSubtotal(formData.additionalRequirements);
     const preDiscountTotal = roundRupee(mealsSubtotal + extrasSubtotal);
-    const enabledRows = (Object.keys(formData.packs) as PackKey[])
-      .filter((key) => formData.packs[key].enabled)
-      .map((key) => formData.packs[key]);
     return {
       mealsSubtotal,
       extrasSubtotal,
       preDiscountTotal,
-      packHallSubtotal: sumPackHallRates(enabledRows),
     };
   }, [formData.packs, formData.additionalRequirements]);
 
@@ -975,7 +807,6 @@ export default function BookingsPage() {
     );
     return computePayableGrandTotal(mealsNet, billingTotals.extrasSubtotal);
   }, [formData.finalAmount, mealsBillBase, billingTotals.extrasSubtotal]);
-  const totalHallAmount = billingTotals.packHallSubtotal;
 
   // Keep for backward-compat references (same value as totalBillBase)
   const totalBillAmount = totalBillBase;
@@ -1467,37 +1298,6 @@ export default function BookingsPage() {
     }));
   }, [mealsBillBase, discountManuallySet, showCreateForm, formatComputedAmount]);
 
-  const addPaymentRow = () => {
-    setFormData((prev) => ({
-      ...prev,
-      payments: [
-        ...prev.payments,
-        {
-          mode: 'Cash',
-          narration: '',
-          date: todayStr(),
-          receivedBy: '',
-          amount: '',
-          reference: '',
-          clearingDate: '',
-        },
-      ],
-    }));
-  };
-
-  const updatePaymentRow = (
-    index: number,
-    key: keyof PaymentRow,
-    value: string
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      payments: prev.payments.map((row, rowIndex) =>
-        rowIndex === index ? { ...row, [key]: value } : row
-      ),
-    }));
-  };
-
   const loadBookings = useCallback(async () => {
     try {
       if (!hasAnyPermission(permissionSet, ['view_booking', 'add_booking', 'edit_booking', 'manage_bookings'])) {
@@ -1979,8 +1779,6 @@ export default function BookingsPage() {
     clearSearch();
   };
 
-  // Maps a calendar board slot id (morning/lunch/evening/dinner) to a booking
-  // pack key (breakfast/lunch/hiTea/dinner).
   const SLOT_TO_PACK: Record<string, PackKey> = {
     morning: 'breakfast',
     lunch: 'lunch',
@@ -1993,8 +1791,6 @@ export default function BookingsPage() {
     hallId?: string;
     slot?: string;
   }) => {
-    // Kick off lookups; we await below only when we need hall metadata to
-    // resolve a hall's banquet for prefill.
     const lookupsPromise = loadLookups();
     setEditingBookingId(null);
     setEditingBookingStatus(null);
@@ -2012,7 +1808,6 @@ export default function BookingsPage() {
     setAmountSyncMode('discountPercent');
     setDiscountManuallySet(false);
 
-    // Build prefilled form data (date always; hall+slot when resolvable).
     let nextForm: BookingFormData = {
       ...initialFormData,
       packs: {
@@ -2027,11 +1822,8 @@ export default function BookingsPage() {
     }
     const packKey = prefill?.slot ? SLOT_TO_PACK[prefill.slot] : undefined;
     if (packKey) {
-      // Enable the matching meal pack so the slot is visibly selected.
       nextForm.packs[packKey] = { ...nextForm.packs[packKey], enabled: true };
       if (prefill?.hallId) {
-        // Resolve the hall's banquet so the hall actually shows selected.
-        // Use the awaited return value (state `halls` is stale in this closure).
         const loadedHalls = await lookupsPromise;
         const hall = loadedHalls.find((h) => h.id === prefill.hallId);
         if (hall) {
@@ -2181,7 +1973,6 @@ export default function BookingsPage() {
         })(),
         pencilExpiresAt: booking.pencilExpiresAt ? booking.pencilExpiresAt.slice(0, 10) : '',
         advanceRequired: booking.advanceRequired || '0',
-        paymentReceivedPercent: booking.paymentReceivedPercent || '0',
         dueAmount: booking.dueAmount || '0',
         finalDiscountAmount:
           booking.discountAmount !== null && booking.discountAmount !== undefined
@@ -2458,15 +2249,24 @@ export default function BookingsPage() {
       return null;
     }
 
-    const mealsNetForCheck =
-      netAmountDraft !== null
-        ? normalizeAmountSnapshot('finalAmount', netAmountDraft, mealsBillBase).finalAmount
-        : formData.finalAmount;
+    const netDraftForSave = netAmountDraft;
+    const flushedNetSnapshot =
+      netDraftForSave !== null
+        ? normalizeAmountSnapshot('finalAmount', netDraftForSave, mealsBillBase)
+        : null;
+
+    if (flushedNetSnapshot) {
+      setNetAmountDraft(null);
+      setAmountSyncMode('finalAmount');
+      setFormData((prev) => ({ ...prev, ...flushedNetSnapshot }));
+    }
+
+    const mealsNetForCheck = flushedNetSnapshot?.finalAmount ?? formData.finalAmount;
     const billingCheck = validateBillingCeiling({
       mealsSubtotal: mealsBillBase,
       extrasSubtotal: billingTotals.extrasSubtotal,
-      discountAmount: formData.finalDiscountAmount,
-      discountPercent: formData.finalDiscountPercent,
+      discountAmount: flushedNetSnapshot?.finalDiscountAmount ?? formData.finalDiscountAmount,
+      discountPercent: flushedNetSnapshot?.finalDiscountPercent ?? formData.finalDiscountPercent,
       finalAmount: mealsNetForCheck,
     });
     if (!billingCheck.ok) {
@@ -2475,15 +2275,6 @@ export default function BookingsPage() {
           'Net amount cannot exceed the bill total. Adjust discount or line items and try again.'
       );
       return null;
-    }
-    const netDraftForSave = netAmountDraft;
-
-    if (netDraftForSave !== null) {
-      setNetAmountDraft(null);
-      setFormData((prev) => ({
-        ...prev,
-        ...normalizeAmountSnapshot('finalAmount', netDraftForSave, mealsBillBase),
-      }));
     }
 
     try {
@@ -2524,6 +2315,19 @@ export default function BookingsPage() {
         return null;
       }
 
+      for (const { key, row } of enabledPackEntries) {
+        const cateringError = validatePackCateringForSave({
+          withCatering: row.withCatering,
+          ratePerPlate: row.ratePerPlate,
+          pax: row.pax,
+          menuItemIds: row.menuItemIds,
+        });
+        if (cateringError) {
+          toast.error(`${PACK_LABELS[key]}: ${cateringError}`);
+          return null;
+        }
+      }
+
       const expectedGuests = Math.max(
         1,
         ...enabledPackEntries
@@ -2531,13 +2335,13 @@ export default function BookingsPage() {
           .filter((value) => value > 0)
       );
       const saveSyncMode: AmountSyncMode =
-        netDraftForSave !== null ? 'finalAmount' : amountSyncMode;
+        flushedNetSnapshot ? 'finalAmount' : amountSyncMode;
       const amountSourceValue =
         saveSyncMode === 'discountPercent'
-          ? formData.finalDiscountPercent
+          ? (flushedNetSnapshot?.finalDiscountPercent ?? formData.finalDiscountPercent)
           : saveSyncMode === 'discountAmount'
-            ? formData.finalDiscountAmount
-            : netDraftForSave ?? formData.finalAmount;
+            ? (flushedNetSnapshot?.finalDiscountAmount ?? formData.finalDiscountAmount)
+            : (flushedNetSnapshot?.finalAmount ?? formData.finalAmount);
       const syncedAmounts = syncBillingAmounts(
         saveSyncMode,
         amountSourceValue,
@@ -2583,8 +2387,8 @@ export default function BookingsPage() {
           .map((hall) => hall.name);
         return {
           packName: PACK_LABELS[key],
-          packCount: Math.max(1, toNumber(row.pax || '1')),
-          noOfPack: Math.max(1, toNumber(row.pax || '1')),
+          packCount: Math.max(0, toNumber(row.pax)),
+          noOfPack: Math.max(0, toNumber(row.pax)),
           ratePerPlate: row.withCatering ? toNumber(row.ratePerPlate) : 0,
           setupCost: row.setupCost ? toNumber(row.setupCost) : 0,
           extraCharges: row.extraCharges || 0,
@@ -2608,41 +2412,6 @@ export default function BookingsPage() {
             })),
           },
         };
-      });
-
-      const paymentSummary = formData.payments
-        .filter(
-          (payment) =>
-            payment.mode.trim() ||
-            payment.narration.trim() ||
-            payment.date.trim() ||
-            payment.receivedBy.trim() ||
-            payment.amount.trim()
-        )
-        .map((payment) =>
-          [
-            payment.mode || 'mode',
-            payment.narration || 'narration',
-            payment.date || 'date',
-            payment.receivedBy || 'received by',
-            payment.amount || 'amount',
-          ].join(' | ')
-        );
-
-      const packSummary = enabledPackEntries.map(({ key, row }) => {
-        const validHallIds = row.withHall ? getValidHallIdsForPack(row) : [];
-        const hallName = row.withHall
-          ? halls
-            .filter((hall) => validHallIds.includes(hall.id))
-            .map((hall) => hall.name)
-            .join(', ') || 'No hall'
-          : 'No hall';
-        const templateName =
-          templateMenus.find((template) => template.id === row.templateMenuId)?.name ||
-          'Custom menu';
-        return `${PACK_LABELS[key]}: ${row.pax || 0} pax, ${hallName}, hallRate=${row.hallRate || 0
-          }, ratePerPlate=${row.ratePerPlate || 0}, menuTemplate=${templateName}, menuItems=${row.menuItemIds.length
-          }, menuPoints=${row.menuPoints || 0}`;
       });
 
       // Keep notes to just the user-entered text — pack summaries were bloating
@@ -2681,12 +2450,9 @@ export default function BookingsPage() {
           : undefined,
         discountAmount: normalizedDiscountAmount,
         discountPercentage: normalizedDiscountPercent,
-        finalAmount: normalizedPayableGrandTotal,
-        finalAmountValue: normalizedPayableGrandTotal,
+        payableGrandTotal: normalizedPayableGrandTotal,
         advanceRequired: formData.advanceRequired || undefined,
-        paymentReceivedPercent: formData.paymentReceivedPercent || undefined,
         // paymentReceivedAmount is derived server-side from actual payment records.
-        dueAmount: formData.dueAmount || undefined,
         notes: notes ? notes.slice(0, 1990) : undefined,
         internalNotes,
       };
@@ -2948,12 +2714,20 @@ export default function BookingsPage() {
 
         <fieldset disabled={isReadOnlyBooking}>
         <form
+          ref={formRef}
           onSubmit={(e) => {
             e.preventDefault();
             if (!isReadOnlyBooking) handleSubmitBooking(e);
           }}
           onChange={() => setIsFormDirty(true)}
-          onKeyDown={(e) => handleEnterAsTabKeyDown(e, e.currentTarget)}
+          onKeyDown={(e) => {
+            if (
+              (e.target as HTMLElement).getAttribute('aria-expanded') === 'true'
+            ) {
+              return;
+            }
+            handleEnterAsTabKeyDown(e, formRef.current);
+          }}
           className="space-y-5"
         >
           <div ref={actionSentinelRef} />
@@ -3608,32 +3382,24 @@ export default function BookingsPage() {
                               type="text"
                               inputMode="decimal"
                               autoComplete="off"
-                              value={
-                                discountPercentDraft !== null
-                                  ? discountPercentDraft
-                                  : formData.finalDiscountPercent
-                              }
-                              onFocus={(e) => {
-                                e.target.select();
-                                setDiscountPercentDraft(formData.finalDiscountPercent);
-                              }}
+                              value={formData.finalDiscountPercent}
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => {
+                                const raw = e.target.value;
                                 setAmountSyncMode('discountPercent');
                                 setDiscountManuallySet(true);
-                                const raw = e.target.value;
-                                setDiscountPercentDraft(raw);
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  ...normalizeAmountSnapshot(
-                                    'discountPercent',
-                                    raw,
-                                    mealsBillBase
-                                  ),
-                                }));
+                                setFormData((prev) => {
+                                  const synced = normalizeAmountSnapshot('discountPercent', raw, mealsBillBase);
+                                  return {
+                                    ...prev,
+                                    finalDiscountAmount: synced.finalDiscountAmount,
+                                    finalAmount: synced.finalAmount,
+                                    finalDiscountPercent: raw,
+                                  };
+                                });
                               }}
                               onBlur={(e) => {
                                 const formatted = formatPercentFieldOnBlur(e.target.value);
-                                setDiscountPercentDraft(null);
                                 setFormData((prev) => ({
                                   ...prev,
                                   ...normalizeAmountSnapshot(
@@ -3672,16 +3438,16 @@ export default function BookingsPage() {
                           <IndianAmountInput
                             className="input py-1 text-xs w-full text-right font-semibold text-teal-700 dark:text-teal-200 dark:bg-slate-800/40"
                             value={netAmountDraft !== null ? netAmountDraft : formData.finalAmount}
-                            onFocus={() => setNetAmountDraft(netAmountDraft ?? formData.finalAmount)}
+                            onFocus={() => setNetAmountDraft(netAmountDraft !== null ? netAmountDraft : formData.finalAmount)}
                             onChange={(raw) => setNetAmountDraft(raw)}
                             onBlur={() => {
-                              const raw = netAmountDraft ?? formData.finalAmount;
+                              const draft = netAmountDraft;
                               setNetAmountDraft(null);
                               setAmountSyncMode('finalAmount');
                               setDiscountManuallySet(true);
                               setFormData((prev) => ({
                                 ...prev,
-                                ...normalizeAmountSnapshot('finalAmount', raw, mealsBillBase),
+                                ...normalizeAmountSnapshot('finalAmount', draft ?? formData.finalAmount, mealsBillBase),
                               }));
                             }}
                             aria-label="Net Amount"
@@ -3695,6 +3461,7 @@ export default function BookingsPage() {
                         <td colSpan={8} className="px-3 py-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold text-[var(--text-2)]">Extra Items</span>
+                            {!isReadOnlyBooking && (
                             <button
                               type="button"
                               className="inline-flex h-6 items-center gap-1 rounded-full border border-primary-600 px-2 text-xs font-medium text-primary-700 hover:bg-primary-50"
@@ -3712,6 +3479,7 @@ export default function BookingsPage() {
                               <Plus className="h-3 w-3" />
                               Add
                             </button>
+                            )}
                           </div>
                         </td>
                         <td />
@@ -3720,14 +3488,16 @@ export default function BookingsPage() {
                       {/* Extra item rows — description + amount on the left, no individual amount in right col */}
                       {formData.additionalRequirements.map((item, index) => (
                         <tr key={`req-${index}`} className="bg-[var(--surface)] border-t border-[var(--border)]">
-                          <td colSpan={4} />
-                          <td colSpan={4} className="px-2 py-1.5">
-                            <div className="flex gap-2 items-center">
+                          <td colSpan={9} className="px-3 py-1.5">
+                            <div className="flex gap-2 items-center min-w-0 max-w-xl ml-auto">
                               <input
-                                className="input py-1 text-xs flex-1"
+                                className="input py-1 text-xs flex-1 min-w-[10rem] text-[var(--text-1)]"
                                 value={item.description}
-                                placeholder="Description"
-                                onChange={(e) =>
+                                placeholder="Item name"
+                                aria-label="Extra item name"
+                                disabled={isReadOnlyBooking}
+                                onChange={(e) => {
+                                  setIsFormDirty(true);
                                   setFormData((prev) => ({
                                     ...prev,
                                     additionalRequirements: prev.additionalRequirements.map(
@@ -3736,14 +3506,17 @@ export default function BookingsPage() {
                                           ? { ...entry, description: e.target.value }
                                           : entry
                                     ),
-                                  }))
-                                }
+                                  }));
+                                }}
                               />
                               <IndianAmountInput
                                 className="input py-1 text-xs w-24 text-right"
                                 value={item.amount}
                                 placeholder="0"
-                                onChange={(raw) =>
+                                aria-label="Extra item amount"
+                                disabled={isReadOnlyBooking}
+                                onChange={(raw) => {
+                                  setIsFormDirty(true);
                                   setFormData((prev) => ({
                                     ...prev,
                                     additionalRequirements: prev.additionalRequirements.map(
@@ -3752,9 +3525,10 @@ export default function BookingsPage() {
                                           ? { ...entry, amount: raw }
                                           : entry
                                     ),
-                                  }))
-                                }
+                                  }));
+                                }}
                               />
+                              {!isReadOnlyBooking && (
                               <button
                                 type="button"
                                 className="text-xs text-red-500 hover:text-red-700 dark:text-red-200 whitespace-nowrap"
@@ -3768,9 +3542,9 @@ export default function BookingsPage() {
                                   }));
                                 }}
                               >✕</button>
+                              )}
                             </div>
                           </td>
-                          <td />
                         </tr>
                       ))}
                       {/* Extras total row — label on left, total in amount column */}
@@ -3959,8 +3733,12 @@ export default function BookingsPage() {
                           </div>
                           <div>
                             <label className="label text-xs">Amount</label>
-                            <IndianAmountInput className="input bg-[var(--surface-2)] text-right"
-                              value={formatComputedAmount(packRowAmount(row))} readOnly title="Catering + hall rate (once per meal)" />
+                            <IndianAmountInput
+                              className="input bg-[var(--surface-2)] text-right"
+                              value={formatComputedAmount(packRowAmount(row))}
+                              readOnly
+                              title="Catering + hall rate (once per meal)"
+                            />
                           </div>
                         </div>
                       )}
@@ -3972,24 +3750,28 @@ export default function BookingsPage() {
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-base font-semibold text-[var(--text-1)]">Amount Summary</h3>
+                    {!isReadOnlyBooking && (
                     <button type="button"
                       className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
                       onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: [...prev.additionalRequirements, { description: '', amount: '' }] })); }}>
                       <Plus className="h-3.5 w-3.5" /> Add Extra
                     </button>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {enabledPackAmountRows.map((entry) => (
                       <div key={entry.key} className="flex items-center justify-between">
                         <span className="text-sm text-[var(--text-2)]">{entry.label}</span>
-                        <span className="text-sm font-medium text-[var(--text-1)]">₹{Number(formatComputedAmount(entry.amount)).toLocaleString('en-IN')}</span>
+                        <span className="text-sm font-medium text-[var(--text-1)]">₹{formatComputedAmount(entry.amount)}</span>
                       </div>
                     ))}
                     {formData.additionalRequirements.map((item, index) => (
                       <div key={`mob-req-${index}`} className="grid grid-cols-[1fr,120px,auto] gap-2 items-center">
-                        <input className="input" value={item.description} placeholder="Extra item" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) }))} />
-                        <IndianAmountInput className="input text-right" value={item.amount} placeholder="0" onChange={(raw) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: raw } : r) }))} />
+                        <input className="input" value={item.description} placeholder="Item name" aria-label="Extra item name" disabled={isReadOnlyBooking} onChange={(e) => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) })); }} />
+                        <IndianAmountInput className="input text-right" value={item.amount} placeholder="0" aria-label="Extra item amount" disabled={isReadOnlyBooking} onChange={(raw) => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: raw } : r) })); }} />
+                        {!isReadOnlyBooking && (
                         <button type="button" className="text-red-500 text-xs" onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.filter((_, i) => i !== index) })); }}>✕</button>
+                        )}
                       </div>
                     ))}
                     <div className="border-t border-[var(--border)] pt-2 space-y-2">
@@ -4005,32 +3787,23 @@ export default function BookingsPage() {
                             type="text"
                             inputMode="decimal"
                             autoComplete="off"
-                            value={
-                              discountPercentDraft !== null
-                                ? discountPercentDraft
-                                : formData.finalDiscountPercent
-                            }
-                            onFocus={(e) => {
-                              e.target.select();
-                              setDiscountPercentDraft(formData.finalDiscountPercent);
-                            }}
+                            value={formData.finalDiscountPercent}
                             onChange={(e) => {
+                              const raw = e.target.value;
                               setAmountSyncMode('discountPercent');
                               setDiscountManuallySet(true);
-                              const raw = e.target.value;
-                              setDiscountPercentDraft(raw);
-                              setFormData((prev) => ({
-                                ...prev,
-                                ...normalizeAmountSnapshot(
-                                  'discountPercent',
-                                  raw,
-                                  mealsBillBase
-                                ),
-                              }));
+                              setFormData((prev) => {
+                                const synced = normalizeAmountSnapshot('discountPercent', raw, mealsBillBase);
+                                return {
+                                  ...prev,
+                                  finalDiscountAmount: synced.finalDiscountAmount,
+                                  finalAmount: synced.finalAmount,
+                                  finalDiscountPercent: raw,
+                                };
+                              });
                             }}
                             onBlur={(e) => {
                               const formatted = formatPercentFieldOnBlur(e.target.value);
-                              setDiscountPercentDraft(null);
                               setFormData((prev) => ({
                                 ...prev,
                                 ...normalizeAmountSnapshot(
@@ -4096,7 +3869,6 @@ export default function BookingsPage() {
                 <BookingPaymentsLedger
                   payments={formData.payments}
                   isReadOnly={isReadOnlyBooking}
-                  advanceReceived={activeBookingObj?.advanceReceived ?? undefined}
                   onAdd={(payment) =>
                     setFormData((prev) => ({ ...prev, payments: [...prev.payments, payment] }))
                   }
@@ -4115,20 +3887,13 @@ export default function BookingsPage() {
                 />
 
                 <BookingFinancialSummary
-                  extraBaseAmount={totalHallAmount}
-                  packs={
-                    (Object.entries(formData.packs) as Array<[string, typeof formData.packs[keyof typeof formData.packs]]>)
-                      .filter(([, p]) => p.enabled)
-                      .map(([, p]) => ({
-                        ratePerPlate: parseFloat(p.ratePerPlate || '0') || 0,
-                        packCount: parseInt(p.pax || '0') || 0,
-                      }))
-                  }
+                  preDiscountTotal={totalBillBase}
+                  extrasSubtotal={billingTotals.extrasSubtotal}
+                  payableGrandTotal={payableGrandTotal}
                   payments={formData.payments}
                   functionDate={formData.functionDate}
                   discountPercent={parseFloat(formData.finalDiscountPercent || '0') || 0}
                   isPartyOver={activeBookingObj?.status === 'completed'}
-                  advanceReceived={activeBookingObj?.advanceReceived ?? undefined}
                   totalBilledAmount={
                     activeBookingObj?.status === 'completed' && activeBookingObj?.packs?.length > 0
                       ? activeBookingObj.packs.reduce((sum: number, pack: any) => {
@@ -4219,558 +3984,14 @@ export default function BookingsPage() {
               </div>
             )}
           </form>
-
-          {historicalVersions.length > 0 && (
-            <div className="mt-8 space-y-6 border-t border-[var(--border)] pt-8">
-              <h2 className="text-xl font-bold text-[var(--text-1)]">Finalized Version History</h2>
-              <p className="text-sm text-[var(--text-4)] -mt-3">
-                Previous immutable versions — always expanded so you can track every booking detail at each step.
-              </p>
-              {historicalVersions.map((hist: any, histIdx: number) => {
-                const resolved = hist?.snapshotData && typeof hist.snapshotData === 'object'
-                  ? hist.snapshotData
-                  : hist;
-                const historyPacks = Array.isArray(resolved?.packs) ? resolved.packs : [];
-                const histPayments: any[] = Array.isArray(hist?.payments)
-                  ? hist.payments
-                  : Array.isArray(resolved?.payments)
-                  ? resolved.payments
-                  : [];
-                const histAdditional: any[] = Array.isArray(hist?.additionalItems)
-                  ? hist.additionalItems
-                  : Array.isArray(resolved?.additionalItems)
-                  ? resolved.additionalItems
-                  : [];
-                const finalizedBy =
-                  hist?.finalizedMeta?.finalizedBy?.name ||
-                  hist?.finalizedBooking?.finalizedByUser?.name ||
-                  hist?.finalizedBooking?.user?.name ||
-                  'System';
-                const finalizedAt =
-                  hist?.finalizedMeta?.finalizedAt ||
-                  hist?.finalizedBooking?.finalizedAt ||
-                  null;
-
-                const histTotalPackAmount = historyPacks.reduce(
-                  (sum: number, pack: any) => sum + computePackRowAmountFromApiPack(pack),
-                  0
-                );
-                const histTotalAdditional = histAdditional.reduce((sum: number, item: any) => {
-                  const amt = Number(item?.charges ?? item?.amount ?? 0);
-                  return sum + (Number.isFinite(amt) ? Math.max(0, amt) : 0);
-                }, 0);
-                const histTotalBill = roundRupee(histTotalPackAmount + histTotalAdditional);
-                const histFinalAmount = roundRupee(
-                  Number(
-                    resolved?.finalAmountValue ??
-                      resolved?.finalAmount ??
-                      hist?.finalAmount ??
-                      resolved?.grandTotal ??
-                      hist?.grandTotal ??
-                      histTotalBill
-                  )
-                );
-                const histDiscountAmount = roundRupee(
-                  Math.max(0, histTotalBill - histFinalAmount)
-                );
-                const histDiscountPercent = Number(
-                  formatDiscountPercentDisplay(
-                    histTotalBill > 0 ? (histDiscountAmount / histTotalBill) * 100 : 0
-                  )
-                );
-                const histAdvanceRequired = Number(
-                  resolved?.advanceRequiredValue ?? resolved?.advanceRequired ?? hist?.advanceRequired ?? 0
-                );
-                const histDueAmount = Number(
-                  resolved?.dueAmountValue ?? resolved?.dueAmount ?? hist?.dueAmount ?? 0
-                );
-                const histNotes: string = resolved?.notes || hist?.notes || '';
-                const histTotalPayments = histPayments.reduce((sum: number, p: any) => {
-                  const amt = Number(p?.amount ?? p?.amountValue ?? 0);
-                  return sum + (Number.isFinite(amt) ? amt : 0);
-                }, 0);
-                const histCustomerName =
-                  resolved?.customer?.name ||
-                  resolved?.customerName ||
-                  hist?.customer?.name ||
-                  'Unknown';
-                const histCustomerPhone =
-                  resolved?.customer?.phone ||
-                  resolved?.customerPhone ||
-                  hist?.customer?.phone ||
-                  '-';
-                const histFunctionDate = resolved?.functionDate
-                  ? formatDateDDMMYYYY(resolved.functionDate)
-                  : '-';
-                const histTimeRange = (() => {
-                  const start = resolved?.startTime || resolved?.functionTime || '';
-                  const end = resolved?.endTime || '';
-                  if (start && end) return `${start} - ${end}`;
-                  return start || end || '-';
-                })();
-                const hallNames = (Array.isArray(resolved?.halls) ? resolved.halls : [])
-                  .map((entry: any) => entry?.hall?.name || entry?.hallName)
-                  .filter(Boolean);
-                const banquetNames = (Array.isArray(resolved?.halls) ? resolved.halls : [])
-                  .map((entry: any) => entry?.hall?.banquet?.name)
-                  .filter(Boolean);
-
-                return (
-                  <div key={hist.id} className="rounded-xl border-2 border-[var(--border-2)] bg-[var(--surface)] shadow-sm overflow-hidden">
-                    {/* ── Version header ── */}
-                    <div className="flex items-center justify-between gap-3 bg-[var(--surface-2)] px-5 py-3 border-b border-[var(--border)]">
-                      <div>
-                        <p className="text-sm font-bold text-[var(--text-1)]">
-                          Version {hist.versionNumber}
-                          <span className="ml-2 inline-flex items-center rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-xs font-medium text-[var(--text-2)]">
-                            {hist.status}
-                          </span>
-                        </p>
-                        <p className="text-xs text-[var(--text-4)] mt-0.5">
-                          Finalized by <strong>{finalizedBy}</strong> on {formatDateTimeLabel(finalizedAt)}
-                        </p>
-                      </div>
-                      <Lock className="w-4 h-4 text-[var(--text-4)] flex-shrink-0" />
-                    </div>
-
-                    {/* ── Inter-version diff summary ── */}
-                    {(() => {
-                      const prevHist = historicalVersions[histIdx + 1];
-                      if (!prevHist) return null;
-                      const thisDiff = computeVersionDiff(
-                        histToSnapshot(hist),
-                        histToSnapshot(prevHist)
-                      );
-                      const hasAnyDiff =
-                        thisDiff.functionDate ||
-                        thisDiff.functionType ||
-                        thisDiff.discountAmountChange ||
-                        thisDiff.finalAmountChange ||
-                        thisDiff.advanceRequiredChange ||
-                        thisDiff.dueAmountChange ||
-                        Object.keys(thisDiff.packs).length > 0;
-                      if (!hasAnyDiff) return null;
-
-                      const DiffPill = ({
-                        label,
-                        from,
-                        to,
-                        prefix = '',
-                        isNum = false,
-                      }: {
-                        label: string;
-                        from: string | number;
-                        to: string | number;
-                        prefix?: string;
-                        isNum?: boolean;
-                      }) => {
-                        const numDelta = isNum ? Number(to) - Number(from) : 0;
-                        const up = isNum && numDelta > 0;
-                        const down = isNum && numDelta < 0;
-                        const baseStyle = isNum
-                          ? {
-                              background: '#2d1a00',
-                              color: '#fcd34d',
-                              border: '1px solid rgba(245, 158, 11, 0.35)',
-                            }
-                          : {
-                              background: 'var(--surface)',
-                              color: 'var(--text-2)',
-                              border: '1px solid var(--border)',
-                            };
-                        return (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs"
-                            style={baseStyle}
-                          >
-                            <span style={{ fontWeight: 600, opacity: 0.8 }}>{label}:</span>
-                            <span style={{ textDecoration: 'line-through', opacity: 0.7 }}>
-                              {prefix}
-                              {typeof from === 'number' ? from.toLocaleString('en-IN') : from}
-                            </span>
-                            <span style={{ opacity: 0.7 }}>→</span>
-                            <span className={`font-semibold ${up ? 'text-green-200' : down ? 'text-red-200' : ''}`}>
-                              {prefix}{typeof to === 'number' ? to.toLocaleString('en-IN') : to}
-                            </span>
-                            {isNum && numDelta !== 0 && (
-                              <span className={`font-bold ${up ? 'text-green-200' : 'text-red-200'}`}>
-                                {up ? '▲' : '▼'}
-                                {Math.abs(numDelta).toLocaleString('en-IN')}
-                              </span>
-                            )}
-                          </span>
-                        );
-                      };
-
-                      // Collect all menu item names for this lookup
-                      const allMenuItemsForDiff = new Map<string, string>();
-                      historyPacks.forEach((pack: any) => {
-                        (pack?.bookingMenu?.items || []).forEach((entry: any) => {
-                          const id = entry?.itemId || entry?.item?.id;
-                          const name = entry?.item?.name;
-                          if (id && name) allMenuItemsForDiff.set(id, name);
-                        });
-                      });
-
-                      return (
-                        <div className="px-5 pt-3 pb-0">
-                          <div className="rounded-lg border border-blue-100 bg-blue-50 dark:bg-blue-500/10 p-3 space-y-2">
-                            <p className="text-xs font-semibold text-blue-700 dark:text-blue-200 uppercase tracking-wide">
-                              Changes from v{historicalVersions[histIdx + 1]?.versionNumber ?? '?'}
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {thisDiff.functionDate && (
-                                <DiffPill label="Date" from={thisDiff.functionDate.from} to={thisDiff.functionDate.to} />
-                              )}
-                              {thisDiff.functionType && (
-                                <DiffPill label="Function" from={thisDiff.functionType.from} to={thisDiff.functionType.to} />
-                              )}
-                              {thisDiff.finalAmountChange && (
-                                <DiffPill label="Net Amount" prefix="₹" from={thisDiff.finalAmountChange.from} to={thisDiff.finalAmountChange.to} isNum />
-                              )}
-                              {thisDiff.discountAmountChange && (
-                                <DiffPill label="Discount" prefix="₹" from={thisDiff.discountAmountChange.from} to={thisDiff.discountAmountChange.to} isNum />
-                              )}
-                              {thisDiff.advanceRequiredChange && (
-                                <DiffPill label="Advance" prefix="₹" from={thisDiff.advanceRequiredChange.from} to={thisDiff.advanceRequiredChange.to} isNum />
-                              )}
-                              {thisDiff.dueAmountChange && (
-                                <DiffPill label="Due" prefix="₹" from={thisDiff.dueAmountChange.from} to={thisDiff.dueAmountChange.to} isNum />
-                              )}
-                              {Object.entries(thisDiff.packs).map(([packKey, pd]) => (
-                                <span key={`diff-pack-${packKey}`} className="inline-flex flex-wrap gap-1 contents">
-                                  {pd.paxChange && (
-                                    <DiffPill label={`${packKey} PAX`} from={pd.paxChange.from} to={pd.paxChange.to} isNum />
-                                  )}
-                                  {pd.ratePerPlateChange && (
-                                    <DiffPill label={`${packKey} Rate`} prefix="₹" from={pd.ratePerPlateChange.from} to={pd.ratePerPlateChange.to} isNum />
-                                  )}
-                                  {pd.hallRateChange && (
-                                    <DiffPill label={`${packKey} Hall`} prefix="₹" from={pd.hallRateChange.from} to={pd.hallRateChange.to} isNum />
-                                  )}
-                                  {pd.addedItemIds.map((id) => (
-                                    <span
-                                      key={`add-${id}`}
-                                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                                      style={{
-                                        background: '#052e16',
-                                        color: '#86efac',
-                                        border: '1px solid rgba(34, 197, 94, 0.4)',
-                                      }}
-                                    >
-                                      + {allMenuItemsForDiff.get(id) || id}
-                                    </span>
-                                  ))}
-                                  {pd.removedItemIds.map((id) => (
-                                    <span
-                                      key={`rem-${id}`}
-                                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                                      style={{
-                                        background: '#2d0a0a',
-                                        color: '#fca5a5',
-                                        border: '1px solid rgba(239, 68, 68, 0.4)',
-                                      }}
-                                    >
-                                      − {allMenuItemsForDiff.get(id) || id}
-                                    </span>
-                                  ))}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    <div className="px-5 py-4 space-y-6">
-                      {/* ── Core info (form-style, read-only) ── */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="label">Customer</label>
-                          <input className="input" value={histCustomerName} readOnly />
-                        </div>
-                        <div>
-                          <label className="label">Customer Phone</label>
-                          <input className="input" value={histCustomerPhone} readOnly />
-                        </div>
-                        <div>
-                          <label className="label">Function Type</label>
-                          <input className="input" value={resolved?.functionType || '-'} readOnly />
-                        </div>
-                        <div>
-                          <label className="label">Function Name</label>
-                          <input className="input" value={resolved?.functionName || '-'} readOnly />
-                        </div>
-                        <div>
-                          <label className="label">Function Date</label>
-                          <input className="input" value={histFunctionDate} readOnly />
-                        </div>
-                        <div>
-                          <label className="label">Time</label>
-                          <input className="input" value={histTimeRange} readOnly />
-                        </div>
-                        <div>
-                          <label className="label">Expected Guests</label>
-                          <input
-                            className="input"
-                            value={resolved?.expectedGuests ?? hist?.expectedGuests ?? '-'}
-                            readOnly
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Confirmed Guests</label>
-                          <input
-                            className="input"
-                            value={resolved?.confirmedGuests ?? hist?.confirmedGuests ?? 0}
-                            readOnly
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Banquet</label>
-                          <input
-                            className="input"
-                            value={banquetNames.length > 0 ? banquetNames.join(', ') : '-'}
-                            readOnly
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="label">Halls</label>
-                          <input
-                            className="input"
-                            value={hallNames.length > 0 ? hallNames.join(', ') : '-'}
-                            readOnly
-                          />
-                        </div>
-                      </div>
-
-                      {/* ── Packs ── */}
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1">Packs</h4>
-                        {historyPacks.length === 0 ? (
-                          <div className="empty-state" style={{ padding: '16px 12px' }}>
-                            <div className="empty-state-icon">
-                              <FileText size={20} />
-                            </div>
-                            <p className="empty-state-title">No packs recorded</p>
-                            <p className="empty-state-desc">No menu packs were saved in this version.</p>
-                          </div>
-                        ) : (
-                          historyPacks.map((pack: any) => {
-                            const hallRate = Number(pack?.hallRateValue ?? pack?.hallRate ?? 0);
-                            const ratePerPlate = Number(pack?.ratePerPlate || 0);
-                            const pax = Number(pack?.packCount ?? pack?.noOfPack ?? 0);
-                            const extraPlate = Number(pack?.extraPlate || 0);
-                            const computedAmount = computePackRowAmountFromApiPack(pack);
-                            const menuItems = Array.isArray(pack?.bookingMenu?.items)
-                              ? pack.bookingMenu.items
-                              : [];
-                            const hallNames: string[] = Array.isArray(pack?.halls)
-                              ? pack.halls.map((h: any) => h?.hall?.name || h?.name || '').filter(Boolean)
-                              : pack?.hallName
-                              ? [pack.hallName]
-                              : [];
-
-                            return (
-                              <div
-                                key={pack.id || `${hist.id}-${pack.packName}`}
-                                className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3"
-                              >
-                                {/* Pack header row */}
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <span className="text-sm font-bold text-[var(--text-1)]">
-                                    {pack.packName}
-                                    {pack.timeSlot ? ` (${pack.timeSlot})` : ''}
-                                  </span>
-                                  {pack.withHall !== undefined && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withHall ? 'bg-blue-100 text-blue-700 dark:text-blue-200' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
-                                      Hall {pack.withHall ? '✓' : '✗'}
-                                    </span>
-                                  )}
-                                  {pack.withCatering !== undefined && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pack.withCatering ? 'bg-green-100 text-green-700 dark:text-green-200' : 'bg-[var(--surface-3)] text-[var(--text-4)]'}`}>
-                                      Catering {pack.withCatering ? '✓' : '✗'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Pack numbers (form-style, read-only) */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                                  <div>
-                                    <label className="label">PAX</label>
-                                    <input className="input" value={pax} readOnly />
-                                  </div>
-                                  <div>
-                                    <label className="label">Rate / Plate</label>
-                                    <input
-                                      className="input"
-                                      value={`₹${ratePerPlate.toLocaleString('en-IN')}`}
-                                      readOnly
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="label">Hall Rate</label>
-                                    <input
-                                      className="input"
-                                      value={`₹${hallRate.toLocaleString('en-IN')}`}
-                                      readOnly
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="label">Extra Plates</label>
-                                    <input className="input" value={extraPlate} readOnly />
-                                  </div>
-                                  <div>
-                                    <label className="label">Pack Amount</label>
-                                    <input
-                                      className="input font-semibold text-blue-700 dark:text-blue-200"
-                                      value={`₹${computedAmount.toLocaleString('en-IN')}`}
-                                      readOnly
-                                    />
-                                  </div>
-                                </div>
-
-                                {/* Hall names */}
-                                {hallNames.length > 0 && (
-                                  <p className="text-xs text-[var(--text-2)]">
-                                    <span className="font-medium">Halls: </span>
-                                    {hallNames.join(', ')}
-                                  </p>
-                                )}
-
-                                {/* Menu items */}
-                                <div>
-                                  <p className="text-xs font-medium text-[var(--text-2)] mb-1">Menu Items</p>
-                                  {menuItems.length === 0 ? (
-                                    <span className="text-xs text-[var(--text-4)]">No menu items saved.</span>
-                                  ) : (
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {menuItems.map((entry: any) => (
-                                        <span
-                                          key={`${pack.id}-${entry.itemId || entry.item?.id}`}
-                                          className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-0.5 text-xs text-[var(--text-2)]"
-                                        >
-                                          {entry?.item?.itemType?.name
-                                            ? <><span className="text-[var(--text-4)] mr-1">{entry.item.itemType.name}:</span></>
-                                            : null}
-                                          {entry?.item?.name || 'Item'}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-
-                      {/* ── Additional Requirements ── */}
-                      {histAdditional.length > 0 && (
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1">Additional Requirements</h4>
-                          <div className="rounded-lg border border-[var(--border)] overflow-hidden">
-                            <div className="grid grid-cols-[1fr,auto] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text-2)]">
-                              <div>Description</div>
-                              <div className="text-right">Amount</div>
-                            </div>
-                            {histAdditional.map((item: any, idx: number) => (
-                              <div key={`hist-add-${hist.id}-${idx}`} className="grid grid-cols-[1fr,auto] px-3 py-2 text-sm border-t border-[var(--border)] bg-[var(--surface)]">
-                                <span className="text-[var(--text-1)]">{item?.description || '-'}</span>
-                                <span className="text-right font-medium text-[var(--text-1)]">
-                                  ₹{Number(item?.charges ?? item?.amount ?? 0).toLocaleString('en-IN')}
-                                </span>
-                              </div>
-                            ))}
-                            <div className="grid grid-cols-[1fr,auto] px-3 py-2 bg-[var(--surface-2)] border-t border-[var(--border)] text-sm font-semibold text-[var(--text-2)]">
-                              <span>Additional Total</span>
-                              <span className="text-right">₹{histTotalAdditional.toLocaleString('en-IN')}</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Payments ── */}
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1">Payments</h4>
-                        {histPayments.length === 0 ? (
-                          <div className="empty-state" style={{ padding: '16px 12px' }}>
-                            <div className="empty-state-icon">
-                              <FileText size={20} />
-                            </div>
-                            <p className="empty-state-title">No payments recorded</p>
-                            <p className="empty-state-desc">Payments will appear here once logged.</p>
-                          </div>
-                        ) : (
-                          <div className="rounded-lg border border-[var(--border)] overflow-hidden">
-                            <div className="hidden md:grid md:grid-cols-5 bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--text-2)]">
-                              <div>Mode</div>
-                              <div>Narration</div>
-                              <div>Date</div>
-                              <div>Received By</div>
-                              <div className="text-right">Amount</div>
-                            </div>
-                            {histPayments.map((payment: any, idx: number) => (
-                              <div key={`hist-pay-${hist.id}-${idx}`} className="grid grid-cols-2 md:grid-cols-5 gap-1 px-3 py-2 text-sm border-t border-[var(--border)] bg-[var(--surface)]">
-                                <span className="text-[var(--text-1)] font-medium">{payment?.method || payment?.paymentMethod || payment?.mode || '-'}</span>
-                                <span className="text-[var(--text-2)]">{payment?.narration || '-'}</span>
-                                <span className="text-[var(--text-2)]">{payment?.paymentDate ? formatDateDDMMYYYY(payment.paymentDate.slice(0, 10)) : payment?.date ? formatDateDDMMYYYY(payment.date) : '-'}</span>
-                                <span className="text-[var(--text-2)]">{payment?.receiver?.name || payment?.receivedBy || '-'}</span>
-                                <span className="text-right font-semibold text-[var(--text-1)]">₹{Number(payment?.amount ?? payment?.amountValue ?? 0).toLocaleString('en-IN')}</span>
-                              </div>
-                            ))}
-                            <div className="flex items-center justify-between px-3 py-2 bg-[var(--surface-2)] border-t border-[var(--border)] text-sm font-semibold text-[var(--text-2)]">
-                              <span>Total Payments</span>
-                              <span>₹{histTotalPayments.toLocaleString('en-IN')}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* ── Amount Summary ── */}
-                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-2">
-                        <h4 className="text-sm font-semibold text-[var(--text-1)] mb-3">Amount Summary</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                          <div>
-                            <span className="text-xs text-[var(--text-4)] block">Total Bill</span>
-                            <span className="font-semibold text-[var(--text-1)]">₹{histTotalBill.toLocaleString('en-IN')}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-[var(--text-4)] block">Discount ({histDiscountPercent.toFixed(2)}%)</span>
-                            <span className="font-semibold text-red-700 dark:text-red-200">−₹{histDiscountAmount.toLocaleString('en-IN')}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-[var(--text-4)] block">Net Amount</span>
-                            <span className="font-bold text-green-800 dark:text-green-200 text-base">₹{histFinalAmount.toLocaleString('en-IN')}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-[var(--text-4)] block">Advance Required</span>
-                            <span className="font-semibold text-[var(--text-1)]">₹{histAdvanceRequired.toLocaleString('en-IN')}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-[var(--text-4)] block">Due Amount</span>
-                            <span className="font-semibold text-[var(--text-1)]">₹{histDueAmount.toLocaleString('en-IN')}</span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-[var(--text-4)] block">Payments Received</span>
-                            <span className="font-semibold text-[var(--text-1)]">₹{histTotalPayments.toLocaleString('en-IN')}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ── Notes ── */}
-                      {histNotes && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-1 mb-2">Notes</h4>
-                          <p className="text-sm text-[var(--text-2)] whitespace-pre-wrap rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-100 p-3">{histNotes}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </fieldset>
+
+        <FinalizedVersionHistory
+          historicalVersions={historicalVersions}
+          halls={halls}
+          items={items as MenuItemLike[]}
+          templateMenus={templateMenus}
+        />
       </FormPromptModal>
 
       <FormPromptModal

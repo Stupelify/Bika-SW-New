@@ -1,0 +1,8 @@
+-- Phase 5.1–5.2: drop pure alias / stale derived columns on bookings.
+-- Prerequisite: run booking-redundancy-backfill.sql.example then audit (counts = 0).
+-- Copy to prisma/migrations/<timestamp>_drop_booking_money_synonyms/migration.sql for migrate deploy.
+
+ALTER TABLE "bookings" DROP COLUMN IF EXISTS "balanceAmount";
+ALTER TABLE "bookings" DROP COLUMN IF EXISTS "advanceReceived";
+ALTER TABLE "bookings" DROP COLUMN IF EXISTS "paymentReceivedPercent";
+ALTER TABLE "bookings" DROP COLUMN IF EXISTS "paymentReceivedPercentValue";

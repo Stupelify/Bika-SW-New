@@ -1,0 +1,29 @@
+# Build context root for the client + server images (Route A monorepo build).
+# Everything needed by a build is installed/compiled inside the image; keep the
+# context lean and never ship host artefacts or secrets.
+
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/playwright-report
+**/test-results
+
+.git
+.github
+*.md
+**/*.log
+**/.DS_Store
+
+# Secrets / env — provided at runtime via compose env_file, never at build.
+.env
+.env.*
+
+# Not part of the web/server images.
+native-client
+docker
+
+# Server runtime mounts (provided as volumes at runtime).
+server/uploads
+server/logs

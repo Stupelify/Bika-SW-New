@@ -1,0 +1,32 @@
+-- One-time backfill before dropping synonym money columns (Phase 5.1–5.2).
+-- Run on staging/production BEFORE column-drop migration.
+-- Safe to run multiple times (idempotent sync from canonical *Value fields).
+
+-- Payable twins: prefer finalAmountValue when both exist
+UPDATE bookings
+SET "grandTotal" = "finalAmountValue"
+WHERE "finalAmountValue" IS NOT NULL
+  AND ("grandTotal" IS NULL OR ROUND("grandTotal") <> ROUND("finalAmountValue"));
+
+-- Due alias
+UPDATE bookings
+SET "balanceAmount" = "dueAmountValue"
+WHERE "dueAmountValue" IS NOT NULL
+  AND ("balanceAmount" IS NULL OR ROUND("balanceAmount") <> ROUND("dueAmountValue"));
+
+-- Received alias
+UPDATE bookings
+SET "advanceReceived" = "paymentReceivedAmountValue"
+WHERE "paymentReceivedAmountValue" IS NOT NULL
+  AND ("advanceReceived" IS NULL OR ROUND("advanceReceived") <> ROUND("paymentReceivedAmountValue"));
+
+-- String payable twin (display only until Phase 5.4)
+UPDATE bookings
+SET "finalAmount" = ROUND("finalAmountValue")::text
+WHERE "finalAmountValue" IS NOT NULL
+  AND (
+    "finalAmount" IS NULL
+    OR "finalAmount" = ''
+    OR ROUND(CAST(NULLIF(REGEXP_REPLACE("finalAmount", '[^0-9.-]', '', 'g'), '') AS numeric))
+       <> ROUND("finalAmountValue")
+  );

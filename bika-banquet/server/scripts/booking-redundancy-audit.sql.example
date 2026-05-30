@@ -1,0 +1,33 @@
+-- Booking redundancy audit — run before column drops (Phase 5.0) and after backfill.
+-- Synonym columns balanceAmount / advanceReceived / paymentReceivedPercent were dropped in
+-- migration 20260530120000_drop_booking_money_synonyms.
+
+-- Payable total twins: grandTotal vs finalAmountValue
+SELECT COUNT(*) AS mismatch_count
+FROM bookings
+WHERE "finalAmountValue" IS NOT NULL
+  AND "grandTotal" IS NOT NULL
+  AND ROUND("grandTotal") <> ROUND("finalAmountValue");
+
+-- String vs float payable (legacy finalAmount string vs finalAmountValue)
+SELECT COUNT(*) AS mismatch_count
+FROM bookings
+WHERE "finalAmountValue" IS NOT NULL
+  AND "finalAmount" IS NOT NULL
+  AND "finalAmount" <> ''
+  AND ROUND(CAST(NULLIF(REGEXP_REPLACE("finalAmount", '[^0-9.-]', '', 'g'), '') AS numeric)) <> ROUND("finalAmountValue");
+
+-- Sample mismatches for manual review (limit 20)
+SELECT id, "grandTotal", "finalAmountValue", "dueAmountValue",
+       "paymentReceivedAmountValue"
+FROM bookings
+WHERE (
+  ("finalAmountValue" IS NOT NULL AND "grandTotal" IS NOT NULL AND ROUND("grandTotal") <> ROUND("finalAmountValue"))
+  OR (
+    "finalAmountValue" IS NOT NULL
+    AND "finalAmount" IS NOT NULL
+    AND "finalAmount" <> ''
+    AND ROUND(CAST(NULLIF(REGEXP_REPLACE("finalAmount", '[^0-9.-]', '', 'g'), '') AS numeric)) <> ROUND("finalAmountValue")
+  )
+)
+LIMIT 20;

@@ -15,7 +15,9 @@ Living reference for the booking form workflow, regression tests, and the `booki
 | Concern | Location |
 |---------|----------|
 | Main UI | `client/src/app/dashboard/bookings/page.tsx` |
-| Pure helpers | `client/src/lib/booking-form/` (`financials.ts` — ceiling validation) |
+| Finalized history | `client/src/components/booking/FinalizedVersionHistory.tsx` |
+| Billing engine | `@bika/booking-core` (`billing-engine.ts`, `formPacksToSumBookingInput`) |
+| Pure helpers | `client/src/lib/booking-form/` |
 | Payments UI | `client/src/components/BookingPaymentsLedger.tsx` |
 | Native API | `native-client/lib/api.ts` |
 | Server | `server/src/controllers/booking.write.ts`, `booking.payments.ts` |

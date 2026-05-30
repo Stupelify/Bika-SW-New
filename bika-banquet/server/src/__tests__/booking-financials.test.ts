@@ -18,13 +18,13 @@ describe('sumBookingLines', () => {
     expect(result).toBe(14300);
   });
 
-  it('defaults packCount to 1 when zero', () => {
+  it('uses zero packCount when pax is zero (no phantom plates)', () => {
     const result = sumBookingLines({
       halls: [],
       packs: [{ ratePerPlate: 200, packCount: 0, noOfPack: 0, setupCost: 0, extraCharges: 0 }],
       additionalItems: [],
     });
-    expect(result).toBe(200);
+    expect(result).toBe(0);
   });
 
   it('uses pack hallRate once per pack when hall table charges are zero', () => {

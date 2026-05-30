@@ -8,9 +8,12 @@ export interface BookingCalendarRow {
   endTime?: string | null;
   expectedGuests: number;
   grandTotal: number;
+  finalAmountValue?: number | null;
   paymentReceived?: number | string | null;
-  balanceAmount?: number | string | null;
+  paymentReceivedAmountValue?: number | null;
+  paymentReceivedAmount?: string | number | null;
   dueAmount?: number | string | null;
+  dueAmountValue?: number | null;
   versionNumber?: number | null;
   status: string;
   isQuotation: boolean;

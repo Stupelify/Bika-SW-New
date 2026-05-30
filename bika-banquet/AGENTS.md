@@ -82,8 +82,10 @@ The booking UI is **not** one billing engine. Layers must stay aligned:
 
 | Layer | Location |
 |-------|----------|
-| Row + footer totals | `client/src/lib/booking-form/billing-lines.ts` |
-| Form UI | `client/src/app/dashboard/bookings/page.tsx` (large — minimal edits only) |
+| Row + footer totals | `@bika/booking-core` — import `billing-engine` or `billing-lines`; form totals use `formPacksToSumBookingInput` → `sumBookingLines` |
+| Form UI | `client/src/app/dashboard/bookings/page.tsx` |
+| Version history UI | `client/src/components/booking/FinalizedVersionHistory.tsx` |
+| Version diff helpers | `client/src/lib/booking-form/version-history.ts` |
 | Save (create/update) | `server/src/controllers/booking.write.ts` |
 | Recalc / finalize | `server/src/controllers/booking.shared.ts`, `booking.financials.ts` |
 
@@ -103,11 +105,13 @@ Fixing one layer without the others regresses Submit / Finalize.
 
 5. **Server save:** `splitMealsAndExtrasSubtotals` + `resolveBookingFinancials` on create, update, finalize, party-over. Discount applies to meals only.
 
-6. **Due / balance:** Always `payableGrandTotal − sum(payments)` on server (create, update, recalc, payment add/update). Client due effect uses the same formula.
+6. **Due / balance:** `paymentReceivedAmountValue` = gross sum of all payments (including uncleared cheques). `dueAmountValue` = `payableGrandTotal − credited payments` (cheques count only after clearing date ≤ today). Same split on client via `@bika/booking-core` payment-credit helpers.
 
-7. **After save:** Reload payments (and discount/net/due) from `GET /bookings/:id`. Form `finalAmount` = meals net; display grand total = meals net + extras.
+7. **After save:** Reload payments (and discount/net/due) from `GET /bookings/:id`. Form `finalAmount` = meals net (not payable grand total); save payload sends `payableGrandTotal`. Display grand total = meals net + extras.
 
 8. **Payments on new version:** Payments are not copied per version by design. Do not zero `paymentReceivedAmount` across versions unless product explicitly asks.
+
+9. **Canonical money columns:** Persist `paymentReceivedAmountValue` (gross) and `dueAmountValue` (credited due). Synonym columns `advanceReceived`, `balanceAmount`, and `paymentReceivedPercent` were dropped (migration `20260530120000_drop_booking_money_synonyms`). Reads use `@bika/booking-core` booking-readers.
 
 ### Testing
 
