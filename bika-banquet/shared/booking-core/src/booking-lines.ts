@@ -79,7 +79,7 @@ export function sumBookingLines(input: {
   const packHallTotal = input.packs.reduce((s, p) => s + safeMoney(p.hallRate), 0);
   const hallTotal = packHallTotal > 0 ? packHallTotal : hallTableTotal;
   const packTotal = input.packs.reduce((s, p) => {
-    const count = Math.max(1, safeNum(p.packCount ?? p.noOfPack ?? 1));
+    const count = Math.max(0, safeNum(p.packCount ?? p.noOfPack ?? 0));
     return (
       s +
       safeMoney(p.ratePerPlate) * count +
@@ -130,12 +130,13 @@ export interface ResolvedBookingFinancials {
   exceededCeiling: boolean;
 }
 
+/** Stored discount % is always meals-only (excludes extras line items). */
 function deriveDiscountPercentForStorage(
-  totalAmount: number,
+  mealsSubtotal: number,
   discountAmount: number
 ): number {
-  if (totalAmount <= 0) return 0;
-  return Math.round((discountAmount / totalAmount) * 10000) / 100;
+  if (mealsSubtotal <= 0) return 0;
+  return Math.round((discountAmount / mealsSubtotal) * 10000) / 100;
 }
 
 function resolveMealsNetFromPercentOrAmount(
@@ -204,7 +205,7 @@ export function resolveBookingFinancials(
   const payableGrandTotal = roundRupee(mealsNet + extrasSubtotal);
   const discountAmount = roundRupee(Math.max(0, totalAmount - payableGrandTotal));
   const discountPercentage = deriveDiscountPercentForStorage(
-    totalAmount,
+    mealsSubtotal,
     discountAmount
   );
 

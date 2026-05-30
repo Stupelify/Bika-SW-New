@@ -1,24 +1,21 @@
 'use client';
 
-interface PackSummary {
-  ratePerPlate: number;
-  packCount: number;
-}
-
-interface PaymentRow {
-  mode: string;
-  amount: string;
-  clearingDate: string;
-}
+import {
+  sumPaymentsTowardDue,
+  type PaymentCreditRow,
+} from '@/lib/booking-form/payment-credit';
 
 interface Props {
-  packs: PackSummary[];
-  extraBaseAmount?: number;   // hall charges (deduped) — added to billing base alongside packs
-  payments: PaymentRow[];
-  functionDate: string;
+  /** Pre-discount bill (meals + extras) — matches billing footer. */
+  preDiscountTotal: number;
+  /** Extra line items subtotal (not discounted). */
+  extrasSubtotal: number;
+  /** Payable grand total (meals net + extras) — matches billing footer. */
+  payableGrandTotal: number;
   discountPercent: number;
+  payments: PaymentCreditRow[];
+  functionDate: string;
   isPartyOver: boolean;
-  advanceReceived?: number;   // authoritative DB sum across all booking versions
   totalBilledAmount?: number;
   settlementTotalAmount?: number;
   settlementDiscountAmount?: number;
@@ -36,33 +33,24 @@ function getDuePercent(functionDate: string, isPartyOver: boolean): number {
 }
 
 export default function BookingFinancialSummary({
-  packs, extraBaseAmount = 0, payments, functionDate, discountPercent,
-  isPartyOver, advanceReceived, totalBilledAmount, settlementTotalAmount, settlementDiscountAmount,
+  preDiscountTotal,
+  extrasSubtotal,
+  payableGrandTotal,
+  discountPercent,
+  payments,
+  functionDate,
+  isPartyOver,
+  totalBilledAmount,
+  settlementTotalAmount,
+  settlementDiscountAmount,
 }: Props) {
-  const discRate = (rpp: number) => rpp * (1 - discountPercent / 100);
-
-  const packQuote = packs.reduce((sum, p) => sum + p.ratePerPlate * p.packCount, 0);
-  const packDiscounted = packs.reduce((sum, p) => sum + discRate(p.ratePerPlate) * p.packCount, 0);
-  // Hall charges are also discounted at the same rate (consistent with server)
-  const hallDiscounted = extraBaseAmount * (1 - discountPercent / 100);
-  const totalQuoteAmount = packQuote + extraBaseAmount;
-  const totalDiscountedAmount = packDiscounted + hallDiscounted;
-
   const todayStr = new Date().toISOString().slice(0, 10);
-  const creditedFromRows = payments.reduce((sum, p) => {
-    if (p.mode.toLowerCase() === 'cheque' && p.clearingDate && p.clearingDate > todayStr) return sum;
-    return sum + (parseFloat(p.amount) || 0);
-  }, 0);
-  // Use DB-authoritative advanceReceived when payment rows from current version
-  // are unavailable (e.g. payments recorded on a previous finalized version).
-  const credited = advanceReceived !== undefined && advanceReceived > creditedFromRows
-    ? advanceReceived
-    : creditedFromRows;
+  const credited = sumPaymentsTowardDue(payments, todayStr);
 
   const duePercent = getDuePercent(functionDate, isPartyOver);
 
-  let currentDueBasis = totalDiscountedAmount;
-  let currentDueLabel = `${duePercent}% of Discounted Amount`;
+  let currentDueBasis = payableGrandTotal;
+  let currentDueLabel = `${duePercent}% of Payable Amount`;
 
   if (isPartyOver) {
     if (settlementTotalAmount !== undefined) {
@@ -77,11 +65,12 @@ export default function BookingFinancialSummary({
   const currentDue = currentDueBasis * (duePercent / 100);
   const amountShort = Math.max(0, currentDue - credited);
 
-  const receivedPercent = totalDiscountedAmount > 0
-    ? ((credited / totalDiscountedAmount) * 100).toFixed(0)
+  const basisForPercent = payableGrandTotal > 0 ? payableGrandTotal : currentDueBasis;
+  const receivedPercent = basisForPercent > 0
+    ? ((credited / basisForPercent) * 100).toFixed(0)
     : '0';
-  const shortPercent = totalDiscountedAmount > 0
-    ? ((amountShort / totalDiscountedAmount) * 100).toFixed(0)
+  const shortPercent = basisForPercent > 0
+    ? ((amountShort / basisForPercent) * 100).toFixed(0)
     : '0';
 
   const fmt = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 0 });
@@ -94,11 +83,17 @@ export default function BookingFinancialSummary({
       <div className="p-4 space-y-1.5 text-sm">
         <div className="flex justify-between text-[var(--text-2)]">
           <span>Total Quote Amount</span>
-          <span>₹{fmt(totalQuoteAmount)}</span>
+          <span>₹{fmt(preDiscountTotal)}</span>
         </div>
-        <div className="flex justify-between text-[var(--text-2)]">
-          <span>Total Discounted Amount ({discountPercent.toFixed(2)}%)</span>
-          <span>₹{fmt(totalDiscountedAmount)}</span>
+        {extrasSubtotal > 0 && (
+          <div className="flex justify-between text-[var(--text-2)]">
+            <span>Extras (not discounted)</span>
+            <span>₹{fmt(extrasSubtotal)}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-medium text-[var(--text-1)]">
+          <span>Payable Grand Total ({discountPercent.toFixed(2)}% on meals)</span>
+          <span>₹{fmt(payableGrandTotal)}</span>
         </div>
         {totalBilledAmount !== undefined && (
           <div className="flex justify-between text-[var(--text-2)]">
@@ -135,9 +130,9 @@ export default function BookingFinancialSummary({
         </div>
 
         <p className="text-xs text-[var(--text-4)] mt-2 leading-relaxed">
-          Before party: 40% of discounted amount due up to 2 days before, then 100% due.
+          Before party: {duePercent === 40 ? '40' : '40/100'}% of payable amount due up to 2 days before, then 100% due.
           After party over: billed amount is 100% due. After settlement: settlement amount is 100% due.
-          Cheques not credited until clearing date.
+          Cheques reduce due only after a clearing date is entered and reached.
         </p>
       </div>
     </div>

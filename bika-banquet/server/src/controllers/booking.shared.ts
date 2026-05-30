@@ -498,6 +498,10 @@ export async function cloneBookingVersion(
     throw new Error('Booking not found');
   }
 
+  const replicaPayable = toSafeMoney(
+    source.finalAmountValue ?? Number(source.finalAmount) ?? source.grandTotal ?? 0
+  );
+
   const clonedBooking = await tx.booking.create({
     data: {
       customerId: source.customerId,
@@ -530,16 +534,16 @@ export async function cloneBookingVersion(
       discountPercentage2ndValue: source.discountPercentage2ndValue,
       taxAmount: source.taxAmount,
       grandTotal: source.grandTotal,
-      advanceReceived: source.advanceReceived,
+      advanceReceived: 0,
       advanceRequired: source.advanceRequired,
       advanceRequiredValue: source.advanceRequiredValue,
-      paymentReceivedPercent: source.paymentReceivedPercent,
-      paymentReceivedPercentValue: source.paymentReceivedPercentValue,
-      paymentReceivedAmount: source.paymentReceivedAmount,
-      paymentReceivedAmountValue: source.paymentReceivedAmountValue,
-      dueAmount: source.dueAmount,
-      dueAmountValue: source.dueAmountValue,
-      balanceAmount: source.balanceAmount,
+      paymentReceivedPercent: toStoredNumberString(0),
+      paymentReceivedPercentValue: 0,
+      paymentReceivedAmount: toStoredNumberString(0),
+      paymentReceivedAmountValue: 0,
+      dueAmount: toStoredNumberString(replicaPayable),
+      dueAmountValue: replicaPayable,
+      balanceAmount: replicaPayable,
       status: options?.status ?? source.status,
       quotation: options?.quotation ?? source.quotation,
       isQuotation: options?.isQuotation ?? source.isQuotation,

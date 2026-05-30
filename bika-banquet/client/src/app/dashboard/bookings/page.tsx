@@ -51,6 +51,8 @@ import {
   mapBookingPaymentsFromApi,
   partitionPaymentsForSave,
 } from '@/lib/booking-form/payments';
+import { sumPaymentsTowardDue } from '@/lib/booking-form/payment-credit';
+import { validatePackCateringForSave } from '@/lib/booking-form/pack-catering';
 import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
@@ -925,11 +927,7 @@ export default function BookingsPage() {
   );
 
   const totalPayments = useMemo(
-    () =>
-      formData.payments.reduce((sum, row) => {
-        const amount = Number(row.amount || 0);
-        return sum + (Number.isFinite(amount) ? amount : 0);
-      }, 0),
+    () => sumPaymentsTowardDue(formData.payments),
     [formData.payments]
   );
 
@@ -973,7 +971,6 @@ export default function BookingsPage() {
     );
     return computePayableGrandTotal(mealsNet, billingTotals.extrasSubtotal);
   }, [formData.finalAmount, mealsBillBase, billingTotals.extrasSubtotal]);
-  const totalHallAmount = billingTotals.packHallSubtotal;
 
   // Keep for backward-compat references (same value as totalBillBase)
   const totalBillAmount = totalBillBase;
@@ -2448,15 +2445,24 @@ export default function BookingsPage() {
       return null;
     }
 
-    const mealsNetForCheck =
-      netAmountDraft !== null
-        ? normalizeAmountSnapshot('finalAmount', netAmountDraft, mealsBillBase).finalAmount
-        : formData.finalAmount;
+    const netDraftForSave = netAmountDraft;
+    const flushedNetSnapshot =
+      netDraftForSave !== null
+        ? normalizeAmountSnapshot('finalAmount', netDraftForSave, mealsBillBase)
+        : null;
+
+    if (flushedNetSnapshot) {
+      setNetAmountDraft(null);
+      setAmountSyncMode('finalAmount');
+      setFormData((prev) => ({ ...prev, ...flushedNetSnapshot }));
+    }
+
+    const mealsNetForCheck = flushedNetSnapshot?.finalAmount ?? formData.finalAmount;
     const billingCheck = validateBillingCeiling({
       mealsSubtotal: mealsBillBase,
       extrasSubtotal: billingTotals.extrasSubtotal,
-      discountAmount: formData.finalDiscountAmount,
-      discountPercent: formData.finalDiscountPercent,
+      discountAmount: flushedNetSnapshot?.finalDiscountAmount ?? formData.finalDiscountAmount,
+      discountPercent: flushedNetSnapshot?.finalDiscountPercent ?? formData.finalDiscountPercent,
       finalAmount: mealsNetForCheck,
     });
     if (!billingCheck.ok) {
@@ -2465,15 +2471,6 @@ export default function BookingsPage() {
           'Net amount cannot exceed the bill total. Adjust discount or line items and try again.'
       );
       return null;
-    }
-    const netDraftForSave = netAmountDraft;
-
-    if (netDraftForSave !== null) {
-      setNetAmountDraft(null);
-      setFormData((prev) => ({
-        ...prev,
-        ...normalizeAmountSnapshot('finalAmount', netDraftForSave, mealsBillBase),
-      }));
     }
 
     try {
@@ -2514,6 +2511,19 @@ export default function BookingsPage() {
         return null;
       }
 
+      for (const { key, row } of enabledPackEntries) {
+        const cateringError = validatePackCateringForSave({
+          withCatering: row.withCatering,
+          ratePerPlate: row.ratePerPlate,
+          pax: row.pax,
+          menuItemIds: row.menuItemIds,
+        });
+        if (cateringError) {
+          toast.error(`${PACK_LABELS[key]}: ${cateringError}`);
+          return null;
+        }
+      }
+
       const expectedGuests = Math.max(
         1,
         ...enabledPackEntries
@@ -2521,13 +2531,13 @@ export default function BookingsPage() {
           .filter((value) => value > 0)
       );
       const saveSyncMode: AmountSyncMode =
-        netDraftForSave !== null ? 'finalAmount' : amountSyncMode;
+        flushedNetSnapshot ? 'finalAmount' : amountSyncMode;
       const amountSourceValue =
         saveSyncMode === 'discountPercent'
-          ? formData.finalDiscountPercent
+          ? (flushedNetSnapshot?.finalDiscountPercent ?? formData.finalDiscountPercent)
           : saveSyncMode === 'discountAmount'
-            ? formData.finalDiscountAmount
-            : netDraftForSave ?? formData.finalAmount;
+            ? (flushedNetSnapshot?.finalDiscountAmount ?? formData.finalDiscountAmount)
+            : (flushedNetSnapshot?.finalAmount ?? formData.finalAmount);
       const syncedAmounts = syncBillingAmounts(
         saveSyncMode,
         amountSourceValue,
@@ -2573,8 +2583,8 @@ export default function BookingsPage() {
           .map((hall) => hall.name);
         return {
           packName: PACK_LABELS[key],
-          packCount: Math.max(1, toNumber(row.pax || '1')),
-          noOfPack: Math.max(1, toNumber(row.pax || '1')),
+          packCount: Math.max(0, toNumber(row.pax)),
+          noOfPack: Math.max(0, toNumber(row.pax)),
           ratePerPlate: row.withCatering ? toNumber(row.ratePerPlate) : 0,
           setupCost: row.setupCost ? toNumber(row.setupCost) : 0,
           extraCharges: row.extraCharges || 0,
@@ -4081,7 +4091,6 @@ export default function BookingsPage() {
                 <BookingPaymentsLedger
                   payments={formData.payments}
                   isReadOnly={isReadOnlyBooking}
-                  advanceReceived={activeBookingObj?.advanceReceived ?? undefined}
                   onAdd={(payment) =>
                     setFormData((prev) => ({ ...prev, payments: [...prev.payments, payment] }))
                   }
@@ -4100,20 +4109,13 @@ export default function BookingsPage() {
                 />
 
                 <BookingFinancialSummary
-                  extraBaseAmount={totalHallAmount}
-                  packs={
-                    (Object.entries(formData.packs) as Array<[string, typeof formData.packs[keyof typeof formData.packs]]>)
-                      .filter(([, p]) => p.enabled)
-                      .map(([, p]) => ({
-                        ratePerPlate: parseFloat(p.ratePerPlate || '0') || 0,
-                        packCount: parseInt(p.pax || '0') || 0,
-                      }))
-                  }
+                  preDiscountTotal={totalBillBase}
+                  extrasSubtotal={billingTotals.extrasSubtotal}
+                  payableGrandTotal={payableGrandTotal}
                   payments={formData.payments}
                   functionDate={formData.functionDate}
                   discountPercent={parseFloat(formData.finalDiscountPercent || '0') || 0}
                   isPartyOver={activeBookingObj?.status === 'completed'}
-                  advanceReceived={activeBookingObj?.advanceReceived ?? undefined}
                   totalBilledAmount={
                     activeBookingObj?.status === 'completed' && activeBookingObj?.packs?.length > 0
                       ? activeBookingObj.packs.reduce((sum: number, pack: any) => {

@@ -22,13 +22,13 @@ describe('sumBookingLines', () => {
     expect(result).toBe(14300);
   });
 
-  it('defaults packCount to 1 when zero', () => {
+  it('uses zero packCount when pax is zero (no phantom plates)', () => {
     const result = sumBookingLines({
       halls: [],
       packs: [{ ratePerPlate: 200, packCount: 0, noOfPack: 0, setupCost: 0, extraCharges: 0 }],
       additionalItems: [],
     });
-    expect(result).toBe(200);
+    expect(result).toBe(0);
   });
 
   it('uses pack hallRate once per pack when hall table charges are zero', () => {
@@ -67,6 +67,7 @@ describe('sumBookingLines', () => {
     expect(financials.discountAmount).toBe(2235);
     expect(financials.grandTotal).toBe(20219);
     expect(financials.finalAmountValue).toBe(20219);
+    expect(financials.discountPercentage).toBe(10);
   });
 
   it('nearest-rupee percent discount on 22354 meals with no extras', () => {
