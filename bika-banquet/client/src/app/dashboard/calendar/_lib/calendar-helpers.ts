@@ -1,4 +1,9 @@
 import { api } from '@/lib/api';
+import {
+  resolveDueAmount,
+  resolvePayableTotal,
+  resolvePaymentReceivedGross,
+} from '@bika/booking-core';
 import type {
   BookingCalendarRow,
   EnquiryCalendarRow,
@@ -104,11 +109,14 @@ export function getPaymentSnapshot(entry: BookingCalendarRow): {
   label: string;
   tone: 'paid' | 'partial' | 'outstanding';
 } {
-  const total = toSafeNumber(entry.grandTotal);
-  const explicitPaid = toSafeNumber(entry.paymentReceived);
-  const explicitBalance = toSafeNumber(entry.balanceAmount ?? entry.dueAmount);
-  const paid = explicitPaid > 0 ? explicitPaid : Math.max(0, total - explicitBalance);
-  const balance = explicitBalance > 0 ? explicitBalance : Math.max(0, total - paid);
+  const total = resolvePayableTotal({ grandTotal: entry.grandTotal });
+  const paid = resolvePaymentReceivedGross({
+    paymentReceivedAmount: entry.paymentReceived,
+  });
+  const balance = resolveDueAmount({
+    dueAmount: entry.dueAmount,
+    balanceAmount: entry.balanceAmount,
+  });
   const percent = total > 0 ? clamp(Math.round((paid / total) * 100), 0, 100) : 0;
   const tone = total > 0 && balance <= 0 ? 'paid' : paid > 0 ? 'partial' : 'outstanding';
   const label = tone === 'paid' ? 'Paid' : tone === 'partial' ? 'Partial' : 'Outstanding';

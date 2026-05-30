@@ -23,7 +23,7 @@ import {
   splitMealsAndExtrasSubtotals,
   sumExtrasSubtotal,
 } from './booking.helpers';
-import { resolvePaymentTotals } from '@bika/booking-core';
+import { resolvePaymentTotals, readPayableGrandTotalInput } from '@bika/booking-core';
 import {
   toSafeNumber,
   toSafeMoney,
@@ -486,19 +486,19 @@ export async function createBooking(
         discountPercentage,
         discountAmountInput:
           readDualMoney(data, 'discountAmountValue', 'discountAmount') || 0,
-        finalAmountInput: readDualMoney(data, 'finalAmountValue', 'finalAmount'),
+        finalAmountInput: readPayableGrandTotalInput(data as Record<string, unknown>),
       });
       if (financials.exceededCeiling) {
         throw new Error('BOOKING_NET_EXCEEDS_BILL');
       }
       const { discountAmount, discountPercentage: storedDiscountPercent, grandTotal, finalAmountValue } =
         financials;
-      const paymentReceived = toSafeMoney(
-        firstDefinedValue(data.advanceReceivedValue, data.advanceReceived)
-      );
-      const dueAmountValue = toSafeMoney(
-        Math.max(0, finalAmountValue - paymentReceived)
-      );
+      const dbPayments = await tx.bookingPayments.findMany({
+        where: { bookingId: newBooking.id },
+        select: { method: true, amount: true, clearingDate: true },
+      });
+      const { grossReceived: paymentReceived, dueAmount: dueAmountValue } =
+        resolvePaymentTotals(finalAmountValue, dbPayments);
       const balanceAmount = dueAmountValue;
       const discountAmount2ndValue = readDualMoney(
         data,
@@ -514,16 +514,6 @@ export async function createBooking(
         data,
         'advanceRequiredValue',
         'advanceRequired'
-      );
-      const paymentReceivedPercentValue = readDualPercent(
-        data,
-        'paymentReceivedPercentValue',
-        'paymentReceivedPercent'
-      );
-      const paymentReceivedAmountValue = readDualMoney(
-        data,
-        'paymentReceivedAmountValue',
-        'paymentReceivedAmount'
       );
       // Update booking with totals
       return await tx.booking.update({
@@ -546,10 +536,9 @@ export async function createBooking(
           dueAmountValue,
           advanceRequired: toStoredNumberString(advanceRequiredValue),
           advanceRequiredValue,
-          paymentReceivedPercent: toStoredNumberString(paymentReceivedPercentValue),
-          paymentReceivedPercentValue,
-          paymentReceivedAmount: toStoredNumberString(paymentReceivedAmountValue),
-          paymentReceivedAmountValue,
+          paymentReceivedAmount: toStoredNumberString(paymentReceived),
+          paymentReceivedAmountValue: paymentReceived,
+          advanceReceived: paymentReceived,
         },
         include: {
           customer: true,
@@ -1132,11 +1121,6 @@ export async function updateBooking(
         'advanceRequiredValue',
         'advanceRequired'
       );
-      const paymentReceivedPercentValue = readDualPercent(
-        data,
-        'paymentReceivedPercentValue',
-        'paymentReceivedPercent'
-      );
 
       await tx.booking.update({
         where: { id },
@@ -1173,8 +1157,6 @@ export async function updateBooking(
           internalNotes: data.internalNotes,
           advanceRequired: toStoredNumberString(advanceRequiredValue),
           advanceRequiredValue,
-          paymentReceivedPercent: toStoredNumberString(paymentReceivedPercentValue),
-          paymentReceivedPercentValue,
           discountAmount2nd: toStoredNumberString(discountAmount2ndValue),
           discountAmount2ndValue,
           discountPercentage2nd: toStoredNumberString(discountPercentage2ndValue),
@@ -1375,7 +1357,7 @@ export async function updateBooking(
         discountAmountInput:
           readDualMoney(data, 'discountAmountValue', 'discountAmount') ||
           toSafeMoney(existingBooking.discountAmount),
-        finalAmountInput: readDualMoney(data, 'finalAmountValue', 'finalAmount'),
+        finalAmountInput: readPayableGrandTotalInput(data as Record<string, unknown>),
       });
       if (financials.exceededCeiling) {
         throw new Error('BOOKING_NET_EXCEEDS_BILL');

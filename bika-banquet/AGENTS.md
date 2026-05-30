@@ -105,7 +105,7 @@ Fixing one layer without the others regresses Submit / Finalize.
 
 6. **Due / balance:** `paymentReceivedAmountValue` = gross sum of all payments (including uncleared cheques). `dueAmountValue` = `payableGrandTotal − credited payments` (cheques count only after clearing date ≤ today). Same split on client via `@bika/booking-core` payment-credit helpers.
 
-7. **After save:** Reload payments (and discount/net/due) from `GET /bookings/:id`. Form `finalAmount` = meals net; display grand total = meals net + extras.
+7. **After save:** Reload payments (and discount/net/due) from `GET /bookings/:id`. Form `finalAmount` = meals net (not payable grand total); save payload sends `payableGrandTotal`. Display grand total = meals net + extras.
 
 8. **Payments on new version:** Payments are not copied per version by design. Do not zero `paymentReceivedAmount` across versions unless product explicitly asks.
 

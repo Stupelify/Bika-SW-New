@@ -9,10 +9,9 @@ import { sendSuccess, sendError } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { idSchema } from '../utils/validation';
 import { createAuditLog } from '../utils/auditLog';
-import { resolvePaymentTotals } from '@bika/booking-core';
+import { resolvePaymentTotals, resolvePayableTotal } from '@bika/booking-core';
 import {
   toSafeMoney,
-  toOptionalSafeMoney,
   toStoredNumberString,
   bookingIsImmutable,
   bookingImmutableMessage,
@@ -154,10 +153,7 @@ export async function addPayment(
         where: { bookingId: id },
         select: { method: true, amount: true, clearingDate: true },
       });
-      const currentFinal =
-        booking.finalAmountValue ??
-        toOptionalSafeMoney(booking.finalAmount) ??
-        booking.grandTotal;
+      const currentFinal = resolvePayableTotal(booking);
       const { grossReceived, dueAmount: updatedDue } = resolvePaymentTotals(
         currentFinal,
         dbPayments
@@ -257,10 +253,7 @@ export async function updatePayment(
         where: { bookingId: id },
         select: { method: true, amount: true, clearingDate: true },
       });
-      const currentFinal =
-        booking.finalAmountValue ??
-        toOptionalSafeMoney(booking.finalAmount) ??
-        booking.grandTotal;
+      const currentFinal = resolvePayableTotal(booking);
       const { grossReceived, dueAmount: updatedDue } = resolvePaymentTotals(
         currentFinal,
         dbPayments

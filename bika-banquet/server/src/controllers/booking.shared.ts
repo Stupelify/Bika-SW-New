@@ -14,7 +14,7 @@ import {
 } from '../services/googleCalendar.service';
 import { broadcastBookingEvent } from '../sse';
 import logger from '../utils/logger';
-import { resolvePaymentTotals } from '@bika/booking-core';
+import { resolvePaymentTotals, resolvePayableTotal } from '@bika/booking-core';
 
 // ---------------------------------------------------------------------------
 // Numeric helpers
@@ -499,9 +499,7 @@ export async function cloneBookingVersion(
     throw new Error('Booking not found');
   }
 
-  const replicaPayable = toSafeMoney(
-    source.finalAmountValue ?? Number(source.finalAmount) ?? source.grandTotal ?? 0
-  );
+  const replicaPayable = toSafeMoney(resolvePayableTotal(source));
 
   const clonedBooking = await tx.booking.create({
     data: {

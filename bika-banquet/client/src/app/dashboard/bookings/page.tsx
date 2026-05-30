@@ -269,8 +269,8 @@ interface BookingFormData {
   pencilDays: string;
   pencilExpiresAt: string;
   advanceRequired: string;
-  paymentReceivedPercent: string;
   dueAmount: string;
+  /** Meals net after discount (UI: Net Amount). Not payable grand total. */
   finalDiscountAmount: string;
   finalDiscountPercent: string;
   finalAmount: string;
@@ -292,7 +292,6 @@ const initialFormData: BookingFormData = {
   pencilDays: '3',
   pencilExpiresAt: '',
   advanceRequired: '0',
-  paymentReceivedPercent: '0',
   dueAmount: '0',
   finalDiscountAmount: '0',
   finalDiscountPercent: '0',
@@ -2099,7 +2098,6 @@ export default function BookingsPage() {
         })(),
         pencilExpiresAt: booking.pencilExpiresAt ? booking.pencilExpiresAt.slice(0, 10) : '',
         advanceRequired: booking.advanceRequired || '0',
-        paymentReceivedPercent: booking.paymentReceivedPercent || '0',
         dueAmount: booking.dueAmount || '0',
         finalDiscountAmount:
           booking.discountAmount !== null && booking.discountAmount !== undefined
@@ -2577,8 +2575,7 @@ export default function BookingsPage() {
           : undefined,
         discountAmount: normalizedDiscountAmount,
         discountPercentage: normalizedDiscountPercent,
-        finalAmount: normalizedPayableGrandTotal,
-        finalAmountValue: normalizedPayableGrandTotal,
+        payableGrandTotal: normalizedPayableGrandTotal,
         advanceRequired: formData.advanceRequired || undefined,
         // paymentReceivedAmount is derived server-side from actual payment records.
         notes: notes ? notes.slice(0, 1990) : undefined,

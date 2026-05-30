@@ -9,6 +9,7 @@
  *  - booking-lines.ts line-array view used by the save/persistence path
  *  - pack-catering.ts shared MIN_CATERING_RATE_PER_PLATE
  *  - payment-credit.ts cheque clearing + gross vs credited payment sums
+ *  - booking-readers.ts canonical reads for legacy twin columns
  */
 
 export * from './money';
@@ -17,3 +18,4 @@ export * from './financials';
 export * from './booking-lines';
 export * from './pack-catering';
 export * from './payment-credit';
+export * from './booking-readers';
