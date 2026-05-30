@@ -19,3 +19,4 @@ export * from './booking-lines';
 export * from './pack-catering';
 export * from './payment-credit';
 export * from './booking-readers';
+export * from './billing-engine';

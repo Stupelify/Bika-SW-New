@@ -5,10 +5,8 @@ export interface BookingMoneyFields {
   finalAmount?: string | number | null;
   paymentReceivedAmountValue?: number | null;
   paymentReceivedAmount?: string | number | null;
-  advanceReceived?: number | null;
   dueAmountValue?: number | null;
   dueAmount?: string | number | null;
-  balanceAmount?: number | null;
 }
 
 function parseMoney(value: unknown): number | undefined {
@@ -36,18 +34,13 @@ export function resolvePaymentReceivedGross(booking: BookingMoneyFields): number
   ) {
     return booking.paymentReceivedAmountValue;
   }
-  const legacy = parseMoney(booking.paymentReceivedAmount);
-  if (legacy !== undefined) return legacy;
-  return booking.advanceReceived ?? 0;
+  return parseMoney(booking.paymentReceivedAmount) ?? 0;
 }
 
-/** Remaining balance due. Prefers dueAmountValue, then balanceAmount, then legacy string. */
+/** Remaining balance due. Prefers dueAmountValue, then legacy string. */
 export function resolveDueAmount(booking: BookingMoneyFields): number {
   if (booking.dueAmountValue != null && Number.isFinite(booking.dueAmountValue)) {
     return booking.dueAmountValue;
-  }
-  if (booking.balanceAmount != null && Number.isFinite(booking.balanceAmount)) {
-    return booking.balanceAmount;
   }
   return parseMoney(booking.dueAmount) ?? 0;
 }

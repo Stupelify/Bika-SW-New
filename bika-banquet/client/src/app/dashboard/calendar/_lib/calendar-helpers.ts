@@ -116,12 +116,10 @@ export function getPaymentSnapshot(entry: BookingCalendarRow): {
   const paid = resolvePaymentReceivedGross({
     paymentReceivedAmount: entry.paymentReceived ?? entry.paymentReceivedAmount,
     paymentReceivedAmountValue: entry.paymentReceivedAmountValue,
-    advanceReceived: entry.advanceReceived,
   });
   const balance = resolveDueAmount({
     dueAmount: entry.dueAmount,
     dueAmountValue: entry.dueAmountValue,
-    balanceAmount: entry.balanceAmount,
   });
   const percent = total > 0 ? clamp(Math.round((paid / total) * 100), 0, 100) : 0;
   const tone = total > 0 && balance <= 0 ? 'paid' : paid > 0 ? 'partial' : 'outstanding';

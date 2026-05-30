@@ -72,8 +72,8 @@ interface BookingRow {
   createdAt: string;
   status: string;
   grandTotal: number;
-  advanceReceived: number;
-  balanceAmount: number;
+  dueAmountValue?: number;
+  paymentReceivedAmountValue?: number;
   customer?: {
     name: string;
     phone: string;

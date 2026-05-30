@@ -1,5 +1,6 @@
--- Booking redundancy audit — run on staging/production BEFORE column drops.
--- Each query should return 0 rows (or count = 0) before dropping the paired column.
+-- Booking redundancy audit — run before column drops (Phase 5.0) and after backfill.
+-- Synonym columns balanceAmount / advanceReceived / paymentReceivedPercent were dropped in
+-- migration 20260530120000_drop_booking_money_synonyms.
 
 -- Payable total twins: grandTotal vs finalAmountValue
 SELECT COUNT(*) AS mismatch_count
@@ -7,20 +8,6 @@ FROM bookings
 WHERE "finalAmountValue" IS NOT NULL
   AND "grandTotal" IS NOT NULL
   AND ROUND("grandTotal") <> ROUND("finalAmountValue");
-
--- Due twins: dueAmountValue vs balanceAmount
-SELECT COUNT(*) AS mismatch_count
-FROM bookings
-WHERE "dueAmountValue" IS NOT NULL
-  AND "balanceAmount" IS NOT NULL
-  AND ROUND("dueAmountValue") <> ROUND("balanceAmount");
-
--- Received twins: paymentReceivedAmountValue vs advanceReceived
-SELECT COUNT(*) AS mismatch_count
-FROM bookings
-WHERE "paymentReceivedAmountValue" IS NOT NULL
-  AND "advanceReceived" IS NOT NULL
-  AND ROUND("paymentReceivedAmountValue") <> ROUND("advanceReceived");
 
 -- String vs float payable (legacy finalAmount string vs finalAmountValue)
 SELECT COUNT(*) AS mismatch_count
@@ -31,12 +18,16 @@ WHERE "finalAmountValue" IS NOT NULL
   AND ROUND(CAST(NULLIF(REGEXP_REPLACE("finalAmount", '[^0-9.-]', '', 'g'), '') AS numeric)) <> ROUND("finalAmountValue");
 
 -- Sample mismatches for manual review (limit 20)
-SELECT id, "grandTotal", "finalAmountValue", "dueAmountValue", "balanceAmount",
-       "paymentReceivedAmountValue", "advanceReceived"
+SELECT id, "grandTotal", "finalAmountValue", "dueAmountValue",
+       "paymentReceivedAmountValue"
 FROM bookings
 WHERE (
   ("finalAmountValue" IS NOT NULL AND "grandTotal" IS NOT NULL AND ROUND("grandTotal") <> ROUND("finalAmountValue"))
-  OR ("dueAmountValue" IS NOT NULL AND "balanceAmount" IS NOT NULL AND ROUND("dueAmountValue") <> ROUND("balanceAmount"))
-  OR ("paymentReceivedAmountValue" IS NOT NULL AND "advanceReceived" IS NOT NULL AND ROUND("paymentReceivedAmountValue") <> ROUND("advanceReceived"))
+  OR (
+    "finalAmountValue" IS NOT NULL
+    AND "finalAmount" IS NOT NULL
+    AND "finalAmount" <> ''
+    AND ROUND(CAST(NULLIF(REGEXP_REPLACE("finalAmount", '[^0-9.-]', '', 'g'), '') AS numeric)) <> ROUND("finalAmountValue")
+  )
 )
 LIMIT 20;

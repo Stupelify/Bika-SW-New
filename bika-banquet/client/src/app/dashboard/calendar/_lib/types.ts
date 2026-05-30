@@ -12,10 +12,8 @@ export interface BookingCalendarRow {
   paymentReceived?: number | string | null;
   paymentReceivedAmountValue?: number | null;
   paymentReceivedAmount?: string | number | null;
-  advanceReceived?: number | null;
   dueAmount?: number | string | null;
   dueAmountValue?: number | null;
-  balanceAmount?: number | string | null;
   versionNumber?: number | null;
   status: string;
   isQuotation: boolean;

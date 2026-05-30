@@ -37,10 +37,8 @@ interface BookingRow {
   grandTotal?: number;
   paymentReceivedAmountValue?: number;
   paymentReceivedAmount?: string | number | null;
-  advanceReceived?: number;
   dueAmountValue?: number;
   dueAmount?: string | number | null;
-  balanceAmount?: number;
   _count?: {
     payments: number;
   };

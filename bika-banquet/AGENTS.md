@@ -82,8 +82,10 @@ The booking UI is **not** one billing engine. Layers must stay aligned:
 
 | Layer | Location |
 |-------|----------|
-| Row + footer totals | `client/src/lib/booking-form/billing-lines.ts` |
-| Form UI | `client/src/app/dashboard/bookings/page.tsx` (large — minimal edits only) |
+| Row + footer totals | `@bika/booking-core` — import `billing-engine` or `billing-lines`; form totals use `formPacksToSumBookingInput` → `sumBookingLines` |
+| Form UI | `client/src/app/dashboard/bookings/page.tsx` |
+| Version history UI | `client/src/components/booking/FinalizedVersionHistory.tsx` |
+| Version diff helpers | `client/src/lib/booking-form/version-history.ts` |
 | Save (create/update) | `server/src/controllers/booking.write.ts` |
 | Recalc / finalize | `server/src/controllers/booking.shared.ts`, `booking.financials.ts` |
 
@@ -109,7 +111,7 @@ Fixing one layer without the others regresses Submit / Finalize.
 
 8. **Payments on new version:** Payments are not copied per version by design. Do not zero `paymentReceivedAmount` across versions unless product explicitly asks.
 
-9. **Canonical money columns (writes):** Persist `paymentReceivedAmountValue` (gross) and `dueAmountValue` (credited due). Do not write synonym columns `advanceReceived`, `balanceAmount`, or `paymentReceivedPercent` on new saves. Reads use `@bika/booking-core` booking-readers (legacy fallbacks for old rows).
+9. **Canonical money columns:** Persist `paymentReceivedAmountValue` (gross) and `dueAmountValue` (credited due). Synonym columns `advanceReceived`, `balanceAmount`, and `paymentReceivedPercent` were dropped (migration `20260530120000_drop_booking_money_synonyms`). Reads use `@bika/booking-core` booking-readers.
 
 ### Testing
 

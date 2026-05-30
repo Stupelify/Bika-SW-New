@@ -33,3 +33,13 @@ export function formatDateDDMMYYYY(input: string | Date | null | undefined): str
   }).format(parsed);
 }
 
+export function formatDateTimeLabel(value?: string | Date | null): string {
+  if (!value) return 'N/A';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'N/A';
+  return `${formatDateDDMMYYYY(parsed.toISOString())} ${parsed.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+}
+
