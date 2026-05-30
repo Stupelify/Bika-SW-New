@@ -21,7 +21,7 @@ interface AuthState {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  loadUser: (options?: { silent?: boolean }) => Promise<void>;
+  loadUser: () => Promise<void>;
   setToken: (token: string) => void;
 }
 
@@ -83,7 +83,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  loadUser: async (options?: { silent?: boolean }) => {
+  loadUser: async () => {
     if (loadUserInFlight) {
       await loadUserInFlight;
       return;
@@ -98,10 +98,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       setAuthHydrationComplete(false);
+      // Never set isLoading here — that flag is only for login() (Sign In button).
       set({
         isAuthReady: false,
         token,
-        ...(options?.silent ? {} : { isLoading: true }),
       });
 
       try {

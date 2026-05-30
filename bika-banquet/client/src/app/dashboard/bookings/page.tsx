@@ -3461,6 +3461,7 @@ export default function BookingsPage() {
                         <td colSpan={8} className="px-3 py-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold text-[var(--text-2)]">Extra Items</span>
+                            {!isReadOnlyBooking && (
                             <button
                               type="button"
                               className="inline-flex h-6 items-center gap-1 rounded-full border border-primary-600 px-2 text-xs font-medium text-primary-700 hover:bg-primary-50"
@@ -3478,6 +3479,7 @@ export default function BookingsPage() {
                               <Plus className="h-3 w-3" />
                               Add
                             </button>
+                            )}
                           </div>
                         </td>
                         <td />
@@ -3486,14 +3488,16 @@ export default function BookingsPage() {
                       {/* Extra item rows — description + amount on the left, no individual amount in right col */}
                       {formData.additionalRequirements.map((item, index) => (
                         <tr key={`req-${index}`} className="bg-[var(--surface)] border-t border-[var(--border)]">
-                          <td colSpan={4} />
-                          <td colSpan={4} className="px-2 py-1.5">
-                            <div className="flex gap-2 items-center">
+                          <td colSpan={9} className="px-3 py-1.5">
+                            <div className="flex gap-2 items-center min-w-0 max-w-xl ml-auto">
                               <input
-                                className="input py-1 text-xs flex-1"
+                                className="input py-1 text-xs flex-1 min-w-[10rem] text-[var(--text-1)]"
                                 value={item.description}
-                                placeholder="Description"
-                                onChange={(e) =>
+                                placeholder="Item name"
+                                aria-label="Extra item name"
+                                disabled={isReadOnlyBooking}
+                                onChange={(e) => {
+                                  setIsFormDirty(true);
                                   setFormData((prev) => ({
                                     ...prev,
                                     additionalRequirements: prev.additionalRequirements.map(
@@ -3502,14 +3506,17 @@ export default function BookingsPage() {
                                           ? { ...entry, description: e.target.value }
                                           : entry
                                     ),
-                                  }))
-                                }
+                                  }));
+                                }}
                               />
                               <IndianAmountInput
                                 className="input py-1 text-xs w-24 text-right"
                                 value={item.amount}
                                 placeholder="0"
-                                onChange={(raw) =>
+                                aria-label="Extra item amount"
+                                disabled={isReadOnlyBooking}
+                                onChange={(raw) => {
+                                  setIsFormDirty(true);
                                   setFormData((prev) => ({
                                     ...prev,
                                     additionalRequirements: prev.additionalRequirements.map(
@@ -3518,9 +3525,10 @@ export default function BookingsPage() {
                                           ? { ...entry, amount: raw }
                                           : entry
                                     ),
-                                  }))
-                                }
+                                  }));
+                                }}
                               />
+                              {!isReadOnlyBooking && (
                               <button
                                 type="button"
                                 className="text-xs text-red-500 hover:text-red-700 dark:text-red-200 whitespace-nowrap"
@@ -3534,9 +3542,9 @@ export default function BookingsPage() {
                                   }));
                                 }}
                               >✕</button>
+                              )}
                             </div>
                           </td>
-                          <td />
                         </tr>
                       ))}
                       {/* Extras total row — label on left, total in amount column */}
@@ -3742,11 +3750,13 @@ export default function BookingsPage() {
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-base font-semibold text-[var(--text-1)]">Amount Summary</h3>
+                    {!isReadOnlyBooking && (
                     <button type="button"
                       className="inline-flex h-8 items-center gap-1 rounded-lg border border-primary-600 px-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
                       onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: [...prev.additionalRequirements, { description: '', amount: '' }] })); }}>
                       <Plus className="h-3.5 w-3.5" /> Add Extra
                     </button>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {enabledPackAmountRows.map((entry) => (
@@ -3757,9 +3767,11 @@ export default function BookingsPage() {
                     ))}
                     {formData.additionalRequirements.map((item, index) => (
                       <div key={`mob-req-${index}`} className="grid grid-cols-[1fr,120px,auto] gap-2 items-center">
-                        <input className="input" value={item.description} placeholder="Extra item" onChange={(e) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) }))} />
-                        <IndianAmountInput className="input text-right" value={item.amount} placeholder="0" onChange={(raw) => setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: raw } : r) }))} />
+                        <input className="input" value={item.description} placeholder="Item name" aria-label="Extra item name" disabled={isReadOnlyBooking} onChange={(e) => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, description: e.target.value } : r) })); }} />
+                        <IndianAmountInput className="input text-right" value={item.amount} placeholder="0" aria-label="Extra item amount" disabled={isReadOnlyBooking} onChange={(raw) => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.map((r, i) => i === index ? { ...r, amount: raw } : r) })); }} />
+                        {!isReadOnlyBooking && (
                         <button type="button" className="text-red-500 text-xs" onClick={() => { setIsFormDirty(true); setFormData((prev) => ({ ...prev, additionalRequirements: prev.additionalRequirements.filter((_, i) => i !== index) })); }}>✕</button>
+                        )}
                       </div>
                     ))}
                     <div className="border-t border-[var(--border)] pt-2 space-y-2">
@@ -3972,9 +3984,14 @@ export default function BookingsPage() {
               </div>
             )}
           </form>
-
-          <FinalizedVersionHistory historicalVersions={historicalVersions} />
         </fieldset>
+
+        <FinalizedVersionHistory
+          historicalVersions={historicalVersions}
+          halls={halls}
+          items={items as MenuItemLike[]}
+          templateMenus={templateMenus}
+        />
       </FormPromptModal>
 
       <FormPromptModal

@@ -42,9 +42,14 @@ export function IndianAmountInput({
   const digits = stripToDigits(value);
   const formatted = formatIndianAmountDisplay(digits);
   const hasDigits = digits !== '';
+  // In flex rows, a full-width wrapper steals space from siblings (e.g. extra-item name).
+  const explicitWidth = className.match(/\b(w-\d+|w-\[[^\]]+\])\b/)?.[0];
+  const wrapperClass = explicitWidth
+    ? `relative shrink-0 min-w-0 ${explicitWidth}`
+    : 'relative w-full min-w-0';
 
   return (
-    <div className="relative w-full min-w-0">
+    <div className={wrapperClass}>
       {hasDigits && (
         <div
           className={`pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-nowrap ${className.includes('text-right') ? 'justify-end' : 'justify-start'} ${className}`}

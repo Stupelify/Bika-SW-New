@@ -40,14 +40,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Only the client manifest; @bika/booking-core is a devDependency and omitted.
-COPY client/package.json ./package.json
-
-# Install production dependencies only — cached
-RUN --mount=type=cache,target=/root/.npm \
-    npm install --omit=dev --prefer-offline
-
-# Copy built files
+# Reuse production node_modules from the builder (avoids npm trying to resolve
+# workspace-only packages like @bika/booking-core at runtime).
+COPY --from=builder /app/client/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/client/.next ./.next
 COPY --from=builder /app/client/public ./public
 COPY --from=builder /app/client/next.config.mjs ./
