@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-
-/** Mirrors dashboard layout redirect guard */
-export function shouldRedirectToLogin(
-  isAuthenticated: boolean,
-  isAuthReady: boolean,
-  hasStoredToken: boolean
-): boolean {
-  return isAuthReady && !isAuthenticated && !hasStoredToken;
-}
+import { shouldRedirectToLogin } from '@/lib/authRedirect';
 
 describe('auth session hydration redirect guard', () => {
   it('does not redirect before loadUser completes', () => {

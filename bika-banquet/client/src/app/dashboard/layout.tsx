@@ -9,6 +9,7 @@ import Avatar from '@/components/Avatar';
 import CommandPalette from '@/components/CommandPalette';
 import IdleTimeoutModal from '@/components/IdleTimeoutModal';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
+import { shouldRedirectToLogin } from '@/lib/authRedirect';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -325,7 +326,7 @@ function DashboardLayoutContent({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, logout, isAuthenticated, isAuthReady } = useAuthStore();
+  const { user, logout, loadUser, isAuthenticated, isAuthReady } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -518,7 +519,7 @@ function DashboardLayoutContent({
 
   useEffect(() => {
     if (!isAuthReady || typeof window === 'undefined') return;
-    if (!isAuthenticated) {
+    if (shouldRedirectToLogin(isAuthenticated, isAuthReady, Boolean(getStoredAuthToken()))) {
       router.push('/login');
     }
   }, [isAuthenticated, isAuthReady, router]);
@@ -968,12 +969,27 @@ function DashboardLayoutContent({
     );
   }
 
+  const hasStoredToken = Boolean(getStoredAuthToken());
+
   if (!isAuthenticated) {
     return (
       <div className="loading-screen">
         <div className="loading-stack">
           <div className="skeleton loading-avatar" />
-          <p className="loading-text">Redirecting to sign in…</p>
+          {hasStoredToken ? (
+            <>
+              <p className="loading-text">Could not verify your session.</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void loadUser({ silent: true })}
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            <p className="loading-text">Redirecting to sign in…</p>
+          )}
         </div>
       </div>
     );
