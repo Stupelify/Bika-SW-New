@@ -103,7 +103,7 @@ Fixing one layer without the others regresses Submit / Finalize.
 
 5. **Server save:** `splitMealsAndExtrasSubtotals` + `resolveBookingFinancials` on create, update, finalize, party-over. Discount applies to meals only.
 
-6. **Due / balance:** Always `payableGrandTotal − sum(payments)` on server (create, update, recalc, payment add/update). Client due effect uses the same formula.
+6. **Due / balance:** `paymentReceivedAmountValue` = gross sum of all payments (including uncleared cheques). `dueAmountValue` = `payableGrandTotal − credited payments` (cheques count only after clearing date ≤ today). Same split on client via `@bika/booking-core` payment-credit helpers.
 
 7. **After save:** Reload payments (and discount/net/due) from `GET /bookings/:id`. Form `finalAmount` = meals net; display grand total = meals net + extras.
 

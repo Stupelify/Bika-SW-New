@@ -23,6 +23,7 @@ import {
   splitMealsAndExtrasSubtotals,
   sumExtrasSubtotal,
 } from './booking.helpers';
+import { resolvePaymentTotals } from '@bika/booking-core';
 import {
   toSafeNumber,
   toSafeMoney,
@@ -1136,12 +1137,6 @@ export async function updateBooking(
         'paymentReceivedPercentValue',
         'paymentReceivedPercent'
       );
-      const paymentReceivedAmountValue = readDualMoney(
-        data,
-        'paymentReceivedAmountValue',
-        'paymentReceivedAmount'
-      );
-      const dueAmountValueInput = readDualMoney(data, 'dueAmountValue', 'dueAmount');
 
       await tx.booking.update({
         where: { id },
@@ -1180,10 +1175,6 @@ export async function updateBooking(
           advanceRequiredValue,
           paymentReceivedPercent: toStoredNumberString(paymentReceivedPercentValue),
           paymentReceivedPercentValue,
-          paymentReceivedAmount: toStoredNumberString(paymentReceivedAmountValue),
-          paymentReceivedAmountValue,
-          dueAmount: toStoredNumberString(dueAmountValueInput),
-          dueAmountValue: dueAmountValueInput,
           discountAmount2nd: toStoredNumberString(discountAmount2ndValue),
           discountAmount2ndValue,
           discountPercentage2nd: toStoredNumberString(discountPercentage2ndValue),
@@ -1391,14 +1382,13 @@ export async function updateBooking(
       }
       const { discountAmount, discountPercentage: storedDiscountPercent, grandTotal, finalAmountValue } =
         financials;
-      // Always derive paymentReceived from actual payment records — ignore any
-      // client-supplied value, which can drift when versions are cloned.
-      const paymentAgg = await tx.bookingPayments.aggregate({
+      // Always derive payment totals from actual payment records — ignore client values.
+      const dbPayments = await tx.bookingPayments.findMany({
         where: { bookingId: id },
-        _sum: { amount: true },
+        select: { method: true, amount: true, clearingDate: true },
       });
-      const paymentReceived = toSafeMoney(Number(paymentAgg._sum.amount ?? 0));
-      const dueAmountValue = toSafeMoney(Math.max(0, finalAmountValue - paymentReceived));
+      const { grossReceived: paymentReceived, dueAmount: dueAmountValue } =
+        resolvePaymentTotals(finalAmountValue, dbPayments);
       const balanceAmount = dueAmountValue;
       const totalBillAmountValue = lineTotals.totalAmount;
 

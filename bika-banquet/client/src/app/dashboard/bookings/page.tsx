@@ -60,14 +60,13 @@ import {
   getItemPoints,
   templateItemsToMenuItemLikes,
 } from '@/lib/booking-form/menu-template';
-import type { MenuItemLike } from '@/lib/booking-form/types';
+import type { MenuItemLike, PaymentRow } from '@/lib/booking-form/types';
 import {
   buildBookingHallRows,
   computePackRowAmount,
   computePackRowAmountFromApiPack,
   computeExtrasSubtotal,
   computeMealsSubtotal,
-  sumPackHallRates,
   computePayableGrandTotal,
   formatDiscountPercentDisplay,
   formatPercentFieldOnBlur,
@@ -225,28 +224,6 @@ interface BookingPackRow {
   extraAmount?: string;
   extraCharges?: number;
   setupCost?: string;
-}
-
-interface PaymentRow {
-  id?: string;      // present for payments already persisted in the DB
-  mode: string;
-  narration: string;
-  date: string;
-  receivedBy: string;
-  amount: string;
-  reference: string;
-  clearingDate: string;
-  // Snapshot of the values as they existed on last load — used to detect which
-  // existing payments were actually changed so we only PATCH those.
-  _original?: {
-    mode: string;
-    narration: string;
-    date: string;
-    receivedBy: string;
-    amount: string;
-    reference: string;
-    clearingDate: string;
-  };
 }
 
 interface AdditionalRequirementRow {
@@ -611,17 +588,6 @@ export default function BookingsPage() {
   const [discountManuallySet, setDiscountManuallySet] = useState(false);
   const prevTotalPackAmountRef = useRef<number | null>(null);
 
-  // Payment modal state
-  const [paymentDraft, setPaymentDraft] = useState<PaymentRow>({
-    amount: '',
-    mode: 'Cash',
-    date: new Date().toISOString().split('T')[0],
-    receivedBy: '',
-    narration: '',
-    reference: '',
-    clearingDate: '',
-  });
-
   const todayStr = () => new Date().toISOString().split('T')[0];
 
   const debouncedInlineCustomerPincode = useDebounce(inlineCustomerFormData.pincode, 350);
@@ -952,14 +918,10 @@ export default function BookingsPage() {
     const mealsSubtotal = computeMealsSubtotal(formData.packs);
     const extrasSubtotal = computeExtrasSubtotal(formData.additionalRequirements);
     const preDiscountTotal = roundRupee(mealsSubtotal + extrasSubtotal);
-    const enabledRows = (Object.keys(formData.packs) as PackKey[])
-      .filter((key) => formData.packs[key].enabled)
-      .map((key) => formData.packs[key]);
     return {
       mealsSubtotal,
       extrasSubtotal,
       preDiscountTotal,
-      packHallSubtotal: sumPackHallRates(enabledRows),
     };
   }, [formData.packs, formData.additionalRequirements]);
 
@@ -1461,37 +1423,6 @@ export default function BookingsPage() {
       finalAmount: formatComputedAmount(mealsBillBase),
     }));
   }, [mealsBillBase, discountManuallySet, showCreateForm, formatComputedAmount]);
-
-  const addPaymentRow = () => {
-    setFormData((prev) => ({
-      ...prev,
-      payments: [
-        ...prev.payments,
-        {
-          mode: 'Cash',
-          narration: '',
-          date: todayStr(),
-          receivedBy: '',
-          amount: '',
-          reference: '',
-          clearingDate: '',
-        },
-      ],
-    }));
-  };
-
-  const updatePaymentRow = (
-    index: number,
-    key: keyof PaymentRow,
-    value: string
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      payments: prev.payments.map((row, rowIndex) =>
-        rowIndex === index ? { ...row, [key]: value } : row
-      ),
-    }));
-  };
 
   const loadBookings = useCallback(async () => {
     try {
@@ -2610,41 +2541,6 @@ export default function BookingsPage() {
         };
       });
 
-      const paymentSummary = formData.payments
-        .filter(
-          (payment) =>
-            payment.mode.trim() ||
-            payment.narration.trim() ||
-            payment.date.trim() ||
-            payment.receivedBy.trim() ||
-            payment.amount.trim()
-        )
-        .map((payment) =>
-          [
-            payment.mode || 'mode',
-            payment.narration || 'narration',
-            payment.date || 'date',
-            payment.receivedBy || 'received by',
-            payment.amount || 'amount',
-          ].join(' | ')
-        );
-
-      const packSummary = enabledPackEntries.map(({ key, row }) => {
-        const validHallIds = row.withHall ? getValidHallIdsForPack(row) : [];
-        const hallName = row.withHall
-          ? halls
-            .filter((hall) => validHallIds.includes(hall.id))
-            .map((hall) => hall.name)
-            .join(', ') || 'No hall'
-          : 'No hall';
-        const templateName =
-          templateMenus.find((template) => template.id === row.templateMenuId)?.name ||
-          'Custom menu';
-        return `${PACK_LABELS[key]}: ${row.pax || 0} pax, ${hallName}, hallRate=${row.hallRate || 0
-          }, ratePerPlate=${row.ratePerPlate || 0}, menuTemplate=${templateName}, menuItems=${row.menuItemIds.length
-          }, menuPoints=${row.menuPoints || 0}`;
-      });
-
       // Keep notes to just the user-entered text — pack summaries were bloating
       // this past the server's 2000-char limit on complex bookings.
       const notes = formData.notes.trim() || undefined;
@@ -2684,9 +2580,7 @@ export default function BookingsPage() {
         finalAmount: normalizedPayableGrandTotal,
         finalAmountValue: normalizedPayableGrandTotal,
         advanceRequired: formData.advanceRequired || undefined,
-        paymentReceivedPercent: formData.paymentReceivedPercent || undefined,
         // paymentReceivedAmount is derived server-side from actual payment records.
-        dueAmount: formData.dueAmount || undefined,
         notes: notes ? notes.slice(0, 1990) : undefined,
         internalNotes,
       };

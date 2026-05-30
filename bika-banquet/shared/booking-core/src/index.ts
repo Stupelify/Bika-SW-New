@@ -8,6 +8,7 @@
  *  - financials.ts    discount sync + ceiling validation used by the form
  *  - booking-lines.ts line-array view used by the save/persistence path
  *  - pack-catering.ts shared MIN_CATERING_RATE_PER_PLATE
+ *  - payment-credit.ts cheque clearing + gross vs credited payment sums
  */
 
 export * from './money';
@@ -15,3 +16,4 @@ export * from './billing-lines';
 export * from './financials';
 export * from './booking-lines';
 export * from './pack-catering';
+export * from './payment-credit';

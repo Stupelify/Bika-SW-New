@@ -6,23 +6,9 @@ import {
   sumAllPaymentAmounts,
   sumPaymentsTowardDue,
 } from '@/lib/booking-form/payment-credit';
+import type { PaymentRow } from '@/lib/booking-form/types';
 import { Plus } from 'lucide-react';
 import { IndianAmountInput } from '@/components/IndianAmountInput';
-
-interface PaymentRow {
-  id?: string;
-  mode: string;
-  narration: string;
-  date: string;
-  receivedBy: string;
-  amount: string;
-  reference: string;
-  clearingDate: string;
-  _original?: {
-    mode: string; narration: string; date: string; receivedBy: string;
-    amount: string; reference: string; clearingDate: string;
-  };
-}
 
 interface Props {
   payments: PaymentRow[];

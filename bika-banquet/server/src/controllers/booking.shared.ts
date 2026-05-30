@@ -14,6 +14,7 @@ import {
 } from '../services/googleCalendar.service';
 import { broadcastBookingEvent } from '../sse';
 import logger from '../utils/logger';
+import { resolvePaymentTotals } from '@bika/booking-core';
 
 // ---------------------------------------------------------------------------
 // Numeric helpers
@@ -714,11 +715,14 @@ export async function recalculateBookingFinancials(
   });
   const { discountAmount, discountPercentage, grandTotal, finalAmountValue } =
     financials;
-  const paymentReceived =
-    booking.paymentReceivedAmountValue ??
-    toOptionalSafeMoney(booking.paymentReceivedAmount) ??
-    toSafeMoney(booking.advanceReceived);
-  const dueAmountValue = toSafeMoney(Math.max(0, finalAmountValue - paymentReceived));
+  const dbPayments = await tx.bookingPayments.findMany({
+    where: { bookingId },
+    select: { method: true, amount: true, clearingDate: true },
+  });
+  const { grossReceived, dueAmount: dueAmountValue } = resolvePaymentTotals(
+    finalAmountValue,
+    dbPayments
+  );
   const balanceAmount = dueAmountValue;
 
   await tx.booking.update({
@@ -735,6 +739,9 @@ export async function recalculateBookingFinancials(
       dueAmount: toStoredNumberString(dueAmountValue),
       dueAmountValue,
       balanceAmount,
+      paymentReceivedAmount: toStoredNumberString(grossReceived),
+      paymentReceivedAmountValue: grossReceived,
+      advanceReceived: grossReceived,
     },
   });
 }
