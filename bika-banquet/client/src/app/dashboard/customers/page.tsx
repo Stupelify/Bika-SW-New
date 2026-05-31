@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, fetchAllCustomers } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useCustomersListQuery } from '@/lib/query/hooks';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
 import {
@@ -147,8 +148,12 @@ export default function CustomersPage() {
   const canEditCustomer = hasAnyPermission(permissionSet, ['edit_customer', 'manage_customers']);
   const canDeleteCustomer = hasAnyPermission(permissionSet, ['delete_customer', 'manage_customers']);
 
-  const [customers, setCustomers] = useState<CustomerRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: customers = [],
+    isLoading: loading,
+    refetch: refetchCustomers,
+    isError: customersLoadError,
+  } = useCustomersListQuery<CustomerRow[]>(canViewCustomer);
   const [saving, setSaving] = useState(false);
   const [loadingFormData, setLoadingFormData] = useState(false);
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
@@ -315,25 +320,15 @@ export default function CustomersPage() {
     setShowCreatePrompt(true);
   };
 
-  const loadCustomers = useCallback(async () => {
-    try {
-      if (!hasAnyPermission(permissionSet, ['view_customer', 'add_customer', 'edit_customer', 'manage_customers'])) {
-        setCustomers([]);
-        return;
-      }
-      setLoading(true);
-      const customerRows = (await fetchAllCustomers()) as unknown as CustomerRow[];
-      setCustomers(customerRows);
-    } catch (error) {
-      toast.error('Failed to load customers');
-    } finally {
-      setLoading(false);
-    }
-  }, [permissionSet]);
-
   useEffect(() => {
-    void loadCustomers();
-  }, [canViewCustomer, loadCustomers]);
+    if (customersLoadError) {
+      toast.error('Failed to load customers');
+    }
+  }, [customersLoadError]);
+
+  const loadCustomers = useCallback(async () => {
+    await refetchCustomers();
+  }, [refetchCustomers]);
 
   const customersDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedLoadCustomers = useCallback(() => {

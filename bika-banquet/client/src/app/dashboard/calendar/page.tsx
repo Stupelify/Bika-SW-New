@@ -8,7 +8,7 @@ import { useSSE } from '@/hooks/useSSE';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { customerSearchText, textMatchesSearch } from '@/lib/customerSearch';
-import { CalendarSkeleton } from '@/components/Skeletons';
+import { CalendarPageSkeleton, CalendarSkeleton } from '@/components/Skeletons';
 import dynamic from 'next/dynamic';
 import type { TimelineHallRow } from '@/components/VenueTimelineBoard';
 import CalendarToolbar from './_components/CalendarToolbar';
@@ -669,20 +669,24 @@ export default function CalendarPage() {
               </div>
             )}
 
-          <VenueTimelineBoard
-            rows={hallBoardRows as TimelineHallRow[]}
-            viewMode={viewMode}
-            viewDate={viewDate}
-            weekDays={weekDays}
-            selectedDate={hallBoardDateKey}
-            onBookingClick={openBookingEdit}
-            onCreateBooking={(args) => openNewBooking(args)}
-            onDateDrillDown={(date) => {
-              setSelectedDate(date);
-              setViewDate(new Date(`${date}T12:00:00`));
-              setViewMode('day');
-            }}
-          />
+          {loading ? (
+            <CalendarPageSkeleton />
+          ) : (
+            <VenueTimelineBoard
+              rows={hallBoardRows as TimelineHallRow[]}
+              viewMode={viewMode}
+              viewDate={viewDate}
+              weekDays={weekDays}
+              selectedDate={hallBoardDateKey}
+              onBookingClick={openBookingEdit}
+              onCreateBooking={(args) => openNewBooking(args)}
+              onDateDrillDown={(date) => {
+                setSelectedDate(date);
+                setViewDate(new Date(`${date}T12:00:00`));
+                setViewMode('day');
+              }}
+            />
+          )}
 
           <DayPrintView
             selectedDateLabel={selectedDateLabel}

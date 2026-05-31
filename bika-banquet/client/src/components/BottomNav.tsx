@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { shouldPrefetchDashboardRoute } from '@/lib/navigationPrefetch';
 import {
     CalendarDays,
     DollarSign,
@@ -81,6 +82,7 @@ export default function BottomNav({ permissions, onMoreClick }: BottomNavProps) 
                     <Link
                         key={item.href}
                         href={item.href}
+                        prefetch={shouldPrefetchDashboardRoute(item.href)}
                         className={`bottom-nav-item${isActive ? ' active' : ''}`}
                         aria-current={isActive ? 'page' : undefined}
                     >

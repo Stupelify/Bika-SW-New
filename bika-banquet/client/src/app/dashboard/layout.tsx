@@ -3,6 +3,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import QueryProvider from '@/components/QueryProvider';
+import { shouldPrefetchDashboardRoute } from '@/lib/navigationPrefetch';
 import { getStoredAuthToken, useAuthStore } from '@/store/authStore';
 import BottomNav from '@/components/BottomNav';
 import Avatar from '@/components/Avatar';
@@ -641,6 +643,7 @@ function DashboardLayoutContent({
                 )}
                 <Link
                   href={item.href}
+                  prefetch={shouldPrefetchDashboardRoute(item.href)}
                   aria-current={isActive ? 'page' : undefined}
                   title={isCollapsed ? item.name : undefined}
                   style={{
@@ -757,6 +760,7 @@ function DashboardLayoutContent({
                       <Link
                         key={`${item.name}-${child.name}`}
                         href={child.href}
+                        prefetch={shouldPrefetchDashboardRoute(child.href)}
                         style={{
                           display: 'block',
                           padding: '6px 10px',
@@ -809,6 +813,7 @@ function DashboardLayoutContent({
                 )}
                 <Link
                   href={item.href}
+                  prefetch={shouldPrefetchDashboardRoute(item.href)}
                   aria-current={isActive ? 'page' : undefined}
                   title={isCollapsed ? item.name : undefined}
                   style={{
@@ -905,6 +910,7 @@ function DashboardLayoutContent({
                       <Link
                         key={`${item.name}-${child.name}`}
                         href={child.href}
+                        prefetch={shouldPrefetchDashboardRoute(child.href)}
                         style={{
                           display: 'block',
                           padding: '5px 10px',
@@ -1123,8 +1129,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Suspense fallback={<DashboardLayoutFallback />}>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
-    </Suspense>
+    <QueryProvider>
+      <Suspense fallback={<DashboardLayoutFallback />}>
+        <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      </Suspense>
+    </QueryProvider>
   );
 }

@@ -14,14 +14,20 @@ export function KpiCardSkeleton() {
   );
 }
 
-export function TableSkeleton({ rows = 8 }: { rows?: number }) {
+export function TableSkeleton({
+  rows = 8,
+  columns = 6,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
   return (
     <div className="table-shell">
       <table className="data-table">
         <tbody>
           {Array.from({ length: rows }).map((_, rowIdx) => (
             <tr key={rowIdx}>
-              {Array.from({ length: 6 }).map((_, colIdx) => (
+              {Array.from({ length: columns }).map((_, colIdx) => (
                 <td key={colIdx} className="py-3 px-4">
                   <div
                     className="skeleton"
@@ -33,6 +39,36 @@ export function TableSkeleton({ rows = 8 }: { rows?: number }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** Matches bookings desktop table: function, customer, date, guests, hall, status, amount (+ optional actions). */
+export function BookingsTableSkeleton({
+  rows = 8,
+  showActions = false,
+}: {
+  rows?: number;
+  showActions?: boolean;
+}) {
+  return <TableSkeleton rows={rows} columns={showActions ? 8 : 7} />;
+}
+
+/** Matches payments desktop table column count. */
+export function PaymentsTableSkeleton({ rows = 8 }: { rows?: number }) {
+  return <TableSkeleton rows={rows} columns={6} />;
+}
+
+/** Toolbar + month grid placeholder for calendar initial load. */
+export function CalendarPageSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: 5 }).map((_, idx) => (
+          <div key={idx} className="skeleton" style={{ height: 36, width: idx === 0 ? 120 : 88, borderRadius: 10 }} />
+        ))}
+      </div>
+      <CalendarSkeleton />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
+import { useEnquiriesListQuery, useUpdateEnquiryMutation } from '@/lib/query/hooks';
 import FilterPanel from '@/components/FilterPanel';
 import {
   SortState,
@@ -168,12 +169,18 @@ export default function EnquiriesPage() {
   const canAddEnquiry = hasAnyPermission(permissionSet, ['add_enquiry', 'manage_enquiries']);
   const canEditEnquiry = hasAnyPermission(permissionSet, ['edit_enquiry', 'manage_enquiries']);
   const canDeleteEnquiry = hasAnyPermission(permissionSet, ['delete_enquiry', 'manage_enquiries']);
+  const [status, setStatus] = useState('');
 
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const {
+    data: enquiries = [],
+    isLoading: loading,
+    refetch: refetchEnquiries,
+    isError: enquiriesLoadError,
+  } = useEnquiriesListQuery<Enquiry[]>(canViewEnquiry, status);
+  const updateEnquiryMutation = useUpdateEnquiryMutation(status);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [halls, setHalls] = useState<HallOption[]>([]);
   const [templateMenus, setTemplateMenus] = useState<TemplateMenuOption[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
   const [editingEnquiryId, setEditingEnquiryId] = useState<string | null>(null);
@@ -181,7 +188,6 @@ export default function EnquiriesPage() {
   const debouncedGlobalSearch = useDebounce(globalSearch, 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [showFilters, setShowFilters] = useState(false);
-  const [status, setStatus] = useState('');
   const [sort, setSort] = useState<SortState>({
     key: 'functionName',
     direction: 'asc',
@@ -293,29 +299,15 @@ export default function EnquiriesPage() {
     }
   };
 
-  const loadEnquiries = useCallback(async () => {
-    try {
-      if (!hasAnyPermission(permissionSet, ['view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'])) {
-        setEnquiries([]);
-        return;
-      }
-      setLoading(true);
-      const response = await api.getEnquiries({
-        page: 1,
-        limit: 200,
-        status: status || undefined,
-      });
-      setEnquiries(response.data?.data?.enquiries || []);
-    } catch (error) {
-      toast.error('Failed to load enquiries');
-    } finally {
-      setLoading(false);
-    }
-  }, [permissionSet, status]);
-
   useEffect(() => {
-    void loadEnquiries();
-  }, [status, canViewEnquiry, loadEnquiries]);
+    if (enquiriesLoadError) {
+      toast.error('Failed to load enquiries');
+    }
+  }, [enquiriesLoadError]);
+
+  const loadEnquiries = useCallback(async () => {
+    await refetchEnquiries();
+  }, [refetchEnquiries]);
 
   const enquiriesDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedLoadEnquiries = useCallback(() => {
@@ -451,11 +443,13 @@ export default function EnquiriesPage() {
         notes: notes || undefined,
       };
       if (editingEnquiryId) {
-        await api.updateEnquiry(editingEnquiryId, payload);
+        await updateEnquiryMutation.mutateAsync({ id: editingEnquiryId, payload });
+        toast.success('Enquiry updated');
       } else {
         await api.createEnquiry(payload);
+        toast.success('Enquiry created');
+        await refetchEnquiries();
       }
-      toast.success(editingEnquiryId ? 'Enquiry updated' : 'Enquiry created');
       setShowCreatePrompt(false);
       setFormData((prev) => ({
         ...initialFormData,
@@ -463,12 +457,10 @@ export default function EnquiriesPage() {
         hallId: prev.hallId || '',
       }));
       setEditingEnquiryId(null);
-      await loadEnquiries();
     } catch (error: any) {
-      toast.error(
-        error?.response?.data?.error ||
-        (editingEnquiryId ? 'Failed to update enquiry' : 'Failed to create enquiry')
-      );
+      if (!editingEnquiryId) {
+        toast.error(error?.response?.data?.error || 'Failed to create enquiry');
+      }
     } finally {
       setSaving(false);
     }

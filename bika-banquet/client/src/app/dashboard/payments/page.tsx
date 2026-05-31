@@ -1,7 +1,6 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
 import { CreditCard, Plus, Save, Search, Filter } from 'lucide-react';
@@ -12,7 +11,8 @@ import SortableHeader from '@/components/SortableHeader';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import TablePagination from '@/components/TablePagination';
-import { TableSkeleton } from '@/components/Skeletons';
+import { PaymentsTableSkeleton } from '@/components/Skeletons';
+import { useAddPaymentMutation, useBookingsListQuery } from '@/lib/query/hooks';
 import {
   SortState,
   TableColumnConfig,
@@ -77,9 +77,14 @@ export default function PaymentsPage() {
     [permissionSet]
   );
 
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const {
+    data: bookings = [],
+    isLoading: loading,
+    refetch: refetchBookings,
+    isError: bookingsLoadError,
+  } = useBookingsListQuery<BookingRow[]>(canViewPayments);
+  const addPaymentMutation = useAddPaymentMutation();
+  const saving = addPaymentMutation.isPending;
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
@@ -130,32 +135,21 @@ export default function PaymentsPage() {
     setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const loadBookings = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await api.getBookings({
-        page: 1,
-        limit: 5000,
-      });
-      const rows = response.data?.data?.bookings || [];
-      setBookings(rows);
-      if (rows.length > 0) {
-        setPaymentForm((prev) => ({ ...prev, bookingId: prev.bookingId || rows[0].id }));
-      }
-    } catch (error) {
+  useEffect(() => {
+    if (bookingsLoadError) {
       toast.error('Failed to load bookings');
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  }, [bookingsLoadError]);
 
   useEffect(() => {
-    if (!canViewPayments) {
-      setLoading(false);
-      return;
+    if (bookings.length > 0) {
+      setPaymentForm((prev) => ({ ...prev, bookingId: prev.bookingId || bookings[0].id }));
     }
-    void loadBookings();
-  }, [canViewPayments, loadBookings]);
+  }, [bookings]);
+
+  const loadBookings = useCallback(async () => {
+    await refetchBookings();
+  }, [refetchBookings]);
 
   const paymentsDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedLoadBookings = useCallback(() => {
@@ -178,26 +172,22 @@ export default function PaymentsPage() {
       return;
     }
     try {
-      setSaving(true);
-      await api.addPayment(paymentForm.bookingId, {
+      await addPaymentMutation.mutateAsync({
+        bookingId: paymentForm.bookingId,
         amount: Number(paymentForm.amount),
         method: paymentForm.method,
         reference: paymentForm.reference.trim() || undefined,
         narration: paymentForm.narration.trim() || undefined,
         paymentDate: paymentForm.paymentDate || undefined,
       });
-      toast.success('Payment added');
       setShowPaymentPrompt(false);
       setPaymentForm((prev) => ({
         ...getInitialPaymentForm(),
         bookingId: prev.bookingId,
         method: prev.method,
       }));
-      await loadBookings();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to add payment');
-    } finally {
-      setSaving(false);
+    } catch {
+      // Error toast handled in mutation onError.
     }
   };
 
@@ -359,7 +349,7 @@ export default function PaymentsPage() {
           />
         ) : loading ? (
           <div className="py-6">
-            <TableSkeleton rows={8} />
+            <PaymentsTableSkeleton rows={8} />
           </div>
         ) : filteredBookings.length === 0 ? (
           <EmptyState

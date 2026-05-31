@@ -31,7 +31,8 @@ import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
-import { TableSkeleton } from '@/components/Skeletons';
+import { BookingsTableSkeleton } from '@/components/Skeletons';
+import { useBookingsListQuery } from '@/lib/query/hooks';
 import {
   SortState,
   TableColumnConfig,
@@ -499,7 +500,12 @@ export default function BookingsPage() {
   const canAddCustomer = hasAnyPermission(permissionSet, ['add_customer', 'manage_customers']);
   const canExportMenuPdf = canViewBooking;
 
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const {
+    data: bookings = [],
+    isLoading: loading,
+    refetch: refetchBookings,
+    isError: bookingsLoadError,
+  } = useBookingsListQuery<Booking[]>(canViewBooking);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [banquets, setBanquets] = useState<BanquetOption[]>([]);
   const [halls, setHalls] = useState<HallOption[]>([]);
@@ -509,7 +515,6 @@ export default function BookingsPage() {
   const [showQuickAddItem, setShowQuickAddItem] = useState(false);
   const [quickItemForm, setQuickItemForm] = useState({ name: '', itemTypeId: '', points: '' });
   const [savingQuickItem, setSavingQuickItem] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bookingHistory, setBookingHistory] = useState<any[]>([]);
   const [expandedHistoryVersions, setExpandedHistoryVersions] = useState<Record<string, boolean>>(
@@ -1300,28 +1305,15 @@ export default function BookingsPage() {
     }));
   }, [mealsBillBase, discountManuallySet, showCreateForm, formatComputedAmount]);
 
-  const loadBookings = useCallback(async () => {
-    try {
-      if (!hasAnyPermission(permissionSet, ['view_booking', 'add_booking', 'edit_booking', 'manage_bookings'])) {
-        setBookings([]);
-        return;
-      }
-      setLoading(true);
-      const response = await api.getBookings({
-        page: 1,
-        limit: 5000,
-      });
-      setBookings(response.data.data.bookings || []);
-    } catch (error) {
-      toast.error('Failed to load bookings');
-    } finally {
-      setLoading(false);
-    }
-  }, [canViewBooking]);
-
   useEffect(() => {
-    void loadBookings();
-  }, [loadBookings]);
+    if (bookingsLoadError) {
+      toast.error('Failed to load bookings');
+    }
+  }, [bookingsLoadError]);
+
+  const loadBookings = useCallback(async () => {
+    await refetchBookings();
+  }, [refetchBookings]);
 
   useEffect(() => {
     const section = searchParams.get('section');
@@ -4858,7 +4850,10 @@ export default function BookingsPage() {
           </div>
         ) : loading ? (
           <div className="py-6">
-            <TableSkeleton rows={8} />
+            <BookingsTableSkeleton
+              rows={8}
+              showActions={canExportMenuPdf || canEditBooking || canDeleteBooking}
+            />
           </div>
         ) : filteredBookings.length === 0 ? (
           <EmptyState
