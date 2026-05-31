@@ -1,0 +1,42 @@
+name: Renew SSL
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s' "${{ secrets.VPS_SSH_KEY }}" | base64 -d > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+
+      - name: Renew certificate on VPS
+        run: |
+          ssh -o ServerAliveInterval=60 -i "$HOME/.ssh/deploy_key" root@${{ secrets.VPS_HOST }} << 'ENDSSH'
+          set -e
+          cd /root/bika-banquet-v2/bika-banquet
+          git fetch origin
+          git reset --hard origin/master
+
+          if [ -x scripts/renew-ssl.sh ]; then
+            ./scripts/renew-ssl.sh
+          else
+            echo "renew-ssl.sh missing — running certbot inline"
+            docker compose run --rm --entrypoint certbot certbot renew \
+              --webroot -w /var/www/certbot \
+              --cert-name banquet.bikafood.com \
+              --no-random-sleep-on-renew
+            docker exec nginx-proxy nginx -s reload 2>/dev/null || docker restart nginx-proxy
+            openssl x509 -in docker/certbot/conf/live/banquet.bikafood.com/fullchain.pem -noout -dates
+          fi
+          ENDSSH
