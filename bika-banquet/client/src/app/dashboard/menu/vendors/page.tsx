@@ -499,10 +499,7 @@ export default function VendorsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">Vendors</h1>
-        <p className="text-[var(--text-2)] mt-1">
-          Maintain vendor list and map supplies for ingredients and items with pricing.
-        </p>
+        <h1 className="page-title">Vendors</h1>
       </div>
 
       <MenuSectionTabs active="vendors" />

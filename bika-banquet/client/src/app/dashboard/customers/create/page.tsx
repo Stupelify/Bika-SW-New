@@ -199,10 +199,7 @@ export default function CreateCustomerPage() {
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">Add Customer</h1>
-          <p className="text-[var(--text-2)] mt-1">
-            Create a new customer record with contact details.
-          </p>
+          <h1 className="page-title">Add Customer</h1>
         </div>
       </div>
 

@@ -489,10 +489,7 @@ export default function EnquiriesPage() {
     <div className="space-y-6">
       <div className="page-head gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">Enquiries</h1>
-          <p className="text-[var(--text-2)] mt-1">
-            Capture leads, track conversion and monitor pending follow-ups.
-          </p>
+          <h1 className="page-title">Enquiries</h1>
         </div>
         {canAddEnquiry && (
           <button

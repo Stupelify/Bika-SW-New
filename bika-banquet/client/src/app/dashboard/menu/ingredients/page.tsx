@@ -414,10 +414,7 @@ export default function IngredientsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">Ingredients</h1>
-        <p className="text-[var(--text-2)] mt-1">
-          Track raw ingredients, default units and vendor pricing per ingredient.
-        </p>
+        <h1 className="page-title">Ingredients</h1>
       </div>
 
       <MenuSectionTabs active="ingredients" />

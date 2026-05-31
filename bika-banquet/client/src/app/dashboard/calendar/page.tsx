@@ -615,10 +615,7 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6 min-w-0 max-w-full overflow-x-hidden">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">Calendar</h1>
-        <p className="text-[var(--text-2)] mt-1">
-          Track bookings, enquiries, hall occupancy, conflicts, and venue events in one operations view.
-        </p>
+        <h1 className="page-title">Calendar</h1>
       </div>
 
       {/* ── Main calendar area (sidebar removed; filters live in header) ── */}

@@ -64,8 +64,7 @@ export default function CustomerDetailPage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-[var(--text-1)]">{customer.name}</h1>
-            <p className="text-[var(--text-2)] mt-1">Customer details and history</p>
+            <h1 className="page-title">{customer.name}</h1>
           </div>
         </div>
         <Link

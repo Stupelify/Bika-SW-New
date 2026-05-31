@@ -63,43 +63,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="native-auth-page min-h-[100dvh] min-h-screen px-4 pb-[calc(2rem+var(--safe-bottom))] md:pb-14 pt-[calc(var(--safe-top)+2rem)] md:pt-[calc(var(--safe-top)+3.5rem)]">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <section className="lg:col-span-3 card overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-100/70 via-white to-accent-100/60 pointer-events-none"></div>
-          <div className="relative p-2 md:p-4">
-            <p className="inline-flex rounded-full border border-primary-200 bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-primary-700">
-              Hospitality Operations Suite
-            </p>
-            <h1 className="mt-5 text-4xl md:text-5xl leading-tight font-display text-[var(--text-1)] text-balance">
-              Bika Banquet
-            </h1>
-            <p className="mt-3 text-base text-[var(--text-2)] max-w-2xl">
-              Run enquiries, bookings, menus, payments and reporting from one modern command center.
-            </p>
+    <div className="native-auth-page min-h-[100dvh] min-h-screen px-4 pb-[calc(2rem+var(--safe-bottom))] md:pb-14 pt-[calc(var(--safe-top)+2rem)] md:pt-[calc(var(--safe-top)+3.5rem)] flex items-center justify-center">
+      <div className="w-full max-w-md card">
+        <h1 className="text-xl font-semibold text-[var(--text-1)]">Sign In</h1>
 
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
-                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Workflows</p>
-                <p className="text-xl font-display text-[var(--text-1)] mt-2">9 modules</p>
-              </div>
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
-                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Real-time</p>
-                <p className="text-xl font-display text-[var(--text-1)] mt-2">Live metrics</p>
-              </div>
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 p-4">
-                <p className="text-xs text-[var(--text-4)] uppercase tracking-wide">Team Access</p>
-                <p className="text-xl font-display text-[var(--text-1)] mt-2">RBAC ready</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div className="lg:col-span-2 card">
-          <h2 className="text-2xl font-display text-[var(--text-1)]">Sign In</h2>
-          <p className="text-sm text-[var(--text-2)] mt-1">Access your operations dashboard.</p>
-
-          <form onSubmit={handleSubmit} className="space-y-5 mt-6">
+        <form onSubmit={handleSubmit} className="space-y-5 mt-6">
             <div>
               <label htmlFor="email" className="label">
                 Email Address
@@ -148,8 +116,6 @@ export default function LoginPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-        </div>
       </div>
     </div>
   );

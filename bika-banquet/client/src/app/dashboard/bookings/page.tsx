@@ -2640,10 +2640,7 @@ export default function BookingsPage() {
     <div className="space-y-6">
       <div className="page-head gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">Bookings</h1>
-          <p className="text-[var(--text-2)] mt-1">
-            View booking records and quotation statuses.
-          </p>
+          <h1 className="page-title">Bookings</h1>
         </div>
         {canAddBooking && (
           <button

@@ -855,10 +855,7 @@ function SettingsPageContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">Settings & Access</h1>
-        <p className="text-[var(--text-2)] mt-1">
-          Manage users, roles and permissions with role-based access control.
-        </p>
+        <h1 className="page-title">Settings & Access</h1>
       </div>
 
       <div className="card space-y-4">

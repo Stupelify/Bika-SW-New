@@ -604,11 +604,6 @@ export default function DashboardPage() {
             <h1 className="page-title">
               Key Metrics & Performance
             </h1>
-            <p className="page-subtitle">
-              Revenue view from{' '}
-              {formatDateDDMMYYYY(analytics.range.startDate)} to{' '}
-              {formatDateDDMMYYYY(analytics.range.endDate)}
-            </p>
           </div>
           <div className="filter-bar xl:justify-end">
             <Combobox

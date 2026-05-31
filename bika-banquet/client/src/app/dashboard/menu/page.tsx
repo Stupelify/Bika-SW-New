@@ -1105,10 +1105,7 @@ function MenuPageContent() {
     <>
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">Menu & Items</h1>
-        <p className="text-[var(--text-2)] mt-1">
-          Manage item categories, individual dishes, ingredients, vendors and reusable template menus.
-        </p>
+        <h1 className="page-title">Menu & Items</h1>
       </div>
 
       {!canViewItemType && !canViewItem && !canViewTemplate && (

@@ -639,8 +639,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">Customers</h1>
-          <p className="text-[var(--text-2)] mt-1">Manage your customer database</p>
+          <h1 className="page-title">Customers</h1>
         </div>
         {canAddCustomer && (
           <button

@@ -242,10 +242,7 @@ export default function EditCustomerPage() {
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">Edit Customer</h1>
-          <p className="text-[var(--text-2)] mt-1">
-            Update contact details and notes.
-          </p>
+          <h1 className="page-title">Edit Customer</h1>
         </div>
       </div>
 

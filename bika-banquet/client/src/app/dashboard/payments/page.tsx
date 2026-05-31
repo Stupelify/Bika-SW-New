@@ -205,10 +205,7 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       <div className="page-head gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">Payments</h1>
-          <p className="text-[var(--text-2)] mt-1">
-            Record collections and track balance against each booking.
-          </p>
+          <h1 className="page-title">Payments</h1>
         </div>
         {canAddPayment && (
           <button

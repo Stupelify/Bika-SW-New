@@ -119,10 +119,7 @@ export default function AuditLogsPage() {
     <div className="space-y-6">
       <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">Activity Logs</h1>
-          <p className="text-[var(--text-2)] mt-1">
-            System audit trail of all major actions
-          </p>
+          <h1 className="page-title">Activity Logs</h1>
         </div>
         <button
           type="button"

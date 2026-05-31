@@ -295,7 +295,6 @@ export default function ReportsPage() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Reports</h1>
-          <p className="page-subtitle">Revenue, booking and venue performance insights.</p>
         </div>
         <select
           className="input w-full sm:w-auto sm:max-w-[180px]"
