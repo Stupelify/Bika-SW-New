@@ -10,6 +10,7 @@ import {
   formatRupeeAmount,
 } from '@bika/booking-core';
 import { IndianAmountInput } from '@/components/IndianAmountInput';
+import { AutoResizeTextarea } from '@/components/AutoResizeTextarea';
 import BookingMenuViewModal from '@/components/booking/BookingMenuViewModal';
 import {
   PACK_BG_MAP,
@@ -300,7 +301,7 @@ export default function BookingFormReadOnlyView({
               {formData.additionalRequirements.map((item, index) => (
                 <tr key={`req-ro-${index}`} className="bg-[var(--surface)] border-t border-[var(--border)]">
                   <td colSpan={9} className="px-3 py-1.5">
-                    <div className="flex gap-2 items-center min-w-0 max-w-xl ml-auto">
+                    <div className="flex gap-2 items-center min-w-0 max-w-md">
                       <input
                         className="input py-1 text-xs flex-1 min-w-[10rem] bg-[var(--surface-2)] text-[var(--text-1)]"
                         value={item.description}
@@ -344,19 +345,12 @@ export default function BookingFormReadOnlyView({
 
       <div>
         <label className="label">Notes</label>
-        <textarea className="input min-h-[110px] bg-[var(--surface-2)]" value={formData.notes} readOnly />
+        <AutoResizeTextarea
+          className="input bg-[var(--surface-2)]"
+          value={formData.notes}
+          readOnly
+        />
       </div>
-
-      <section className="rounded-2xl border border-[var(--border-2)] bg-[var(--surface-2)] p-4">
-        <h3 className="text-lg font-semibold text-[var(--text-1)] mb-2">Terms & Conditions</h3>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--text-2)]">
-          <li>30% advance at booking. Balance payment to be completed at least 4 days before the event.</li>
-          <li>Extra plates above expected guests are strictly chargeable.</li>
-          <li>No menu modifications are entertained within 3 days of the event date.</li>
-          <li>Advance booking money may be forfeited on cancellation, subject to company discretion.</li>
-          <li>Sound or music after 10:15 PM is not permissible.</li>
-        </ul>
-      </section>
 
       <BookingMenuViewModal
         open={Boolean(menuEditorPack)}

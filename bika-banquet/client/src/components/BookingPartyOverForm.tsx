@@ -102,7 +102,7 @@ export default function BookingPartyOverForm({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <Flag className="w-4 h-4 text-red-500" />
@@ -124,7 +124,58 @@ export default function BookingPartyOverForm({
 
       {packs.length > 0 && (
         <>
-          <div className={`rounded-xl border border-[var(--border-2)] overflow-hidden${!unlocked ? ' opacity-60' : ''}`}>
+          {/* Mobile pack cards */}
+          <div className={`md:hidden space-y-3${!unlocked ? ' opacity-60' : ''}`}>
+            {rows.map(({ pack, qr, dr, mgPax, actualP, billedP, discAmt, billedAmt }) => (
+              <div
+                key={`mob-${pack.id}`}
+                className="rounded-xl border border-[var(--border-2)] p-3 space-y-2 bg-[var(--surface)]"
+              >
+                <p className="text-sm font-semibold text-[var(--text-1)]">{pack.packName}</p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <span className="text-[var(--text-4)]">Menu pts</span>
+                  <span className="text-right text-[var(--text-2)]">{pack.menuPoint ?? 0}</span>
+                  <span className="text-[var(--text-4)]">Quote Rate</span>
+                  <span className="text-right text-[var(--text-2)]">{fmt(qr)}</span>
+                  <span className="text-[var(--text-4)]">Disc Rate</span>
+                  <span className="text-right text-[var(--text-2)]">{fmt(dr)}</span>
+                  <span className="text-[var(--text-4)]">Disc Amt</span>
+                  <span className="text-right text-orange-800 dark:text-orange-200">{fmt(discAmt)}</span>
+                  <span className="text-[var(--text-4)]">MG Pax</span>
+                  <span className="text-right text-[var(--text-2)]">{mgPax}</span>
+                  <span className="text-[var(--text-4)]">Billed Pax</span>
+                  <span className="text-right font-medium text-[var(--text-1)]">{billedP}</span>
+                  <span className="text-[var(--text-4)]">Billed Amt</span>
+                  <span className="text-right font-semibold text-[var(--text-1)]">{fmt(billedAmt)}</span>
+                </div>
+                <div>
+                  <label className="label text-xs">Actual Pax</label>
+                  <input
+                    type="number"
+                    min={0}
+                    disabled={!unlocked}
+                    className="input py-1 text-sm w-full text-center disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
+                    value={actualPax[pack.id] ?? String(actualP)}
+                    onChange={(e) =>
+                      setActualPax((prev) => ({ ...prev, [pack.id]: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="rounded-xl border border-[var(--border-2)] bg-[var(--surface-2)] p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[var(--text-3)]">Total Disc Amt</span>
+                <span className="font-semibold text-orange-800 dark:text-orange-200">{fmt(totalDiscAmt)}</span>
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="font-semibold text-[var(--text-1)]">Total Billed</span>
+                <span className="font-bold text-[var(--text-1)]">{fmt(totalBilledAmt)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={`hidden md:block rounded-xl border border-[var(--border-2)] overflow-hidden${!unlocked ? ' opacity-60' : ''}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
@@ -184,10 +235,9 @@ export default function BookingPartyOverForm({
 
           {/* Settlement — all three fields editable, bidirectional sync */}
           <div className={`rounded-xl border border-[var(--border-2)] overflow-hidden${!unlocked ? ' opacity-60' : ''}`}>
-            {/* Disc % + Discount Amount row */}
-            <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)]">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-[var(--text-3)]">Settlement Disc %</span>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)]">
+              <div className="flex items-center justify-between sm:justify-start gap-3 min-w-0">
+                <span className="text-sm text-[var(--text-3)] shrink-0">Settlement Disc %</span>
                 <input
                   type="number"
                   min={0}
@@ -199,22 +249,21 @@ export default function BookingPartyOverForm({
                   onChange={(e) => { setSettleMode('pct'); setSettlePctDraft(e.target.value); }}
                 />
               </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-semibold text-red-600 dark:text-red-400">Settlement Discount</span>
+              <div className="flex items-center justify-between sm:justify-end gap-3 min-w-0">
+                <span className="text-sm font-semibold text-red-600 dark:text-red-400 shrink-0">Settlement Discount</span>
                 <IndianAmountInput
                   disabled={!unlocked}
-                  className="input py-1 text-sm w-36 text-right text-red-600 dark:text-red-400 font-semibold disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
+                  className="input py-1 text-sm w-full sm:w-36 text-right text-red-600 dark:text-red-400 font-semibold disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
                   value={settleMode === 'disc' ? settleDiscDraft : Math.round(settleDiscAmt).toString()}
                   onChange={(raw) => { setSettleMode('disc'); setSettleDiscDraft(raw); }}
                 />
               </div>
             </div>
-            {/* Settlement Amount row */}
-            <div className="flex items-center justify-end gap-4 px-4 py-3 bg-[var(--surface-2)]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 px-4 py-3 bg-[var(--surface-2)]">
               <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Settlement Amount</span>
               <IndianAmountInput
                 disabled={!unlocked}
-                className="input py-1 text-sm w-36 text-right text-emerald-700 dark:text-emerald-400 font-bold bg-[var(--surface)] disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
+                className="input py-1 text-sm w-full sm:w-36 text-right text-emerald-700 dark:text-emerald-400 font-bold bg-[var(--surface)] disabled:bg-[var(--surface-2)] disabled:cursor-not-allowed"
                 value={settleMode === 'total' ? settleTotalDraft : Math.round(settleTotalAmt).toString()}
                 onChange={(raw) => { setSettleMode('total'); setSettleTotalDraft(raw); }}
               />

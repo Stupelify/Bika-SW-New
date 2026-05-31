@@ -53,8 +53,11 @@ export default function BookingPaymentsLedger({
   const totalReceived = sumAllPaymentAmounts(payments);
   const pendingCheques = totalReceived - credited;
 
+  const modeLabelFor = (mode: string) =>
+    PAYMENT_MODES.find((m) => m.value === mode.toLowerCase())?.label ?? mode;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-[var(--text-1)]">Payments Ledger</h3>
         {!isReadOnly && (
@@ -68,8 +71,127 @@ export default function BookingPaymentsLedger({
         )}
       </div>
 
-      <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="rounded-xl border border-[var(--border-2)] overflow-hidden max-w-full">
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-[var(--border)]">
+          {payments.length === 0 && (
+            <p className="px-3 py-8 text-center text-sm text-[var(--text-4)]">
+              No payments recorded yet.
+            </p>
+          )}
+          {payments.map((payment, index) => {
+            const isExisting = Boolean(payment.id);
+            const patch = (p: Partial<PaymentRow>) => onUpdate(index, p);
+            const modeLabel = modeLabelFor(payment.mode);
+            const isCheque = payment.mode.toLowerCase() === 'cheque';
+            const pendingClearance = isCheque && !paymentCountsTowardDue(payment, todayDate);
+            const fieldsLocked = isReadOnly || isExisting;
+
+            return (
+              <div
+                key={payment.id || `mob-pay-${index}`}
+                className={`p-3 space-y-2 bg-[var(--surface)] ${pendingClearance ? 'opacity-70' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--text-1)]">{modeLabel}</p>
+                    <p className="text-xs text-[var(--text-4)]">{payment.date || '—'}</p>
+                  </div>
+                  <p
+                    className={`text-sm font-semibold shrink-0 ${
+                      pendingClearance ? 'text-amber-600' : 'text-[var(--text-1)]'
+                    }`}
+                  >
+                    ₹{Number(payment.amount || 0).toLocaleString('en-IN')}
+                    {pendingClearance && (
+                      <span className="block text-xs font-normal text-right">pending</span>
+                    )}
+                  </p>
+                </div>
+                {!fieldsLocked ? (
+                  <div className="grid grid-cols-1 gap-2">
+                    <input
+                      type="date"
+                      className="input py-1 text-sm w-full"
+                      value={payment.date}
+                      onChange={(e) => patch({ date: e.target.value })}
+                    />
+                    <select
+                      className="input py-1 text-sm w-full"
+                      value={payment.mode}
+                      onChange={(e) =>
+                        patch({
+                          mode: e.target.value,
+                          clearingDate: e.target.value !== 'cheque' ? '' : payment.clearingDate,
+                        })
+                      }
+                    >
+                      {PAYMENT_MODES.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      className="input py-1 text-sm w-full"
+                      placeholder="Bank / ledger name"
+                      value={payment.reference}
+                      onChange={(e) => patch({ reference: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      className="input py-1 text-sm w-full"
+                      placeholder="Staff name"
+                      value={payment.receivedBy}
+                      onChange={(e) => patch({ receivedBy: e.target.value })}
+                    />
+                    {isCheque && (
+                      <input
+                        type="date"
+                        className="input py-1 text-sm w-full"
+                        value={payment.clearingDate}
+                        onChange={(e) => patch({ clearingDate: e.target.value })}
+                      />
+                    )}
+                    <IndianAmountInput
+                      className="input py-1 text-sm w-full text-right"
+                      value={payment.amount}
+                      onChange={(raw) => patch({ amount: raw })}
+                    />
+                    <button
+                      type="button"
+                      className="text-xs text-red-500 hover:text-red-700 self-start"
+                      onClick={() => onRemove(index)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-[var(--text-2)]">
+                    <span>Ledger</span>
+                    <span className="text-right truncate">{payment.reference || '—'}</span>
+                    <span>Cashier</span>
+                    <span className="text-right truncate">{payment.receivedBy || '—'}</span>
+                    {isCheque && (
+                      <>
+                        <span>Clearing</span>
+                        <span
+                          className={`text-right ${pendingClearance ? 'text-amber-600' : ''}`}
+                        >
+                          {payment.clearingDate || '—'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-100 dark:bg-[var(--surface-3)] border-b border-[var(--border)]">
@@ -93,7 +215,7 @@ export default function BookingPaymentsLedger({
               {payments.map((payment, index) => {
                 const isExisting = Boolean(payment.id);
                 const patch = (p: Partial<PaymentRow>) => onUpdate(index, p);
-                const modeLabel = PAYMENT_MODES.find(m => m.value === payment.mode.toLowerCase())?.label ?? payment.mode;
+                const modeLabel = modeLabelFor(payment.mode);
                 const isCheque = payment.mode.toLowerCase() === 'cheque';
                 const pendingClearance = isCheque && !paymentCountsTowardDue(payment, todayDate);
                 const fieldsLocked = isReadOnly || isExisting;
@@ -213,7 +335,7 @@ export default function BookingPaymentsLedger({
         {showDraft && !isReadOnly && (
           <div className="border-t border-[var(--border)] bg-primary-50 dark:bg-primary-900/10 p-4 space-y-3">
             <p className="text-xs font-semibold text-primary-700 dark:text-primary-300">New Payment Entry</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-[var(--text-4)] block mb-1">Date *</label>
                 <input
