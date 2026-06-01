@@ -32,7 +32,9 @@ import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { BookingsTableSkeleton } from '@/components/Skeletons';
-import { useBookingsListQuery } from '@/lib/query/hooks';
+import { useBookingsListQuery, useBookingsServerListQuery } from '@/lib/query/hooks';
+import { usesServerPagination } from '@/lib/featureFlags';
+import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
 import {
   SortState,
   TableColumnConfig,
@@ -500,12 +502,13 @@ export default function BookingsPage() {
   const canAddCustomer = hasAnyPermission(permissionSet, ['add_customer', 'manage_customers']);
   const canExportMenuPdf = canViewBooking;
 
+  const [useServer] = useState(() => usesServerPagination('bookings'));
   const {
-    data: bookings = [],
-    isLoading: loading,
-    refetch: refetchBookings,
-    isError: bookingsLoadError,
-  } = useBookingsListQuery<Booking[]>(canViewBooking);
+    data: legacyBookings = [],
+    isLoading: legacyLoading,
+    refetch: refetchLegacyBookings,
+    isError: legacyBookingsLoadError,
+  } = useBookingsListQuery<Booking[]>(canViewBooking && !useServer);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [banquets, setBanquets] = useState<BanquetOption[]>([]);
   const [halls, setHalls] = useState<HallOption[]>([]);
@@ -558,7 +561,7 @@ export default function BookingsPage() {
   const [importedTemplateExtras, setImportedTemplateExtras] = useState<MenuItemLike[]>([]);
   const [showStickyActions, setShowStickyActions] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
-  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
+  const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [showFilters, setShowFilters] = useState(false);
   const [sort, setSort] = useState<SortState>({
@@ -566,6 +569,56 @@ export default function BookingsPage() {
     direction: 'desc',
   });
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Server-pagination path (flag ON). Folds the text-searchable column filters
+  // into the global server search so results stay a superset of the client
+  // search; functionDate/number column filters narrow within that search term.
+  const serverSearch = useMemo(() => {
+    const parts = [
+      debouncedGlobalSearch,
+      columnSearch.functionName,
+      columnSearch.customer,
+      columnSearch.status,
+      columnSearch.functionDate,
+    ]
+      .map((v) => (v ?? '').trim())
+      .filter(Boolean);
+    return normalizeSearchForServer(parts.join(' '));
+  }, [debouncedGlobalSearch, columnSearch]);
+
+  const {
+    data: serverBookingsData,
+    isLoading: serverBookingsLoading,
+    isError: serverBookingsLoadError,
+    refetch: refetchServerBookings,
+  } = useBookingsServerListQuery<Booking>(canViewBooking && useServer, {
+    page: currentPage,
+    limit: BOOKINGS_PAGE_SIZE,
+    search: serverSearch,
+    sort: sort.key,
+    order: sort.direction,
+  });
+
+  const serverBookingsPrevRef = useRef<Booking[] | undefined>(undefined);
+  if (serverBookingsData?.rows) serverBookingsPrevRef.current = serverBookingsData.rows;
+  const serverBookingsSelected = selectListData<Booking>(
+    serverBookingsData?.rows,
+    serverBookingsPrevRef.current,
+    serverBookingsLoadError
+  );
+
+  const bookings: Booking[] = useServer ? serverBookingsSelected.rows : legacyBookings;
+  const loading = useServer ? serverBookingsLoading : legacyLoading;
+  const bookingsLoadError = useServer ? false : legacyBookingsLoadError;
+  const refetchBookings = useServer ? refetchServerBookings : refetchLegacyBookings;
+
+  useEffect(() => {
+    if (useServer && serverBookingsLoadError) {
+      toast.error('Failed to load bookings. Showing last results.', {
+        action: { label: 'Retry', onClick: () => void refetchServerBookings() },
+      });
+    }
+  }, [useServer, serverBookingsLoadError, refetchServerBookings]);
   // view mode: 'table' (default on desktop) or 'cards'
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
@@ -708,21 +761,34 @@ export default function BookingsPage() {
     []
   );
 
-  const filteredBookings = useMemo(
+  const clientFilteredBookings = useMemo(
     () => filterAndSortRows(bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort),
     [bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort]
   );
 
+  // Server path: `bookings` is already the current page (server-filtered and
+  // server-sorted); totals come from the server pagination meta.
+  const serverBookingsTotal = serverBookingsData?.pagination?.total ?? 0;
+  const totalBookingsCount = useServer
+    ? serverBookingsTotal
+    : clientFilteredBookings.length;
+
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredBookings.length / BOOKINGS_PAGE_SIZE)),
-    [filteredBookings.length]
+    () =>
+      useServer
+        ? Math.max(1, serverBookingsData?.pagination?.totalPages ?? 1)
+        : Math.max(1, Math.ceil(clientFilteredBookings.length / BOOKINGS_PAGE_SIZE)),
+    [useServer, serverBookingsData?.pagination?.totalPages, clientFilteredBookings.length]
   );
 
+  const filteredBookings = useServer ? bookings : clientFilteredBookings;
+
   const paginatedBookings = useMemo(() => {
+    if (useServer) return bookings; // already the current page
     const safePage = Math.min(Math.max(currentPage, 1), totalPages);
     const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
-    return filteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
-  }, [currentPage, filteredBookings, totalPages]);
+    return clientFilteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
+  }, [useServer, bookings, currentPage, clientFilteredBookings, totalPages]);
 
   const historicalVersions = useMemo(
     () =>
@@ -2762,7 +2828,12 @@ export default function BookingsPage() {
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => {
-                    const b = bookings.find((bk) => bk.id === editingBookingId);
+                    // Prefer the row from the loaded list, but fall back to the
+                    // fully-loaded active booking so this works under server
+                    // pagination when the booking is not on the current page.
+                    const b =
+                      bookings.find((bk) => bk.id === editingBookingId) ||
+                      (activeBookingObj as Booking | null);
                     if (b) openMenuPdfModal(b);
                   }}
                 >
@@ -4871,7 +4942,7 @@ export default function BookingsPage() {
               showActions={canExportMenuPdf || canEditBooking || canDeleteBooking}
             />
           </div>
-        ) : filteredBookings.length === 0 ? (
+        ) : totalBookingsCount === 0 ? (
           <EmptyState
             icon={globalSearch ? Search : CalendarCheck}
             variant={
@@ -4926,7 +4997,7 @@ export default function BookingsPage() {
                   <TablePagination
                     currentPage={currentPage}
                     totalPages={totalPages}
-                    totalItems={filteredBookings.length}
+                    totalItems={totalBookingsCount}
                     pageSize={BOOKINGS_PAGE_SIZE}
                     itemLabel="bookings"
                     onPageChange={setCurrentPage}
@@ -4962,7 +5033,7 @@ export default function BookingsPage() {
                     <TablePagination
                       currentPage={currentPage}
                       totalPages={totalPages}
-                      totalItems={filteredBookings.length}
+                      totalItems={totalBookingsCount}
                       pageSize={BOOKINGS_PAGE_SIZE}
                       itemLabel="bookings"
                       onPageChange={setCurrentPage}
@@ -5111,7 +5182,7 @@ export default function BookingsPage() {
               <TablePagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredBookings.length}
+                totalItems={totalBookingsCount}
                 pageSize={BOOKINGS_PAGE_SIZE}
                 itemLabel="bookings"
                 onPageChange={setCurrentPage}

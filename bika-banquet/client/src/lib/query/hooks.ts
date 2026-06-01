@@ -34,6 +34,36 @@ export function useInvalidateBookingsList() {
     queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
 }
 
+/**
+ * Server-paginated bookings list (also used by the payments page with its own
+ * params). Keyed on page/search/sort; keepPreviousData avoids a blank table.
+ * Bookings/payments are capped at the server hard limit (200).
+ */
+export function useBookingsServerListQuery<T = unknown>(
+  enabled: boolean,
+  input: ListParamsInput
+) {
+  const params = buildListParams(input);
+  return useQuery<ServerListResult<T>>({
+    queryKey: queryKeys.bookings.serverList(
+      params as unknown as Record<string, unknown>
+    ),
+    queryFn: async () => {
+      const response = await api.getBookings(params);
+      const data = response.data?.data;
+      return {
+        rows: (data?.bookings || []) as T[],
+        pagination: (data?.pagination as PaginationMeta) || {
+          ...EMPTY_PAGINATION,
+          limit: params.limit,
+        },
+      };
+    },
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useCustomersListQuery<T = Record<string, unknown>[]>(enabled: boolean) {
   return useQuery<T>({
     queryKey: queryKeys.customers.list(),
@@ -153,9 +183,28 @@ function applyOptimisticPayment(
   });
 }
 
+/**
+ * Apply the optimistic payment to a cached value regardless of whether it is
+ * the legacy array shape (`PaymentBookingRow[]`) or the server-paginated shape
+ * (`{ rows, pagination }`). Re-keying the list MUST NOT silently break the
+ * optimistic add — this patches every matching list cache entry.
+ */
+export function applyOptimisticToCacheValue(
+  value: unknown,
+  input: AddPaymentInput
+): unknown {
+  if (Array.isArray(value)) {
+    return applyOptimisticPayment(value as PaymentBookingRow[], input);
+  }
+  if (value && typeof value === 'object' && Array.isArray((value as any).rows)) {
+    const v = value as { rows: PaymentBookingRow[] };
+    return { ...v, rows: applyOptimisticPayment(v.rows, input) };
+  }
+  return value;
+}
+
 export function useAddPaymentMutation() {
   const queryClient = useQueryClient();
-  const listKey = queryKeys.bookings.list(BOOKINGS_LIST_PARAMS);
 
   return useMutation({
     mutationFn: async (input: AddPaymentInput) => {
@@ -169,15 +218,24 @@ export function useAddPaymentMutation() {
     },
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.bookings.all });
-      const previous = queryClient.getQueryData<PaymentBookingRow[]>(listKey);
-      if (previous) {
-        queryClient.setQueryData(listKey, applyOptimisticPayment(previous, input));
+      // Snapshot + patch ALL bookings list caches (legacy array key AND every
+      // server-paginated key) so the optimistic add applies on either path.
+      const entries = queryClient.getQueriesData({
+        queryKey: queryKeys.bookings.all,
+      });
+      const snapshots: [readonly unknown[], unknown][] = [];
+      for (const [key, value] of entries) {
+        if (value == null) continue;
+        snapshots.push([key, value]);
+        queryClient.setQueryData(key, applyOptimisticToCacheValue(value, input));
       }
-      return { previous };
+      return { snapshots };
     },
     onError: (error: unknown, _input, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(listKey, context.previous);
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
       }
       const message =
         (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||

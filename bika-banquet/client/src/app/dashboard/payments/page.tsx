@@ -11,8 +11,17 @@ import SortableHeader from '@/components/SortableHeader';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import TablePagination from '@/components/TablePagination';
+import Combobox from '@/components/Combobox';
 import { PaymentsTableSkeleton } from '@/components/Skeletons';
-import { useAddPaymentMutation, useBookingsListQuery } from '@/lib/query/hooks';
+import {
+  useAddPaymentMutation,
+  useBookingsListQuery,
+  useBookingsServerListQuery,
+} from '@/lib/query/hooks';
+import { usesServerPagination } from '@/lib/featureFlags';
+import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
+import { useDebounce } from '@/lib/useDebounce';
+import { api } from '@/lib/api';
 import {
   SortState,
   TableColumnConfig,
@@ -77,12 +86,13 @@ export default function PaymentsPage() {
     [permissionSet]
   );
 
+  const [useServer] = useState(() => usesServerPagination('payments'));
   const {
-    data: bookings = [],
-    isLoading: loading,
-    refetch: refetchBookings,
-    isError: bookingsLoadError,
-  } = useBookingsListQuery<BookingRow[]>(canViewPayments);
+    data: legacyBookings = [],
+    isLoading: legacyLoading,
+    refetch: refetchLegacyBookings,
+    isError: legacyLoadError,
+  } = useBookingsListQuery<BookingRow[]>(canViewPayments && !useServer);
   const addPaymentMutation = useAddPaymentMutation();
   const saving = addPaymentMutation.isPending;
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
@@ -92,6 +102,105 @@ export default function PaymentsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [paymentForm, setPaymentForm] = useState(initialPaymentForm);
+  // Pinned booking option for the Add-Payment picker (server mode): keeps the
+  // chosen booking visible even when not in the searched batch.
+  const [pinnedBooking, setPinnedBooking] = useState<BookingRow | null>(null);
+
+  const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 0);
+
+  const serverSearch = useMemo(() => {
+    const parts = [debouncedGlobalSearch, columnSearch.booking, columnSearch.eventDate]
+      .map((v) => (v ?? '').trim())
+      .filter(Boolean);
+    return normalizeSearchForServer(parts.join(' '));
+  }, [debouncedGlobalSearch, columnSearch.booking, columnSearch.eventDate]);
+
+  const {
+    data: serverData,
+    isLoading: serverLoading,
+    isError: serverLoadError,
+    refetch: refetchServerBookings,
+  } = useBookingsServerListQuery<BookingRow>(canViewPayments && useServer, {
+    page: currentPage,
+    limit: PAYMENTS_PAGE_SIZE,
+    search: serverSearch,
+    sort: sort.key,
+    order: sort.direction,
+  });
+
+  const serverPrevRef = useRef<BookingRow[] | undefined>(undefined);
+  if (serverData?.rows) serverPrevRef.current = serverData.rows;
+  const serverSelected = selectListData<BookingRow>(
+    serverData?.rows,
+    serverPrevRef.current,
+    serverLoadError
+  );
+
+  const bookings: BookingRow[] = useServer ? serverSelected.rows : legacyBookings;
+  const loading = useServer ? serverLoading : legacyLoading;
+  const bookingsLoadError = useServer ? false : legacyLoadError;
+  const refetchBookings = useServer ? refetchServerBookings : refetchLegacyBookings;
+
+  useEffect(() => {
+    if (useServer && serverLoadError) {
+      toast.error('Failed to load payments. Showing last results.', {
+        action: { label: 'Retry', onClick: () => void refetchServerBookings() },
+      });
+    }
+  }, [useServer, serverLoadError, refetchServerBookings]);
+
+  // Hybrid Add-Payment booking picker (server mode): search across ALL
+  // bookings + pin the selected one so any booking is payable, not just the
+  // current table page.
+  const bookingToOption = useCallback(
+    (b: BookingRow) => ({
+      value: b.id,
+      label: `${b.functionName} - ${b.customer?.name ?? ''}`.trim(),
+      secondary: b.customer?.phone || undefined,
+    }),
+    []
+  );
+  const searchPaymentBookings = useCallback(
+    async (query: string) => {
+      const trimmed = query.trim();
+      const params =
+        trimmed.length >= 2
+          ? { search: normalizeSearchForServer(trimmed), limit: 50, page: 1 }
+          : { limit: 50, page: 1 };
+      const res = await api.getBookings(params);
+      const rows = (res?.data?.data?.bookings || []) as BookingRow[];
+      const merged = pinnedBooking
+        ? [pinnedBooking, ...rows.filter((r) => r.id !== pinnedBooking.id)]
+        : rows;
+      return merged.map(bookingToOption);
+    },
+    [pinnedBooking, bookingToOption]
+  );
+  useEffect(() => {
+    if (!useServer) return;
+    const id = paymentForm.bookingId;
+    if (!id) {
+      setPinnedBooking(null);
+      return;
+    }
+    if (pinnedBooking?.id === id) return;
+    const inPage = bookings.find((b) => b.id === id);
+    if (inPage) {
+      setPinnedBooking(inPage);
+      return;
+    }
+    let cancelled = false;
+    void api
+      .getBooking(id)
+      .then((res) => {
+        const b = res?.data?.data?.booking;
+        if (!cancelled && b) setPinnedBooking(b as BookingRow);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [useServer, paymentForm.bookingId, pinnedBooking?.id, bookings]);
 
   const tableColumns = useMemo<TableColumnConfig<BookingRow>[]>(
     () => [
@@ -110,21 +219,30 @@ export default function PaymentsPage() {
     []
   );
 
-  const filteredBookings = useMemo(
+  const clientFiltered = useMemo(
     () => filterAndSortRows(bookings, tableColumns, globalSearch, columnSearch, sort),
     [bookings, tableColumns, globalSearch, columnSearch, sort]
   );
 
+  const serverTotal = serverData?.pagination?.total ?? 0;
+  const totalCount = useServer ? serverTotal : clientFiltered.length;
+
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredBookings.length / PAYMENTS_PAGE_SIZE)),
-    [filteredBookings.length]
+    () =>
+      useServer
+        ? Math.max(1, serverData?.pagination?.totalPages ?? 1)
+        : Math.max(1, Math.ceil(clientFiltered.length / PAYMENTS_PAGE_SIZE)),
+    [useServer, serverData?.pagination?.totalPages, clientFiltered.length]
   );
 
+  const filteredBookings = useServer ? bookings : clientFiltered;
+
   const paginatedBookings = useMemo(() => {
+    if (useServer) return bookings; // already the current page
     const safePage = Math.min(Math.max(currentPage, 1), totalPages);
     const startIndex = (safePage - 1) * PAYMENTS_PAGE_SIZE;
-    return filteredBookings.slice(startIndex, startIndex + PAYMENTS_PAGE_SIZE);
-  }, [currentPage, filteredBookings, totalPages]);
+    return clientFiltered.slice(startIndex, startIndex + PAYMENTS_PAGE_SIZE);
+  }, [useServer, bookings, currentPage, clientFiltered, totalPages]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -202,7 +320,7 @@ export default function PaymentsPage() {
             type="button"
             className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
             onClick={() => setShowPaymentPrompt(true)}
-            disabled={bookings.length === 0}
+            disabled={useServer ? totalCount === 0 : bookings.length === 0}
           >
             <Plus className="w-4 h-4" />
             Add Payment
@@ -220,20 +338,33 @@ export default function PaymentsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="md:col-span-2">
               <label className="label">Booking</label>
-              <select
-                className="input"
-                value={paymentForm.bookingId}
-                onChange={(e) =>
-                  setPaymentForm((prev) => ({ ...prev, bookingId: e.target.value }))
-                }
-                required
-              >
-                {bookings.map((booking) => (
-                  <option key={booking.id} value={booking.id}>
-                    {booking.functionName} - {booking.customer?.name}
-                  </option>
-                ))}
-              </select>
+              {useServer ? (
+                <Combobox
+                  value={paymentForm.bookingId}
+                  onChange={(val) =>
+                    setPaymentForm((prev) => ({ ...prev, bookingId: val }))
+                  }
+                  options={pinnedBooking ? [bookingToOption(pinnedBooking)] : []}
+                  onSearch={searchPaymentBookings}
+                  placeholder="Search booking or customer"
+                  searchPlaceholder="Function, customer or phone"
+                />
+              ) : (
+                <select
+                  className="input"
+                  value={paymentForm.bookingId}
+                  onChange={(e) =>
+                    setPaymentForm((prev) => ({ ...prev, bookingId: e.target.value }))
+                  }
+                  required
+                >
+                  {bookings.map((booking) => (
+                    <option key={booking.id} value={booking.id}>
+                      {booking.functionName} - {booking.customer?.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label className="label">Amount</label>
@@ -351,7 +482,7 @@ export default function PaymentsPage() {
           <div className="py-6">
             <PaymentsTableSkeleton rows={8} />
           </div>
-        ) : filteredBookings.length === 0 ? (
+        ) : totalCount === 0 ? (
           <EmptyState
             icon={globalSearch ? Search : CreditCard}
             variant={
@@ -422,7 +553,7 @@ export default function PaymentsPage() {
               <TablePagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredBookings.length}
+                totalItems={totalCount}
                 pageSize={PAYMENTS_PAGE_SIZE}
                 itemLabel="bookings"
                 onPageChange={setCurrentPage}
@@ -509,7 +640,7 @@ export default function PaymentsPage() {
               <TablePagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredBookings.length}
+                totalItems={totalCount}
                 pageSize={PAYMENTS_PAGE_SIZE}
                 itemLabel="bookings"
                 onPageChange={setCurrentPage}
