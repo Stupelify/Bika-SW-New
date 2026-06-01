@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Loader2, Search } from 'lucide-react';
 import { textMatchesSearch } from '@/lib/customerSearch';
+import { shouldLoadMore } from '@/lib/listQuery';
 
 type ComboboxOption = {
   value: string;
@@ -10,6 +11,12 @@ type ComboboxOption = {
   secondary?: string;
   /** Extra text included in client-side search (e.g. raw phone digits). */
   searchText?: string;
+};
+
+/** Paginated batch returned by {@link ComboboxProps.loadPage}. */
+type ComboboxPage = {
+  options: readonly ComboboxOption[];
+  hasMore: boolean;
 };
 
 type ComboboxProps = {
@@ -20,7 +27,15 @@ type ComboboxProps = {
   searchPlaceholder?: string;
   disabled?: boolean;
   className?: string;
+  /** Single-shot async search: returns the full option set for a query. */
   onSearch?: (query: string) => Promise<readonly ComboboxOption[]>;
+  /**
+   * Paginated async search with infinite scroll. When provided it supersedes
+   * onSearch: page 1 loads on open / when the query changes, and scrolling near
+   * the bottom of the dropdown appends the next page. Lets the user browse the
+   * whole list by scrolling AND find any record by typing.
+   */
+  loadPage?: (query: string, page: number) => Promise<ComboboxPage>;
   loading?: boolean;
 };
 
@@ -33,15 +48,21 @@ export default function Combobox({
   disabled = false,
   className = '',
   onSearch,
+  loadPage,
   loading = false,
 }: ComboboxProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [asyncOptions, setAsyncOptions] = useState<ComboboxOption[]>([...options]);
   const [asyncLoading, setAsyncLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const isAsync = Boolean(onSearch || loadPage);
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value) || asyncOptions.find((option) => option.value === value),
@@ -49,7 +70,7 @@ export default function Combobox({
   );
 
   const filteredOptions = useMemo(() => {
-    if (onSearch) {
+    if (isAsync) {
       return asyncOptions;
     }
 
@@ -64,7 +85,7 @@ export default function Combobox({
         normalizedQuery
       )
     );
-  }, [asyncOptions, onSearch, options, query]);
+  }, [asyncOptions, isAsync, options, query]);
 
   useEffect(() => {
     setAsyncOptions([...options]);
@@ -75,6 +96,7 @@ export default function Combobox({
     inputRef.current?.focus();
   }, [open]);
 
+  // Single-shot search: returns the full option set for the query.
   useEffect(() => {
     if (!open || !onSearch) return;
 
@@ -92,6 +114,34 @@ export default function Combobox({
     return () => window.clearTimeout(handle);
   }, [open, onSearch, query]);
 
+  // Paginated search with infinite scroll: (re)load page 1 on open / query
+  // change. Scrolling near the bottom appends subsequent pages (handleScroll).
+  useEffect(() => {
+    if (!open || !loadPage) return;
+
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      setAsyncLoading(true);
+      try {
+        const result = await loadPage(query.trim(), 1);
+        if (cancelled) return;
+        setAsyncOptions([...result.options]);
+        setPage(1);
+        setHasMore(result.hasMore);
+        setActiveIndex(0);
+        // Reset the scroll position so a fresh result set starts at the top.
+        if (listRef.current) listRef.current.scrollTop = 0;
+      } finally {
+        if (!cancelled) setAsyncLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [open, loadPage, query]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) {
@@ -102,6 +152,27 @@ export default function Combobox({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    if (!loadPage || loadingMore || asyncLoading || !hasMore) return;
+    const el = event.currentTarget;
+    if (!shouldLoadMore(el.scrollTop, el.clientHeight, el.scrollHeight)) return;
+
+    const nextPage = page + 1;
+    const currentQuery = query.trim();
+    setLoadingMore(true);
+    void loadPage(currentQuery, nextPage)
+      .then((result) => {
+        setAsyncOptions((prev) => {
+          const seen = new Set(prev.map((option) => option.value));
+          const fresh = result.options.filter((option) => !seen.has(option.value));
+          return [...prev, ...fresh];
+        });
+        setPage(nextPage);
+        setHasMore(result.hasMore);
+      })
+      .finally(() => setLoadingMore(false));
+  };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'ArrowDown') {
@@ -141,7 +212,11 @@ export default function Combobox({
       </button>
 
       {open ? (
-        <div className="absolute z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-surface shadow-lg">
+        <div
+          ref={listRef}
+          onScroll={handleScroll}
+          className="absolute z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-surface shadow-lg"
+        >
           <div className="sticky top-0 border-b border-border bg-surface p-2">
             <div className="relative">
               <Search
@@ -189,6 +264,12 @@ export default function Combobox({
               </button>
             ))
           )}
+          {loadingMore ? (
+            <div className="flex items-center justify-center gap-2 p-3 text-xs text-text-3">
+              <Loader2 size={12} className="animate-spin" />
+              Loading more…
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

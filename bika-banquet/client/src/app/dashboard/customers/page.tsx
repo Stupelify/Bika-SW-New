@@ -332,21 +332,26 @@ export default function CustomersPage() {
     []
   );
 
-  const searchReferrers = useCallback(
-    async (query: string) => {
+  const loadReferrersPage = useCallback(
+    async (query: string, page: number) => {
       const trimmed = query.trim();
-      // On open/empty: starter batch in default order (first ~50). On typing
-      // (>=2 chars): query the server across all customers.
-      const params =
+      // On open/empty: starter batch in default order. On typing (>=2 chars):
+      // query the server across all customers. Either way the dropdown loads
+      // the next page as the user scrolls (page 2, 3, …).
+      const base =
         trimmed.length >= 2
-          ? { search: normalizeSearchForServer(trimmed), limit: 50, page: 1 }
-          : { limit: 50, page: 1, sort: 'name', order: 'asc' };
-      const res = await api.getCustomers(params);
+          ? { search: normalizeSearchForServer(trimmed) }
+          : { sort: 'name', order: 'asc' as const };
+      const res = await api.getCustomers({ ...base, limit: 50, page });
       const rows = (res?.data?.data?.customers || []) as CustomerRow[];
-      const merged = pinnedReferrer
-        ? [pinnedReferrer, ...rows.filter((r) => r.id !== pinnedReferrer.id)]
-        : rows;
-      return merged.map(referrerToOption);
+      const totalPages = Math.max(1, res?.data?.data?.pagination?.totalPages ?? 1);
+      // Pin the already-selected referrer only on the first page so the field
+      // is never blank when editing; later pages append plain rows.
+      const merged =
+        page === 1 && pinnedReferrer
+          ? [pinnedReferrer, ...rows.filter((r) => r.id !== pinnedReferrer.id)]
+          : rows;
+      return { options: merged.map(referrerToOption), hasMore: page < totalPages };
     },
     [pinnedReferrer, referrerToOption]
   );
@@ -1193,7 +1198,7 @@ export default function CustomersPage() {
                         : []
                       : referrerOptions
                     ).map(referrerToOption)}
-                    onSearch={useServer ? searchReferrers : undefined}
+                    loadPage={useServer ? loadReferrersPage : undefined}
                     placeholder="Search name or phone"
                     searchPlaceholder="Name or phone number"
                   />

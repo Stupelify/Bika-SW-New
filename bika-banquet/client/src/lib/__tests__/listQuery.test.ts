@@ -10,6 +10,8 @@ import {
   aggregateAllPages,
   selectListData,
   showingRange,
+  hasMorePages,
+  shouldLoadMore,
   SERVER_HARD_LIMIT,
 } from '../listQuery';
 
@@ -214,5 +216,45 @@ describe('showingRange', () => {
     expect(showingRange(1, 50, 50)).toEqual({ start: 1, end: 50, total: 50 });
     expect(showingRange(2, 50, 51)).toEqual({ start: 51, end: 51, total: 51 });
     expect(showingRange(1, 100, 100)).toEqual({ start: 1, end: 100, total: 100 });
+  });
+});
+
+describe('hasMorePages (picker infinite-scroll paging)', () => {
+  it('true while pages remain', () => {
+    expect(hasMorePages(1, 3)).toBe(true);
+    expect(hasMorePages(2, 3)).toBe(true);
+  });
+  it('false on the last page', () => {
+    expect(hasMorePages(3, 3)).toBe(false);
+    expect(hasMorePages(1, 1)).toBe(false);
+  });
+  it('treats missing/zero totalPages as a single page', () => {
+    expect(hasMorePages(1, 0)).toBe(false);
+    expect(hasMorePages(1, undefined as unknown as number)).toBe(false);
+  });
+  it('never reports more when already past the last page', () => {
+    expect(hasMorePages(5, 3)).toBe(false);
+  });
+});
+
+describe('shouldLoadMore (scroll-near-bottom trigger)', () => {
+  it('triggers within threshold of the bottom', () => {
+    // scrollTop 200 + clientHeight 100 = 300; scrollHeight 320; within 48 of bottom
+    expect(shouldLoadMore(200, 100, 320)).toBe(true);
+  });
+  it('does not trigger when far from the bottom', () => {
+    expect(shouldLoadMore(0, 100, 320)).toBe(false);
+  });
+  it('does not trigger when content does not overflow', () => {
+    expect(shouldLoadMore(0, 240, 240)).toBe(false);
+    expect(shouldLoadMore(0, 240, 100)).toBe(false);
+  });
+  it('triggers exactly at the bottom', () => {
+    expect(shouldLoadMore(220, 100, 320)).toBe(true);
+  });
+  it('respects a custom threshold', () => {
+    // 60px from bottom: outside default 48 but inside a 100 threshold
+    expect(shouldLoadMore(160, 100, 320, 10)).toBe(false);
+    expect(shouldLoadMore(160, 100, 320, 100)).toBe(true);
   });
 });

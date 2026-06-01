@@ -191,6 +191,31 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
+/**
+ * Hybrid-picker infinite scroll: whether another page remains after `page`
+ * (1-based) given the server's reported `totalPages`. Defensive against a
+ * missing/zero totalPages (treated as a single page).
+ */
+export function hasMorePages(page: number, totalPages: number): boolean {
+  return clampPage(page) < Math.max(1, Math.floor(totalPages || 1));
+}
+
+/**
+ * Infinite-scroll trigger for a dropdown list: true when the scroll position is
+ * within `threshold` px of the bottom of the scroll container. Pure (operates
+ * on plain numbers) so it is unit-testable without a DOM. Returns false when
+ * the content does not overflow (nothing to scroll to).
+ */
+export function shouldLoadMore(
+  scrollTop: number,
+  clientHeight: number,
+  scrollHeight: number,
+  threshold = 48
+): boolean {
+  if (scrollHeight <= clientHeight) return false;
+  return scrollTop + clientHeight >= scrollHeight - Math.max(0, threshold);
+}
+
 /** Showing X–Y of N, clamped to valid bounds. */
 export function showingRange(
   page: number,

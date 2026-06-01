@@ -160,19 +160,23 @@ export default function PaymentsPage() {
     }),
     []
   );
-  const searchPaymentBookings = useCallback(
-    async (query: string) => {
+  const loadPaymentBookingsPage = useCallback(
+    async (query: string, page: number) => {
       const trimmed = query.trim();
-      const params =
+      // Starter batch on open, server search across ALL bookings on typing, and
+      // append the next page as the dropdown is scrolled.
+      const base =
         trimmed.length >= 2
-          ? { search: normalizeSearchForServer(trimmed), limit: 50, page: 1 }
-          : { limit: 50, page: 1 };
-      const res = await api.getBookings(params);
+          ? { search: normalizeSearchForServer(trimmed) }
+          : {};
+      const res = await api.getBookings({ ...base, limit: 50, page });
       const rows = (res?.data?.data?.bookings || []) as BookingRow[];
-      const merged = pinnedBooking
-        ? [pinnedBooking, ...rows.filter((r) => r.id !== pinnedBooking.id)]
-        : rows;
-      return merged.map(bookingToOption);
+      const totalPages = Math.max(1, res?.data?.data?.pagination?.totalPages ?? 1);
+      const merged =
+        page === 1 && pinnedBooking
+          ? [pinnedBooking, ...rows.filter((r) => r.id !== pinnedBooking.id)]
+          : rows;
+      return { options: merged.map(bookingToOption), hasMore: page < totalPages };
     },
     [pinnedBooking, bookingToOption]
   );
@@ -345,7 +349,7 @@ export default function PaymentsPage() {
                     setPaymentForm((prev) => ({ ...prev, bookingId: val }))
                   }
                   options={pinnedBooking ? [bookingToOption(pinnedBooking)] : []}
-                  onSearch={searchPaymentBookings}
+                  loadPage={loadPaymentBookingsPage}
                   placeholder="Search booking or customer"
                   searchPlaceholder="Function, customer or phone"
                 />
