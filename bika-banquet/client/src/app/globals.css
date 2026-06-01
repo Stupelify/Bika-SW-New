@@ -1644,6 +1644,29 @@ input[type=number] {
   appearance: textfield;
 }
 
+/* Keep native date/time inputs inside their container.
+   WebKit/Blink size these from the value's intrinsic width and ignore
+   width:100%, so in narrow fixed-width fields (e.g. the Function Date column)
+   the value and calendar icon overflow. min-width:0 lets the control shrink;
+   zeroing the value margin stops iOS Safari from pushing it past the edge. */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"],
+input[type="month"],
+input[type="week"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value,
+input[type="week"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+
 /* ─── Dashboard layout structural classes ───────────────────────────────── */
 
 /* Breadcrumb */
