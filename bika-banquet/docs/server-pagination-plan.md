@@ -231,6 +231,37 @@ Existing infra: `client/vitest.config.ts` (env `node`, include `src/lib/__tests_
 
 ---
 
+## 8. IMPLEMENTED — feature flags & how to toggle
+
+Implemented in `client/src/lib/featureFlags.ts`. Each paginated list has its own
+runtime flag resolved as: localStorage override → `NEXT_PUBLIC_*` env → default.
+
+| List | localStorage key | Env var | Default |
+|---|---|---|---|
+| Customers | `bika_ff_server_pagination_customers` | `NEXT_PUBLIC_SERVER_PAGINATION_CUSTOMERS` | **ON** |
+| Bookings  | `bika_ff_server_pagination_bookings`  | `NEXT_PUBLIC_SERVER_PAGINATION_BOOKINGS`  | **ON** |
+| Payments  | `bika_ff_server_pagination_payments`  | `NEXT_PUBLIC_SERVER_PAGINATION_PAYMENTS`  | **ON** |
+| Enquiries | `bika_ff_server_pagination_enquiries` | `NEXT_PUBLIC_SERVER_PAGINATION_ENQUIRIES` | **ON** |
+
+Defaults are ON so the migrated path is exercised. To instantly revert ANY list
+to the legacy client-side path (no deploy):
+
+```js
+localStorage.setItem('bika_ff_server_pagination_bookings', 'off'); // then reload
+```
+
+Accepted values: `on`/`true`/`1` and `off`/`false`/`0` (case-insensitive). The
+flag is read once on mount, so reload after changing it. When OFF, the list
+runs the original `limit:5000` / `fetchAllCustomers` + `filterAndSortRows` path
+verbatim, including the original 150ms search debounce.
+
+When ON: search/sort/pagination run server-side (300ms debounce), the
+"Showing X–Y of N" total comes from the server, and the in-form pickers
+(customers referred-by, payments booking selector) become hybrid server-search
+Comboboxes that pin the already-selected record by id so editing never blanks.
+
+---
+
 ## 7. Cannot-verify-here disclosure
 
 - Exact prod row counts per list (estimates only) — confirm before sizing.

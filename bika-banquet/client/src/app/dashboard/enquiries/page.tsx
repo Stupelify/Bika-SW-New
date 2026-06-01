@@ -17,7 +17,13 @@ import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
-import { useEnquiriesListQuery, useUpdateEnquiryMutation } from '@/lib/query/hooks';
+import {
+  useEnquiriesListQuery,
+  useEnquiriesServerListQuery,
+  useUpdateEnquiryMutation,
+} from '@/lib/query/hooks';
+import { usesServerPagination } from '@/lib/featureFlags';
+import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
 import FilterPanel from '@/components/FilterPanel';
 import {
   SortState,
@@ -171,12 +177,13 @@ export default function EnquiriesPage() {
   const canDeleteEnquiry = hasAnyPermission(permissionSet, ['delete_enquiry', 'manage_enquiries']);
   const [status, setStatus] = useState('');
 
+  const [useServer] = useState(() => usesServerPagination('enquiries'));
   const {
-    data: enquiries = [],
-    isLoading: loading,
-    refetch: refetchEnquiries,
-    isError: enquiriesLoadError,
-  } = useEnquiriesListQuery<Enquiry[]>(canViewEnquiry, status);
+    data: legacyEnquiries = [],
+    isLoading: legacyLoading,
+    refetch: refetchLegacyEnquiries,
+    isError: legacyLoadError,
+  } = useEnquiriesListQuery<Enquiry[]>(canViewEnquiry && !useServer, status);
   const updateEnquiryMutation = useUpdateEnquiryMutation(status);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [halls, setHalls] = useState<HallOption[]>([]);
@@ -185,7 +192,7 @@ export default function EnquiriesPage() {
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
   const [editingEnquiryId, setEditingEnquiryId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
-  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
+  const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [showFilters, setShowFilters] = useState(false);
   const [sort, setSort] = useState<SortState>({
@@ -194,6 +201,48 @@ export default function EnquiriesPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<EnquiryFormData>(initialFormData);
+
+  const serverSearch = useMemo(() => {
+    const parts = [debouncedGlobalSearch, ...Object.values(columnSearch)]
+      .map((v) => (v ?? '').trim())
+      .filter(Boolean);
+    return normalizeSearchForServer(parts.join(' '));
+  }, [debouncedGlobalSearch, columnSearch]);
+
+  const {
+    data: serverData,
+    isLoading: serverLoading,
+    isError: serverLoadError,
+    refetch: refetchServerEnquiries,
+  } = useEnquiriesServerListQuery<Enquiry>(canViewEnquiry && useServer, {
+    page: currentPage,
+    limit: ENQUIRIES_PAGE_SIZE,
+    search: serverSearch,
+    sort: sort.key,
+    order: sort.direction,
+    status: status || undefined,
+  });
+
+  const serverPrevRef = useRef<Enquiry[] | undefined>(undefined);
+  if (serverData?.rows) serverPrevRef.current = serverData.rows;
+  const serverSelected = selectListData<Enquiry>(
+    serverData?.rows,
+    serverPrevRef.current,
+    serverLoadError
+  );
+
+  const enquiries: Enquiry[] = useServer ? serverSelected.rows : legacyEnquiries;
+  const loading = useServer ? serverLoading : legacyLoading;
+  const enquiriesLoadError = useServer ? false : legacyLoadError;
+  const refetchEnquiries = useServer ? refetchServerEnquiries : refetchLegacyEnquiries;
+
+  useEffect(() => {
+    if (useServer && serverLoadError) {
+      toast.error('Failed to load enquiries. Showing last results.', {
+        action: { label: 'Retry', onClick: () => void refetchServerEnquiries() },
+      });
+    }
+  }, [useServer, serverLoadError, refetchServerEnquiries]);
 
   const tableColumns = useMemo<TableColumnConfig<Enquiry>[]>(
     () => [
@@ -227,21 +276,30 @@ export default function EnquiriesPage() {
     []
   );
 
-  const filteredEnquiries = useMemo(
+  const clientFiltered = useMemo(
     () => filterAndSortRows(enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort),
     [enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort]
   );
 
+  const serverTotal = serverData?.pagination?.total ?? 0;
+  const totalCount = useServer ? serverTotal : clientFiltered.length;
+
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredEnquiries.length / ENQUIRIES_PAGE_SIZE)),
-    [filteredEnquiries.length]
+    () =>
+      useServer
+        ? Math.max(1, serverData?.pagination?.totalPages ?? 1)
+        : Math.max(1, Math.ceil(clientFiltered.length / ENQUIRIES_PAGE_SIZE)),
+    [useServer, serverData?.pagination?.totalPages, clientFiltered.length]
   );
 
+  const filteredEnquiries = useServer ? enquiries : clientFiltered;
+
   const paginatedEnquiries = useMemo(() => {
+    if (useServer) return enquiries; // already the current page
     const safePage = Math.min(Math.max(currentPage, 1), totalPages);
     const startIndex = (safePage - 1) * ENQUIRIES_PAGE_SIZE;
-    return filteredEnquiries.slice(startIndex, startIndex + ENQUIRIES_PAGE_SIZE);
-  }, [currentPage, filteredEnquiries, totalPages]);
+    return clientFiltered.slice(startIndex, startIndex + ENQUIRIES_PAGE_SIZE);
+  }, [useServer, enquiries, currentPage, clientFiltered, totalPages]);
 
   useEffect(() => {
     void loadLookups();
@@ -257,16 +315,30 @@ export default function EnquiriesPage() {
     setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
+  const deepLinkHandledRef = useRef(false);
   useEffect(() => {
     const section = searchParams.get('section');
     const id = searchParams.get('id');
-    if (section !== 'edit' || !id || enquiries.length === 0) {
-      return;
-    }
+    if (section !== 'edit' || !id) return;
     const enquiry = enquiries.find((entry) => entry.id === id);
     if (enquiry) {
       openEditPrompt(enquiry);
+      deepLinkHandledRef.current = true;
+      return;
     }
+    // Under server pagination the enquiry may not be on the current page —
+    // fetch it by id once so the deep-link edit still opens.
+    if (deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+    void api
+      .getEnquiry(id)
+      .then((res) => {
+        const e = res?.data?.data?.enquiry;
+        if (e) openEditPrompt(e as Enquiry);
+      })
+      .catch(() => {
+        deepLinkHandledRef.current = false;
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enquiries]);
 
@@ -846,7 +918,7 @@ export default function EnquiriesPage() {
           <div className="py-6">
             <TableSkeleton rows={8} />
           </div>
-        ) : filteredEnquiries.length === 0 ? (
+        ) : totalCount === 0 ? (
           <EmptyState
             icon={globalSearch ? Search : PhoneCall}
             variant={
@@ -947,7 +1019,7 @@ export default function EnquiriesPage() {
               <TablePagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredEnquiries.length}
+                totalItems={totalCount}
                 pageSize={ENQUIRIES_PAGE_SIZE}
                 itemLabel="enquiries"
                 onPageChange={setCurrentPage}
@@ -1053,7 +1125,7 @@ export default function EnquiriesPage() {
               <TablePagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={filteredEnquiries.length}
+                totalItems={totalCount}
                 pageSize={ENQUIRIES_PAGE_SIZE}
                 itemLabel="enquiries"
                 onPageChange={setCurrentPage}

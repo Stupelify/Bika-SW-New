@@ -143,6 +143,35 @@ export function useInvalidateEnquiriesList() {
     queryClient.invalidateQueries({ queryKey: queryKeys.enquiries.all });
 }
 
+/**
+ * Server-paginated enquiries list. Keyed on page/search/sort/status; the
+ * server already supports the status filter. keepPreviousData avoids blanking.
+ */
+export function useEnquiriesServerListQuery<T = unknown>(
+  enabled: boolean,
+  input: ListParamsInput
+) {
+  const params = buildListParams(input);
+  return useQuery<ServerListResult<T>>({
+    queryKey: queryKeys.enquiries.serverList(
+      params as unknown as Record<string, unknown>
+    ),
+    queryFn: async () => {
+      const response = await api.getEnquiries(params);
+      const data = response.data?.data;
+      return {
+        rows: (data?.enquiries || []) as T[],
+        pagination: (data?.pagination as PaginationMeta) || {
+          ...EMPTY_PAGINATION,
+          limit: params.limit,
+        },
+      };
+    },
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
 type PaymentBookingRow = {
   id: string;
   grandTotal?: number;
@@ -251,9 +280,29 @@ export function useAddPaymentMutation() {
 
 export type EnquiryUpdatePayload = Record<string, unknown>;
 
-export function useUpdateEnquiryMutation(statusFilter: string) {
+/**
+ * Apply an enquiry patch to either cache shape: legacy array OR the
+ * server-paginated `{ rows, pagination }`.
+ */
+export function applyEnquiryPatchToCacheValue(
+  value: unknown,
+  id: string,
+  payload: EnquiryUpdatePayload
+): unknown {
+  const patchRow = (row: Record<string, unknown>) =>
+    row.id === id ? { ...row, ...payload } : row;
+  if (Array.isArray(value)) {
+    return (value as Record<string, unknown>[]).map(patchRow);
+  }
+  if (value && typeof value === 'object' && Array.isArray((value as any).rows)) {
+    const v = value as { rows: Record<string, unknown>[] };
+    return { ...v, rows: v.rows.map(patchRow) };
+  }
+  return value;
+}
+
+export function useUpdateEnquiryMutation(_statusFilter: string) {
   const queryClient = useQueryClient();
-  const listKey = queryKeys.enquiries.list(statusFilter);
 
   return useMutation({
     mutationFn: async ({
@@ -268,18 +317,27 @@ export function useUpdateEnquiryMutation(statusFilter: string) {
     },
     onMutate: async ({ id, payload }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.enquiries.all });
-      const previous = queryClient.getQueryData<Record<string, unknown>[]>(listKey);
-      if (previous) {
+      // Patch ALL enquiry list caches (legacy per-status array key AND every
+      // server-paginated key) so optimistic edits apply on either path.
+      const entries = queryClient.getQueriesData({
+        queryKey: queryKeys.enquiries.all,
+      });
+      const snapshots: [readonly unknown[], unknown][] = [];
+      for (const [key, value] of entries) {
+        if (value == null) continue;
+        snapshots.push([key, value]);
         queryClient.setQueryData(
-          listKey,
-          previous.map((row) => (row.id === id ? { ...row, ...payload } : row))
+          key,
+          applyEnquiryPatchToCacheValue(value, id, payload)
         );
       }
-      return { previous };
+      return { snapshots };
     },
     onError: (error: unknown, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(listKey, context.previous);
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
       }
       const message =
         (error as { response?: { data?: { error?: string } } })?.response?.data?.error ||

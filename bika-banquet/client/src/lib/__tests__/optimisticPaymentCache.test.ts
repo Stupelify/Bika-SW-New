@@ -5,7 +5,11 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('@/lib/api', () => ({ api: {}, fetchAllCustomers: async () => [] }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { applyOptimisticToCacheValue, type AddPaymentInput } from '../query/hooks';
+import {
+  applyOptimisticToCacheValue,
+  applyEnquiryPatchToCacheValue,
+  type AddPaymentInput,
+} from '../query/hooks';
 
 const input: AddPaymentInput = {
   bookingId: 'b1',
@@ -51,5 +55,33 @@ describe('applyOptimisticToCacheValue (re-keyed optimistic add still applies)', 
     const cache = [{ id: 'b1', grandTotal: 1000, paymentReceivedAmountValue: 0 }];
     const next = applyOptimisticToCacheValue(cache, { ...input, amount: 0 }) as typeof cache;
     expect(next[0].paymentReceivedAmountValue).toBe(0);
+  });
+});
+
+describe('applyEnquiryPatchToCacheValue (re-keyed enquiry optimistic edit)', () => {
+  it('patches the legacy array shape', () => {
+    const cache = [
+      { id: 'e1', status: 'pending' },
+      { id: 'e2', status: 'pending' },
+    ];
+    const next = applyEnquiryPatchToCacheValue(cache, 'e1', {
+      status: 'confirmed',
+    }) as typeof cache;
+    expect(next[0].status).toBe('confirmed');
+    expect(next[1].status).toBe('pending');
+  });
+  it('patches the server-paginated { rows } shape', () => {
+    const cache = {
+      rows: [{ id: 'e1', status: 'pending' }],
+      pagination: { page: 1, limit: 75, total: 1, totalPages: 1 },
+    };
+    const next = applyEnquiryPatchToCacheValue(cache, 'e1', {
+      status: 'lost',
+    }) as typeof cache;
+    expect(next.rows[0].status).toBe('lost');
+    expect(next.pagination.total).toBe(1);
+  });
+  it('leaves unrelated cache values untouched', () => {
+    expect(applyEnquiryPatchToCacheValue(null, 'e1', {})).toBeNull();
   });
 });
