@@ -1,10 +1,16 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { api, fetchAllCustomers } from '@/lib/api';
 import { resolveDueAmount, resolvePaymentReceivedGross } from '@bika/booking-core';
 import { toast } from 'sonner';
 import { queryKeys } from './keys';
+import { buildListParams, type ListParamsInput, type PaginationMeta } from '@/lib/listQuery';
 
 const BOOKINGS_LIST_PARAMS = { page: 1, limit: 5000 } as const;
 
@@ -41,6 +47,48 @@ export function useInvalidateCustomersList() {
   const queryClient = useQueryClient();
   return () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
+}
+
+export interface ServerListResult<T> {
+  rows: T[];
+  pagination: PaginationMeta;
+}
+
+const EMPTY_PAGINATION: PaginationMeta = {
+  page: 1,
+  limit: 100,
+  total: 0,
+  totalPages: 1,
+};
+
+/**
+ * Server-paginated customers list. Keyed on page/search/sort so each
+ * page/query is cached independently; keepPreviousData avoids a blank table
+ * while the next page/search loads. Customers allow a larger page limit.
+ */
+export function useCustomersServerListQuery<T = Record<string, unknown>>(
+  enabled: boolean,
+  input: ListParamsInput
+) {
+  const params = buildListParams(input, 5000);
+  return useQuery<ServerListResult<T>>({
+    queryKey: queryKeys.customers.serverList(
+      params as unknown as Record<string, unknown>
+    ),
+    queryFn: async () => {
+      const response = await api.getCustomers(params);
+      const data = response.data?.data;
+      return {
+        rows: (data?.customers || []) as T[],
+        pagination: (data?.pagination as PaginationMeta) || {
+          ...EMPTY_PAGINATION,
+          limit: params.limit,
+        },
+      };
+    },
+    enabled,
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useEnquiriesListQuery<T = unknown[]>(enabled: boolean, statusFilter: string) {

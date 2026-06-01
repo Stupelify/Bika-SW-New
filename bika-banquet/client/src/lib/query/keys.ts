@@ -9,9 +9,14 @@ export const queryKeys = {
   customers: {
     all: ['customers'] as const,
     list: () => ['customers', 'list'] as const,
+    // Server-paginated list keyed on page/search/sort params.
+    serverList: (params: Record<string, unknown>) =>
+      ['customers', 'serverList', params] as const,
   },
   enquiries: {
     all: ['enquiries'] as const,
     list: (status: string) => ['enquiries', 'list', { status }] as const,
+    serverList: (params: Record<string, unknown>) =>
+      ['enquiries', 'serverList', params] as const,
   },
 } as const;

@@ -8,6 +8,7 @@ import { idSchema } from '../utils/validation';
 import { toE164 } from '../utils/phone';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
+import { buildOrderBy, SortWhitelist } from '../utils/listQuery';
 import { createAuditLog } from '../utils/auditLog';
 import { broadcastBookingEvent } from '../sse';
 
@@ -36,6 +37,17 @@ const emptyStringToUndefined = (value: unknown) => {
 };
 
 const DEFAULT_COUNTRY_CODE = '+91';
+
+// Maps customers-page sortable column keys → Prisma orderBy. Composite UI
+// columns (contact/location/stats) map to their best DB column. An `id`
+// tie-breaker is appended centrally by buildOrderBy.
+const CUSTOMER_SORT_WHITELIST: SortWhitelist = {
+  name: (order) => [{ name: order }],
+  createdAt: (order) => [{ createdAt: order }],
+  contact: (order) => [{ phone: order }],
+  location: (order) => [{ city: order }, { state: order }],
+  stats: (order) => [{ bookings: { _count: order } }],
+};
 
 const formatDigitsText = (digits: number[]): string => {
   if (digits.length <= 1) {
@@ -375,7 +387,9 @@ export async function getCustomers(req: Request, res: Response): Promise<void> {
     );
     const search = sanitizeSearchTerm(req.query.search);
 
-    // Build where clause for search
+    // Build where clause for search.
+    // NOTE: city/state added so server search is a strict SUPERSET of the
+    // client-side `filterAndSortRows` (which also searches location).
     const where: any = {};
     if (search) {
       where.OR = [
@@ -389,15 +403,26 @@ export async function getCustomers(req: Request, res: Response): Promise<void> {
         { whatsappNumber: { contains: search } },
         { whatsappE164: { contains: search } },
         { email: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+        { state: { contains: search, mode: 'insensitive' } },
       ];
     }
+
+    // Stable, whitelisted server sort with an `id` tie-breaker so paginated
+    // rows never shuffle. Default (no sort param) preserves prior behaviour.
+    const orderBy = buildOrderBy(
+      req.query.sort,
+      req.query.order,
+      CUSTOMER_SORT_WHITELIST,
+      [{ createdAt: 'desc' }]
+    );
 
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: orderBy as any,
         include: {
           referredBy: {
             select: {

@@ -8,6 +8,7 @@ import { sendSuccess, sendError, sendNotFound } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
+import { buildOrderBy, SortWhitelist } from '../utils/listQuery';
 import { resolveVersionChain } from './booking.helpers';
 import {
   BOOKING_RELATION_INCLUDE,
@@ -17,6 +18,26 @@ import {
   getAllowedBanquetIds,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
+
+// Maps bookings-page + payments-page sortable column keys → Prisma orderBy.
+// Payments sorts by the stored DB *Value columns (NOT JS-recomputed values).
+// An `id` tie-breaker is appended centrally by buildOrderBy.
+const BOOKING_SORT_WHITELIST: SortWhitelist = {
+  // bookings list
+  functionName: (order) => [{ functionName: order }, { functionType: order }],
+  customer: (order) => [{ customer: { name: order } }],
+  functionDate: (order) => [{ functionDate: order }],
+  expectedGuests: (order) => [{ expectedGuests: order }],
+  status: (order) => [{ status: order }],
+  grandTotal: (order) => [{ grandTotal: order }],
+  // payments list (booking = composite name/customer; reuse functionName)
+  booking: (order) => [{ functionName: order }],
+  eventDate: (order) => [{ functionDate: order }],
+  total: (order) => [{ grandTotal: order }],
+  received: (order) => [{ paymentReceivedAmountValue: order }],
+  balance: (order) => [{ dueAmountValue: order }],
+  entries: (order) => [{ payments: { _count: order } }],
+};
 
 /**
  * GET /bookings/check-hall-availability
@@ -182,7 +203,11 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
       where.OR = [
         { functionName: { contains: search, mode: 'insensitive' } },
         { functionType: { contains: search, mode: 'insensitive' } },
+        { status: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } },
+        // customer.email added so server search is a strict SUPERSET of the
+        // client-side search (the customer column accessor includes email).
+        { customer: { email: { contains: search, mode: 'insensitive' } } },
         { customer: { phone: { contains: search } } },
         { customer: { phoneE164: { contains: search } } },
         { customer: { alterPhone: { contains: search } } },
@@ -221,12 +246,22 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
       }
     }
 
+    // Stable, whitelisted server sort with `id` tie-breaker. Default order
+    // (functionDate desc) is preserved when no sort param is supplied — both
+    // the bookings list and the payments list drive this endpoint.
+    const orderBy = buildOrderBy(
+      req.query.sort,
+      req.query.order,
+      BOOKING_SORT_WHITELIST,
+      [{ functionDate: 'desc' }]
+    );
+
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { functionDate: 'desc' },
+        orderBy: orderBy as any,
         include: {
           customer: {
             select: {

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
-import { useCustomersListQuery } from '@/lib/query/hooks';
+import { useCustomersListQuery, useCustomersServerListQuery } from '@/lib/query/hooks';
+import { usesServerPagination } from '@/lib/featureFlags';
+import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
 import {
@@ -148,19 +150,26 @@ export default function CustomersPage() {
   const canEditCustomer = hasAnyPermission(permissionSet, ['edit_customer', 'manage_customers']);
   const canDeleteCustomer = hasAnyPermission(permissionSet, ['delete_customer', 'manage_customers']);
 
+  // Per-list runtime feature flag. When OFF, the legacy client-side path
+  // (fetch-all + filterAndSortRows) runs verbatim. Resolved once on mount so
+  // the two query hooks keep stable `enabled` values across renders.
+  const [useServer] = useState(() => usesServerPagination('customers'));
+
   const {
-    data: customers = [],
-    isLoading: loading,
-    refetch: refetchCustomers,
-    isError: customersLoadError,
-  } = useCustomersListQuery<CustomerRow[]>(canViewCustomer);
+    data: legacyCustomers = [],
+    isLoading: legacyLoading,
+    refetch: refetchLegacyCustomers,
+    isError: legacyLoadError,
+  } = useCustomersListQuery<CustomerRow[]>(canViewCustomer && !useServer);
   const [saving, setSaving] = useState(false);
   const [loadingFormData, setLoadingFormData] = useState(false);
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [isWhatsappDifferent, setIsWhatsappDifferent] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
-  const debouncedGlobalSearch = useDebounce(globalSearch, 150);
+  // 300ms when server-paginating (fewer requests on slow phone networks);
+  // 150ms preserved for the legacy in-memory path.
+  const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
   const [sort, setSort] = useState<SortState>({ key: 'name', direction: 'asc' });
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
@@ -175,6 +184,56 @@ export default function CustomersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const debouncedPincode = useDebounce(formData.pincode, 350);
+
+  // Fold any active column search into the global server search so server
+  // results stay a strict superset of today's client search.
+  const serverSearch = useMemo(() => {
+    const parts = [debouncedGlobalSearch, ...Object.values(columnSearch)]
+      .map((v) => (v ?? '').trim())
+      .filter(Boolean);
+    return normalizeSearchForServer(parts.join(' '));
+  }, [debouncedGlobalSearch, columnSearch]);
+
+  const {
+    data: serverData,
+    isLoading: serverLoading,
+    isError: serverLoadError,
+    refetch: refetchServerCustomers,
+  } = useCustomersServerListQuery<CustomerRow>(canViewCustomer && useServer, {
+    page: currentPage,
+    limit: CUSTOMERS_PAGE_SIZE,
+    search: serverSearch,
+    sort: sort.key,
+    order: sort.direction,
+  });
+
+  const serverPrevRef = useRef<CustomerRow[] | undefined>(undefined);
+  if (serverData?.rows) serverPrevRef.current = serverData.rows;
+  const serverSelected = selectListData<CustomerRow>(
+    serverData?.rows,
+    serverPrevRef.current,
+    serverLoadError
+  );
+
+  // Unified accessors so the rest of the component is path-agnostic.
+  const customers: CustomerRow[] = useServer
+    ? serverSelected.rows
+    : legacyCustomers;
+  const loading = useServer ? serverLoading : legacyLoading;
+  const customersLoadError = useServer ? false : legacyLoadError;
+  const refetchCustomers = useServer
+    ? refetchServerCustomers
+    : refetchLegacyCustomers;
+
+  // Surface a retry toast (once) when a server fetch fails but we keep the
+  // previous page on screen.
+  useEffect(() => {
+    if (useServer && serverLoadError) {
+      toast.error('Failed to load customers. Showing last results.', {
+        action: { label: 'Retry', onClick: () => void refetchServerCustomers() },
+      });
+    }
+  }, [useServer, serverLoadError, refetchServerCustomers]);
 
   const tableColumns = useMemo<TableColumnConfig<CustomerRow>[]>(
     () => [
@@ -205,25 +264,91 @@ export default function CustomersPage() {
     []
   );
 
-  const filteredCustomers = useMemo(
+  // Legacy (flag OFF) path: filter + sort + slice in memory.
+  const clientFiltered = useMemo(
     () => filterAndSortRows(customers, tableColumns, debouncedGlobalSearch, columnSearch, sort),
     [customers, tableColumns, debouncedGlobalSearch, columnSearch, sort]
   );
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredCustomers.length / CUSTOMERS_PAGE_SIZE)
-  );
+  // Server path: `customers` is already the current page, server-filtered and
+  // server-sorted. Totals come from the server pagination meta.
+  const serverTotal = serverData?.pagination?.total ?? 0;
+  const totalCount = useServer ? serverTotal : clientFiltered.length;
+
+  const totalPages = useServer
+    ? Math.max(1, serverData?.pagination?.totalPages ?? 1)
+    : Math.max(1, Math.ceil(clientFiltered.length / CUSTOMERS_PAGE_SIZE));
+
+  const filteredCustomers = useServer ? customers : clientFiltered;
 
   const paginatedCustomers = useMemo(() => {
+    if (useServer) return customers; // already the current page
     const safePage = Math.min(Math.max(currentPage, 1), totalPages);
     const startIndex = (safePage - 1) * CUSTOMERS_PAGE_SIZE;
-    return filteredCustomers.slice(startIndex, startIndex + CUSTOMERS_PAGE_SIZE);
-  }, [currentPage, filteredCustomers, totalPages]);
+    return clientFiltered.slice(startIndex, startIndex + CUSTOMERS_PAGE_SIZE);
+  }, [useServer, customers, currentPage, clientFiltered, totalPages]);
 
   const referrerOptions = useMemo(
     () => [...customers].sort((a, b) => a.name.localeCompare(b.name)),
     [customers]
+  );
+
+  // Hybrid referred-by picker. In server mode we query the server across ALL
+  // customers (so anyone is findable) and pin the already-selected referrer so
+  // the field is never blank when editing. In legacy mode the in-memory
+  // referrerOptions are used (Combobox without onSearch).
+  const [pinnedReferrer, setPinnedReferrer] = useState<CustomerRow | null>(null);
+
+  useEffect(() => {
+    if (!useServer) return;
+    const id = formData.referredById;
+    if (!id) {
+      setPinnedReferrer(null);
+      return;
+    }
+    if (pinnedReferrer?.id === id) return;
+    let cancelled = false;
+    void api
+      .getCustomer(id)
+      .then((res) => {
+        const c = res?.data?.data?.customer;
+        if (!cancelled && c) setPinnedReferrer(c as CustomerRow);
+      })
+      .catch(() => {
+        /* leave unpinned on failure; field still works by id */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [useServer, formData.referredById, pinnedReferrer?.id]);
+
+  const referrerToOption = useCallback(
+    (customer: CustomerRow) => ({
+      value: customer.id,
+      label: formatCustomerOptionLabel(customer),
+      secondary: customer.phone,
+      searchText: customerSearchText(customer),
+    }),
+    []
+  );
+
+  const searchReferrers = useCallback(
+    async (query: string) => {
+      const trimmed = query.trim();
+      // On open/empty: starter batch in default order (first ~50). On typing
+      // (>=2 chars): query the server across all customers.
+      const params =
+        trimmed.length >= 2
+          ? { search: normalizeSearchForServer(trimmed), limit: 50, page: 1 }
+          : { limit: 50, page: 1, sort: 'name', order: 'asc' };
+      const res = await api.getCustomers(params);
+      const rows = (res?.data?.data?.customers || []) as CustomerRow[];
+      const merged = pinnedReferrer
+        ? [pinnedReferrer, ...rows.filter((r) => r.id !== pinnedReferrer.id)]
+        : rows;
+      return merged.map(referrerToOption);
+    },
+    [pinnedReferrer, referrerToOption]
   );
   const primaryPhoneDigits = getExpectedPhoneDigits(formData.phoneCountryIso);
   const secondaryPhoneDigits = getExpectedPhoneDigits(formData.alterPhoneCountryIso);
@@ -1062,12 +1187,13 @@ export default function CustomersPage() {
                         referredById: val,
                       }))
                     }
-                    options={referrerOptions.map((customer) => ({
-                      value: customer.id,
-                      label: formatCustomerOptionLabel(customer),
-                      secondary: customer.phone,
-                      searchText: customerSearchText(customer),
-                    }))}
+                    options={(useServer
+                      ? pinnedReferrer
+                        ? [pinnedReferrer]
+                        : []
+                      : referrerOptions
+                    ).map(referrerToOption)}
+                    onSearch={useServer ? searchReferrers : undefined}
                     placeholder="Search name or phone"
                     searchPlaceholder="Name or phone number"
                   />
@@ -1218,7 +1344,7 @@ export default function CustomersPage() {
           <div className="py-6">
             <TableSkeleton rows={8} />
           </div>
-        ) : filteredCustomers.length === 0 ? (
+        ) : totalCount === 0 ? (
           <EmptyState
             icon={globalSearch ? Search : Users}
             variant={
@@ -1327,12 +1453,12 @@ export default function CustomersPage() {
                   </div>
                 ))}
               </div>
-              {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
+              {totalCount > CUSTOMERS_PAGE_SIZE && (
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-[var(--text-2)]">
                     Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
-                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
-                    {filteredCustomers.length} customers
+                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, totalCount)} of{' '}
+                    {totalCount} customers
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -1478,12 +1604,12 @@ export default function CustomersPage() {
                   ))}
                 </tbody>
               </table>
-              {filteredCustomers.length > CUSTOMERS_PAGE_SIZE && (
+              {totalCount > CUSTOMERS_PAGE_SIZE && (
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-[var(--text-2)]">
                     Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
-                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, filteredCustomers.length)} of{' '}
-                    {filteredCustomers.length} customers
+                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, totalCount)} of{' '}
+                    {totalCount} customers
                   </p>
                   <div className="flex items-center gap-2">
                     <button

@@ -7,12 +7,23 @@ import { idSchema } from '../utils/validation';
 import { resolveEventDateTimes } from '../utils/dateTime';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
+import { buildOrderBy, SortWhitelist } from '../utils/listQuery';
 import {
   removeEnquiryEventFromGoogleCalendar,
   syncEnquiryEventToGoogleCalendar,
 } from '../services/googleCalendar.service';
 import { createAuditLog } from '../utils/auditLog';
 import { broadcastBookingEvent } from '../sse';
+
+// Maps enquiries-page sortable column keys → Prisma orderBy. `id` tie-breaker
+// is appended centrally by buildOrderBy.
+const ENQUIRY_SORT_WHITELIST: SortWhitelist = {
+  functionName: (order) => [{ functionName: order }, { functionType: order }],
+  customer: (order) => [{ customer: { name: order } }],
+  functionDate: (order) => [{ functionDate: order }],
+  expectedGuests: (order) => [{ expectedGuests: order }],
+  status: (order) => [{ status: order }],
+};
 
 export async function getEnquiryCount(req: Request, res: Response): Promise<void> {
   try {
@@ -214,17 +225,27 @@ export async function getEnquiries(req: Request, res: Response): Promise<void> {
       where.OR = [
         { functionName: { contains: search, mode: 'insensitive' } },
         { functionType: { contains: search, mode: 'insensitive' } },
+        // status added so server search is a strict SUPERSET of the client
+        // search (the status column accessor is searchable today).
+        { status: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } },
         { customer: { phone: { contains: search } } },
       ];
     }
+
+    const orderBy = buildOrderBy(
+      req.query.sort,
+      req.query.order,
+      ENQUIRY_SORT_WHITELIST,
+      [{ functionDate: 'desc' }]
+    );
 
     const [enquiries, total] = await Promise.all([
       prisma.enquiry.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { functionDate: 'desc' },
+        orderBy: orderBy as any,
         include: {
           customer: {
             select: {
