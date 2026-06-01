@@ -2046,6 +2046,22 @@ export default function BookingsPage() {
     }
   };
 
+  // Stable handler identities for the memoised booking cards. The underlying
+  // functions close over lots of state and get a fresh identity each render;
+  // routing through refs keeps the props passed to BookingCard/MobileBookingCard
+  // stable so React.memo can skip re-rendering unchanged cards. Behaviour is
+  // identical — the latest closure is always invoked.
+  const openEditBookingRef = useRef(openEditBooking);
+  openEditBookingRef.current = openEditBooking;
+  const handleDeleteBookingRef = useRef(handleDeleteBooking);
+  handleDeleteBookingRef.current = handleDeleteBooking;
+  const stableOnEdit = useCallback((id: string) => {
+    void openEditBookingRef.current(id);
+  }, []);
+  const stableOnDelete = useCallback((id: string) => {
+    void handleDeleteBookingRef.current(id);
+  }, []);
+
   const clearMenuPdfPreview = useCallback(() => {
     setMenuPdfPreviewUrl((previousUrl) => {
       if (previousUrl) {
@@ -4899,11 +4915,11 @@ export default function BookingsPage() {
                         canExportMenuPdf={canExportMenuPdf && (booking._count?.packs ?? 1) > 0}
                         canEditBooking={canEditBooking}
                         canDeleteBooking={canDeleteBooking}
-                        onExportPdf={(b) => openMenuPdfModal(b)}
-                        onExportBookingPdf={(b) => handleDownloadBookingPdf(b)}
+                        onExportPdf={openMenuPdfModal}
+                        onExportBookingPdf={handleDownloadBookingPdf}
                         bookingPdfLoading={bookingPdfLoading}
-                        onEdit={(id) => openEditBooking(id)}
-                        onDelete={(id) => handleDeleteBooking(id)}
+                        onEdit={stableOnEdit}
+                        onDelete={stableOnDelete}
                       />
                     ))}
                   </div>
@@ -4935,11 +4951,11 @@ export default function BookingsPage() {
                           canExportMenuPdf={canExportMenuPdf && (booking._count?.packs ?? 1) > 0}
                           canEditBooking={canEditBooking}
                           canDeleteBooking={canDeleteBooking}
-                          onExportPdf={(b) => openMenuPdfModal(b)}
-                          onExportBookingPdf={(b) => handleDownloadBookingPdf(b)}
+                          onExportPdf={openMenuPdfModal}
+                          onExportBookingPdf={handleDownloadBookingPdf}
                           bookingPdfLoading={bookingPdfLoading}
-                          onEdit={(id) => openEditBooking(id)}
-                          onDelete={(id) => handleDeleteBooking(id)}
+                          onEdit={stableOnEdit}
+                          onDelete={stableOnDelete}
                         />
                       ))}
                     </div>

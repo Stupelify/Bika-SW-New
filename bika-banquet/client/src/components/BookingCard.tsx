@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import {
   Building2,
   CalendarDays,
@@ -100,7 +101,7 @@ function PaymentBar({ paid, total }: { paid: number; total: number }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function BookingCard({
+function BookingCard({
   booking,
   canExportMenuPdf,
   canEditBooking,
@@ -400,3 +401,7 @@ export default function BookingCard({
     </div>
   );
 }
+
+// Memoised: re-renders only when its props change. The parent must pass stable
+// handler identities (see bookings page) for this to be effective.
+export default memo(BookingCard);

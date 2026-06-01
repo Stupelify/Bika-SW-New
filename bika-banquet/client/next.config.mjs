@@ -33,7 +33,8 @@ const nextConfig = {
     ];
   },
   experimental: {
-    optimizePackageImports: ['lucide-react'],
+    // Per-icon / per-function imports so only used symbols ship to the client.
+    optimizePackageImports: ['lucide-react', 'date-fns'],
   },
   transpilePackages: ['@ionic/react', '@ionic/core', 'ionicons'],
 };

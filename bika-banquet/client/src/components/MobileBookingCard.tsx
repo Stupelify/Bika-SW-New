@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Building2, CalendarDays, Download, Edit, FileText, Trash2, Users } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import StatusBadge from '@/components/StatusBadge';
@@ -34,7 +35,7 @@ interface MobileBookingCardProps {
     onDelete?: (bookingId: string) => void;
 }
 
-export default function MobileBookingCard({
+function MobileBookingCard({
     booking,
     canExportMenuPdf,
     canEditBooking,
@@ -158,3 +159,6 @@ export default function MobileBookingCard({
         </div>
     );
 }
+
+// Memoised: relies on the parent passing stable handler identities.
+export default memo(MobileBookingCard);
