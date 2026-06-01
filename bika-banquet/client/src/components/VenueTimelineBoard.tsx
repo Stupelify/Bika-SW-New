@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { dedupeSlotsByBookingId } from '@/lib/calendarConcurrency';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -335,7 +336,10 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
         </div>
         {groups.map(g=>{
           const open=exp.has(g.name);
-          const vSlots=assignLanes(g.halls.flatMap(h=>h.slots.filter(s=>s.date===selDate)));
+          // Dedupe by bookingId: a multi-hall booking appears in each hall's
+          // slot list, so flattening across halls would render it multiple
+          // times in the venue-aggregate row.
+          const vSlots=assignLanes(dedupeSlotsByBookingId(g.halls.flatMap(h=>h.slots.filter(s=>s.date===selDate))));
           const busyHalls=g.halls.filter(h=>h.slots.some(s=>s.date===selDate)).length;
           return (
             <React.Fragment key={g.name}>
@@ -344,7 +348,7 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
                 <div style={{flex:1,position:'relative',overflow:'visible',cursor:'crosshair'}}
                   onClick={e=>{if((e.target as Element).tagName==='DIV'&&vSlots.length===0)onCreate({date:selDate});}}>
                   <SlotBands/><GridLines/><NowLine/>
-                  {vSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={{...s,conflict:false}} pal={g.pal} rh={D_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+                  {vSlots.map((s,si)=><Bar key={`${s.bookingId||s.functionName}-${s.date}-${si}`} s={{...s,conflict:false}} pal={g.pal} rh={D_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
                 </div>
               </div>
               {open&&g.halls.map((hall,i)=>{
@@ -360,7 +364,7 @@ function DesktopDay({groups,selDate,exp,toggle,onBook,onCreate}:{
                           <span style={{fontSize:9,color:'var(--text-4)',fontStyle:'italic'}}>Free — click to create booking</span>
                         </div>
                       )}
-                      {hSlots.map(s=><Bar key={s.bookingId||s.functionName+s.date} s={s} pal={g.pal} rh={D_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
+                      {hSlots.map((s,si)=><Bar key={`${hall.hallId||hall.hallName}-${s.bookingId||s.functionName}-${s.date}-${si}`} s={s} pal={g.pal} rh={D_RH} useStatus onClick={()=>s.bookingId&&onBook(s.bookingId)}/>)}
                     </div>
                   </div>
                 );
@@ -410,12 +414,14 @@ function WeekSlotChip({s,pal,conflict,onBook}:{s:TimelineSlot;pal:Pal;conflict:b
 function WeekMatrixCell({slots,pal,today,onBook,onEmptyClick,aggregate}:{
   slots:TimelineSlot[];pal:Pal;today:boolean;onBook:(id:string)=>void;onEmptyClick?:(slotId:string)=>void;aggregate?:boolean;
 }) {
-  // Bucket this day's slots into the 4 SLOTS.
+  // Bucket this day's slots into the 4 SLOTS. In aggregate (venue-row) mode the
+  // same multi-hall booking appears once per hall, so dedupe by bookingId first.
   const byBucket=useMemo(()=>{
+    const source=aggregate?dedupeSlotsByBookingId(slots):slots;
     const m=new Map<string,TimelineSlot[]>();
-    for(const s of slots){const b=bucketSlot(s.startMinutes);if(!b)continue;if(!m.has(b.id))m.set(b.id,[]);m.get(b.id)!.push(s);}
+    for(const s of source){const b=bucketSlot(s.startMinutes);if(!b)continue;if(!m.has(b.id))m.set(b.id,[]);m.get(b.id)!.push(s);}
     return m;
-  },[slots]);
+  },[slots,aggregate]);
   return (
     <div style={{flex:1,borderLeft:BD,background:today?'rgba(239,68,68,.04)':undefined,display:'grid',gridTemplateRows:'repeat(4,1fr)',padding:3,gap:2,minWidth:0}}>
       {SLOTS.map(slot=>{
@@ -781,13 +787,13 @@ function MobileWeek({groups,wdays,exp,toggle,onBook,onDrill}:{groups:VenueGroup[
               </button>
               {wdays.map(day=>{
                 const d=dk(day),tod=isToday(day);
-                const slots=g.halls.flatMap(h=>h.slots.filter(s=>s.date===d)).sort((a,b)=>a.startMinutes-b.startMinutes);
+                const slots=dedupeSlotsByBookingId(g.halls.flatMap(h=>h.slots.filter(s=>s.date===d))).sort((a,b)=>a.startMinutes-b.startMinutes);
                 return (
                   <div key={d} style={{flex:1,borderLeft:BD,padding:'3px 2px',display:'flex',flexDirection:'column',gap:2,background:tod?'rgba(239,68,68,.04)':undefined,minHeight:M_RH+4}}>
-                    {slots.slice(0,3).map(s=>{
+                    {slots.slice(0,3).map((s,si)=>{
                       const p=s.isPencilBooking||s.status==='pencil';
                       return (
-                        <button key={s.bookingId||s.functionName} type="button" onClick={()=>s.bookingId&&onBook(s.bookingId)}
+                        <button key={`${s.bookingId||s.functionName}-${si}`} type="button" onClick={()=>s.bookingId&&onBook(s.bookingId)}
                           style={{padding:'1px 3px',borderRadius:3,background:p?'transparent':g.pal.solid,border:p?`1px dashed ${g.pal.solid}`:'none',cursor:'pointer',textAlign:'left',display:'flex',flexDirection:'column'}}>
                           <span style={{fontSize:8,fontWeight:600,color:p?g.pal.solid:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3}}>{s.functionName}</span>
                           {s.functionType&&<span style={{fontSize:7,color:p?g.pal.soft:'rgba(255,255,255,.75)',lineHeight:1.2}}>{s.functionType}</span>}
@@ -807,10 +813,10 @@ function MobileWeek({groups,wdays,exp,toggle,onBook,onDrill}:{groups:VenueGroup[
                   const slots=hall.slots.filter(s=>s.date===d).sort((a,b)=>a.startMinutes-b.startMinutes);
                   return (
                     <div key={d} style={{flex:1,borderLeft:BD,padding:'3px 2px',display:'flex',flexDirection:'column',gap:2,background:tod?'rgba(239,68,68,.04)':undefined,minHeight:M_RH}}>
-                      {slots.slice(0,3).map(s=>{
+                      {slots.slice(0,3).map((s,si)=>{
                         const p=s.isPencilBooking||s.status==='pencil';
                         return (
-                          <button key={s.bookingId||s.functionName} type="button" onClick={()=>s.bookingId&&onBook(s.bookingId)}
+                          <button key={`${s.bookingId||s.functionName}-${si}`} type="button" onClick={()=>s.bookingId&&onBook(s.bookingId)}
                             style={{padding:'1px 3px',borderRadius:3,background:p?'transparent':g.pal.solid,border:p?`1px dashed ${g.pal.solid}`:'none',cursor:'pointer',textAlign:'left',display:'flex',flexDirection:'column'}}>
                             <span style={{fontSize:8,fontWeight:600,color:p?g.pal.solid:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3}}>{s.functionName}</span>
                             {s.functionType&&<span style={{fontSize:7,color:p?g.pal.soft:'rgba(255,255,255,.75)',lineHeight:1.2}}>{s.functionType}</span>}
@@ -843,7 +849,7 @@ function MobileMonth({groups,vdate,onBook,onCreate,onDrill}:{groups:VenueGroup[]
   const totalCells=Math.ceil((firstDow+dim)/7)*7;
   const cells=Array.from({length:totalCells},(_,i)=>{const d=i-firstDow+1;return(d>=1&&d<=dim)?d:null;});
   const selKey=mdk(selDay);
-  const selSlots=groups.flatMap(g=>g.halls.flatMap(h=>h.slots.filter(s=>s.date===selKey).map(s=>({...s,pal:g.pal,hallName:h.hallName})))).sort((a,b)=>a.startMinutes-b.startMinutes);
+  const selSlots=dedupeSlotsByBookingId(groups.flatMap(g=>g.halls.flatMap(h=>h.slots.filter(s=>s.date===selKey).map(s=>({...s,pal:g.pal,hallName:h.hallName}))))).sort((a,b)=>a.startMinutes-b.startMinutes);
 
   return (
     <div style={{display:'flex',flexDirection:'column',height:'calc(100dvh - 148px)',minHeight:480}}>
@@ -854,7 +860,7 @@ function MobileMonth({groups,vdate,onBook,onCreate,onDrill}:{groups:VenueGroup[]
         <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',padding:'0 3px',gap:'1px 0'}}>
           {cells.map((d,i)=>{
             if(!d)return<div key={i} style={{minHeight:46}}/>;
-            const dkey=mdk(d),daySlots=groups.flatMap(g=>g.halls.flatMap(h=>h.slots.filter(s=>s.date===dkey)));
+            const dkey=mdk(d),daySlots=dedupeSlotsByBookingId(groups.flatMap(g=>g.halls.flatMap(h=>h.slots.filter(s=>s.date===dkey))));
             const venuesHere=groups.filter(g=>g.halls.some(h=>h.slots.some(s=>s.date===dkey)));
             const isSel=d===selDay,isTod=isCM&&d===today.getDate(),isWk=i%7===0||i%7===6;
             return (
@@ -885,10 +891,10 @@ function MobileMonth({groups,vdate,onBook,onCreate,onDrill}:{groups:VenueGroup[]
           </div>
         ):(
           <div style={{padding:'6px 8px 16px',display:'flex',flexDirection:'column',gap:6}}>
-            {selSlots.map(s=>{
+            {selSlots.map((s,si)=>{
               const p=s.isPencilBooking||s.status==='pencil';
               return (
-                <button key={s.bookingId||s.functionName} type="button" onClick={()=>s.bookingId&&onBook(s.bookingId)}
+                <button key={`${s.bookingId||s.functionName}-${si}`} type="button" onClick={()=>s.bookingId&&onBook(s.bookingId)}
                   style={{display:'flex',alignItems:'stretch',gap:10,padding:'8px 10px',background:'var(--surface)',borderRadius:8,border:BD,cursor:'pointer',textAlign:'left',boxShadow:'0 1px 2px rgba(0,0,0,.04)'}}>
                   <div style={{width:3,borderRadius:2,background:p?'transparent':s.pal.solid,border:p?`1.5px dashed ${s.pal.solid}`:'none',flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>

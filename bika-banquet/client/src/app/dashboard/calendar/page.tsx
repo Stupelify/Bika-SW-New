@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { customerSearchText, textMatchesSearch } from '@/lib/customerSearch';
 import { CalendarPageSkeleton, CalendarSkeleton } from '@/components/Skeletons';
+import { LatestWinsGuard, dedupeSlotsByBookingId } from '@/lib/calendarConcurrency';
 import dynamic from 'next/dynamic';
 import type { TimelineHallRow } from '@/components/VenueTimelineBoard';
 import CalendarToolbar from './_components/CalendarToolbar';
@@ -145,7 +146,14 @@ export default function CalendarPage() {
     return () => window.removeEventListener('afterprint', handler);
   }, []);
 
+  const loadGuardRef = useRef<LatestWinsGuard>(new LatestWinsGuard());
+
   const loadCalendarData = useCallback(async () => {
+    // Latest-wins guard: navigating day A -> B -> A fires overlapping loads.
+    // Only the most recently started load commits its result, so an earlier
+    // (wider-range) response that resolves late can't overwrite the view and
+    // duplicate bookings.
+    const loadToken = loadGuardRef.current.begin();
     try {
       setLoading(true);
       let start: Date;
@@ -168,6 +176,8 @@ export default function CalendarPage() {
         fetchEnquiries(start, end),
         fetchGoogleCalendarEvents(start, end),
       ]);
+      // Discard out-of-order / superseded responses.
+      if (!loadGuardRef.current.isCurrent(loadToken)) return;
       setBookings(bookingRows);
       setEnquiries(enquiryRows);
       setGoogleEvents(googleRows.events);
@@ -193,9 +203,15 @@ export default function CalendarPage() {
         return formatDateKey(viewDate);
       });
     } catch (error) {
-      toast.error('Failed to load calendar data');
+      if (loadGuardRef.current.isCurrent(loadToken)) {
+        toast.error('Failed to load calendar data');
+      }
     } finally {
-      setLoading(false);
+      // Only the latest load controls the loading flag, so a late stale
+      // response can't clear the spinner for an in-flight newer load.
+      if (loadGuardRef.current.isCurrent(loadToken)) {
+        setLoading(false);
+      }
     }
   }, [viewDate, viewMode]);
 
