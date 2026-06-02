@@ -21,6 +21,26 @@ export default function CapacitorNativeShell() {
     applyNativeDocumentClasses(platform);
     void syncSystemChrome(readTheme(), platform);
 
+    // The web app has mounted, so the WebView has real content to show — drop
+    // the native splash instead of leaving a blank screen during cold start.
+    void (async () => {
+      try {
+        const { SplashScreen } = await import('@capacitor/splash-screen');
+        await SplashScreen.hide();
+      } catch {
+        /* splash-screen plugin unavailable */
+      }
+    })();
+
+    // Cache hashed JS/CSS so repeat launches don't re-download the whole shell.
+    // Native-only; desktop/mobile browsers are unaffected. (WebKit may ignore
+    // this on iOS remote content — it then no-ops harmlessly.)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        /* registration unsupported in this WebView */
+      });
+    }
+
     const themeObserver = new MutationObserver(() => {
       void syncSystemChrome(readTheme(), platform);
     });

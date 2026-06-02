@@ -109,3 +109,42 @@ html.capacitor-native .native-auth-page {
   --background: var(--surface-2);
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
 }
+
+/* ── Native "feel" layer (Capacitor only; browsers untouched) ───────────────
+   Small touches that make the WebView read as an app rather than a web page:
+   no blue tap flash, crisper text, no accidental selection of UI chrome, and
+   an instant press response so buttons feel tactile. */
+
+html.capacitor-native,
+html.capacitor-native * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.capacitor-native {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Kill the root rubber-band / pull-to-refresh so the app frame stays put. */
+  overscroll-behavior: none;
+}
+
+/* Don't let users long-press-select buttons, links and nav chrome
+   (inputs and real content keep selection). */
+html.capacitor-native button,
+html.capacitor-native a,
+html.capacitor-native .btn,
+html.capacitor-native [role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Instant touch-down feedback — native apps respond on press, not on release. */
+@media (prefers-reduced-motion: no-preference) {
+  html.capacitor-native button:active,
+  html.capacitor-native .btn:active,
+  html.capacitor-native [role="button"]:active {
+    transform: scale(0.97);
+    transition: transform 0.06s ease-out;
+  }
+}
