@@ -69,6 +69,46 @@ html.capacitor-android .bottom-nav-item {
   -webkit-tap-highlight-color: rgba(13, 148, 136, 0.15);
 }
 
+/* ── Bottom nav: match each platform's native tab bar ───────────────────────
+   The bar is HTML inside the WebView (a real native UITabBar / Material
+   BottomNavigationView can't be embedded in web content), so we style it to
+   read as native per platform. */
+
+/* iOS — translucent frosted "glass" bar; active tab is tinted, not boxed. */
+html.capacitor-ios .bottom-nav {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+  box-shadow: none;
+}
+html.capacitor-ios[data-theme="dark"] .bottom-nav {
+  background: rgba(17, 24, 39, 0.72);
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+html.capacitor-ios .bottom-nav-item.active {
+  background: transparent;
+}
+
+/* Android — Material 3: elevated opaque bar, active icon sits in a pill. */
+html.capacitor-android .bottom-nav {
+  border-top: none;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+html.capacitor-android .bottom-nav-item.active {
+  background: transparent;
+}
+html.capacitor-android .bottom-nav-item.active .bottom-nav-icon {
+  background: var(--teal-50);
+  border-radius: 16px;
+  padding: 4px 16px;
+  box-sizing: content-box;
+  transition: background 0.15s ease;
+}
+html.capacitor-android[data-theme="dark"] .bottom-nav-item.active .bottom-nav-icon {
+  background: rgba(13, 148, 136, 0.25);
+}
+
 /* Auth pages (login) — explicit scroll-friendly page shell */
 html.capacitor-native .native-auth-page {
   min-height: 100dvh;

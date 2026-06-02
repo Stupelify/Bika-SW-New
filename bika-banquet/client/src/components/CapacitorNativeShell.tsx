@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { haptic } from '@/lib/haptics';
 import {
   applyNativeDocumentClasses,
   getCapacitorPlatform,
@@ -40,6 +41,21 @@ export default function CapacitorNativeShell() {
         /* registration unsupported in this WebView */
       });
     }
+
+    // Light tactile feedback on touch-down for primary controls. Delegated so
+    // individual components don't each have to wire it up. Opt extra elements
+    // in with a `data-haptic` attribute.
+    const onPointerDown = (event: PointerEvent) => {
+      const el = event.target as Element | null;
+      if (
+        el?.closest(
+          '.bottom-nav-item, .btn-primary, .fab, [data-haptic]',
+        )
+      ) {
+        void haptic('light');
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown, { passive: true });
 
     const themeObserver = new MutationObserver(() => {
       void syncSystemChrome(readTheme(), platform);
@@ -109,6 +125,7 @@ export default function CapacitorNativeShell() {
       themeObserver.disconnect();
       removeKeyboard?.();
       removeBack?.();
+      document.removeEventListener('pointerdown', onPointerDown);
       document.documentElement.style.removeProperty('--keyboard-offset');
       document.documentElement.classList.remove(
         'capacitor-native',
