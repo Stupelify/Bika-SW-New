@@ -21,7 +21,6 @@
 .env.*
 
 # Not part of the web/server images.
-native-client
 docker
 
 # Server runtime mounts (provided as volumes at runtime).
