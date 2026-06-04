@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:capacitor": "CAPACITOR_BUILD=1 NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://banquet.bikafood.com/api} next build",
+    "cap:sync": "CAPACITOR_BUILD=1 npx cap sync",
     "start": "next start",
     "lint": "next lint",
     "test:e2e": "playwright test",
