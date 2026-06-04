@@ -123,8 +123,8 @@ export default function BookingFormReadOnlyView({
       </section>
 
       <section className="space-y-3">
-        <div className="hidden xl:block rounded-2xl border border-[var(--border)]">
-          <table className="w-full text-sm border-collapse">
+        <div className="rounded-2xl border border-[var(--border)] overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <table className="w-full min-w-[880px] text-sm border-collapse">
             <thead>
               <tr className="bg-[var(--surface-2)] border-b border-[var(--border)]">
                 <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)]">Meal</th>
