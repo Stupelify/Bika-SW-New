@@ -146,7 +146,72 @@ export default function AuditLogsPage() {
           </div>
         </div>
 
-        <div className="table-shell">
+        {/* Mobile card view */}
+        <div className="md:hidden">
+          {loading && logs.length === 0 ? (
+            <p className="text-center py-12 text-[var(--text-3)]">Loading logs...</p>
+          ) : sortedLogs.length === 0 ? (
+            <EmptyState
+              icon={Activity}
+              title="No logs found"
+              description="No activity logs match your search criteria."
+            />
+          ) : (
+            <div className="mobile-card-list">
+              {sortedLogs.map((log) => (
+                <div key={log.id} className="mobile-card">
+                  <div className="mobile-card-header">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="mobile-card-title">
+                        {log.userName || (
+                          <span className="text-[var(--text-3)] italic">System</span>
+                        )}
+                      </div>
+                      <div className="mobile-card-subtitle">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider
+                      ${
+                        log.action === 'CREATE' ? 'bg-green-100 text-green-700 dark:text-green-200' :
+                        log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700 dark:text-blue-200' :
+                        log.action === 'DELETE' ? 'bg-red-100 text-red-700 dark:text-red-200' :
+                        log.action === 'CANCEL' ? 'bg-orange-100 text-orange-700 dark:text-orange-200' :
+                        log.action === 'FINALIZE' ? 'bg-purple-100 text-purple-700' :
+                        log.action === 'PARTY_OVER' ? 'bg-indigo-100 text-indigo-700 dark:text-indigo-200' :
+                        'bg-[var(--bg-3)] text-[var(--text-2)]'
+                      }
+                    `}>
+                      {log.action}
+                    </span>
+                  </div>
+                  <div className="mobile-card-row">
+                    <span className="mobile-card-label">Resource</span>
+                    <span className="mobile-card-value uppercase">{log.resource}</span>
+                  </div>
+                  {(log.resourceLabel || log.resourceId) && (
+                    <div className="mobile-card-row">
+                      <span className="mobile-card-label">Identifier</span>
+                      <span className="mobile-card-value">
+                        {log.resourceLabel || (
+                          <span className="font-mono text-xs">{log.resourceId}</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {log.ipAddress && (
+                    <div className="mobile-card-meta" style={{ marginTop: 6 }}>
+                      <span className="mobile-card-meta-item font-mono">{log.ipAddress}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop table view */}
+        <div className="hidden md:block table-shell">
           <table className="data-table">
             <thead>
               <tr className="border-b border-[var(--border)]">

@@ -719,7 +719,62 @@ export default function IngredientsPage() {
             {loading ? (
               <TableSkeleton rows={5} />
             ) : (
-              <div className="table-shell">
+              <>
+                {/* Mobile card view */}
+                <div className="md:hidden">
+                  {filteredIngredients.length === 0 ? (
+                    <p className="text-center py-6 text-sm text-[var(--text-4)]">No ingredients found.</p>
+                  ) : (
+                    <div className="mobile-card-list">
+                      {filteredIngredients.map((ingredient) => (
+                        <div key={ingredient.id} className="mobile-card">
+                          <div className="mobile-card-header">
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="mobile-card-title">{ingredient.name}</div>
+                              <div className="mobile-card-subtitle">Unit: {ingredient.defaultUnit}</div>
+                            </div>
+                          </div>
+                          <div className="mobile-card-meta" style={{ marginTop: 6 }}>
+                            <span className="mobile-card-meta-item">{ingredient._count?.itemRecipes || 0} recipes</span>
+                            <span className="mobile-card-meta-item">{ingredient._count?.vendorSupplies || 0} vendors</span>
+                          </div>
+                          <div className="mobile-card-actions">
+                            <button type="button" className="mobile-card-action-btn" onClick={() => openSuppliers(ingredient)}>
+                              <Users style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Suppliers
+                            </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className="mobile-card-action-btn"
+                                onClick={() => {
+                                  void openEditIngredient(ingredient);
+                                }}
+                              >
+                                <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                                Edit
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                className="mobile-card-action-btn"
+                                style={{ color: '#dc2626' }}
+                                onClick={() => removeIngredient(ingredient.id)}
+                              >
+                                <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop table view */}
+                <div className="hidden md:block table-shell">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -783,7 +838,8 @@ export default function IngredientsPage() {
                     )}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>

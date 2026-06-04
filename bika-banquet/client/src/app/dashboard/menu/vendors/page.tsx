@@ -998,7 +998,73 @@ export default function VendorsPage() {
             {loading ? (
               <TableSkeleton rows={5} />
             ) : (
-              <div className="table-shell">
+              <>
+                {/* Mobile card view */}
+                <div className="md:hidden">
+                  {filteredVendors.length === 0 ? (
+                    <p className="text-center py-6 text-sm text-[var(--text-4)]">No vendors found.</p>
+                  ) : (
+                    <div className="mobile-card-list">
+                      {filteredVendors.map((vendor) => (
+                        <div key={vendor.id} className="mobile-card">
+                          <div className="mobile-card-header">
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="mobile-card-title">{vendor.name}</div>
+                              {vendor.contactPerson && (
+                                <div className="mobile-card-subtitle">{vendor.contactPerson}</div>
+                              )}
+                            </div>
+                          </div>
+                          {vendor.phone && (
+                            <div className="mobile-card-row">
+                              <span className="mobile-card-label">Phone</span>
+                              <span className="mobile-card-value">{vendor.phone}</span>
+                            </div>
+                          )}
+                          <div className="mobile-card-meta" style={{ marginTop: 6 }}>
+                            <span className="mobile-card-meta-item">{ingredientSupplyCount(vendor)} ingredient</span>
+                            <span className="mobile-card-meta-item">{itemSupplyCount(vendor)} item</span>
+                            <span className="mobile-card-meta-item">
+                              {vendor._count?.supplies || (vendor.supplies || []).length} total
+                            </span>
+                          </div>
+                          <div className="mobile-card-actions">
+                            <button type="button" className="mobile-card-action-btn" onClick={() => openSupplies(vendor)}>
+                              <Truck style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Supplies
+                            </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className="mobile-card-action-btn"
+                                onClick={() => {
+                                  void openEditVendor(vendor);
+                                }}
+                              >
+                                <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                                Edit
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                className="mobile-card-action-btn"
+                                style={{ color: '#dc2626' }}
+                                onClick={() => removeVendor(vendor.id)}
+                              >
+                                <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop table view */}
+                <div className="hidden md:block table-shell">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -1065,7 +1131,8 @@ export default function VendorsPage() {
                     )}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>
