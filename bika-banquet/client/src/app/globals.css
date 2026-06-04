@@ -1282,6 +1282,22 @@
   backdrop-filter: none !important;
 }
 
+/* Command palette → bottom sheet on phones.
+   Overrides the component's inline (desktop) styles via !important; desktop ≥641px is untouched. */
+@media (max-width: 640px) {
+  .command-palette-overlay {
+    align-items: flex-end !important;
+    padding-top: 0 !important;
+  }
+
+  .command-palette {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding-bottom: var(--safe-bottom);
+  }
+}
+
 [data-device-tier="low"] .bottom-nav-indicator {
   transition: transform 120ms ease, opacity 120ms ease;
 }

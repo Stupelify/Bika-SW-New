@@ -1988,7 +1988,42 @@ function MenuPageContent() {
               }
             />
           ) : (
-            <div className="table-shell">
+            <>
+              {/* Mobile card view */}
+              <div className="md:hidden mobile-card-list">
+                {paginatedItemTypes.map((itemType) => (
+                  <div key={itemType.id} className="mobile-card">
+                    <div className="mobile-card-header">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="mobile-card-title">{itemType.name}</div>
+                      </div>
+                    </div>
+                    <div className="mobile-card-meta" style={{ marginTop: 6 }}>
+                      <span className="mobile-card-meta-item">Order: {itemType.order ?? itemType.displayOrder ?? 0}</span>
+                      <span className="mobile-card-meta-item">{itemType._count?.items || 0} items</span>
+                    </div>
+                    {(canEditItemType || canDeleteItemType) && (
+                      <div className="mobile-card-actions">
+                        {canEditItemType && (
+                          <button type="button" className="mobile-card-action-btn" onClick={() => openEditType(itemType)}>
+                            <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                            Edit
+                          </button>
+                        )}
+                        {canDeleteItemType && (
+                          <button type="button" className="mobile-card-action-btn" style={{ color: '#dc2626' }} onClick={() => removeItemType(itemType.id)}>
+                            <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block table-shell">
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
@@ -2052,6 +2087,7 @@ function MenuPageContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               <TablePagination
                 currentPage={itemTypePage}
                 totalPages={itemTypeTotalPages}
@@ -2060,7 +2096,7 @@ function MenuPageContent() {
                 itemLabel="item types"
                 onPageChange={setItemTypePage}
               />
-            </div>
+            </>
           )}
         </div>
 
@@ -2137,7 +2173,55 @@ function MenuPageContent() {
               }
             />
           ) : (
-            <div className="table-shell">
+            <>
+              {/* Mobile card view */}
+              <div className="md:hidden mobile-card-list">
+                {paginatedItems.map((item) => (
+                  <div key={item.id} className="mobile-card">
+                    <div className="mobile-card-header">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="mobile-card-title">{item.name}</div>
+                        <div className="mobile-card-subtitle">{item.itemType?.name || '—'}</div>
+                      </div>
+                      <span className="mobile-card-meta-item">{item.points ?? item.point ?? '-'} pts</span>
+                    </div>
+                    <div className="mobile-card-meta" style={{ marginTop: 6 }}>
+                      <span className="mobile-card-meta-item">{item.isVeg ? 'Veg' : 'Non-veg'}</span>
+                      <span className="mobile-card-meta-item">Recipe: {item._count?.itemRecipes || 0}</span>
+                      <span className="mobile-card-meta-item">Vendors: {item._count?.vendorSupplies || 0}</span>
+                    </div>
+                    {(canEditItem || canDeleteItem) && (
+                      <div className="mobile-card-actions">
+                        {canEditItem && (
+                          <button type="button" className="mobile-card-action-btn" onClick={() => openItemRecipeManager(item)}>
+                            Recipe
+                          </button>
+                        )}
+                        {canEditItem && (
+                          <button type="button" className="mobile-card-action-btn" onClick={() => openItemVendorsManager(item)}>
+                            Vendors
+                          </button>
+                        )}
+                        {canEditItem && (
+                          <button type="button" className="mobile-card-action-btn" onClick={() => { void openEditItem(item); }}>
+                            <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                            Edit
+                          </button>
+                        )}
+                        {canDeleteItem && (
+                          <button type="button" className="mobile-card-action-btn" style={{ color: '#dc2626' }} onClick={() => removeItem(item.id)}>
+                            <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block table-shell">
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
@@ -2228,6 +2312,7 @@ function MenuPageContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               <TablePagination
                 currentPage={itemPage}
                 totalPages={itemTotalPages}
@@ -2236,7 +2321,7 @@ function MenuPageContent() {
                 itemLabel="items"
                 onPageChange={setItemPage}
               />
-            </div>
+            </>
           )}
         </div>
 
@@ -2313,7 +2398,53 @@ function MenuPageContent() {
               }
             />
           ) : (
-            <div className="table-shell">
+            <>
+              {/* Mobile card view */}
+              <div className="md:hidden mobile-card-list">
+                {paginatedTemplateMenus.map((template) => {
+                  const totalPoints = (template.items || []).reduce((sum, i) => {
+                    const pts = i.item.points ?? i.item.point ?? 0;
+                    return sum + (Number.isFinite(Number(pts)) ? Number(pts) : 0);
+                  }, 0);
+                  const roundedPoints = Math.round(totalPoints * 100) / 100;
+                  return (
+                    <div key={template.id} className="mobile-card">
+                      <div className="mobile-card-header">
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="mobile-card-title">{template.name}</div>
+                          <div className="mobile-card-subtitle">{template.category || 'General'}</div>
+                        </div>
+                        <span className="mobile-card-meta-item" style={{ color: 'var(--teal-700)', fontWeight: 600 }}>
+                          {roundedPoints} pts
+                        </span>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Rate / Plate</span>
+                        <span className="mobile-card-value">INR {(template.ratePerPlate || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      {(canEditTemplate || canDeleteTemplate) && (
+                        <div className="mobile-card-actions">
+                          {canEditTemplate && (
+                            <button type="button" className="mobile-card-action-btn" onClick={() => { void openEditTemplate(template); }}>
+                              <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Edit
+                            </button>
+                          )}
+                          {canDeleteTemplate && (
+                            <button type="button" className="mobile-card-action-btn" style={{ color: '#dc2626' }} onClick={() => removeTemplateMenu(template.id)}>
+                              <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block table-shell">
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
@@ -2395,6 +2526,7 @@ function MenuPageContent() {
                   })}
                 </tbody>
               </table>
+              </div>
               <TablePagination
                 currentPage={templatePage}
                 totalPages={templateTotalPages}
@@ -2403,7 +2535,7 @@ function MenuPageContent() {
                 itemLabel="template menus"
                 onPageChange={setTemplatePage}
               />
-            </div>
+            </>
           )}
         </div>
       </div>
