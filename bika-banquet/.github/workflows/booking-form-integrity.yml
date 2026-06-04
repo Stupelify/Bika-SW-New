@@ -7,7 +7,6 @@ on:
       - 'bika-banquet/client/src/components/Booking*.tsx'
       - 'bika-banquet/client/src/lib/booking-form/**'
       - 'bika-banquet/client/e2e/booking-form/**'
-      - 'bika-banquet/native-client/**'
       - 'bika-banquet/server/src/controllers/booking.*'
       - 'bika-banquet/server/src/routes/booking.routes.ts'
       - 'bika-banquet/shared/booking-core/**'
