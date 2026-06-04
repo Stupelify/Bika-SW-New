@@ -16,7 +16,6 @@ const inter = Inter({
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: 'cover',
   interactiveWidget: 'resizes-content',
   themeColor: '#0d9488',
@@ -51,7 +50,7 @@ export default function RootLayout({
         <CapacitorNativeShell />
         <AuthBootstrap />
         <IonicProvider>{children}</IonicProvider>
-        <Toaster position="top-right" richColors />
+        <Toaster position="bottom-center" richColors />
       </body>
     </html>
   );
