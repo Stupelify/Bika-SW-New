@@ -202,36 +202,6 @@
   background: linear-gradient(90deg, #0b0b0b 25%, #141414 50%, #0b0b0b 75%);
 }
 
-[data-theme="dark"] .status-confirmed {
-  background: #052e16;
-  color: #86efac;
-}
-
-[data-theme="dark"] .status-pending {
-  background: #2d1a00;
-  color: #fcd34d;
-}
-
-[data-theme="dark"] .status-cancelled {
-  background: #2d0a0a;
-  color: #fca5a5;
-}
-
-[data-theme="dark"] .status-quotation {
-  background: #0d1f4a;
-  color: #93c5fd;
-}
-
-[data-theme="dark"] .status-pencil {
-  background: #2d1a00;
-  color: #fcd34d;
-}
-
-[data-theme="dark"] .status-enquiry {
-  background: #0a1f2d;
-  color: #7dd3fc;
-}
-
 [data-theme="dark"] tbody tr:hover {
   background-color: rgba(20, 184, 166, 0.06);
 }
@@ -697,39 +667,16 @@
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: currentColor;
+    background: var(--st-dot, currentColor);
     flex-shrink: 0;
   }
 
-  .status-confirmed {
-    background: #DCFCE7;
-    color: #14532D;
-  }
-
-  .status-pending {
-    background: #FEF3C7;
-    color: #78350F;
-  }
-
-  .status-cancelled {
-    background: #FEE2E2;
-    color: #7F1D1D;
-  }
-
-  .status-quotation {
-    background: #DBEAFE;
-    color: #1E3A8A;
-  }
-
-  .status-pencil {
-    background: #FEF3C7;
-    color: #78350F;
-  }
-
-  .status-enquiry {
-    background: #E0F2FE;
-    color: #075985;
-  }
+  .status-confirmed { background: var(--st-confirmed-bg); color: var(--st-confirmed-fg); --st-dot: var(--st-confirmed-dot); }
+  .status-pending   { background: var(--st-pending-bg);   color: var(--st-pending-fg);   --st-dot: var(--st-pending-dot); }
+  .status-cancelled { background: var(--st-cancelled-bg); color: var(--st-cancelled-fg); --st-dot: var(--st-cancelled-dot); }
+  .status-quotation { background: var(--st-quotation-bg); color: var(--st-quotation-fg); --st-dot: var(--st-quotation-dot); }
+  .status-pencil    { background: var(--st-pencil-bg);    color: var(--st-pencil-fg);    --st-dot: var(--st-pencil-dot); }
+  .status-enquiry   { background: var(--st-enquiry-bg);   color: var(--st-enquiry-fg);   --st-dot: var(--st-enquiry-dot); }
 
   .kpi-card {
     background-color: var(--surface);
