@@ -3,7 +3,7 @@ import prisma from '../config/database';
 import { sendError, sendSuccess } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import {
-  getAllowedBanquetIds,
+  getVenueScope,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
 
@@ -47,7 +47,7 @@ export async function getDashboardSummary(
 ): Promise<void> {
   try {
     const authReq = req as AuthRequest;
-    const allowedBanquetIds = getAllowedBanquetIds(authReq);
+    const scope = getVenueScope(authReq);
     const range = (req.query.range as string) || '1m';
     const { start, end } = parseRange(range);
 
@@ -62,7 +62,7 @@ export async function getDashboardSummary(
       {
         isLatest: true,
       },
-      allowedBanquetIds
+      scope
     );
 
     const scopedRangeWhere = withBookingBanquetScope(
@@ -73,7 +73,7 @@ export async function getDashboardSummary(
           lte: endDate,
         },
       },
-      allowedBanquetIds
+      scope
     );
 
     const [allScopedBookings, rangedBookings] = await Promise.all([

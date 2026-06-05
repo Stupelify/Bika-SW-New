@@ -18,6 +18,8 @@ export interface TokenPayload {
   roles: string[];
   permissions: string[];
   banquetIds: string[];
+  isActive: boolean;
+  hasAllVenueAccess: boolean;
 }
 
 /**

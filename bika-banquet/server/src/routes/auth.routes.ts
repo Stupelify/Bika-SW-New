@@ -6,10 +6,8 @@ import {
   login,
   logout,
   getCurrentUser,
-  changePassword,
   registerSchema,
   loginSchema,
-  changePasswordSchema,
 } from '../controllers/auth.controller';
 import { authenticate, requireRole, resolveTokenFromRequest } from '../middleware/auth.middleware';
 import type { AuthRequest } from '../middleware/auth.middleware';
@@ -27,7 +25,6 @@ router.post('/register', authenticate, requireRole('Admin'), validate(registerSc
 // Protected routes
 router.post('/logout', authenticate, logout);
 router.get('/me', authenticate, getCurrentUser);
-router.post('/change-password', authenticate, validate(changePasswordSchema), changePassword);
 
 // One-time token for EventSource authentication (browser can't send headers)
 router.get('/sse-token', authenticate, async (req: AuthRequest, res: Response) => {

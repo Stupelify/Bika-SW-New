@@ -12,6 +12,8 @@ export interface AuthRequest extends Request {
     roles: string[];
     permissions: string[];
     banquetIds: string[];
+    isActive: boolean;
+    hasAllVenueAccess: boolean;
   };
   rawToken?: string;
 }
@@ -45,6 +47,22 @@ const SESSION_CACHE_TTL = 60; // seconds
 
 function tokenCacheKey(token: string): string {
   return `session:${crypto.createHash('sha256').update(token).digest('hex')}`;
+}
+
+/**
+ * Best-effort deletion of a token's cached session entry from Redis.
+ * No-op when Redis is unavailable; errors are swallowed.
+ */
+export async function invalidateSessionCacheByToken(token: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) {
+    return;
+  }
+  try {
+    await redis.del(tokenCacheKey(token));
+  } catch {
+    // best-effort: ignore cache deletion failures
+  }
 }
 
 async function getCachedOrFetchSession(token: string): Promise<TokenPayload | null> {
@@ -102,6 +120,11 @@ async function validateSessionAndResolveUser(
               banquetId: true,
             },
           },
+          userPermissions: {
+            include: {
+              permission: true,
+            },
+          },
         },
       },
     },
@@ -111,13 +134,20 @@ async function validateSessionAndResolveUser(
     return null;
   }
 
+  // A disabled user is treated exactly like a revoked session.
+  if (session.user.isActive === false) {
+    return null;
+  }
+
   const roles = session.user.userRoles.map((entry) => entry.role.name);
+  // Union of role permissions AND direct user permissions, de-duplicated.
   const permissions = [
-    ...new Set(
-      session.user.userRoles.flatMap((entry) =>
+    ...new Set([
+      ...session.user.userRoles.flatMap((entry) =>
         entry.role.permissions.map((permission) => permission.permission.name)
-      )
-    ),
+      ),
+      ...session.user.userPermissions.map((up) => up.permission.name),
+    ]),
   ];
 
   const banquetIds = (session.user as any).userBanquets
@@ -130,6 +160,8 @@ async function validateSessionAndResolveUser(
     roles,
     permissions,
     banquetIds,
+    isActive: true,
+    hasAllVenueAccess: session.user.hasAllVenueAccess,
   };
 }
 
@@ -191,6 +223,8 @@ export async function authenticate(
       roles: payloadToUse.roles,
       permissions: payloadToUse.permissions,
       banquetIds: Array.isArray(payloadToUse.banquetIds) ? payloadToUse.banquetIds : [],
+      isActive: payloadToUse.isActive,
+      hasAllVenueAccess: payloadToUse.hasAllVenueAccess,
     };
 
     next();

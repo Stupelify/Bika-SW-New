@@ -27,13 +27,6 @@ export const loginSchema = z.object({
   }),
 });
 
-export const changePasswordSchema = z.object({
-  body: z.object({
-    currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
-  }),
-});
-
 /**
  * Register new user
  */
@@ -118,6 +111,7 @@ export async function login(req: Request, res: Response): Promise<void> {
           },
         },
         userBanquets: { select: { banquetId: true } },
+        userPermissions: { include: { permission: true } },
       },
     });
 
@@ -134,22 +128,43 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Reject disabled accounts.
+    if (!user.isActive) {
+      sendError(res, 'Account is disabled. Contact an administrator.', 403);
+      return;
+    }
+
     // Check if email is verified (optional, can be disabled)
     // if (!user.isVerified) {
     //   sendError(res, 'Please verify your email first', 403);
     //   return;
     // }
 
-    // Extract roles, permissions, banquet restrictions
+    // Extract roles, permissions, banquet restrictions.
+    // Permissions are the union of role permissions AND direct user permissions.
     const roles = user.userRoles.map((ur) => ur.role.name);
     const permissions = [
-      ...new Set(
-        user.userRoles.flatMap((ur) =>
+      ...new Set([
+        ...user.userRoles.flatMap((ur) =>
           ur.role.permissions.map((rp) => rp.permission.name)
-        )
-      ),
+        ),
+        ...user.userPermissions.map((up) => up.permission.name),
+      ]),
     ];
     const banquetIds = (user.userBanquets || []).map((ub) => ub.banquetId);
+
+    // Record login metadata (best-effort, derived from forwarded headers / socket).
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const clientIp =
+      (typeof forwardedFor === 'string'
+        ? forwardedFor.split(',')[0]?.trim()
+        : Array.isArray(forwardedFor)
+          ? forwardedFor[0]?.trim()
+          : undefined) || req.socket.remoteAddress || null;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), lastLoginIp: clientIp },
+    });
 
     // Generate JWT token
     const token = generateToken({
@@ -158,6 +173,8 @@ export async function login(req: Request, res: Response): Promise<void> {
       roles,
       permissions,
       banquetIds,
+      isActive: true,
+      hasAllVenueAccess: user.hasAllVenueAccess,
     });
 
     // Create session
@@ -182,6 +199,7 @@ export async function login(req: Request, res: Response): Promise<void> {
         roles,
         permissions,
         banquetIds,
+        hasAllVenueAccess: user.hasAllVenueAccess,
       },
     });
   } catch (error) {
@@ -205,50 +223,6 @@ export async function logout(req: AuthRequest, res: Response): Promise<void> {
     sendSuccess(res, null, 'Logged out successfully');
   } catch (error) {
     sendError(res, 'Logout failed');
-  }
-}
-
-export async function changePassword(
-  req: AuthRequest,
-  res: Response
-): Promise<void> {
-  try {
-    if (!req.user) {
-      sendUnauthorized(res);
-      return;
-    }
-
-    const { currentPassword, newPassword } = req.body;
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
-      select: {
-        id: true,
-        password: true,
-      },
-    });
-
-    if (!user) {
-      sendUnauthorized(res);
-      return;
-    }
-
-    const isValidPassword = await comparePassword(currentPassword, user.password);
-    if (!isValidPassword) {
-      sendError(res, 'Current password is incorrect', 400);
-      return;
-    }
-
-    const hashedPassword = await hashPassword(newPassword);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-      },
-    });
-
-    sendSuccess(res, null, 'Password changed successfully');
-  } catch (error) {
-    sendError(res, 'Failed to change password');
   }
 }
 
@@ -292,6 +266,7 @@ export async function getCurrentUser(
         roles: req.user.roles,
         permissions: req.user.permissions,
         banquetIds: req.user.banquetIds,
+        hasAllVenueAccess: req.user.hasAllVenueAccess,
       },
     });
   } catch (error) {

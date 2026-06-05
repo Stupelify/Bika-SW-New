@@ -4,7 +4,7 @@ import prisma from '../config/database';
 import { sendError, sendSuccess } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import {
-  getAllowedBanquetIds,
+  getVenueScope,
   withBookingBanquetScope,
   withEnquiryBanquetScope,
 } from '../utils/banquetAccess';
@@ -21,7 +21,7 @@ export async function searchAll(req: Request, res: Response): Promise<void> {
   try {
     const authReq = req as AuthRequest;
     const permissions = authReq.user?.permissions || [];
-    const allowedBanquetIds = getAllowedBanquetIds(authReq);
+    const scope = getVenueScope(authReq);
     const q = (req.query.q as string ?? '').trim();
     if (q.length < 2) {
       sendSuccess(res, { bookings: [], customers: [], enquiries: [] });
@@ -46,7 +46,7 @@ export async function searchAll(req: Request, res: Response): Promise<void> {
           { customer: { name: { contains: q, mode: 'insensitive' as const } } },
         ],
       },
-      allowedBanquetIds
+      scope
     ) as Prisma.BookingWhereInput;
 
     const enquiryWhere = withEnquiryBanquetScope(
@@ -56,7 +56,7 @@ export async function searchAll(req: Request, res: Response): Promise<void> {
           { customer: { name: { contains: q, mode: 'insensitive' as const } } },
         ],
       },
-      allowedBanquetIds
+      scope
     ) as Prisma.EnquiryWhereInput;
 
     const bookings = canSearchBookings

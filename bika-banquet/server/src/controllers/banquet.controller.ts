@@ -8,6 +8,7 @@ import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { createAuditLog } from '../utils/auditLog';
+import { getVenueScope, canAccessBanquet } from '../utils/banquetAccess';
 
 export const createBanquetSchema = z.object({
   body: z.object({
@@ -66,11 +67,10 @@ export async function getBanquets(req: Request, res: Response): Promise<void> {
     );
     const search = sanitizeSearchTerm(req.query.search);
 
-    const banquetAuthReq = req as AuthRequest;
-    const allowedBanquetIds = banquetAuthReq.user?.banquetIds;
-    const banquetIdFilter = allowedBanquetIds && allowedBanquetIds.length > 0
-      ? { id: { in: allowedBanquetIds } }
-      : {};
+    const scope = getVenueScope(req as AuthRequest);
+    const banquetIdFilter = scope.allVenues
+      ? {}
+      : { id: { in: scope.banquetIds } };
 
     const where = search
       ? {
@@ -121,9 +121,8 @@ export async function getBanquetById(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const banquetAuthReq = req as AuthRequest;
-    const allowedBanquetIds = banquetAuthReq.user?.banquetIds || [];
-    if (allowedBanquetIds.length > 0 && !allowedBanquetIds.includes(id)) {
+    const scope = getVenueScope(req as AuthRequest);
+    if (!canAccessBanquet(scope, id)) {
       sendNotFound(res, 'Banquet not found');
       return;
     }
@@ -148,9 +147,8 @@ export async function getBanquetById(
 export async function updateBanquet(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const banquetAuthReq = req as AuthRequest;
-    const allowedBanquetIds = banquetAuthReq.user?.banquetIds || [];
-    if (allowedBanquetIds.length > 0 && !allowedBanquetIds.includes(id)) {
+    const scope = getVenueScope(req as AuthRequest);
+    if (!canAccessBanquet(scope, id)) {
       sendNotFound(res, 'Banquet not found');
       return;
     }

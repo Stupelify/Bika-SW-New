@@ -17,7 +17,7 @@ import {
   bookingImmutableMessage,
 } from './booking.shared';
 import {
-  getAllowedBanquetIds,
+  getVenueScope,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
 
@@ -99,7 +99,7 @@ export async function addPayment(
     const { id } = req.params;
     const { amount, method, reference, narration, paymentDate, clearingDate } = req.body;
     const normalizedAmount = toSafeMoney(amount);
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     if (!req.user) {
       sendError(res, 'Unauthorized', 401);
@@ -110,7 +110,7 @@ export async function addPayment(
       // Verify booking exists and is mutable BEFORE creating the payment so we
       // never leave an orphaned payment record on a non-latest or immutable booking.
       const booking = await tx.booking.findFirst({
-        where: withBookingBanquetScope({ id }, allowedBanquetIds),
+        where: withBookingBanquetScope({ id }, scope),
         select: {
           id: true,
           status: true,
@@ -206,7 +206,7 @@ export async function updatePayment(
 ): Promise<void> {
   try {
     const { id, paymentId } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     if (!req.user) {
       sendError(res, 'Unauthorized', 401);
@@ -225,7 +225,7 @@ export async function updatePayment(
       }
 
       const booking = await tx.booking.findFirst({
-        where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
+        where: withBookingBanquetScope({ id, isLatest: true }, scope),
       });
       if (!booking) {
         throw Object.assign(new Error('Booking not found'), { status: 404 });
