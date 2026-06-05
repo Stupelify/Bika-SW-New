@@ -48,7 +48,7 @@ export const DASHBOARD_ROUTE_RULES: DashboardRouteRule[] = [
   },
   {
     href: '/dashboard/logs',
-    permissions: ['view_dashboard', 'manage_users'],
+    permissions: ['view_audit_logs', 'manage_users'],
   },
   {
     href: '/dashboard/settings',

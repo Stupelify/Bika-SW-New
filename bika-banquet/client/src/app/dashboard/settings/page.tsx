@@ -7,11 +7,14 @@ import {
   Building2,
   Eye,
   EyeOff,
+  Globe,
   KeyRound,
+  Pencil,
   Save,
   Search,
   Settings2,
   Shield,
+  ShieldPlus,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -19,12 +22,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import EmptyState from '@/components/EmptyState';
 import FormPromptModal from '@/components/FormPromptModal';
 import { TableSkeleton } from '@/components/Skeletons';
+import { formatDateTimeLabel } from '@/lib/date';
 
 interface UserRow {
   id: string;
   name?: string | null;
   email: string;
   createdAt?: string;
+  isActive?: boolean;
+  hasAllVenueAccess?: boolean;
+  lastLoginAt?: string | null;
   userRoles?: Array<{
     role: {
       id: string;
@@ -234,11 +241,29 @@ const initialUserForm = {
   banquetAccess: [] as string[],
 };
 
-const initialPasswordForm = {
-  currentPassword: '',
+const initialResetPasswordForm = {
   newPassword: '',
   confirmPassword: '',
 };
+
+const initialEditUserForm = {
+  name: '',
+  email: '',
+};
+
+const PASSWORD_RULE_HINT = 'At least 8 characters, including both letters and numbers';
+
+/** Mirrors the backend rule: min 8 chars and contains both letters and numbers. */
+function validatePassword(password: string): string | null {
+  if (password.length < 8) {
+    return 'Password must be at least 8 characters';
+  }
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return 'Password must include both letters and numbers';
+  }
+  return null;
+}
+
 type SettingsSection = 'access' | 'users' | 'roles' | 'permissions';
 
 function isSettingsSection(value: string | null): value is SettingsSection {
@@ -263,8 +288,6 @@ function SettingsPageContent() {
   const [savingUserRoles, setSavingUserRoles] = useState(false);
   const [savingRolePermissions, setSavingRolePermissions] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
-  const [savingPasswordChange, setSavingPasswordChange] = useState(false);
-  const [savingUserPasswordReset, setSavingUserPasswordReset] = useState<string | null>(null);
   const [showRolePrompt, setShowRolePrompt] = useState(false);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const [showUserPrompt, setShowUserPrompt] = useState(false);
@@ -272,14 +295,10 @@ function SettingsPageContent() {
   const [userSearch, setUserSearch] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewAccountPassword, setShowNewAccountPassword] = useState(false);
-  const [showConfirmAccountPassword, setShowConfirmAccountPassword] = useState(false);
 
   const [roleForm, setRoleForm] = useState(initialRoleForm);
   const [permissionForm, setPermissionForm] = useState(initialPermissionForm);
   const [userForm, setUserForm] = useState(initialUserForm);
-  const [passwordForm, setPasswordForm] = useState(initialPasswordForm);
 
   const [banquets, setBanquets] = useState<BanquetOption[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -287,6 +306,31 @@ function SettingsPageContent() {
   const [selectedUserBanquetIds, setSelectedUserBanquetIds] = useState<string[]>([]);
   const [savedUserBanquetIds, setSavedUserBanquetIds] = useState<string[]>([]);
   const [savingUserBanquets, setSavingUserBanquets] = useState(false);
+
+  // ── Per-user management state ────────────────────────────────────────────────
+  // Password reset modal
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserRow | null>(null);
+  const [resetPasswordForm, setResetPasswordForm] = useState(initialResetPasswordForm);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
+  const [savingUserPasswordReset, setSavingUserPasswordReset] = useState(false);
+
+  // Active toggle
+  const [savingUserStatus, setSavingUserStatus] = useState(false);
+
+  // All-venues access
+  const [userAllVenues, setUserAllVenues] = useState(false);
+  const [savingUserAllVenues, setSavingUserAllVenues] = useState(false);
+
+  // Edit name/email modal
+  const [editUserForm, setEditUserForm] = useState(initialEditUserForm);
+  const [showEditUserPrompt, setShowEditUserPrompt] = useState(false);
+  const [savingEditUser, setSavingEditUser] = useState(false);
+
+  // Direct (per-user) permissions
+  const [directPermissionIds, setDirectPermissionIds] = useState<string[]>([]);
+  const [savedDirectPermissionIds, setSavedDirectPermissionIds] = useState<string[]>([]);
+  const [savingDirectPermissions, setSavingDirectPermissions] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
   const [newRolePermissionIds, setNewRolePermissionIds] = useState<string[]>([]);
@@ -340,6 +384,7 @@ function SettingsPageContent() {
     currentPermissionSet.has('add_user') || currentPermissionSet.has('manage_users');
   const canDeleteUsers =
     currentPermissionSet.has('delete_user') || currentPermissionSet.has('manage_users');
+  const canManageUsers = currentPermissionSet.has('manage_users');
   const canViewRoles =
     currentPermissionSet.has('view_role') || currentPermissionSet.has('manage_roles');
   const canAddRoles =
@@ -485,6 +530,30 @@ function SettingsPageContent() {
       .catch(() => {});
   }, [selectedUserId]);
 
+  // Reflect the selected user's all-venues access from the list payload.
+  useEffect(() => {
+    setUserAllVenues(Boolean(selectedUser?.hasAllVenueAccess));
+  }, [selectedUser]);
+
+  // Load the selected user's direct (per-user) permission grants.
+  useEffect(() => {
+    if (!selectedUserId || !canManageUsers) {
+      setDirectPermissionIds([]);
+      setSavedDirectPermissionIds([]);
+      return;
+    }
+    api.getUserDirectPermissions(selectedUserId)
+      .then((res) => {
+        const ids: string[] = res.data?.data?.permissionIds || [];
+        setDirectPermissionIds(ids);
+        setSavedDirectPermissionIds(ids);
+      })
+      .catch(() => {
+        setDirectPermissionIds([]);
+        setSavedDirectPermissionIds([]);
+      });
+  }, [selectedUserId, canManageUsers]);
+
   useEffect(() => {
     if (!selectedRole) return;
     setSelectedPermissionIds(selectedRole.permissions?.map((rp) => rp.permission.id) || []);
@@ -509,6 +578,10 @@ function SettingsPageContent() {
   const rolePermissionsDirty = useMemo(
     () => !arraysMatchAsSet(selectedPermissionIds, selectedRolePermissionIds),
     [selectedPermissionIds, selectedRolePermissionIds]
+  );
+  const directPermissionsDirty = useMemo(
+    () => !arraysMatchAsSet(directPermissionIds, savedDirectPermissionIds),
+    [directPermissionIds, savedDirectPermissionIds]
   );
 
   const loadData = async () => {
@@ -746,54 +819,179 @@ function SettingsPageContent() {
     }
   };
 
-  const changeOwnPassword = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      toast.error('Current and new password are required');
+  // Open the password-reset modal for a specific user.
+  const openResetPasswordModal = (user: UserRow) => {
+    if (!canManageUsers) {
+      toast.error('You do not have permission to reset passwords');
       return;
     }
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    setResetPasswordUser(user);
+    setResetPasswordForm(initialResetPasswordForm);
+    setShowResetPassword(false);
+    setShowResetConfirmPassword(false);
+  };
+
+  const submitResetPassword = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!resetPasswordUser) return;
+    if (!canManageUsers) {
+      toast.error('You do not have permission to reset passwords');
+      return;
+    }
+
+    const newPassword = resetPasswordForm.newPassword;
+    const validationError = validatePassword(newPassword);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    if (newPassword !== resetPasswordForm.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
 
     try {
-      setSavingPasswordChange(true);
-      await api.changePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      });
-      toast.success('Password changed');
-      setPasswordForm(initialPasswordForm);
-      setShowCurrentPassword(false);
-      setShowNewAccountPassword(false);
-      setShowConfirmAccountPassword(false);
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to change password');
-    } finally {
-      setSavingPasswordChange(false);
-    }
-  };
-
-  const resetManagedUserPassword = async (user: UserRow) => {
-    if (!currentPermissionSet.has('manage_users')) {
-      toast.error('You do not have permission to reset passwords');
-      return;
-    }
-
-    const newPassword = window.prompt(`Enter a temporary password for ${user.email}`);
-    if (!newPassword) {
-      return;
-    }
-
-    try {
-      setSavingUserPasswordReset(user.id);
-      await api.resetUserPassword(user.id, { newPassword });
-      toast.success(`Password reset for ${user.email}`);
+      setSavingUserPasswordReset(true);
+      await api.resetUserPassword(resetPasswordUser.id, { newPassword });
+      toast.success(`Password reset for ${resetPasswordUser.email}. They have been signed out of all devices.`);
+      setResetPasswordUser(null);
+      setResetPasswordForm(initialResetPasswordForm);
+      setShowResetPassword(false);
+      setShowResetConfirmPassword(false);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to reset password');
     } finally {
-      setSavingUserPasswordReset(null);
+      setSavingUserPasswordReset(false);
+    }
+  };
+
+  // Enable/disable the selected user. Disabling signs them out everywhere.
+  const toggleUserStatus = async (user: UserRow) => {
+    if (!canManageUsers) {
+      toast.error('You do not have permission to change user status');
+      return;
+    }
+    if (user.id === currentUser?.id) {
+      toast.error('You cannot disable your own account');
+      return;
+    }
+    const nextActive = !user.isActive;
+    if (
+      !nextActive &&
+      !confirm(`Disable ${user.email}? They will be signed out of all devices and cannot log in until re-enabled.`)
+    ) {
+      return;
+    }
+    try {
+      setSavingUserStatus(true);
+      await api.setUserStatus(user.id, { isActive: nextActive });
+      toast.success(nextActive ? 'User enabled' : 'User disabled');
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to update user status');
+    } finally {
+      setSavingUserStatus(false);
+    }
+  };
+
+  // Grant/revoke all-venues access for the selected user.
+  const saveUserAllVenues = async (nextValue: boolean) => {
+    if (!selectedUserId) {
+      toast.error('Select a user first');
+      return;
+    }
+    if (!canManageUsers) {
+      toast.error('You do not have permission to manage venue access');
+      return;
+    }
+    const previous = userAllVenues;
+    setUserAllVenues(nextValue);
+    try {
+      setSavingUserAllVenues(true);
+      const res = await api.setUserAllVenues(selectedUserId, nextValue);
+      const applied = Boolean(res.data?.data?.hasAllVenueAccess ?? nextValue);
+      setUserAllVenues(applied);
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === selectedUserId ? { ...u, hasAllVenueAccess: applied } : u
+        )
+      );
+      toast.success(
+        applied
+          ? 'User granted access to all venues'
+          : 'All-venues access revoked'
+      );
+    } catch (error: any) {
+      setUserAllVenues(previous);
+      toast.error(error?.response?.data?.error || 'Failed to update venue access');
+    } finally {
+      setSavingUserAllVenues(false);
+    }
+  };
+
+  // Open the edit-profile modal for a specific user.
+  const openEditUserModal = (user: UserRow) => {
+    if (!canManageUsers) {
+      toast.error('You do not have permission to edit users');
+      return;
+    }
+    setSelectedUserId(user.id);
+    setEditUserForm({ name: user.name || '', email: user.email });
+    setShowEditUserPrompt(true);
+  };
+
+  const submitEditUser = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedUserId) return;
+    if (!canManageUsers) {
+      toast.error('You do not have permission to edit users');
+      return;
+    }
+    if (!editUserForm.name.trim() || !editUserForm.email.trim()) {
+      toast.error('Name and email are required');
+      return;
+    }
+    try {
+      setSavingEditUser(true);
+      await api.updateUser(selectedUserId, {
+        name: editUserForm.name.trim(),
+        email: editUserForm.email.trim(),
+      });
+      toast.success('User profile updated');
+      setShowEditUserPrompt(false);
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to update user');
+    } finally {
+      setSavingEditUser(false);
+    }
+  };
+
+  // Persist the selected user's direct (per-user) permission grants.
+  const saveDirectPermissions = async () => {
+    if (!selectedUserId) {
+      toast.error('Select a user first');
+      return;
+    }
+    if (!canManageUsers) {
+      toast.error('You do not have permission to manage user permissions');
+      return;
+    }
+    try {
+      setSavingDirectPermissions(true);
+      const res = await api.setUserDirectPermissions(selectedUserId, directPermissionIds);
+      const ids: string[] = res.data?.data?.permissionIds || directPermissionIds;
+      setDirectPermissionIds(ids);
+      setSavedDirectPermissionIds(ids);
+      toast.success(
+        ids.length === 0
+          ? 'Extra permissions cleared'
+          : `Saved ${ids.length} extra permission(s)`
+      );
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to update permissions');
+    } finally {
+      setSavingDirectPermissions(false);
     }
   };
 
@@ -858,76 +1056,98 @@ function SettingsPageContent() {
         <h1 className="page-title">Settings & Access</h1>
       </div>
 
-      <div className="card space-y-4">
-        <div className="flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-primary-600" />
-          <h2 className="text-lg font-semibold text-[var(--text-1)]">Change My Password</h2>
+      {resetPasswordUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+          <div className="card w-full max-w-md space-y-4">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-primary-600" />
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Reset password</h2>
+            </div>
+            <p className="text-sm text-[var(--text-3)]">
+              Set a new password for <span className="font-medium">{resetPasswordUser.email}</span>. They will be signed out of all devices and must sign in with the new password.
+            </p>
+            <form className="space-y-3" onSubmit={submitResetPassword}>
+              <div>
+                <label className="label">New password</label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    className="input pr-9"
+                    value={resetPasswordForm.newPassword}
+                    onChange={(e) => setResetPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                    autoFocus
+                    required
+                  />
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-4)]" onClick={() => setShowResetPassword((v) => !v)}>
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--text-4)] mt-1">At least 8 characters, including letters and numbers.</p>
+              </div>
+              <div>
+                <label className="label">Confirm new password</label>
+                <div className="relative">
+                  <input
+                    type={showResetConfirmPassword ? 'text' : 'password'}
+                    className="input pr-9"
+                    value={resetPasswordForm.confirmPassword}
+                    onChange={(e) => setResetPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                    required
+                  />
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-4)]" onClick={() => setShowResetConfirmPassword((v) => !v)}>
+                    {showResetConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" className="btn btn-secondary" onClick={() => setResetPasswordUser(null)} disabled={savingUserPasswordReset}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingUserPasswordReset}>
+                  {savingUserPasswordReset ? 'Resetting...' : 'Reset password'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <form className="grid grid-cols-1 md:grid-cols-3 gap-4" onSubmit={changeOwnPassword}>
-          <div>
-            <label className="label">Current password</label>
-            <input
-              type={showCurrentPassword ? 'text' : 'password'}
-              className="input"
-              value={passwordForm.currentPassword}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
-              required
-            />
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
-              onClick={() => setShowCurrentPassword((prev) => !prev)}
-            >
-              {showCurrentPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showCurrentPassword ? 'Hide password' : 'Show password'}
-            </button>
+      )}
+
+      {showEditUserPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+          <div className="card w-full max-w-md space-y-4">
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Edit user</h2>
+            <form className="space-y-3" onSubmit={submitEditUser}>
+              <div>
+                <label className="label">Name</label>
+                <input
+                  className="input"
+                  value={editUserForm.name}
+                  onChange={(e) => setEditUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Email</label>
+                <input
+                  type="email"
+                  className="input"
+                  value={editUserForm.email}
+                  onChange={(e) => setEditUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditUserPrompt(false)} disabled={savingEditUser}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingEditUser}>
+                  {savingEditUser ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
           </div>
-          <div>
-            <label className="label">New password</label>
-            <input
-              type={showNewAccountPassword ? 'text' : 'password'}
-              className="input"
-              value={passwordForm.newPassword}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-              required
-            />
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
-              onClick={() => setShowNewAccountPassword((prev) => !prev)}
-            >
-              {showNewAccountPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showNewAccountPassword ? 'Hide password' : 'Show password'}
-            </button>
-          </div>
-          <div>
-            <label className="label">Confirm new password</label>
-            <input
-              type={showConfirmAccountPassword ? 'text' : 'password'}
-              className="input"
-              value={passwordForm.confirmPassword}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-              required
-            />
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
-              onClick={() => setShowConfirmAccountPassword((prev) => !prev)}
-            >
-              {showConfirmAccountPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showConfirmAccountPassword ? 'Hide confirmation' : 'Show confirmation'}
-            </button>
-          </div>
-          <div className="md:col-span-3 flex justify-end">
-            <button className="btn btn-primary w-full sm:w-auto" type="submit" disabled={savingPasswordChange}>
-              <span className="inline-flex items-center gap-2">
-                <Save className="w-4 h-4" />
-                {savingPasswordChange ? 'Saving...' : 'Update Password'}
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
+        </div>
+      )}
 
       <FormPromptModal
         open={showRolePrompt}
@@ -1384,7 +1604,7 @@ function SettingsPageContent() {
               <h2 className="text-lg font-semibold text-[var(--text-1)]">Banquet access per user</h2>
             </div>
             <p className="text-sm text-[var(--text-3)]">
-              Restrict which banquets a user can view and create bookings for. Leave all unchecked = unrestricted.
+              Restrict which banquets a user can view and create bookings for. With no banquets selected and &quot;All venues&quot; off, the user can access nothing until granted (fail-closed).
             </p>
             {!canViewUsers ? (
               <p className="text-sm text-[var(--text-4)]">Requires <code>view_user</code> permission.</p>
@@ -1405,7 +1625,19 @@ function SettingsPageContent() {
                     ))}
                   </select>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3">
+                  <span className="text-sm text-[var(--text-2)]">
+                    <span className="font-medium">All venues</span>
+                    <span className="block text-xs text-[var(--text-4)]">Owner / org-wide access to every banquet (overrides the selection below).</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={userAllVenues}
+                    onChange={(e) => saveUserAllVenues(e.target.checked)}
+                    disabled={!canManageUsers || !selectedUserId}
+                  />
+                </label>
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 ${userAllVenues ? 'opacity-40 pointer-events-none' : ''}`}>
                   {banquets.map((b) => (
                     <label key={b.id} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
                       <input
@@ -1426,9 +1658,11 @@ function SettingsPageContent() {
                   ))}
                 </div>
                 <p className="text-xs text-[var(--text-4)]">
-                  {selectedUserBanquetIds.length === 0
-                    ? 'No restriction — user can access all banquets'
-                    : `User restricted to: ${banquets.filter((b) => selectedUserBanquetIds.includes(b.id)).map((b) => b.name).join(', ')}`}
+                  {userAllVenues
+                    ? 'All venues — user can access every banquet'
+                    : selectedUserBanquetIds.length === 0
+                      ? 'No access — assign banquets or enable All venues'
+                      : `User restricted to: ${banquets.filter((b) => selectedUserBanquetIds.includes(b.id)).map((b) => b.name).join(', ')}`}
                 </p>
                 <div className="flex justify-end">
                   <button
@@ -1444,6 +1678,61 @@ function SettingsPageContent() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {canManageUsers && permissions.length > 0 && (
+          <div className="card space-y-4">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-primary-600" />
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Extra permissions (per user)</h2>
+            </div>
+            <p className="text-sm text-[var(--text-3)]">
+              Grant individual permissions to a user on top of their role(s). These are added to whatever their roles already allow. Use sparingly — roles are the primary mechanism.
+            </p>
+            <div>
+              <label className="label">User</label>
+              <select
+                className="input"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                disabled={users.length === 0}
+              >
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name || 'Unnamed'} ({user.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-auto">
+              {permissions.map((permission) => (
+                <label key={permission.id} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={directPermissionIds.includes(permission.id)}
+                    onChange={() =>
+                      setDirectPermissionIds((prev) =>
+                        prev.includes(permission.id)
+                          ? prev.filter((id) => id !== permission.id)
+                          : [...prev, permission.id]
+                      )
+                    }
+                    disabled={!selectedUserId}
+                  />
+                  <span>{permission.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end">
+              <button
+                className={`btn w-full sm:w-auto ${directPermissionsDirty ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={saveDirectPermissions}
+                disabled={savingDirectPermissions || !directPermissionsDirty || !selectedUserId}
+              >
+                {savingDirectPermissions ? 'Saving...' : directPermissionsDirty ? 'Save Extra Permissions' : 'Saved'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1630,6 +1919,11 @@ function SettingsPageContent() {
                             You
                           </span>
                         ) : null}
+                        {user.isActive === false ? (
+                          <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-500/10 dark:text-red-200">
+                            Disabled
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-xs text-[var(--text-4)] mt-1">{user.email}</p>
                       <p className="text-xs text-[var(--text-4)] mt-1">
@@ -1638,16 +1932,37 @@ function SettingsPageContent() {
                       {formatJoinedDate(user.createdAt) ? (
                         <p className="text-xs text-[var(--text-4)] mt-1">{formatJoinedDate(user.createdAt)}</p>
                       ) : null}
+                      <p className="text-xs text-[var(--text-4)] mt-1">
+                        Last login: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {currentPermissionSet.has('manage_users') ? (
+                        <button
+                          className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                          onClick={() => openEditUserModal(user)}
+                          title="Edit name / email"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
                       {currentPermissionSet.has('manage_users') && user.id !== currentUser?.id ? (
                         <button
                           className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:text-amber-200 hover:bg-amber-50 dark:bg-amber-500/10 rounded-lg"
-                          onClick={() => resetManagedUserPassword(user)}
-                          disabled={savingUserPasswordReset === user.id}
+                          onClick={() => openResetPasswordModal(user)}
+                          disabled={savingUserPasswordReset}
                           title="Reset password"
                         >
                           <KeyRound className="w-4 h-4" />
+                        </button>
+                      ) : null}
+                      {currentPermissionSet.has('manage_users') && user.id !== currentUser?.id ? (
+                        <button
+                          className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                          onClick={() => toggleUserStatus(user)}
+                          title={user.isActive === false ? 'Enable user (allow login)' : 'Disable user (sign out of all devices)'}
+                        >
+                          {user.isActive === false ? 'Enable' : 'Disable'}
                         </button>
                       ) : null}
                       {canDeleteUsers && (

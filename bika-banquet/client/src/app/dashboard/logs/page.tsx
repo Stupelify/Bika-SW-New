@@ -36,7 +36,7 @@ const PAGE_SIZE = 50;
 export default function AuditLogsPage() {
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
-  const canViewLogs = hasAnyPermission(permissionSet, ['view_dashboard', 'manage_users']);
+  const canViewLogs = hasAnyPermission(permissionSet, ['view_audit_logs', 'manage_users']);
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);

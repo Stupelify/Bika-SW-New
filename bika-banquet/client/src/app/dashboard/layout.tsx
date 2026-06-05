@@ -158,7 +158,7 @@ const secondaryNavigation: NavigationItem[] = [
     name: 'Activity Logs',
     href: '/dashboard/logs',
     icon: Activity,
-    permissions: ['view_dashboard', 'manage_users'],
+    permissions: ['view_audit_logs', 'manage_users'],
   },
   {
     name: 'Settings',
