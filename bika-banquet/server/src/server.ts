@@ -16,6 +16,7 @@ import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { getRedisClient } from './config/redis';
 import logger from './utils/logger';
+import { syncPermissions } from './utils/syncPermissions';
 
 // Load local dev overrides first, then fall back to the tracked .env file.
 dotenv.config({ path: '.env.local' });
@@ -312,6 +313,10 @@ async function startServer() {
     // Connect to database
     await connectDatabase();
     await verifyDbConstraints();
+
+    // Reconcile permissions/roles registry with the DB. Non-blocking and
+    // crash-safe: a failure is logged but must not prevent the server starting.
+    syncPermissions().catch((e) => logger.error('Permission sync failed', e));
 
     // Start SSE Redis subscriber (fan-out across PM2 workers).
     // Safe no-op when Redis is not configured.
