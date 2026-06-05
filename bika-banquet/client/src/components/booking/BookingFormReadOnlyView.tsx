@@ -12,6 +12,7 @@ import {
 import { IndianAmountInput } from '@/components/IndianAmountInput';
 import { AutoResizeTextarea } from '@/components/AutoResizeTextarea';
 import BookingMenuViewModal from '@/components/booking/BookingMenuViewModal';
+import BookingTermsSection from '@/components/booking/BookingTermsSection';
 import {
   PACK_BG_MAP,
   PACK_COLOR_MAP,
@@ -111,6 +112,35 @@ export default function BookingFormReadOnlyView({
             <div className="min-w-0 flex-1 space-y-1.5">
               <label className="label block">Second Customer</label>
               <input className="input bg-[var(--surface-2)]" value={formData.secondCustomerLabel || '—'} readOnly />
+            </div>
+          </div>
+
+          {/* Phone layout: the two flex rows above are desktop-only (hidden md:flex),
+              so mirror the same fields stacked for small screens. */}
+          <div className="grid grid-cols-2 gap-3 md:hidden">
+            <div className="col-span-2 space-y-1.5">
+              <label className="label block">Primary Customer</label>
+              <input className="input w-full bg-[var(--surface-2)]" value={formData.primaryCustomerLabel} readOnly />
+            </div>
+            <div className="space-y-1.5">
+              <label className="label block">Priority</label>
+              <input className="input w-full bg-[var(--surface-2)]" value={formData.priority} readOnly />
+            </div>
+            <div className="space-y-1.5">
+              <label className="label block">Function Date</label>
+              <input className="input w-full bg-[var(--surface-2)]" type="date" value={formData.functionDate} readOnly />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <label className="label block">Function Type</label>
+              <input className="input w-full bg-[var(--surface-2)]" value={formData.functionType} readOnly />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <label className="label block">Referred By</label>
+              <input className="input w-full bg-[var(--surface-2)]" value={formData.referredByLabel || '—'} readOnly />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <label className="label block">Second Customer</label>
+              <input className="input w-full bg-[var(--surface-2)]" value={formData.secondCustomerLabel || '—'} readOnly />
             </div>
           </div>
 
@@ -351,6 +381,9 @@ export default function BookingFormReadOnlyView({
           readOnly
         />
       </div>
+
+      {/* Mirror the live form's Terms & Conditions so version history is complete. */}
+      <BookingTermsSection />
 
       <BookingMenuViewModal
         open={Boolean(menuEditorPack)}
