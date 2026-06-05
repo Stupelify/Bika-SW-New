@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendSuccess } from '../utils/response';
+import { createAuditLog } from '../utils/auditLog';
 
 const userRoleSchema = z.object({
   body: z.object({
@@ -54,6 +55,7 @@ export async function assignRole(req: Request, res: Response): Promise<void> {
         roleId,
       },
     });
+    void createAuditLog(req, 'ASSIGN_ROLE', 'user_role', userId, undefined, { roleId });
     sendSuccess(res, null, 'Role assigned successfully');
   } catch (error) {
     sendError(res, 'Failed to assign role');
@@ -71,6 +73,7 @@ export async function removeRole(req: Request, res: Response): Promise<void> {
         },
       },
     });
+    void createAuditLog(req, 'REMOVE_ROLE', 'user_role', userId, undefined, { roleId });
     sendSuccess(res, null, 'Role removed successfully');
   } catch (error) {
     sendError(res, 'Failed to remove role');
@@ -98,6 +101,7 @@ export async function updateUserRoles(
       }
     });
 
+    void createAuditLog(req, 'UPDATE_USER_ROLES', 'user_role', userId, undefined, { roleIds });
     sendSuccess(res, null, 'User roles updated successfully');
   } catch (error) {
     sendError(res, 'Failed to update user roles');
@@ -123,6 +127,7 @@ export async function assignPermission(
         permissionId,
       },
     });
+    void createAuditLog(req, 'ASSIGN_PERMISSION', 'role_permission', roleId, undefined, { permissionId });
     sendSuccess(res, null, 'Permission assigned successfully');
   } catch (error) {
     sendError(res, 'Failed to assign permission');
@@ -143,6 +148,7 @@ export async function removePermission(
         },
       },
     });
+    void createAuditLog(req, 'REMOVE_PERMISSION', 'role_permission', roleId, undefined, { permissionId });
     sendSuccess(res, null, 'Permission removed successfully');
   } catch (error) {
     sendError(res, 'Failed to remove permission');
@@ -170,6 +176,7 @@ export async function updateRolePermissions(
       }
     });
 
+    void createAuditLog(req, 'UPDATE_ROLE_PERMISSIONS', 'role_permission', roleId, undefined, { permissionIds });
     sendSuccess(res, null, 'Role permissions updated successfully');
   } catch (error) {
     sendError(res, 'Failed to update role permissions');

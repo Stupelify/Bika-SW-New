@@ -6,7 +6,7 @@ const router = Router();
 
 router.use(authenticate);
 
-// Require either 'view_dashboard' or 'manage_users'
-router.get('/', requirePermission('view_dashboard', 'manage_users'), getAuditLogs);
+// Require the dedicated audit-log permission (or the manage_users umbrella).
+router.get('/', requirePermission('view_audit_logs', 'manage_users'), getAuditLogs);
 
 export default router;

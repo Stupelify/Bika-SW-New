@@ -8,13 +8,23 @@ import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { createAuditLog } from '../utils/auditLog';
+import { passwordSchema } from '../utils/passwordPolicy';
+import { revokeUserSessions } from '../utils/sessions';
 
 export const createUserSchema = z.object({
   body: z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
     email: z.string().email('Invalid email format'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: passwordSchema,
     roleId: z.string().uuid().optional(),
+  }),
+});
+
+export const updateUserSchema = z.object({
+  params: z.object({ id: z.string().uuid('Invalid user ID') }),
+  body: z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters').optional(),
+    email: z.string().email('Invalid email format').optional(),
   }),
 });
 
@@ -23,9 +33,53 @@ export const resetUserPasswordSchema = z.object({
     id: z.string().uuid('Invalid user ID'),
   }),
   body: z.object({
-    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+    newPassword: passwordSchema,
   }),
 });
+
+export const setUserStatusSchema = z.object({
+  params: z.object({ id: z.string().uuid('Invalid user ID') }),
+  body: z.object({
+    isActive: z.boolean(),
+    reason: z.string().max(500).optional(),
+  }),
+});
+
+export const setUserAllVenuesSchema = z.object({
+  params: z.object({ id: z.string().uuid('Invalid user ID') }),
+  body: z.object({ hasAllVenueAccess: z.boolean() }),
+});
+
+export const setUserDirectPermissionsSchema = z.object({
+  params: z.object({ id: z.string().uuid('Invalid user ID') }),
+  body: z.object({ permissionIds: z.array(z.string().uuid()) }),
+});
+
+/**
+ * True if `userId` is an Admin and there is no OTHER active Admin — i.e.
+ * removing or disabling them would leave the system with no active admin.
+ */
+async function isLastActiveAdmin(userId: string): Promise<boolean> {
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { userRoles: { select: { role: { select: { name: true } } } } },
+  });
+  const targetIsAdmin = !!target?.userRoles.some(
+    (ur) => ur.role.name.toLowerCase() === 'admin'
+  );
+  if (!targetIsAdmin) return false;
+
+  const otherActiveAdmins = await prisma.user.count({
+    where: {
+      id: { not: userId },
+      isActive: true,
+      userRoles: {
+        some: { role: { name: { equals: 'Admin', mode: 'insensitive' } } },
+      },
+    },
+  });
+  return otherActiveAdmins === 0;
+}
 
 export async function getUsersSimple(req: Request, res: Response): Promise<void> {
   try {
@@ -73,6 +127,9 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
           name: true,
           email: true,
           isVerified: true,
+          isActive: true,
+          hasAllVenueAccess: true,
+          lastLoginAt: true,
           createdAt: true,
           userRoles: {
             include: {
@@ -108,6 +165,11 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
         name: true,
         email: true,
         isVerified: true,
+        isActive: true,
+        disabledAt: true,
+        disabledReason: true,
+        hasAllVenueAccess: true,
+        lastLoginAt: true,
         createdAt: true,
         userRoles: {
           include: {
@@ -169,6 +231,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
           email: normalizedEmail,
           password: hashedPassword,
           isVerified: true,
+          passwordChangedAt: new Date(),
         },
         select: {
           id: true,
@@ -206,21 +269,172 @@ export async function createUser(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function updateUser(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const data: { name?: string; email?: string } = {};
+    if (typeof req.body.name === 'string') data.name = toEntryCase(req.body.name);
+    if (typeof req.body.email === 'string') {
+      data.email = req.body.email.trim().toLowerCase();
+    }
+
+    if (Object.keys(data).length === 0) {
+      sendError(res, 'Nothing to update', 400);
+      return;
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: { id: true, name: true, email: true, isActive: true, createdAt: true },
+    });
+
+    void createAuditLog(req, 'UPDATE', 'user', id, user.email, data);
+    sendSuccess(res, { user }, 'User updated successfully');
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+    if (error?.code === 'P2002') {
+      sendError(res, 'Email already in use', 409);
+      return;
+    }
+    sendError(res, 'Failed to update user');
+  }
+}
+
+export async function setUserStatus(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { isActive, reason } = req.body as { isActive: boolean; reason?: string };
+
+    if (!isActive) {
+      // Disabling: protect the requester's own account and the last active admin.
+      if (req.user?.userId === id) {
+        sendError(res, 'You cannot disable your own account.', 400);
+        return;
+      }
+      if (await isLastActiveAdmin(id)) {
+        sendError(res, 'Cannot disable the last active admin.', 400);
+        return;
+      }
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true },
+    });
+    if (!existing) {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        isActive,
+        disabledAt: isActive ? null : new Date(),
+        disabledReason: isActive ? null : reason ?? null,
+      },
+      select: { id: true, name: true, email: true, isActive: true, disabledAt: true },
+    });
+
+    if (!isActive) {
+      // Immediately end all of the disabled user's sessions.
+      await revokeUserSessions(id);
+    }
+
+    void createAuditLog(
+      req,
+      isActive ? 'ENABLE' : 'DISABLE',
+      'user',
+      id,
+      existing.email,
+      reason ? { reason } : undefined
+    );
+    sendSuccess(res, { user }, isActive ? 'User enabled' : 'User disabled');
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+    sendError(res, 'Failed to update user status');
+  }
+}
+
+export async function setUserAllVenues(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { hasAllVenueAccess } = req.body as { hasAllVenueAccess: boolean };
+
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true },
+    });
+    if (!existing) {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+
+    await prisma.user.update({ where: { id }, data: { hasAllVenueAccess } });
+    void createAuditLog(
+      req,
+      'UPDATE_ALL_VENUE_ACCESS',
+      'user',
+      id,
+      existing.email,
+      { hasAllVenueAccess }
+    );
+    sendSuccess(res, { hasAllVenueAccess }, 'Venue access updated');
+  } catch (error) {
+    sendError(res, 'Failed to update venue access');
+  }
+}
+
 export async function deleteUser(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
 
-    // Prevent an admin from deleting their own account, which would leave the
-    // system in an unrecoverable state if they are the last admin.
+    // Prevent an admin from deleting their own account.
     if (req.user?.userId === id) {
       sendError(res, 'You cannot delete your own account.', 400);
       return;
     }
 
-    await prisma.user.delete({
+    const target = await prisma.user.findUnique({
       where: { id },
+      select: { id: true, email: true },
     });
-    void createAuditLog(req, 'DELETE', 'user', id, '');
+    if (!target) {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+
+    // Refuse hard-delete when the user has operational history; that data
+    // references the user and must be preserved. Disable the account instead.
+    const [payments, finalizedBookings, finalizedQuotations] = await Promise.all([
+      prisma.bookingPayments.count({ where: { receivedBy: id } }),
+      prisma.finalizedBooking.count({ where: { finalizedBy: id } }),
+      prisma.finalizedQuotation.count({ where: { finalizedBy: id } }),
+    ]);
+    if (payments + finalizedBookings + finalizedQuotations > 0) {
+      sendError(
+        res,
+        'This user has financial/booking history and cannot be deleted. Disable the account instead.',
+        409
+      );
+      return;
+    }
+
+    // Never remove the last remaining active admin.
+    if (await isLastActiveAdmin(id)) {
+      sendError(res, 'Cannot delete the last active admin.', 400);
+      return;
+    }
+
+    await prisma.user.delete({ where: { id } });
+    void createAuditLog(req, 'DELETE', 'user', id, target.email);
     sendSuccess(res, null, 'User deleted successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {
@@ -267,8 +481,12 @@ export async function resetUserPassword(req: AuthRequest, res: Response): Promis
       where: { id },
       data: {
         password: hashedPassword,
+        passwordChangedAt: new Date(),
       },
     });
+
+    // Force re-login everywhere with the new password.
+    await revokeUserSessions(id);
 
     void createAuditLog(req, 'RESET_PASSWORD', 'user', id, existingUser.email);
     sendSuccess(res, null, 'User password reset successfully');
@@ -290,14 +508,14 @@ export async function getUserBanquets(req: Request, res: Response): Promise<void
   }
 }
 
-export async function setUserBanquets(req: Request, res: Response): Promise<void> {
+export async function setUserBanquets(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
     const banquetIds: string[] = Array.isArray(req.body.banquetIds)
       ? req.body.banquetIds.filter((b: unknown) => typeof b === 'string')
       : [];
 
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
     if (!user) {
       sendNotFound(res, 'User not found');
       return;
@@ -313,8 +531,56 @@ export async function setUserBanquets(req: Request, res: Response): Promise<void
         : []),
     ]);
 
+    void createAuditLog(req, 'UPDATE_BANQUET_ACCESS', 'user', id, user.email, { banquetIds });
     sendSuccess(res, { banquetIds }, 'Banquet access updated');
   } catch (error) {
     sendError(res, 'Failed to update user banquet access');
+  }
+}
+
+export async function getUserDirectPermissions(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const rows = await prisma.userPermission.findMany({
+      where: { userId: id },
+      select: { permissionId: true },
+    });
+    sendSuccess(res, { permissionIds: rows.map((r) => r.permissionId) });
+  } catch (error) {
+    sendError(res, 'Failed to fetch user permissions');
+  }
+}
+
+export async function setUserDirectPermissions(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const permissionIds: string[] = Array.isArray(req.body.permissionIds)
+      ? req.body.permissionIds.filter((p: unknown) => typeof p === 'string')
+      : [];
+
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
+    if (!user) {
+      sendNotFound(res, 'User not found');
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.userPermission.deleteMany({ where: { userId: id } }),
+      ...(permissionIds.length > 0
+        ? [prisma.userPermission.createMany({
+            data: permissionIds.map((permissionId) => ({ userId: id, permissionId })),
+            skipDuplicates: true,
+          })]
+        : []),
+    ]);
+
+    void createAuditLog(req, 'UPDATE_DIRECT_PERMISSIONS', 'user', id, user.email, { permissionIds });
+    sendSuccess(res, { permissionIds }, 'Direct permissions updated');
+  } catch (error: any) {
+    if (error?.code === 'P2003') {
+      sendError(res, 'Invalid permission selected', 400);
+      return;
+    }
+    sendError(res, 'Failed to update direct permissions');
   }
 }
