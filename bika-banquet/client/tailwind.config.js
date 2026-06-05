@@ -49,6 +49,18 @@ module.exports = {
           800: '#9a3412',
           900: '#7c2d12',
         },
+        money: {
+          pos: 'var(--money-pos)',
+          neg: 'var(--money-neg)',
+          warn: 'var(--money-warn)',
+        },
+        st: {
+          'confirmed-bg': 'var(--st-confirmed-bg)', 'confirmed-fg': 'var(--st-confirmed-fg)', 'confirmed-dot': 'var(--st-confirmed-dot)',
+          'pencil-bg': 'var(--st-pencil-bg)', 'pencil-fg': 'var(--st-pencil-fg)', 'pencil-dot': 'var(--st-pencil-dot)',
+          'quotation-bg': 'var(--st-quotation-bg)', 'quotation-fg': 'var(--st-quotation-fg)', 'quotation-dot': 'var(--st-quotation-dot)',
+          'enquiry-bg': 'var(--st-enquiry-bg)', 'enquiry-fg': 'var(--st-enquiry-fg)', 'enquiry-dot': 'var(--st-enquiry-dot)',
+          'cancelled-bg': 'var(--st-cancelled-bg)', 'cancelled-fg': 'var(--st-cancelled-fg)', 'cancelled-dot': 'var(--st-cancelled-dot)',
+        },
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -62,6 +74,11 @@ module.exports = {
         lg: '6px',
         xl: '6px',
         '2xl': '8px',
+        'r-sm': 'var(--r-sm)',
+        'r-md': 'var(--r-md)',
+        'r-lg': 'var(--r-lg)',
+        'r-xl': 'var(--r-xl)',
+        'r-pill': 'var(--r-pill)',
       },
       boxShadow: {
         xs: '0 1px 2px rgba(28,25,23,0.04)',
