@@ -1554,6 +1554,10 @@
     text-wrap: balance;
   }
 
+  .money-pos { color: var(--money-pos); }
+  .money-neg { color: var(--money-neg); }
+  .money-warn { color: var(--money-warn); }
+
   .text-gray-900 {
     color: var(--text-1);
   }
