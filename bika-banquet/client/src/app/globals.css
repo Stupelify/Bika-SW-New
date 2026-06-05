@@ -322,7 +322,7 @@
     text-transform: uppercase;
     color: var(--text-4);
     background-color: var(--surface-2);
-    padding: 10px 14px;
+    padding: var(--cell-py) var(--cell-px);
     text-align: left;
     border-bottom: 1px solid var(--border);
     white-space: normal;
@@ -345,7 +345,7 @@
   }
 
   tbody td {
-    padding: 11px 14px;
+    padding: var(--cell-py) var(--cell-px);
     font-size: 13.5px;
     color: var(--text-2);
     vertical-align: middle;
