@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Land the remaining *foundational* parts of the Bika Banquet Design System handoff — the full semantic token taxonomy, a fixed **compact** density, the filled status-badge-with-dot system, and money-tone color tokens — without touching booking billing logic or adding new runtime dependencies.
+**Goal:** Land the remaining *foundational* parts of the Bika Banquet Design System handoff — the full semantic token taxonomy, a fixed **compact** density, the filled status-badge-with-dot system, money-tone color tokens, and a **globally motion-free UI (no animations or transitions)** — without touching booking billing logic or adding new runtime dependencies.
 
 **Architecture:** All changes live in the client design layer: CSS custom properties in `globals.css`, token mappings in `tailwind.config.js`, two small pure-TS helpers in `src/lib` (unit-tested), and a refactor of the existing `StatusBadge` component. No backend, no data wiring, no charts. The dashboard widget redesign (sparklines, donut, insights, checklist, live feed) is explicitly **out of scope** — it is a separate subsystem (needs a charting dependency + live data + product decisions) and gets its own plan; see Appendix A.
 
@@ -502,7 +502,53 @@ git commit -m "feat(ds): apply fixed compact density to data tables"
 
 ---
 
-## Task 7: Remove handoff zip from the branch + update PR
+## Task 7: Disable all motion (no animations / transitions) globally
+
+**Files:**
+- Modify: `client/src/app/globals.css` (append a global motion-off rule at end of file)
+
+The app must render with **no animations and no motion transitions** regardless of OS preference. Rather than delete the ~15 keyframe/transition declarations individually, force the codebase's existing "reduced motion" definition on for everyone. This keeps instantaneous state changes (hover color, focus ring appear) but removes all *tweened* motion: page-enter fade, skeleton shimmer, bar-grow, modal/FAB entrances, slide-in panels, hover lifts, and press scales.
+
+- [ ] **Step 1: Append the global motion-off rule**
+
+Add at the very **end** of `globals.css` (last rule wins, and it is `!important`):
+
+```css
+/* ── Motion disabled globally — product requirement: no animations/transitions. ──
+   Mirrors the prefers-reduced-motion:reduce contract but applies unconditionally. */
+*,
+*::before,
+*::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+```
+
+- [ ] **Step 2: Verify build**
+
+Run (from `bika-banquet/client`): `npm run build`
+Expected: build completes, exit code 0.
+
+- [ ] **Step 3: Manual visual check (record result in the PR)**
+
+With `npm run dev`, confirm: navigating between dashboard pages shows **no** entrance fade/slide; loading skeletons do **not** shimmer (they show a static block); KPI/cards do **not** lift on hover; the FAB does **not** scale/animate in. Functional feedback (hover background, focus outline) still appears, just instantly.
+
+Expected: zero perceptible motion anywhere.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add client/src/app/globals.css
+git commit -m "feat(ds): disable all animations/transitions globally"
+```
+
+---
+
+## Task 8: Remove handoff zip from the branch + update PR
 
 **Files:**
 - Delete: `Bika Banquet Design System-handoff.zip` (repo root)
@@ -545,6 +591,7 @@ Expected: build exit 0; vitest suites all PASS (including the two new helper spe
    - Filled status badges w/ bg/fg/dot — ✅ Tasks 1, 3, 4.
    - Density system — **scope-reduced per user instruction** to a single fixed *compact* tier (Tasks 1, 6); the runtime compact/balanced/comfy switch is intentionally dropped.
    - Money tones — ✅ Tasks 1, 2, 5 (vocabulary shipped; application deferred).
+   - No animations/transitions — ✅ Task 7 (per user instruction; the handoff's prototype motion is intentionally **not** carried over).
    - KPI sparklines, donut, insights, checklist, live activity feed, sidebar nav grouping — **out of scope → Appendix A** (separate plan).
    - "Keep from codebase" items (conflict detection, occupancy rail, pencil countdown, version tab, activity log, booking drawer) — untouched by this plan by design.
 2. **Placeholder scan:** every code/CSS step contains literal content; no TBD/TODO.
@@ -562,8 +609,11 @@ The handoff's richer dashboard is a **separate subsystem** and should be brainst
 
 Recommended next step after this plan lands: run the brainstorming skill on "dashboard redesign", then `writing-plans` for a `2026-..-dashboard-redesign.md` plan.
 
+**Motion constraint carries forward:** any dashboard work must also be animation-free — no sparkline draw-in, no donut sweep, no live-feed slide animations, no count-up. Render final state directly. (The global rule from Task 7 already neutralizes motion, but new components should not rely on or add animation in the first place.)
+
 ## Appendix B — Decisions folded in / open
 
-- **Compact is fixed** (no density switch) — per user instruction this turn.
+- **Compact is fixed** (no density switch) — per user instruction.
+- **No animations or transitions** — per user instruction; implemented globally in Task 7 by forcing the reduced-motion contract on for all users. Interpretation: this removes *tweened motion* (entrances, shimmer, hover lifts, press scales) while keeping instant functional state changes (hover color, focus ring). If you instead want only keyframe animations gone but to keep smooth color transitions, narrow Task 7 to `animation` properties only — say the word and I'll adjust.
 - **Quotation = blue** (`#2563EB` family) — matches the handoff's resolution of the violet-vs-blue conflict; already reflected in Phase 1 and the `--st-quotation-*` tokens here.
 - **Open:** whether `.status-dot` should use the dedicated `--st-*-dot` hue (Task 4 Step 2) or simply inherit the text color. Plan uses the dedicated dot hue; trivial to revert to `currentColor` if preferred.
