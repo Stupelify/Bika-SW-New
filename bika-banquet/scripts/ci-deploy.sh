@@ -39,6 +39,25 @@ find server/prisma -maxdepth 2 -type f -name '*.sql' ! -name 'legacy_schema.sql'
   docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -c "INSERT INTO _raw_migrations (name) VALUES ('$name')"
 done
 
+echo "==> Verify user-mgmt schema before rebuild"
+MISSING=$(docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -tAc "
+  SELECT COUNT(*) FROM (
+    SELECT 1 WHERE NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'isActive'
+    )
+    UNION ALL
+    SELECT 1 WHERE NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'user_permissions' AND column_name = 'granted'
+    )
+  ) t;
+")
+if [ "$MISSING" != "0" ]; then
+  echo "ERROR: user-mgmt schema incomplete ($MISSING checks failed). Run ./scripts/fix-login-schema.sh"
+  exit 1
+fi
+
 echo "==> Building images (BuildKit cache enabled)"
 DOCKER_BUILDKIT=1 docker compose build --parallel
 
