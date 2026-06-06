@@ -93,10 +93,12 @@ sudo -u "$RUNNER_USER" bash -c "cd '$RUNNER_DIR' && ./config.sh \
   --unattended \
   --replace"
 
-echo "==> Installing runner service"
-sudo -u "$RUNNER_USER" bash -c "cd '$RUNNER_DIR' && ./svc.sh install && ./svc.sh start"
+echo "==> Installing runner service (svc.sh must run as root)"
+cd "$RUNNER_DIR"
+./svc.sh install
+./svc.sh start
 sleep 2
-sudo -u "$RUNNER_USER" bash -c "cd '$RUNNER_DIR' && ./svc.sh status"
+./svc.sh status
 
 if sudo -u "$RUNNER_USER" docker ps >/dev/null 2>&1; then
   echo "==> Docker access OK for $RUNNER_USER"
