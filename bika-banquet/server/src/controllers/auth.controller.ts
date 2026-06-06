@@ -10,12 +10,13 @@ import {
 import { sendSuccess, sendError, sendUnauthorized } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { toEntryCase } from '../utils/textCase';
+import { passwordSchema } from '../utils/passwordPolicy';
 
 // Validation schemas
 export const registerSchema = z.object({
   body: z.object({
     email: z.string().email('Invalid email format'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: passwordSchema,
     name: z.string().min(2, 'Name must be at least 2 characters'),
   }),
 });
