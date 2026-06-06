@@ -11,97 +11,17 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Self-hosted runner on the VPS — avoids SSH from GitHub cloud runners,
+    # which currently times out on port 22 to this host.
+    runs-on: [self-hosted, linux, bika-banquet]
     timeout-minutes: 60
 
     steps:
-      - name: Setup SSH
+      - name: Deploy on VPS
         run: |
-          mkdir -p "$HOME/.ssh"
-          printf '%s' "${{ secrets.VPS_SSH_KEY }}" | base64 -d > "$HOME/.ssh/deploy_key"
-          chmod 600 "$HOME/.ssh/deploy_key"
-          touch "$HOME/.ssh/known_hosts"
-          # ssh-keyscan can fail on transient network blips; do not fail the job.
-          # The deploy step uses StrictHostKeyChecking=accept-new as a fallback.
-          for attempt in 1 2 3; do
-            if ssh-keyscan -T 10 -H "${{ secrets.VPS_HOST }}" >> "$HOME/.ssh/known_hosts" 2>/dev/null; then
-              echo "ssh-keyscan succeeded on attempt $attempt"
-              break
-            fi
-            echo "ssh-keyscan attempt $attempt failed, retrying..."
-            sleep 5
-          done
-
-      - name: Deploy
-        run: |
-          ssh -o StrictHostKeyChecking=accept-new \
-              -o ServerAliveInterval=60 \
-              -o ServerAliveCountMax=120 \
-              -o ConnectTimeout=30 \
-              -i "$HOME/.ssh/deploy_key" root@${{ secrets.VPS_HOST }} << 'ENDSSH'
-          set -e
-          cd /root/bika-banquet-v2/bika-banquet
-          DB_NAME="$(grep -m1 '^DB_NAME=' .env | cut -d'=' -f2- | tr -d '"' | tr -d "'")"
-
-          echo "==> Pulling latest code"
-          git fetch origin
-          git reset --hard origin/master
-
-          echo "==> Applying tracked SQL patches"
-          DB_CONTAINER=$(docker ps --format '{{.Names}}' | grep 'bika-banquet-db' | head -1)
-          if [ -z "$DB_CONTAINER" ]; then echo "ERROR: bika-banquet-db container not found"; exit 1; fi
-          echo "  Using DB container: $DB_CONTAINER"
-
-          docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" <<'SQL'
-          CREATE TABLE IF NOT EXISTS _raw_migrations (
-            name TEXT PRIMARY KEY,
-            applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-          );
-          SQL
-
-          find server/prisma -maxdepth 2 -type f -name '*.sql' ! -name 'legacy_schema.sql' | sort | while read -r file; do
-            name="${file#server/prisma/}"
-            already_applied="$(docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -tAc "SELECT 1 FROM _raw_migrations WHERE name = '$name'")"
-            if [ "$already_applied" = "1" ]; then
-              echo "  skip  $name"
-              continue
-            fi
-            echo "  apply $name"
-            docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" < "$file"
-            docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -c "INSERT INTO _raw_migrations (name) VALUES ('$name')"
-          done
-
-          echo "==> Building images (BuildKit cache enabled)"
-          DOCKER_BUILDKIT=1 docker compose build --parallel
-
-          echo "==> Recreating app containers (non-destructive)"
-          docker compose up -d --no-deps --force-recreate server client nginx
-
-          echo "==> Ensure all services up (no double-recreate)"
-          docker compose up -d --no-recreate
-
-          echo "==> Health check (up to 90s)"
-          healthy=0
-          for i in $(seq 1 18); do
-            if docker compose exec -T server curl -fs http://localhost:5000/health >/dev/null 2>&1; then
-              echo "Server healthy after $((i * 5))s"
-              healthy=1
-              break
-            fi
-            echo "Waiting... ($i/18)"
-            sleep 5
-          done
-
-          if [ "$healthy" -eq 0 ]; then
-            echo "ERROR: Server failed health check after 90s"
-            docker compose logs --tail=50 server
+          APP_DIR="/root/bika-banquet-v2/bika-banquet"
+          if [ ! -d "$APP_DIR" ]; then
+            echo "ERROR: App directory not found: $APP_DIR"
             exit 1
           fi
-
-          echo "==> Renewing SSL certificate if due"
-          if [ -x scripts/renew-ssl.sh ]; then
-            ./scripts/renew-ssl.sh || echo "WARNING: SSL renewal failed — check certbot logs"
-          fi
-
-          docker compose ps
-          ENDSSH
+          bash "$APP_DIR/scripts/ci-deploy.sh"
