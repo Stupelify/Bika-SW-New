@@ -45,14 +45,13 @@ if ! docker ps >/dev/null 2>&1; then
   echo "ERROR: docker ps failed — ensure Docker daemon is running"
   exit 1
 fi
-
-# Runner service dependencies (skip apt if curl+tar already present — avoids noisy
-# duplicate-mirror warnings on some VPS images).
-if command -v apt-get >/dev/null 2>&1 \
-    && { ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; }; then
-  echo "==> Installing curl/tar (apt warnings about duplicate mirrors are harmless)"
-  apt-get install -y -qq curl tar ca-certificates 2>/dev/null \
-    || apt-get install -y curl tar ca-certificates
+if ! command -v curl >/dev/null 2>&1; then
+  echo "ERROR: curl not found (required to download the runner). Install curl manually — do not rely on apt if mirrors are broken."
+  exit 1
+fi
+if ! command -v tar >/dev/null 2>&1; then
+  echo "ERROR: tar not found (required to extract the runner)"
+  exit 1
 fi
 
 mkdir -p "$RUNNER_DIR"
