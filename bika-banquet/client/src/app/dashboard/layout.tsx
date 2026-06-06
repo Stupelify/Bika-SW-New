@@ -8,6 +8,7 @@ import { shouldPrefetchDashboardRoute } from '@/lib/navigationPrefetch';
 import { getStoredAuthToken, useAuthStore } from '@/store/authStore';
 import BottomNav from '@/components/BottomNav';
 import Avatar from '@/components/Avatar';
+import TopNav, { type TopNavItem } from '@/components/TopNav';
 import CommandPalette from '@/components/CommandPalette';
 import IdleTimeoutModal from '@/components/IdleTimeoutModal';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
@@ -981,7 +982,18 @@ function DashboardLayoutContent({
     );
   }
 
-  const currentSidebarWidth = sidebarCollapsed ? '72px' : 'var(--sidebar-w)';
+  const currentSidebarWidth = sidebarCollapsed ? '60px' : 'var(--sidebar-w)';
+
+  const topNavItems: TopNavItem[] = visibleNavigation.map((item) => ({
+    name: item.name,
+    href: item.href,
+    badge:
+      item.name === 'Enquiries' && pendingEnquiries > 0
+        ? pendingEnquiries
+        : item.name === 'Payments' && outstandingPayments > 0
+        ? outstandingPayments
+        : null,
+  }));
 
   return (
     <div
@@ -989,6 +1001,14 @@ function DashboardLayoutContent({
       style={{ '--current-sidebar-w': currentSidebarWidth } as React.CSSProperties}
     >
       <a href="#main-content" className="skip-nav">Skip to main content</a>
+
+      <TopNav
+        items={topNavItems}
+        pathname={pathname}
+        onSearchClick={() => setPaletteOpen(true)}
+        userName={user?.name}
+      />
+
       <div className="hidden lg:flex sidebar-toggle-container">
         {navToggleButton}
       </div>
