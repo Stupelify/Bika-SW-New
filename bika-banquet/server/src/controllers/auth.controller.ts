@@ -14,6 +14,7 @@ import { passwordSchema } from '../utils/passwordPolicy';
 import { resolveEffectivePermissions } from '../utils/permissions';
 import { revokeUserSessions } from '../utils/sessions';
 import { createAuditLog } from '../utils/auditLog';
+import logger from '../utils/logger';
 
 // Validation schemas
 export const registerSchema = z.object({
@@ -226,6 +227,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       },
     });
   } catch (error) {
+    logger.error('Login failed', { error });
     sendError(res, 'Login failed');
   }
 }
