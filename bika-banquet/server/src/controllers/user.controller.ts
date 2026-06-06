@@ -9,7 +9,8 @@ import { parsePagination } from '../utils/pagination';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { createAuditLog } from '../utils/auditLog';
 import { passwordSchema } from '../utils/passwordPolicy';
-import { revokeUserSessions } from '../utils/sessions';
+import { revokeUserSessions, refreshUserSessions } from '../utils/sessions';
+import { isLastActiveAdmin, userHasAdminRole } from '../utils/adminGuard';
 
 export const createUserSchema = z.object({
   body: z.object({
@@ -52,43 +53,11 @@ export const setUserAllVenuesSchema = z.object({
 
 export const setUserDirectPermissionsSchema = z.object({
   params: z.object({ id: z.string().uuid('Invalid user ID') }),
-  body: z.object({ permissionIds: z.array(z.string().uuid()) }),
+  body: z.object({
+    grants: z.array(z.string().uuid()).default([]),
+    denies: z.array(z.string().uuid()).default([]),
+  }),
 });
-
-/**
- * True if `userId` is an Admin and there is no OTHER active Admin — i.e.
- * removing or disabling them would leave the system with no active admin.
- */
-async function isLastActiveAdmin(userId: string): Promise<boolean> {
-  const target = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { userRoles: { select: { role: { select: { name: true } } } } },
-  });
-  const targetIsAdmin = !!target?.userRoles.some(
-    (ur) => ur.role.name.toLowerCase() === 'admin'
-  );
-  if (!targetIsAdmin) return false;
-
-  const otherActiveAdmins = await prisma.user.count({
-    where: {
-      id: { not: userId },
-      isActive: true,
-      userRoles: {
-        some: { role: { name: { equals: 'Admin', mode: 'insensitive' } } },
-      },
-    },
-  });
-  return otherActiveAdmins === 0;
-}
-
-/** True if the user has the Admin role. */
-async function isAdminUser(userId: string): Promise<boolean> {
-  const roles = await prisma.userRole.findMany({
-    where: { userId },
-    include: { role: { select: { name: true } } },
-  });
-  return roles.some((ur) => ur.role.name.toLowerCase() === 'admin');
-}
 
 /** True if the requester themselves holds the Admin role. */
 function requesterIsAdmin(req: AuthRequest): boolean {
@@ -333,7 +302,7 @@ export async function setUserStatus(req: AuthRequest, res: Response): Promise<vo
         sendError(res, 'Cannot disable the last active admin.', 400);
         return;
       }
-      if ((await isAdminUser(id)) && !requesterIsAdmin(req)) {
+      if ((await userHasAdminRole(id)) && !requesterIsAdmin(req)) {
         sendForbidden(res, 'Only an Admin can disable an Admin account.');
         return;
       }
@@ -396,6 +365,7 @@ export async function setUserAllVenues(req: AuthRequest, res: Response): Promise
     }
 
     await prisma.user.update({ where: { id }, data: { hasAllVenueAccess } });
+    await refreshUserSessions(id);
     void createAuditLog(
       req,
       'UPDATE_ALL_VENUE_ACCESS',
@@ -430,19 +400,20 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
     }
 
     // Only an Admin may delete an Admin account.
-    if ((await isAdminUser(id)) && !requesterIsAdmin(req)) {
+    if ((await userHasAdminRole(id)) && !requesterIsAdmin(req)) {
       sendForbidden(res, 'Only an Admin can delete an Admin account.');
       return;
     }
 
     // Refuse hard-delete when the user has operational history; that data
     // references the user and must be preserved. Disable the account instead.
-    const [payments, finalizedBookings, finalizedQuotations] = await Promise.all([
+    const [payments, finalizedBookings, finalizedQuotations, auditLogs] = await Promise.all([
       prisma.bookingPayments.count({ where: { receivedBy: id } }),
       prisma.finalizedBooking.count({ where: { finalizedBy: id } }),
       prisma.finalizedQuotation.count({ where: { finalizedBy: id } }),
+      prisma.auditLog.count({ where: { userId: id } }),
     ]);
-    if (payments + finalizedBookings + finalizedQuotations > 0) {
+    if (payments + finalizedBookings + finalizedQuotations + auditLogs > 0) {
       sendError(
         res,
         'This user has financial/booking history and cannot be deleted. Disable the account instead.',
@@ -484,7 +455,7 @@ export async function resetUserPassword(req: AuthRequest, res: Response): Promis
       return;
     }
 
-    if ((await isAdminUser(id)) && !requesterIsAdmin(req)) {
+    if ((await userHasAdminRole(id)) && !requesterIsAdmin(req)) {
       sendForbidden(res, 'Cannot reset password for an Admin user');
       return;
     }
@@ -544,6 +515,7 @@ export async function setUserBanquets(req: AuthRequest, res: Response): Promise<
         : []),
     ]);
 
+    await refreshUserSessions(id);
     void createAuditLog(req, 'UPDATE_BANQUET_ACCESS', 'user', id, user.email, { banquetIds });
     sendSuccess(res, { banquetIds }, 'Banquet access updated');
   } catch (error) {
@@ -556,9 +528,12 @@ export async function getUserDirectPermissions(req: Request, res: Response): Pro
     const { id } = req.params;
     const rows = await prisma.userPermission.findMany({
       where: { userId: id },
-      select: { permissionId: true },
+      select: { permissionId: true, granted: true },
     });
-    sendSuccess(res, { permissionIds: rows.map((r) => r.permissionId) });
+    sendSuccess(res, {
+      grants: rows.filter((r) => r.granted).map((r) => r.permissionId),
+      denies: rows.filter((r) => !r.granted).map((r) => r.permissionId),
+    });
   } catch (error) {
     sendError(res, 'Failed to fetch user permissions');
   }
@@ -567,9 +542,12 @@ export async function getUserDirectPermissions(req: Request, res: Response): Pro
 export async function setUserDirectPermissions(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const permissionIds: string[] = Array.isArray(req.body.permissionIds)
-      ? req.body.permissionIds.filter((p: unknown) => typeof p === 'string')
-      : [];
+    const grants: string[] = Array.isArray(req.body.grants) ? req.body.grants : [];
+    const denies: string[] = Array.isArray(req.body.denies) ? req.body.denies : [];
+    // A permission cannot be both granted and denied; deny wins, so drop it
+    // from the grant set to satisfy the (userId, permissionId) uniqueness.
+    const denySet = new Set(denies);
+    const cleanGrants = grants.filter((p) => !denySet.has(p));
 
     const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
     if (!user) {
@@ -577,18 +555,26 @@ export async function setUserDirectPermissions(req: AuthRequest, res: Response):
       return;
     }
 
+    const rows = [
+      ...cleanGrants.map((permissionId) => ({ userId: id, permissionId, granted: true })),
+      ...denies.map((permissionId) => ({ userId: id, permissionId, granted: false })),
+    ];
+
     await prisma.$transaction([
       prisma.userPermission.deleteMany({ where: { userId: id } }),
-      ...(permissionIds.length > 0
-        ? [prisma.userPermission.createMany({
-            data: permissionIds.map((permissionId) => ({ userId: id, permissionId })),
-            skipDuplicates: true,
-          })]
+      ...(rows.length > 0
+        ? [prisma.userPermission.createMany({ data: rows, skipDuplicates: true })]
         : []),
     ]);
 
-    void createAuditLog(req, 'UPDATE_DIRECT_PERMISSIONS', 'user', id, user.email, { permissionIds });
-    sendSuccess(res, { permissionIds }, 'Direct permissions updated');
+    // Take effect immediately without logging the user out.
+    await refreshUserSessions(id);
+
+    void createAuditLog(req, 'UPDATE_DIRECT_PERMISSIONS', 'user', id, user.email, {
+      grants: cleanGrants,
+      denies,
+    });
+    sendSuccess(res, { grants: cleanGrants, denies }, 'Direct permissions updated');
   } catch (error: any) {
     if (error?.code === 'P2003') {
       sendError(res, 'Invalid permission selected', 400);
