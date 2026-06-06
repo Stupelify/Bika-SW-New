@@ -36,6 +36,11 @@ export function resolveEffectivePermissions(
 /**
  * Route guard decision: a request is allowed when it holds at least one of the
  * required permissions AND none of the required permissions is denied.
+ *
+ * Note: routes typically list a granular permission plus its `manage_*`
+ * umbrella (e.g. `['delete_user', 'manage_users']`). Denying the granular
+ * permission blocks the route as intended. Avoid denying an umbrella
+ * permission directly, since it would block every route that lists it.
  */
 export function canAccess(
   required: string[],

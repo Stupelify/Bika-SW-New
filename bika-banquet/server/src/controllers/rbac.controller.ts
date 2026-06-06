@@ -4,7 +4,7 @@ import prisma from '../config/database';
 import { sendError, sendSuccess } from '../utils/response';
 import { createAuditLog } from '../utils/auditLog';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { isLastActiveAdmin } from '../utils/adminGuard';
+import { isLastActiveAdmin, userHasAdminRole } from '../utils/adminGuard';
 import { refreshUserSessions, refreshUsersByRole } from '../utils/sessions';
 
 /** Resolve the Admin role id (case-insensitive), or null when absent. */
@@ -114,9 +114,15 @@ export async function updateUserRoles(
   try {
     const { userId, roleIds } = req.body;
 
+    // Only guard when the target currently holds Admin and the new role set
+    // would strip it — otherwise non-admins editing their own roles would be
+    // wrongly blocked.
     const adminRoleId = await getAdminRoleId();
-    const keepsAdmin = !adminRoleId || roleIds.includes(adminRoleId);
-    if (!keepsAdmin) {
+    const losesAdmin =
+      !!adminRoleId &&
+      !roleIds.includes(adminRoleId) &&
+      (await userHasAdminRole(userId));
+    if (losesAdmin) {
       if (req.user?.userId === userId) {
         sendError(res, 'You cannot remove your own Admin role.', 400);
         return;
