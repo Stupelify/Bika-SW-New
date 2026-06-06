@@ -194,6 +194,9 @@ function SettingsPageContent() {
   const [savingUser, setSavingUser] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // Permission selection for the create-user modal. Seeded from the chosen
+  // role, then freely editable before the account is created.
+  const [newUserPermIds, setNewUserPermIds] = useState<string[]>([]);
 
   // Reset-password modal
   const [resetPasswordUser, setResetPasswordUser] = useState<UserRow | null>(null);
@@ -352,6 +355,15 @@ function SettingsPageContent() {
     return set;
   }, [roles, editRoleIds]);
 
+  // When the create-user modal is open, seed its permission selection from the
+  // currently chosen role (importing the role's permissions). Changing the role
+  // re-imports; the admin can then tick/untick before creating the account.
+  useEffect(() => {
+    if (!showUserPrompt) return;
+    const role = roles.find((r) => r.id === userForm.roleId);
+    setNewUserPermIds(role?.permissions?.map((rp) => rp.permission.id) || []);
+  }, [showUserPrompt, userForm.roleId, roles]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -426,9 +438,26 @@ function SettingsPageContent() {
       if (newUserId && userForm.banquetAccess.length > 0) {
         await api.setUserBanquets(newUserId, userForm.banquetAccess);
       }
+      // Translate the customized permission selection into per-user overrides
+      // relative to the chosen role: ticked-but-not-in-role => grant,
+      // in-role-but-unticked => deny.
+      if (newUserId && canEditUserPermissions) {
+        const roleInherited = new Set(
+          roles.find((r) => r.id === userForm.roleId)?.permissions?.map(
+            (rp) => rp.permission.id
+          ) || []
+        );
+        const selected = new Set(newUserPermIds);
+        const grants = newUserPermIds.filter((id) => !roleInherited.has(id));
+        const denies = Array.from(roleInherited).filter((id) => !selected.has(id));
+        if (grants.length > 0 || denies.length > 0) {
+          await api.setUserDirectPermissions(newUserId, { grants, denies });
+        }
+      }
       toast.success('User created');
       setShowUserPrompt(false);
       setUserForm(initialUserForm);
+      setNewUserPermIds([]);
       setShowPassword(false);
       setShowConfirmPassword(false);
       await loadData();
@@ -1185,6 +1214,69 @@ function SettingsPageContent() {
               <p className="text-xs text-[var(--text-4)]">
                 Leave all unchecked = access to all banquets.
               </p>
+            </div>
+          )}
+
+          {canEditUserPermissions && permissionGroups.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-[var(--text-3)]" />
+                <label className="label m-0">Permissions</label>
+              </div>
+              <p className="text-xs text-[var(--text-4)]">
+                {userForm.roleId
+                  ? 'Imported from the selected role. Tick to add or untick to remove for this user.'
+                  : 'Pick a role to import its permissions, or tick individual permissions to grant.'}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {permissionGroups.map((group) => {
+                  const ids = group.permissions.map((p) => p.id);
+                  const allSelected = ids.every((id) => newUserPermIds.includes(id));
+                  return (
+                    <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
+                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={() =>
+                              setNewUserPermIds((prev) =>
+                                allSelected
+                                  ? prev.filter((id) => !ids.includes(id))
+                                  : Array.from(new Set([...prev, ...ids]))
+                              )
+                            }
+                          />
+                          All
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {group.permissions.map((permission) => (
+                          <label
+                            key={permission.id}
+                            className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                            title={permission.name}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={newUserPermIds.includes(permission.id)}
+                              onChange={() =>
+                                setNewUserPermIds((prev) =>
+                                  prev.includes(permission.id)
+                                    ? prev.filter((id) => id !== permission.id)
+                                    : [...prev, permission.id]
+                                )
+                              }
+                            />
+                            {formatPermissionLabel(permission.name)}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
