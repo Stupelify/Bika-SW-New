@@ -81,6 +81,20 @@ async function isLastActiveAdmin(userId: string): Promise<boolean> {
   return otherActiveAdmins === 0;
 }
 
+/** True if the user has the Admin role. */
+async function isAdminUser(userId: string): Promise<boolean> {
+  const roles = await prisma.userRole.findMany({
+    where: { userId },
+    include: { role: { select: { name: true } } },
+  });
+  return roles.some((ur) => ur.role.name.toLowerCase() === 'admin');
+}
+
+/** True if the requester themselves holds the Admin role. */
+function requesterIsAdmin(req: AuthRequest): boolean {
+  return req.user?.roles?.some((r) => r.toLowerCase() === 'admin') ?? false;
+}
+
 export async function getUsersSimple(req: Request, res: Response): Promise<void> {
   try {
     const users = await prisma.user.findMany({
@@ -319,6 +333,10 @@ export async function setUserStatus(req: AuthRequest, res: Response): Promise<vo
         sendError(res, 'Cannot disable the last active admin.', 400);
         return;
       }
+      if ((await isAdminUser(id)) && !requesterIsAdmin(req)) {
+        sendForbidden(res, 'Only an Admin can disable an Admin account.');
+        return;
+      }
     }
 
     const existing = await prisma.user.findUnique({
@@ -411,6 +429,12 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
+    // Only an Admin may delete an Admin account.
+    if ((await isAdminUser(id)) && !requesterIsAdmin(req)) {
+      sendForbidden(res, 'Only an Admin can delete an Admin account.');
+      return;
+    }
+
     // Refuse hard-delete when the user has operational history; that data
     // references the user and must be preserved. Disable the account instead.
     const [payments, finalizedBookings, finalizedQuotations] = await Promise.all([
@@ -460,18 +484,7 @@ export async function resetUserPassword(req: AuthRequest, res: Response): Promis
       return;
     }
 
-    const targetRoles = await prisma.userRole.findMany({
-      where: { userId: id },
-      include: { role: { select: { name: true } } },
-    });
-    const targetIsAdmin = targetRoles.some(
-      (ur) => ur.role.name.toLowerCase() === 'admin'
-    );
-    const requesterIsAdmin = (req as AuthRequest).user?.roles?.some(
-      (r) => r.toLowerCase() === 'admin'
-    ) ?? false;
-
-    if (targetIsAdmin && !requesterIsAdmin) {
+    if ((await isAdminUser(id)) && !requesterIsAdmin(req)) {
       sendForbidden(res, 'Cannot reset password for an Admin user');
       return;
     }
