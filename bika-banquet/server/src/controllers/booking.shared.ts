@@ -500,6 +500,14 @@ export async function cloneBookingVersion(
   }
 
   const replicaPayable = toSafeMoney(resolvePayableTotal(source));
+  const replicaPaymentReceived =
+    source.paymentReceivedAmountValue ??
+    toOptionalSafeMoney(source.paymentReceivedAmount) ??
+    0;
+  const replicaDue =
+    source.dueAmountValue ??
+    toOptionalSafeMoney(source.dueAmount) ??
+    replicaPayable;
 
   const clonedBooking = await tx.booking.create({
     data: {
@@ -535,10 +543,11 @@ export async function cloneBookingVersion(
       grandTotal: source.grandTotal,
       advanceRequired: source.advanceRequired,
       advanceRequiredValue: source.advanceRequiredValue,
-      paymentReceivedAmount: toStoredNumberString(0),
-      paymentReceivedAmountValue: 0,
-      dueAmount: toStoredNumberString(replicaPayable),
-      dueAmountValue: replicaPayable,
+      paymentReceivedAmount:
+        source.paymentReceivedAmount ?? toStoredNumberString(replicaPaymentReceived),
+      paymentReceivedAmountValue: replicaPaymentReceived,
+      dueAmount: source.dueAmount ?? toStoredNumberString(replicaDue),
+      dueAmountValue: replicaDue,
       status: options?.status ?? source.status,
       quotation: options?.quotation ?? source.quotation,
       isQuotation: options?.isQuotation ?? source.isQuotation,
