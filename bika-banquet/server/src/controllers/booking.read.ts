@@ -15,7 +15,7 @@ import {
   parseTimeToMinutes,
 } from './booking.shared';
 import {
-  getAllowedBanquetIds,
+  getVenueScope,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
 
@@ -186,9 +186,9 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
 
     // Banquet access restriction: if user has specific banquets, only show bookings for those halls
     const authReq = req as AuthRequest;
-    const allowedBanquetIds = authReq.user?.banquetIds;
-    if (allowedBanquetIds && allowedBanquetIds.length > 0) {
-      where.halls = { some: { hall: { banquetId: { in: allowedBanquetIds } } } };
+    const scope = getVenueScope(authReq);
+    if (!scope.allVenues) {
+      where.halls = { some: { hall: { banquetId: { in: scope.banquetIds } } } };
     }
 
     if (status) {
@@ -318,10 +318,10 @@ export async function getBookingById(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     const booking = await prisma.booking.findFirst({
-      where: withBookingBanquetScope({ id }, allowedBanquetIds),
+      where: withBookingBanquetScope({ id }, scope),
       include: BOOKING_RELATION_INCLUDE,
     });
 
@@ -345,10 +345,10 @@ export async function getBookingHistory(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     const anchor = await prisma.booking.findFirst({
-      where: withBookingBanquetScope({ id }, allowedBanquetIds),
+      where: withBookingBanquetScope({ id }, scope),
       select: {
         id: true,
       },

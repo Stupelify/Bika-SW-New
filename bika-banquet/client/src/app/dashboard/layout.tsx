@@ -158,7 +158,7 @@ const secondaryNavigation: NavigationItem[] = [
     name: 'Activity Logs',
     href: '/dashboard/logs',
     icon: Activity,
-    permissions: ['view_dashboard', 'manage_users'],
+    permissions: ['view_audit_logs', 'manage_users'],
   },
   {
     name: 'Settings',
@@ -181,11 +181,6 @@ const secondaryNavigation: NavigationItem[] = [
     ],
     children: [
       {
-        name: 'Access Mapping',
-        href: '/dashboard/settings?section=access',
-        permissions: ['assign_role', 'manage_permission', 'manage_roles'],
-      },
-      {
         name: 'Users',
         href: '/dashboard/settings?section=users',
         permissions: ['view_user', 'add_user', 'delete_user', 'manage_users'],
@@ -193,17 +188,13 @@ const secondaryNavigation: NavigationItem[] = [
       {
         name: 'Roles',
         href: '/dashboard/settings?section=roles',
-        permissions: ['view_role', 'add_role', 'delete_role', 'manage_roles'],
-      },
-      {
-        name: 'Permissions',
-        href: '/dashboard/settings?section=permissions',
         permissions: [
-          'view_permission',
-          'add_permission',
-          'delete_permission',
-          'manage_permission',
+          'view_role',
+          'add_role',
+          'edit_role',
+          'delete_role',
           'manage_roles',
+          'manage_permission',
         ],
       },
     ],
@@ -945,10 +936,15 @@ function DashboardLayoutContent({
           }}
         >
           <Avatar name={user?.name} size="sm" />
-          <div className="sidebar-label sidebar-user-info">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/profile')}
+            className="sidebar-label sidebar-user-info text-left"
+            title="My profile & password"
+          >
             <p className="sidebar-user-name">{user?.name || 'User'}</p>
             <p className="sidebar-user-email">{user?.email}</p>
-          </div>
+          </button>
           <button
             type="button"
             onClick={handleLogout}

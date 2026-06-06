@@ -12,7 +12,7 @@ import { idSchema } from '../utils/validation';
 import { resolveEventDateTimes } from '../utils/dateTime';
 import { createAuditLog } from '../utils/auditLog';
 import {
-  getAllowedBanquetIds,
+  getVenueScope,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
 import {
@@ -286,14 +286,14 @@ export async function createBooking(
 
     // Banquet access check: restricted users can only book halls in their allowed banquets
     const createAuthReq = req as AuthRequest;
-    const createAllowedBanquetIds = createAuthReq.user?.banquetIds;
-    if (createAllowedBanquetIds && createAllowedBanquetIds.length > 0 && hallRowsInput.length > 0) {
+    const createScope = getVenueScope(createAuthReq);
+    if (!createScope.allVenues && hallRowsInput.length > 0) {
       const selectedHalls = await prisma.hall.findMany({
         where: { id: { in: hallRowsInput.map((h) => h.hallId) } },
         select: { id: true, name: true, banquetId: true },
       });
       const forbidden = selectedHalls.filter(
-        (h) => h.banquetId && !createAllowedBanquetIds.includes(h.banquetId)
+        (h) => !h.banquetId || !createScope.banquetIds.includes(h.banquetId)
       );
       if (forbidden.length > 0) {
         sendForbidden(res, `Access denied: halls not in your allowed banquets (${forbidden.map((h) => h.name).join(', ')})`);
@@ -626,11 +626,11 @@ export async function finalizeBookingVersion(
     }
 
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     const result = await prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findFirst({
-        where: withBookingBanquetScope({ id }, allowedBanquetIds),
+        where: withBookingBanquetScope({ id }, scope),
         select: {
           id: true,
           isLatest: true,
@@ -761,7 +761,7 @@ export async function partyOverBooking(
     }
 
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     const payloadSchema = z.object({
       packs: z
@@ -787,7 +787,7 @@ export async function partyOverBooking(
 
     const result = await prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findFirst({
-        where: withBookingBanquetScope({ id }, allowedBanquetIds),
+        where: withBookingBanquetScope({ id }, scope),
         include: {
           packs: {
             select: {
@@ -995,7 +995,7 @@ export async function updateBooking(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
     const data: any = normalizeCaseFields({ ...req.body }, [
       'functionName',
       'functionType',
@@ -1032,7 +1032,7 @@ export async function updateBooking(
 
     // Check if booking exists
     const existingBooking = await prisma.booking.findFirst({
-      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
+      where: withBookingBanquetScope({ id, isLatest: true }, scope),
     });
 
     if (!existingBooking) {
@@ -1475,9 +1475,9 @@ export async function cancelBooking(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
     const existing = await prisma.booking.findFirst({
-      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
+      where: withBookingBanquetScope({ id, isLatest: true }, scope),
       select: { id: true, status: true, isLatest: true },
     });
     if (!existing) {
@@ -1521,9 +1521,9 @@ export async function deleteBooking(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
     const existing = await prisma.booking.findFirst({
-      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
+      where: withBookingBanquetScope({ id, isLatest: true }, scope),
       select: { id: true, status: true, isLatest: true },
     });
     if (!existing) {

@@ -8,6 +8,7 @@ import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { createAuditLog } from '../utils/auditLog';
+import { getVenueScope, canAccessBanquet } from '../utils/banquetAccess';
 
 export const createHallSchema = z.object({
   body: z.object({
@@ -73,13 +74,12 @@ export async function getHalls(req: Request, res: Response): Promise<void> {
 
     const where: Record<string, unknown> = {};
 
-    // Banquet access restriction
-    const hallAuthReq = req as AuthRequest;
-    const allowedBanquetIds = hallAuthReq.user?.banquetIds;
-    if (allowedBanquetIds && allowedBanquetIds.length > 0) {
+    // Banquet access restriction (fail-closed)
+    const scope = getVenueScope(req as AuthRequest);
+    if (!scope.allVenues) {
       where.banquetId = banquetId
-        ? (allowedBanquetIds.includes(banquetId) ? banquetId : '__none__')
-        : { in: allowedBanquetIds };
+        ? (scope.banquetIds.includes(banquetId) ? banquetId : '__none__')
+        : { in: scope.banquetIds };
     } else if (banquetId) {
       where.banquetId = banquetId;
     }
@@ -138,8 +138,7 @@ export async function getHalls(req: Request, res: Response): Promise<void> {
 export async function getHallById(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const hallAuthReq = req as AuthRequest;
-    const allowedBanquetIds = hallAuthReq.user?.banquetIds || [];
+    const scope = getVenueScope(req as AuthRequest);
     const hall = await prisma.hall.findUnique({
       where: { id },
       include: {
@@ -150,7 +149,7 @@ export async function getHallById(req: Request, res: Response): Promise<void> {
       sendNotFound(res, 'Hall not found');
       return;
     }
-    if (allowedBanquetIds.length > 0 && (!hall.banquetId || !allowedBanquetIds.includes(hall.banquetId))) {
+    if (!canAccessBanquet(scope, hall.banquetId)) {
       sendNotFound(res, 'Hall not found');
       return;
     }
@@ -163,8 +162,7 @@ export async function getHallById(req: Request, res: Response): Promise<void> {
 export async function updateHall(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const hallAuthReq = req as AuthRequest;
-    const allowedBanquetIds = hallAuthReq.user?.banquetIds || [];
+    const scope = getVenueScope(req as AuthRequest);
     const existingHall = await prisma.hall.findUnique({
       where: { id },
       select: { id: true, banquetId: true },
@@ -173,7 +171,7 @@ export async function updateHall(req: Request, res: Response): Promise<void> {
       sendNotFound(res, 'Hall not found');
       return;
     }
-    if (allowedBanquetIds.length > 0 && (!existingHall.banquetId || !allowedBanquetIds.includes(existingHall.banquetId))) {
+    if (!canAccessBanquet(scope, existingHall.banquetId)) {
       sendNotFound(res, 'Hall not found');
       return;
     }
@@ -207,6 +205,15 @@ export async function updateHall(req: Request, res: Response): Promise<void> {
 export async function deleteHall(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const scope = getVenueScope(req as AuthRequest);
+    const existingHall = await prisma.hall.findUnique({
+      where: { id },
+      select: { banquetId: true },
+    });
+    if (existingHall && !canAccessBanquet(scope, existingHall.banquetId)) {
+      sendNotFound(res, 'Hall not found');
+      return;
+    }
     await prisma.hall.delete({
       where: { id },
     });

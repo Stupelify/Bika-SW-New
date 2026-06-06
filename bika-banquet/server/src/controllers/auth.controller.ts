@@ -8,14 +8,18 @@ import {
   generateRandomToken,
 } from '../utils/auth';
 import { sendSuccess, sendError, sendUnauthorized } from '../utils/response';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { AuthRequest, invalidateSessionCacheByToken } from '../middleware/auth.middleware';
 import { toEntryCase } from '../utils/textCase';
+import { passwordSchema } from '../utils/passwordPolicy';
+import { resolveEffectivePermissions } from '../utils/permissions';
+import { revokeUserSessions } from '../utils/sessions';
+import { createAuditLog } from '../utils/auditLog';
 
 // Validation schemas
 export const registerSchema = z.object({
   body: z.object({
     email: z.string().email('Invalid email format'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: passwordSchema,
     name: z.string().min(2, 'Name must be at least 2 characters'),
   }),
 });
@@ -30,7 +34,7 @@ export const loginSchema = z.object({
 export const changePasswordSchema = z.object({
   body: z.object({
     currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+    newPassword: passwordSchema,
   }),
 });
 
@@ -118,10 +122,12 @@ export async function login(req: Request, res: Response): Promise<void> {
           },
         },
         userBanquets: { select: { banquetId: true } },
+        userPermissions: { include: { permission: true } },
       },
     });
 
     if (!user) {
+      void createAuditLog(req, 'LOGIN_FAILED', 'auth', undefined, normalizedEmail);
       sendUnauthorized(res, 'Invalid credentials');
       return;
     }
@@ -130,7 +136,14 @@ export async function login(req: Request, res: Response): Promise<void> {
     const isValidPassword = await comparePassword(password, user.password);
 
     if (!isValidPassword) {
+      void createAuditLog(req, 'LOGIN_FAILED', 'auth', user.id, normalizedEmail);
       sendUnauthorized(res, 'Invalid credentials');
+      return;
+    }
+
+    // Reject disabled accounts.
+    if (!user.isActive) {
+      sendError(res, 'Account is disabled. Contact an administrator.', 403);
       return;
     }
 
@@ -140,16 +153,37 @@ export async function login(req: Request, res: Response): Promise<void> {
     //   return;
     // }
 
-    // Extract roles, permissions, banquet restrictions
+    // Extract roles + effective permissions (role permissions plus per-user
+    // grant overrides, minus per-user deny overrides). Deny wins.
     const roles = user.userRoles.map((ur) => ur.role.name);
-    const permissions = [
-      ...new Set(
-        user.userRoles.flatMap((ur) =>
-          ur.role.permissions.map((rp) => rp.permission.name)
-        )
-      ),
-    ];
+    const rolePermissions = user.userRoles.flatMap((ur) =>
+      ur.role.permissions.map((rp) => rp.permission.name)
+    );
+    const grantedPermissions = user.userPermissions
+      .filter((up) => up.granted)
+      .map((up) => up.permission.name);
+    const explicitDenies = user.userPermissions
+      .filter((up) => !up.granted)
+      .map((up) => up.permission.name);
+    const { permissions, deniedPermissions } = resolveEffectivePermissions(
+      rolePermissions,
+      grantedPermissions,
+      explicitDenies
+    );
     const banquetIds = (user.userBanquets || []).map((ub) => ub.banquetId);
+
+    // Record login metadata (best-effort, derived from forwarded headers / socket).
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const clientIp =
+      (typeof forwardedFor === 'string'
+        ? forwardedFor.split(',')[0]?.trim()
+        : Array.isArray(forwardedFor)
+          ? forwardedFor[0]?.trim()
+          : undefined) || req.socket.remoteAddress || null;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), lastLoginIp: clientIp },
+    });
 
     // Generate JWT token
     const token = generateToken({
@@ -157,7 +191,10 @@ export async function login(req: Request, res: Response): Promise<void> {
       email: user.email,
       roles,
       permissions,
+      deniedPermissions,
       banquetIds,
+      isActive: true,
+      hasAllVenueAccess: user.hasAllVenueAccess,
     });
 
     // Create session
@@ -172,6 +209,8 @@ export async function login(req: Request, res: Response): Promise<void> {
       },
     });
 
+    void createAuditLog(req, 'LOGIN', 'auth', user.id, user.email);
+
     // Send response
     sendSuccess(res, {
       token,
@@ -181,7 +220,9 @@ export async function login(req: Request, res: Response): Promise<void> {
         name: user.name,
         roles,
         permissions,
+        deniedPermissions,
         banquetIds,
+        hasAllVenueAccess: user.hasAllVenueAccess,
       },
     });
   } catch (error) {
@@ -200,14 +241,21 @@ export async function logout(req: AuthRequest, res: Response): Promise<void> {
       await prisma.session.delete({
         where: { token },
       });
+      await invalidateSessionCacheByToken(token);
     }
 
+    void createAuditLog(req, 'LOGOUT', 'auth', req.user?.userId, req.user?.email);
     sendSuccess(res, null, 'Logged out successfully');
   } catch (error) {
     sendError(res, 'Logout failed');
   }
 }
 
+/**
+ * Change own password. Requires the current password, enforces the strong
+ * password policy, and signs the user out of all OTHER devices while keeping
+ * the current session valid.
+ */
 export async function changePassword(
   req: AuthRequest,
   res: Response
@@ -221,10 +269,7 @@ export async function changePassword(
     const { currentPassword, newPassword } = req.body;
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },
-      select: {
-        id: true,
-        password: true,
-      },
+      select: { id: true, password: true, email: true },
     });
 
     if (!user) {
@@ -241,11 +286,13 @@ export async function changePassword(
     const hashedPassword = await hashPassword(newPassword);
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        password: hashedPassword,
-      },
+      data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
 
+    // Keep the current device signed in; revoke all other sessions.
+    await revokeUserSessions(user.id, req.rawToken);
+
+    void createAuditLog(req, 'CHANGE_PASSWORD', 'user', user.id, user.email);
     sendSuccess(res, null, 'Password changed successfully');
   } catch (error) {
     sendError(res, 'Failed to change password');
@@ -291,7 +338,9 @@ export async function getCurrentUser(
         ...user,
         roles: req.user.roles,
         permissions: req.user.permissions,
+        deniedPermissions: req.user.deniedPermissions,
         banquetIds: req.user.banquetIds,
+        hasAllVenueAccess: req.user.hasAllVenueAccess,
       },
     });
   } catch (error) {

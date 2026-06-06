@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
 import { normalizeCaseFields } from '../utils/textCase';
+import { createAuditLog } from '../utils/auditLog';
 
 export const createRoleSchema = z.object({
   body: z.object({
@@ -24,6 +25,7 @@ export async function createRole(req: Request, res: Response): Promise<void> {
     const role = await prisma.role.create({
       data: payload,
     });
+    void createAuditLog(req, 'CREATE', 'role', role.id, role.name);
     sendSuccess(res, { role }, 'Role created successfully', 201);
   } catch (error: any) {
     if (error?.code === 'P2002') {
@@ -88,6 +90,7 @@ export async function updateRole(req: Request, res: Response): Promise<void> {
       where: { id },
       data: payload,
     });
+    void createAuditLog(req, 'UPDATE', 'role', role.id, role.name);
     sendSuccess(res, { role }, 'Role updated successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {
@@ -108,6 +111,7 @@ export async function deleteRole(req: Request, res: Response): Promise<void> {
     await prisma.role.delete({
       where: { id },
     });
+    void createAuditLog(req, 'DELETE', 'role', id, '');
     sendSuccess(res, null, 'Role deleted successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {

@@ -1,7 +1,20 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendSuccess } from '../utils/response';
+import { createAuditLog } from '../utils/auditLog';
+import { AuthRequest } from '../middleware/auth.middleware';
+import { isLastActiveAdmin, userHasAdminRole } from '../utils/adminGuard';
+import { refreshUserSessions, refreshUsersByRole } from '../utils/sessions';
+
+/** Resolve the Admin role id (case-insensitive), or null when absent. */
+async function getAdminRoleId(): Promise<string | null> {
+  const role = await prisma.role.findFirst({
+    where: { name: { equals: 'Admin', mode: 'insensitive' } },
+    select: { id: true },
+  });
+  return role?.id ?? null;
+}
 
 const userRoleSchema = z.object({
   body: z.object({
@@ -38,7 +51,7 @@ export const assignPermissionSchema = rolePermissionSchema;
 export const removePermissionSchema = rolePermissionSchema;
 export const updateRolePermissionsSchema = updatePermissionsSchema;
 
-export async function assignRole(req: Request, res: Response): Promise<void> {
+export async function assignRole(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { userId, roleId } = req.body;
     await prisma.userRole.upsert({
@@ -54,15 +67,30 @@ export async function assignRole(req: Request, res: Response): Promise<void> {
         roleId,
       },
     });
+    await refreshUserSessions(userId);
+    void createAuditLog(req, 'ASSIGN_ROLE', 'user_role', userId, undefined, { roleId });
     sendSuccess(res, null, 'Role assigned successfully');
   } catch (error) {
     sendError(res, 'Failed to assign role');
   }
 }
 
-export async function removeRole(req: Request, res: Response): Promise<void> {
+export async function removeRole(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { userId, roleId } = req.body;
+
+    const adminRoleId = await getAdminRoleId();
+    if (adminRoleId && roleId === adminRoleId) {
+      if (req.user?.userId === userId) {
+        sendError(res, 'You cannot remove your own Admin role.', 400);
+        return;
+      }
+      if (await isLastActiveAdmin(userId)) {
+        sendError(res, 'Cannot remove the Admin role from the last active admin.', 400);
+        return;
+      }
+    }
+
     await prisma.userRole.delete({
       where: {
         userId_roleId: {
@@ -71,6 +99,8 @@ export async function removeRole(req: Request, res: Response): Promise<void> {
         },
       },
     });
+    await refreshUserSessions(userId);
+    void createAuditLog(req, 'REMOVE_ROLE', 'user_role', userId, undefined, { roleId });
     sendSuccess(res, null, 'Role removed successfully');
   } catch (error) {
     sendError(res, 'Failed to remove role');
@@ -78,11 +108,30 @@ export async function removeRole(req: Request, res: Response): Promise<void> {
 }
 
 export async function updateUserRoles(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
     const { userId, roleIds } = req.body;
+
+    // Only guard when the target currently holds Admin and the new role set
+    // would strip it — otherwise non-admins editing their own roles would be
+    // wrongly blocked.
+    const adminRoleId = await getAdminRoleId();
+    const losesAdmin =
+      !!adminRoleId &&
+      !roleIds.includes(adminRoleId) &&
+      (await userHasAdminRole(userId));
+    if (losesAdmin) {
+      if (req.user?.userId === userId) {
+        sendError(res, 'You cannot remove your own Admin role.', 400);
+        return;
+      }
+      if (await isLastActiveAdmin(userId)) {
+        sendError(res, 'Cannot remove the Admin role from the last active admin.', 400);
+        return;
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.userRole.deleteMany({
@@ -98,6 +147,8 @@ export async function updateUserRoles(
       }
     });
 
+    await refreshUserSessions(userId);
+    void createAuditLog(req, 'UPDATE_USER_ROLES', 'user_role', userId, undefined, { roleIds });
     sendSuccess(res, null, 'User roles updated successfully');
   } catch (error) {
     sendError(res, 'Failed to update user roles');
@@ -105,7 +156,7 @@ export async function updateUserRoles(
 }
 
 export async function assignPermission(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
@@ -123,6 +174,8 @@ export async function assignPermission(
         permissionId,
       },
     });
+    await refreshUsersByRole(roleId);
+    void createAuditLog(req, 'ASSIGN_PERMISSION', 'role_permission', roleId, undefined, { permissionId });
     sendSuccess(res, null, 'Permission assigned successfully');
   } catch (error) {
     sendError(res, 'Failed to assign permission');
@@ -130,7 +183,7 @@ export async function assignPermission(
 }
 
 export async function removePermission(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
@@ -143,6 +196,8 @@ export async function removePermission(
         },
       },
     });
+    await refreshUsersByRole(roleId);
+    void createAuditLog(req, 'REMOVE_PERMISSION', 'role_permission', roleId, undefined, { permissionId });
     sendSuccess(res, null, 'Permission removed successfully');
   } catch (error) {
     sendError(res, 'Failed to remove permission');
@@ -150,7 +205,7 @@ export async function removePermission(
 }
 
 export async function updateRolePermissions(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
@@ -170,6 +225,8 @@ export async function updateRolePermissions(
       }
     });
 
+    await refreshUsersByRole(roleId);
+    void createAuditLog(req, 'UPDATE_ROLE_PERMISSIONS', 'role_permission', roleId, undefined, { permissionIds });
     sendSuccess(res, null, 'Role permissions updated successfully');
   } catch (error) {
     sendError(res, 'Failed to update role permissions');
@@ -177,7 +234,7 @@ export async function updateRolePermissions(
 }
 
 export async function listUserPermissions(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {

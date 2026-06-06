@@ -9,6 +9,9 @@ interface User {
   name: string;
   roles: string[];
   permissions: string[];
+  deniedPermissions?: string[];
+  banquetIds?: string[];
+  hasAllVenueAccess?: boolean;
 }
 
 interface AuthState {

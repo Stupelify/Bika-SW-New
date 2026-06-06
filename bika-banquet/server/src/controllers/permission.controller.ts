@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { sendError, sendNotFound, sendSuccess } from '../utils/response';
+import { createAuditLog } from '../utils/auditLog';
 
 export const createPermissionSchema = z.object({
   body: z.object({
@@ -25,6 +26,7 @@ export async function createPermission(
     const permission = await prisma.permission.create({
       data: req.body,
     });
+    void createAuditLog(req, 'CREATE', 'permission', permission.id, permission.name);
     sendSuccess(res, { permission }, 'Permission created successfully', 201);
   } catch (error: any) {
     if (error?.code === 'P2002') {
@@ -82,6 +84,7 @@ export async function updatePermission(
       where: { id },
       data: req.body,
     });
+    void createAuditLog(req, 'UPDATE', 'permission', permission.id, permission.name);
     sendSuccess(res, { permission }, 'Permission updated successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {
@@ -105,6 +108,7 @@ export async function deletePermission(
     await prisma.permission.delete({
       where: { id },
     });
+    void createAuditLog(req, 'DELETE', 'permission', id, '');
     sendSuccess(res, null, 'Permission deleted successfully');
   } catch (error: any) {
     if (error?.code === 'P2025') {

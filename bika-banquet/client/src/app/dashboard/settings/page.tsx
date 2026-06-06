@@ -10,7 +10,6 @@ import {
   KeyRound,
   Save,
   Search,
-  Settings2,
   Shield,
   Trash2,
   Users,
@@ -25,12 +24,10 @@ interface UserRow {
   name?: string | null;
   email: string;
   createdAt?: string;
-  userRoles?: Array<{
-    role: {
-      id: string;
-      name: string;
-    };
-  }>;
+  isActive?: boolean;
+  hasAllVenueAccess?: boolean;
+  lastLoginAt?: string | null;
+  userRoles?: Array<{ role: { id: string; name: string } }>;
 }
 
 interface BanquetOption {
@@ -43,24 +40,14 @@ interface RoleRow {
   id: string;
   name: string;
   description?: string | null;
-  permissions?: Array<{
-    permission: {
-      id: string;
-      name: string;
-    };
-  }>;
-  _count?: {
-    userRoles: number;
-  };
+  permissions?: Array<{ permission: { id: string; name: string } }>;
+  _count?: { userRoles: number };
 }
 
 interface PermissionRow {
   id: string;
   name: string;
   description?: string | null;
-  _count?: {
-    roles: number;
-  };
 }
 
 interface CurrentUser {
@@ -77,6 +64,8 @@ interface PermissionGroup {
   permissions: PermissionRow[];
 }
 
+type PermOverride = 'default' | 'grant' | 'deny';
+
 const ACTION_TOKENS = new Set([
   'add',
   'view',
@@ -92,68 +81,28 @@ const ACTION_ORDER = ['assign', 'manage', 'add', 'view', 'edit', 'delete', 'send
 const KEEP_MANAGE_ACTION_SUBJECTS = new Set(['permission', 'payment']);
 
 const SUBJECT_ALIASES: Record<string, string> = {
-  users: 'user',
-  user: 'user',
-  customers: 'customer',
-  customer: 'customer',
-  roles: 'role',
-  role: 'role',
-  permissions: 'permission',
-  permission: 'permission',
-  items: 'item',
-  item: 'item',
-  itemtypes: 'itemtype',
-  itemtype: 'itemtype',
-  halls: 'hall',
-  hall: 'hall',
-  banquets: 'banquet',
-  banquet: 'banquet',
-  bookings: 'booking',
-  booking: 'booking',
-  enquiries: 'enquiry',
-  enquiry: 'enquiry',
-  templatemenus: 'templatemenu',
-  templatemenu: 'templatemenu',
-  calendars: 'calendar',
-  calendar: 'calendar',
-  dashboards: 'dashboard',
-  dashboard: 'dashboard',
-  reports: 'report',
-  report: 'report',
+  users: 'user', user: 'user', customers: 'customer', customer: 'customer',
+  roles: 'role', role: 'role', permissions: 'permission', permission: 'permission',
+  items: 'item', item: 'item', itemtypes: 'itemtype', itemtype: 'itemtype',
+  halls: 'hall', hall: 'hall', banquets: 'banquet', banquet: 'banquet',
+  bookings: 'booking', booking: 'booking', enquiries: 'enquiry', enquiry: 'enquiry',
+  templatemenus: 'templatemenu', templatemenu: 'templatemenu',
+  calendars: 'calendar', calendar: 'calendar', dashboards: 'dashboard', dashboard: 'dashboard',
+  reports: 'report', report: 'report', audit: 'audit',
 };
 
 const SUBJECT_LABELS: Record<string, string> = {
-  user: 'Users',
-  customer: 'Customers',
-  role: 'Roles',
-  permission: 'Permissions',
-  item: 'Items',
-  itemtype: 'Item Types',
-  hall: 'Halls',
-  banquet: 'Banquets',
-  booking: 'Bookings',
-  enquiry: 'Enquiries',
-  templatemenu: 'Template Menus',
-  calendar: 'Calendar',
-  dashboard: 'Dashboard',
-  report: 'Reports',
+  user: 'Users', customer: 'Customers', role: 'Roles', permission: 'Permissions',
+  item: 'Items', itemtype: 'Item Types', hall: 'Halls', banquet: 'Banquets',
+  booking: 'Bookings', enquiry: 'Enquiries', templatemenu: 'Template Menus',
+  calendar: 'Calendar', dashboard: 'Dashboard', report: 'Reports', payment: 'Payments',
+  menu: 'Menu', audit: 'Audit Logs',
 };
 
 const SUBJECT_ORDER = [
-  'user',
-  'customer',
-  'role',
-  'permission',
-  'item',
-  'itemtype',
-  'hall',
-  'banquet',
-  'booking',
-  'enquiry',
-  'templatemenu',
-  'calendar',
-  'dashboard',
-  'report',
+  'dashboard', 'report', 'calendar', 'booking', 'enquiry', 'payment', 'customer',
+  'hall', 'banquet', 'item', 'itemtype', 'templatemenu', 'menu',
+  'user', 'role', 'permission', 'audit',
 ];
 
 function normalizeSubject(subject: string): string {
@@ -174,17 +123,12 @@ function formatAction(action: string): string {
 
 function parsePermissionName(name: string): { action: string; subject: string } {
   const parts = name.split('_').filter(Boolean);
-  if (parts.length === 0) {
-    return { action: 'manage', subject: 'general' };
-  }
+  if (parts.length === 0) return { action: 'manage', subject: 'general' };
   if (ACTION_TOKENS.has(parts[0])) {
     return { action: parts[0], subject: parts.slice(1).join('_') || 'general' };
   }
   if (ACTION_TOKENS.has(parts[parts.length - 1])) {
-    return {
-      action: parts[parts.length - 1],
-      subject: parts.slice(0, -1).join('_') || 'general',
-    };
+    return { action: parts[parts.length - 1], subject: parts.slice(0, -1).join('_') || 'general' };
   }
   return { action: parts[0], subject: parts.slice(1).join('_') || 'general' };
 }
@@ -193,9 +137,7 @@ function formatPermissionLabel(name: string): string {
   const { action, subject } = parsePermissionName(name);
   const normalizedSubject = normalizeSubject(subject);
   const subjectLabel = SUBJECT_LABELS[normalizedSubject] || normalizedSubject.replace(/_/g, ' ');
-  const singularSubject = subjectLabel.endsWith('s')
-    ? subjectLabel.slice(0, -1)
-    : subjectLabel;
+  const singularSubject = subjectLabel.endsWith('s') ? subjectLabel.slice(0, -1) : subjectLabel;
   return `${formatAction(action)} ${singularSubject.toLowerCase()}`;
 }
 
@@ -205,25 +147,14 @@ function arraysMatchAsSet(left: string[], right: string[]): boolean {
   return left.every((item) => rightSet.has(item));
 }
 
-function formatJoinedDate(value?: string): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return `Joined ${date.toLocaleDateString('en-IN', {
-    month: 'short',
-    year: 'numeric',
-  })}`;
+/** Mirrors the backend rule: min 8 chars and contains both letters and numbers. */
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return 'Password must include both letters and numbers';
+  }
+  return null;
 }
-
-const initialRoleForm = {
-  name: '',
-  description: '',
-};
-
-const initialPermissionForm = {
-  name: '',
-  description: '',
-};
 
 const initialUserForm = {
   name: '',
@@ -234,100 +165,71 @@ const initialUserForm = {
   banquetAccess: [] as string[],
 };
 
-const initialPasswordForm = {
-  currentPassword: '',
-  newPassword: '',
-  confirmPassword: '',
-};
-type SettingsSection = 'access' | 'users' | 'roles' | 'permissions';
+const initialResetPasswordForm = { newPassword: '', confirmPassword: '' };
+const initialRoleForm = { name: '', description: '' };
+
+type SettingsSection = 'users' | 'roles';
 
 function isSettingsSection(value: string | null): value is SettingsSection {
-  return (
-    value === 'access' ||
-    value === 'users' ||
-    value === 'roles' ||
-    value === 'permissions'
-  );
+  return value === 'users' || value === 'roles';
 }
 
 function SettingsPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
+  const [banquets, setBanquets] = useState<BanquetOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingRole, setSavingRole] = useState(false);
-  const [savingPermission, setSavingPermission] = useState(false);
-  const [savingUserRoles, setSavingUserRoles] = useState(false);
-  const [savingRolePermissions, setSavingRolePermissions] = useState(false);
-  const [savingUser, setSavingUser] = useState(false);
-  const [savingPasswordChange, setSavingPasswordChange] = useState(false);
-  const [savingUserPasswordReset, setSavingUserPasswordReset] = useState<string | null>(null);
-  const [showRolePrompt, setShowRolePrompt] = useState(false);
-  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
-  const [showUserPrompt, setShowUserPrompt] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
   const [userSearch, setUserSearch] = useState('');
+
+  // Create-user modal
+  const [showUserPrompt, setShowUserPrompt] = useState(false);
+  const [userForm, setUserForm] = useState(initialUserForm);
+  const [savingUser, setSavingUser] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewAccountPassword, setShowNewAccountPassword] = useState(false);
-  const [showConfirmAccountPassword, setShowConfirmAccountPassword] = useState(false);
+  // Permission selection for the create-user modal. Seeded from the chosen
+  // role, then freely editable before the account is created.
+  const [newUserPermIds, setNewUserPermIds] = useState<string[]>([]);
 
+  // Reset-password modal
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserRow | null>(null);
+  const [resetPasswordForm, setResetPasswordForm] = useState(initialResetPasswordForm);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
+  const [savingUserPasswordReset, setSavingUserPasswordReset] = useState(false);
+
+  const [savingUserStatus, setSavingUserStatus] = useState(false);
+
+  // Edit-user modal (roles + venue + per-user permissions + profile)
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
+  const [editAllVenues, setEditAllVenues] = useState(false);
+  const [editBanquetIds, setEditBanquetIds] = useState<string[]>([]);
+  const [permOverride, setPermOverride] = useState<Record<string, PermOverride>>({});
+  const [savingEditUser, setSavingEditUser] = useState(false);
+
+  // Role modal (create or edit a role + its permissions)
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<RoleRow | null>(null);
   const [roleForm, setRoleForm] = useState(initialRoleForm);
-  const [permissionForm, setPermissionForm] = useState(initialPermissionForm);
-  const [userForm, setUserForm] = useState(initialUserForm);
-  const [passwordForm, setPasswordForm] = useState(initialPasswordForm);
+  const [rolePermIds, setRolePermIds] = useState<string[]>([]);
+  const [savingRole, setSavingRole] = useState(false);
 
-  const [banquets, setBanquets] = useState<BanquetOption[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
-  const [selectedUserBanquetIds, setSelectedUserBanquetIds] = useState<string[]>([]);
-  const [savedUserBanquetIds, setSavedUserBanquetIds] = useState<string[]>([]);
-  const [savingUserBanquets, setSavingUserBanquets] = useState(false);
-  const [selectedRoleId, setSelectedRoleId] = useState('');
-  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
-  const [newRolePermissionIds, setNewRolePermissionIds] = useState<string[]>([]);
-  const [activeSettingsSection, setActiveSettingsSection] =
-    useState<SettingsSection>('access');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('users');
   const sectionParam = searchParams.get('section');
 
   useEffect(() => {
     void loadData();
   }, []);
-
-  useEffect(() => {
-    if (!selectedUserId && users.length > 0) {
-      setSelectedUserId(users[0].id);
-    }
-  }, [users, selectedUserId]);
-
-  useEffect(() => {
-    if (!selectedRoleId && roles.length > 0) {
-      setSelectedRoleId(roles[0].id);
-    }
-  }, [roles, selectedRoleId]);
-
-  const selectedUser = useMemo(
-    () => users.find((user) => user.id === selectedUserId),
-    [users, selectedUserId]
-  );
-
-  const selectedRole = useMemo(
-    () => roles.find((role) => role.id === selectedRoleId),
-    [roles, selectedRoleId]
-  );
-
-  const filteredUsers = useMemo(() => {
-    const query = userSearch.trim().toLowerCase();
-    if (!query) return users;
-    return users.filter((user) => {
-      const haystack = `${user.name || ''} ${user.email}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [userSearch, users]);
 
   const currentPermissionSet = useMemo(
     () => new Set(currentUser?.permissions || []),
@@ -340,83 +242,61 @@ function SettingsPageContent() {
     currentPermissionSet.has('add_user') || currentPermissionSet.has('manage_users');
   const canDeleteUsers =
     currentPermissionSet.has('delete_user') || currentPermissionSet.has('manage_users');
+  const canManageUsers = currentPermissionSet.has('manage_users');
+  const canAssignRoles =
+    currentPermissionSet.has('assign_role') || currentPermissionSet.has('manage_roles');
+  const canManageRolePermissions =
+    currentPermissionSet.has('manage_permission') || currentPermissionSet.has('manage_roles');
   const canViewRoles =
     currentPermissionSet.has('view_role') || currentPermissionSet.has('manage_roles');
   const canAddRoles =
     currentPermissionSet.has('add_role') || currentPermissionSet.has('manage_roles');
+  const canEditRoles =
+    currentPermissionSet.has('edit_role') ||
+    currentPermissionSet.has('manage_roles') ||
+    canManageRolePermissions;
   const canDeleteRoles =
     currentPermissionSet.has('delete_role') || currentPermissionSet.has('manage_roles');
-  const canViewPermissions =
-    currentPermissionSet.has('view_permission') ||
-    currentPermissionSet.has('manage_permission') ||
-    currentPermissionSet.has('manage_roles');
-  const canAddPermissions =
-    currentPermissionSet.has('add_permission') ||
-    currentPermissionSet.has('manage_permission') ||
-    currentPermissionSet.has('manage_roles');
-  const canDeletePermissions =
-    currentPermissionSet.has('delete_permission') ||
-    currentPermissionSet.has('manage_permission') ||
-    currentPermissionSet.has('manage_roles');
-  const canAssignRoles =
-    currentPermissionSet.has('assign_role') || currentPermissionSet.has('manage_roles');
-  const canManagePermission =
-    currentPermissionSet.has('manage_permission') || currentPermissionSet.has('manage_roles');
-  const canManageRolePermissions = canManagePermission;
 
-  const canAccessUsersSection = canViewUsers || canAddUsers || canDeleteUsers;
-  const canAccessRolesSection = canViewRoles || canAddRoles || canDeleteRoles;
-  const canAccessPermissionsSection =
-    canViewPermissions || canAddPermissions || canDeletePermissions;
-  const canViewAccessSection = canAssignRoles || canManageRolePermissions;
+  const canAccessUsersSection = canViewUsers || canAddUsers || canDeleteUsers || canManageUsers;
+  const canAccessRolesSection = canViewRoles || canAddRoles || canEditRoles || canDeleteRoles;
+  // Whether the per-user permission editor (grant/deny) is available.
+  const canEditUserPermissions = canManageRolePermissions;
 
-  const availableSettingsSections = useMemo<SettingsSection[]>(() => {
-    const availableSections: SettingsSection[] = [];
-    if (canViewAccessSection) availableSections.push('access');
-    if (canAccessUsersSection) availableSections.push('users');
-    if (canAccessRolesSection) availableSections.push('roles');
-    if (canAccessPermissionsSection) availableSections.push('permissions');
-    return availableSections;
-  }, [
-    canAccessPermissionsSection,
-    canAccessRolesSection,
-    canAccessUsersSection,
-    canViewAccessSection,
-  ]);
+  const availableSections = useMemo<SettingsSection[]>(() => {
+    const list: SettingsSection[] = [];
+    if (canAccessUsersSection) list.push('users');
+    if (canAccessRolesSection) list.push('roles');
+    return list;
+  }, [canAccessUsersSection, canAccessRolesSection]);
 
   useEffect(() => {
-    if (availableSettingsSections.length === 0) return;
-
-    const requestedSection = isSettingsSection(sectionParam) ? sectionParam : null;
-    const nextSection =
-      requestedSection && availableSettingsSections.includes(requestedSection)
-        ? requestedSection
-        : availableSettingsSections[0];
-
-    if (activeSettingsSection !== nextSection) {
-      setActiveSettingsSection(nextSection);
-    }
-
-    if (sectionParam !== nextSection) {
+    if (availableSections.length === 0) return;
+    const requested = isSettingsSection(sectionParam) ? sectionParam : null;
+    const next =
+      requested && availableSections.includes(requested) ? requested : availableSections[0];
+    if (activeSection !== next) setActiveSection(next);
+    if (sectionParam !== next) {
       const params = new URLSearchParams(searchParams.toString());
-      params.set('section', nextSection);
+      params.set('section', next);
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }
-  }, [
-    activeSettingsSection,
-    availableSettingsSections,
-    pathname,
-    router,
-    searchParams,
-    sectionParam,
-  ]);
+  }, [activeSection, availableSections, pathname, router, searchParams, sectionParam]);
 
-  const navigateToSettingsSection = (section: SettingsSection) => {
-    if (!availableSettingsSections.includes(section)) return;
+  const navigateToSection = (section: SettingsSection) => {
+    if (!availableSections.includes(section)) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', section);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
+
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    if (!query) return users;
+    return users.filter((user) =>
+      `${user.name || ''} ${user.email}`.toLowerCase().includes(query)
+    );
+  }, [userSearch, users]);
 
   const permissionGroups = useMemo<PermissionGroup[]>(() => {
     const groups = new Map<string, PermissionGroup>();
@@ -424,9 +304,8 @@ function SettingsPageContent() {
 
     permissions.forEach((permission) => {
       const { action, subject } = parsePermissionName(permission.name);
-      const key = normalizeSubject(subject);
       if (action.toLowerCase() !== 'manage') {
-        subjectsWithGranularActions.add(key);
+        subjectsWithGranularActions.add(normalizeSubject(subject));
       }
     });
 
@@ -446,15 +325,14 @@ function SettingsPageContent() {
       groups.set(key, group);
     });
 
-    const sortedGroups = Array.from(groups.values())
+    return Array.from(groups.values())
       .map((group) => ({
         ...group,
         permissions: [...group.permissions].sort((a, b) => {
-          const actionA = parsePermissionName(a.name).action;
-          const actionB = parsePermissionName(b.name).action;
-          const orderDelta = actionOrder(actionA) - actionOrder(actionB);
-          if (orderDelta !== 0) return orderDelta;
-          return a.name.localeCompare(b.name);
+          const orderDelta =
+            actionOrder(parsePermissionName(a.name).action) -
+            actionOrder(parsePermissionName(b.name).action);
+          return orderDelta !== 0 ? orderDelta : a.name.localeCompare(b.name);
         }),
       }))
       .sort((a, b) => {
@@ -462,54 +340,29 @@ function SettingsPageContent() {
         const indexB = SUBJECT_ORDER.indexOf(b.key);
         const safeA = indexA === -1 ? SUBJECT_ORDER.length : indexA;
         const safeB = indexB === -1 ? SUBJECT_ORDER.length : indexB;
-        if (safeA !== safeB) return safeA - safeB;
-        return a.label.localeCompare(b.label);
+        return safeA !== safeB ? safeA - safeB : a.label.localeCompare(b.label);
       });
-
-    return sortedGroups;
   }, [permissions]);
 
-  useEffect(() => {
-    if (!selectedUser) return;
-    setSelectedRoleIds(selectedUser.userRoles?.map((ur) => ur.role.id) || []);
-  }, [selectedUser]);
+  // Permission ids inherited from the roles currently selected in the edit modal.
+  const inheritedPermissionIds = useMemo(() => {
+    const set = new Set<string>();
+    roles.forEach((role) => {
+      if (editRoleIds.includes(role.id)) {
+        role.permissions?.forEach((rp) => set.add(rp.permission.id));
+      }
+    });
+    return set;
+  }, [roles, editRoleIds]);
 
+  // When the create-user modal is open, seed its permission selection from the
+  // currently chosen role (importing the role's permissions). Changing the role
+  // re-imports; the admin can then tick/untick before creating the account.
   useEffect(() => {
-    if (!selectedUserId) return;
-    api.getUserBanquets(selectedUserId)
-      .then((res) => {
-        const ids: string[] = res.data?.data?.banquetIds || [];
-        setSelectedUserBanquetIds(ids);
-        setSavedUserBanquetIds(ids);
-      })
-      .catch(() => {});
-  }, [selectedUserId]);
-
-  useEffect(() => {
-    if (!selectedRole) return;
-    setSelectedPermissionIds(selectedRole.permissions?.map((rp) => rp.permission.id) || []);
-  }, [selectedRole]);
-
-  const selectedUserRoleIds = useMemo(
-    () => selectedUser?.userRoles?.map((ur) => ur.role.id) || [],
-    [selectedUser]
-  );
-  const selectedRolePermissionIds = useMemo(
-    () => selectedRole?.permissions?.map((rp) => rp.permission.id) || [],
-    [selectedRole]
-  );
-  const userRolesDirty = useMemo(
-    () => !arraysMatchAsSet(selectedRoleIds, selectedUserRoleIds),
-    [selectedRoleIds, selectedUserRoleIds]
-  );
-  const userBanquetsDirty = useMemo(
-    () => !arraysMatchAsSet(selectedUserBanquetIds, savedUserBanquetIds),
-    [selectedUserBanquetIds, savedUserBanquetIds]
-  );
-  const rolePermissionsDirty = useMemo(
-    () => !arraysMatchAsSet(selectedPermissionIds, selectedRolePermissionIds),
-    [selectedPermissionIds, selectedRolePermissionIds]
-  );
+    if (!showUserPrompt) return;
+    const role = roles.find((r) => r.id === userForm.roleId);
+    setNewUserPermIds(role?.permissions?.map((rp) => rp.permission.id) || []);
+  }, [showUserPrompt, userForm.roleId, roles]);
 
   const loadData = async () => {
     try {
@@ -553,159 +406,7 @@ function SettingsPageContent() {
     }
   };
 
-  const createRole = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!canAddRoles) {
-      toast.error('You do not have permission to create roles');
-      return;
-    }
-    if (!roleForm.name.trim()) {
-      toast.error('Role name is required');
-      return;
-    }
-    try {
-      setSavingRole(true);
-      const response = await api.createRole({
-        name: roleForm.name.trim(),
-        description: roleForm.description.trim() || undefined,
-      });
-      const createdRoleId = response.data?.data?.role?.id;
-      if (createdRoleId && newRolePermissionIds.length > 0 && canManageRolePermissions) {
-        await api.updateRolePermissions({
-          roleId: createdRoleId,
-          permissionIds: newRolePermissionIds,
-        });
-      }
-      toast.success('Role created');
-      setShowRolePrompt(false);
-      setRoleForm(initialRoleForm);
-      setNewRolePermissionIds([]);
-      await loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to create role');
-    } finally {
-      setSavingRole(false);
-    }
-  };
-
-  const createPermission = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!canAddPermissions) {
-      toast.error('You do not have permission to create permissions');
-      return;
-    }
-    if (!permissionForm.name.trim()) {
-      toast.error('Permission name is required');
-      return;
-    }
-    try {
-      setSavingPermission(true);
-      await api.createPermission({
-        name: permissionForm.name.trim(),
-        description: permissionForm.description.trim() || undefined,
-      });
-      toast.success('Permission created');
-      setShowPermissionPrompt(false);
-      setPermissionForm(initialPermissionForm);
-      await loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to create permission');
-    } finally {
-      setSavingPermission(false);
-    }
-  };
-
-  const updateUserRoles = async () => {
-    if (!canAssignRoles) {
-      toast.error('You do not have permission to assign roles');
-      return;
-    }
-    if (!selectedUserId) {
-      toast.error('Select a user first');
-      return;
-    }
-    try {
-      setSavingUserRoles(true);
-      await api.updateUserRoles({
-        userId: selectedUserId,
-        roleIds: selectedRoleIds,
-      });
-      toast.success('User roles updated');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to update user roles');
-    } finally {
-      setSavingUserRoles(false);
-    }
-  };
-
-  const saveUserBanquets = async () => {
-    if (!selectedUserId) { toast.error('Select a user first'); return; }
-    try {
-      setSavingUserBanquets(true);
-      await api.setUserBanquets(selectedUserId, selectedUserBanquetIds);
-      setSavedUserBanquetIds([...selectedUserBanquetIds]);
-      toast.success(
-        selectedUserBanquetIds.length === 0
-          ? 'User now has access to all banquets'
-          : `Banquet access restricted to ${selectedUserBanquetIds.length} banquet(s)`
-      );
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to update banquet access');
-    } finally {
-      setSavingUserBanquets(false);
-    }
-  };
-
-  const updateRolePermissions = async () => {
-    if (!canManageRolePermissions) {
-      toast.error('You do not have permission to manage role permissions');
-      return;
-    }
-    if (!selectedRoleId) {
-      toast.error('Select a role first');
-      return;
-    }
-    try {
-      setSavingRolePermissions(true);
-      await api.updateRolePermissions({
-        roleId: selectedRoleId,
-        permissionIds: selectedPermissionIds,
-      });
-      toast.success('Role permissions updated');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to update permissions');
-    } finally {
-      setSavingRolePermissions(false);
-    }
-  };
-
-  const toggleRole = (roleId: string) => {
-    setSelectedRoleIds((prev) =>
-      prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]
-    );
-  };
-
-  const removeUser = async (id: string) => {
-    if (!canDeleteUsers) {
-      toast.error('You do not have permission to delete users');
-      return;
-    }
-    if (id === currentUser?.id) {
-      toast.error('You cannot delete your own account');
-      return;
-    }
-    if (!confirm('Delete this user?')) return;
-    try {
-      await api.deleteUser(id);
-      toast.success('User deleted');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to delete user');
-    }
-  };
-
+  // ── Create user ──────────────────────────────────────────────────────────
   const createUser = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!canAddUsers) {
@@ -716,11 +417,15 @@ function SettingsPageContent() {
       toast.error('Name, email and password are required');
       return;
     }
+    const passwordError = validatePassword(userForm.password);
+    if (passwordError) {
+      toast.error(passwordError);
+      return;
+    }
     if (userForm.password !== userForm.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
-
     try {
       setSavingUser(true);
       const created = await api.createUser({
@@ -733,9 +438,26 @@ function SettingsPageContent() {
       if (newUserId && userForm.banquetAccess.length > 0) {
         await api.setUserBanquets(newUserId, userForm.banquetAccess);
       }
+      // Translate the customized permission selection into per-user overrides
+      // relative to the chosen role: ticked-but-not-in-role => grant,
+      // in-role-but-unticked => deny.
+      if (newUserId && canEditUserPermissions) {
+        const roleInherited = new Set(
+          roles.find((r) => r.id === userForm.roleId)?.permissions?.map(
+            (rp) => rp.permission.id
+          ) || []
+        );
+        const selected = new Set(newUserPermIds);
+        const grants = newUserPermIds.filter((id) => !roleInherited.has(id));
+        const denies = Array.from(roleInherited).filter((id) => !selected.has(id));
+        if (grants.length > 0 || denies.length > 0) {
+          await api.setUserDirectPermissions(newUserId, { grants, denies });
+        }
+      }
       toast.success('User created');
       setShowUserPrompt(false);
       setUserForm(initialUserForm);
+      setNewUserPermIds([]);
       setShowPassword(false);
       setShowConfirmPassword(false);
       await loadData();
@@ -746,90 +468,276 @@ function SettingsPageContent() {
     }
   };
 
-  const changeOwnPassword = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      toast.error('Current and new password are required');
-      return;
-    }
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-
-    try {
-      setSavingPasswordChange(true);
-      await api.changePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      });
-      toast.success('Password changed');
-      setPasswordForm(initialPasswordForm);
-      setShowCurrentPassword(false);
-      setShowNewAccountPassword(false);
-      setShowConfirmAccountPassword(false);
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to change password');
-    } finally {
-      setSavingPasswordChange(false);
-    }
-  };
-
-  const resetManagedUserPassword = async (user: UserRow) => {
-    if (!currentPermissionSet.has('manage_users')) {
+  // ── Reset password ───────────────────────────────────────────────────────
+  const openResetPasswordModal = (user: UserRow) => {
+    if (!canManageUsers) {
       toast.error('You do not have permission to reset passwords');
       return;
     }
+    setResetPasswordUser(user);
+    setResetPasswordForm(initialResetPasswordForm);
+    setShowResetPassword(false);
+    setShowResetConfirmPassword(false);
+  };
 
-    const newPassword = window.prompt(`Enter a temporary password for ${user.email}`);
-    if (!newPassword) {
+  const submitResetPassword = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!resetPasswordUser || !canManageUsers) return;
+    const newPassword = resetPasswordForm.newPassword;
+    const validationError = validatePassword(newPassword);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
-
+    if (newPassword !== resetPasswordForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
     try {
-      setSavingUserPasswordReset(user.id);
-      await api.resetUserPassword(user.id, { newPassword });
-      toast.success(`Password reset for ${user.email}`);
+      setSavingUserPasswordReset(true);
+      await api.resetUserPassword(resetPasswordUser.id, { newPassword });
+      toast.success(
+        `Password reset for ${resetPasswordUser.email}. They have been signed out of all devices.`
+      );
+      setResetPasswordUser(null);
+      setResetPasswordForm(initialResetPasswordForm);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to reset password');
     } finally {
-      setSavingUserPasswordReset(null);
+      setSavingUserPasswordReset(false);
     }
   };
 
-  const togglePermissionId = (permissionId: string, setter: (value: string[]) => void, current: string[]) => {
-    setter(current.includes(permissionId) ? current.filter((id) => id !== permissionId) : [...current, permissionId]);
-  };
-
-  const togglePermissionGroup = (
-    group: PermissionGroup,
-    setter: (value: string[]) => void,
-    current: string[]
-  ) => {
-    const groupPermissionIds = group.permissions.map((permission) => permission.id);
-    const isAllSelected = groupPermissionIds.every((id) => current.includes(id));
-    if (isAllSelected) {
-      setter(current.filter((id) => !groupPermissionIds.includes(id)));
+  // ── Enable / disable ─────────────────────────────────────────────────────
+  const toggleUserStatus = async (user: UserRow) => {
+    if (!canManageUsers) {
+      toast.error('You do not have permission to change user status');
       return;
     }
-    const merged = new Set([...current, ...groupPermissionIds]);
-    setter(Array.from(merged));
+    if (user.id === currentUser?.id) {
+      toast.error('You cannot disable your own account');
+      return;
+    }
+    const nextActive = !user.isActive;
+    if (
+      !nextActive &&
+      !confirm(
+        `Disable ${user.email}? They will be signed out of all devices and cannot log in until re-enabled.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setSavingUserStatus(true);
+      await api.setUserStatus(user.id, { isActive: nextActive });
+      toast.success(nextActive ? 'User enabled' : 'User disabled');
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to update user status');
+    } finally {
+      setSavingUserStatus(false);
+    }
   };
 
-  const removeRole = async (id: string) => {
+  // ── Delete ───────────────────────────────────────────────────────────────
+  const removeUser = async (user: UserRow) => {
+    if (!canDeleteUsers) {
+      toast.error('You do not have permission to delete users');
+      return;
+    }
+    if (user.id === currentUser?.id) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
+    if (!confirm(`Delete ${user.email}? This cannot be undone.`)) return;
+    try {
+      await api.deleteUser(user.id);
+      toast.success('User deleted');
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to delete user');
+    }
+  };
+
+  // ── Edit user (roles + venue + permissions + profile) ──────────────────────
+  const openEditUser = async (user: UserRow) => {
+    if (!canManageUsers && !canAssignRoles) {
+      toast.error('You do not have permission to edit users');
+      return;
+    }
+    setEditingUser(user);
+    setEditName(user.name || '');
+    setEditEmail(user.email);
+    setEditRoleIds(user.userRoles?.map((ur) => ur.role.id) || []);
+    setEditAllVenues(Boolean(user.hasAllVenueAccess));
+    setEditBanquetIds([]);
+    setPermOverride({});
+
+    try {
+      const [banquetRes, permRes] = await Promise.all([
+        api.getUserBanquets(user.id),
+        canEditUserPermissions
+          ? api.getUserDirectPermissions(user.id)
+          : Promise.resolve(null),
+      ]);
+      setEditBanquetIds(banquetRes.data?.data?.banquetIds || []);
+      const grants: string[] = permRes?.data?.data?.grants || [];
+      const denies: string[] = permRes?.data?.data?.denies || [];
+      const overrides: Record<string, PermOverride> = {};
+      grants.forEach((id) => {
+        overrides[id] = 'grant';
+      });
+      denies.forEach((id) => {
+        overrides[id] = 'deny';
+      });
+      setPermOverride(overrides);
+    } catch {
+      // Non-fatal: modal still opens with role/profile editing.
+    }
+  };
+
+  const closeEditUser = () => {
+    setEditingUser(null);
+  };
+
+  const setPermissionOverride = (permissionId: string, value: PermOverride) => {
+    setPermOverride((prev) => {
+      const next = { ...prev };
+      if (value === 'default') delete next[permissionId];
+      else next[permissionId] = value;
+      return next;
+    });
+  };
+
+  const submitEditUser = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editName.trim() || !editEmail.trim()) {
+      toast.error('Name and email are required');
+      return;
+    }
+    const userId = editingUser.id;
+    const originalRoleIds = editingUser.userRoles?.map((ur) => ur.role.id) || [];
+    try {
+      setSavingEditUser(true);
+
+      if (canManageUsers) {
+        await api.updateUser(userId, {
+          name: editName.trim(),
+          email: editEmail.trim(),
+        });
+      }
+
+      if (canAssignRoles && !arraysMatchAsSet(editRoleIds, originalRoleIds)) {
+        await api.updateUserRoles({ userId, roleIds: editRoleIds });
+      }
+
+      if (canManageUsers) {
+        await api.setUserAllVenues(userId, editAllVenues);
+        if (!editAllVenues) {
+          await api.setUserBanquets(userId, editBanquetIds);
+        }
+      }
+
+      if (canEditUserPermissions) {
+        const grants = Object.entries(permOverride)
+          .filter(([, v]) => v === 'grant')
+          .map(([id]) => id);
+        const denies = Object.entries(permOverride)
+          .filter(([, v]) => v === 'deny')
+          .map(([id]) => id);
+        await api.setUserDirectPermissions(userId, { grants, denies });
+      }
+
+      toast.success('User updated');
+      setEditingUser(null);
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to update user');
+    } finally {
+      setSavingEditUser(false);
+    }
+  };
+
+  // ── Roles ──────────────────────────────────────────────────────────────────
+  const openCreateRole = () => {
+    if (!canAddRoles) {
+      toast.error('You do not have permission to create roles');
+      return;
+    }
+    setEditingRole(null);
+    setRoleForm(initialRoleForm);
+    setRolePermIds([]);
+    setRoleModalOpen(true);
+  };
+
+  const openEditRole = (role: RoleRow) => {
+    if (!canEditRoles) {
+      toast.error('You do not have permission to edit roles');
+      return;
+    }
+    setEditingRole(role);
+    setRoleForm({ name: role.name, description: role.description || '' });
+    setRolePermIds(role.permissions?.map((rp) => rp.permission.id) || []);
+    setRoleModalOpen(true);
+  };
+
+  const submitRole = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!roleForm.name.trim()) {
+      toast.error('Role name is required');
+      return;
+    }
+    const isAdminRole = editingRole?.name.toLowerCase() === 'admin';
+    try {
+      setSavingRole(true);
+      let roleId = editingRole?.id;
+      if (editingRole) {
+        await api.updateRole(editingRole.id, {
+          name: roleForm.name.trim(),
+          description: roleForm.description.trim() || undefined,
+        });
+      } else {
+        const response = await api.createRole({
+          name: roleForm.name.trim(),
+          description: roleForm.description.trim() || undefined,
+        });
+        roleId = response.data?.data?.role?.id;
+      }
+      // Admin always has every permission; never let the editor strip it.
+      if (roleId && canManageRolePermissions && !isAdminRole) {
+        await api.updateRolePermissions({ roleId, permissionIds: rolePermIds });
+      }
+      toast.success(editingRole ? 'Role updated' : 'Role created');
+      setRoleModalOpen(false);
+      setEditingRole(null);
+      setRoleForm(initialRoleForm);
+      setRolePermIds([]);
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to save role');
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  const removeRole = async (role: RoleRow) => {
     if (!canDeleteRoles) {
       toast.error('You do not have permission to delete roles');
       return;
     }
-    const role = roles.find((item) => item.id === id);
-    const assignedUsers = role?._count?.userRoles || 0;
+    if (role.name.toLowerCase() === 'admin') {
+      toast.error('The Admin role cannot be deleted');
+      return;
+    }
+    const assignedUsers = role._count?.userRoles || 0;
     const message =
       assignedUsers > 0
         ? `This role is assigned to ${assignedUsers} user${assignedUsers === 1 ? '' : 's'}. Deleting it will remove their access. Continue?`
         : 'Delete this role?';
     if (!confirm(message)) return;
     try {
-      await api.deleteRole(id);
+      await api.deleteRole(role.id);
       toast.success('Role deleted');
       await loadData();
     } catch (error: any) {
@@ -837,214 +745,342 @@ function SettingsPageContent() {
     }
   };
 
-  const removePermission = async (id: string) => {
-    if (!canDeletePermissions) {
-      toast.error('You do not have permission to delete permissions');
-      return;
-    }
-    if (!confirm('Delete this permission?')) return;
-    try {
-      await api.deletePermission(id);
-      toast.success('Permission deleted');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Failed to delete permission');
-    }
+  const toggleRolePerm = (permissionId: string) => {
+    setRolePermIds((prev) =>
+      prev.includes(permissionId)
+        ? prev.filter((id) => id !== permissionId)
+        : [...prev, permissionId]
+    );
   };
+
+  const toggleRolePermGroup = (group: PermissionGroup) => {
+    const ids = group.permissions.map((p) => p.id);
+    const allSelected = ids.every((id) => rolePermIds.includes(id));
+    setRolePermIds((prev) =>
+      allSelected
+        ? prev.filter((id) => !ids.includes(id))
+        : Array.from(new Set([...prev, ...ids]))
+    );
+  };
+
+  const isAdminRoleModal = editingRole?.name.toLowerCase() === 'admin';
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="page-title">Settings & Access</h1>
+        <h1 className="page-title">User Management</h1>
+        <p className="text-sm text-[var(--text-3)] mt-1">
+          Manage staff accounts, their access, and roles.
+        </p>
       </div>
 
-      <div className="card space-y-4">
-        <div className="flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-primary-600" />
-          <h2 className="text-lg font-semibold text-[var(--text-1)]">Change My Password</h2>
+      {/* Reset password modal */}
+      {resetPasswordUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="card w-full max-w-md space-y-4">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-primary-600" />
+              <h2 className="text-lg font-semibold text-[var(--text-1)]">Reset password</h2>
+            </div>
+            <p className="text-sm text-[var(--text-3)]">
+              Set a new password for{' '}
+              <span className="font-medium">{resetPasswordUser.email}</span>. They will be signed
+              out of all devices and must sign in with the new password.
+            </p>
+            <form className="space-y-3" onSubmit={submitResetPassword}>
+              <div>
+                <label className="label">New password</label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    className="input pr-9"
+                    value={resetPasswordForm.newPassword}
+                    onChange={(e) =>
+                      setResetPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                    }
+                    autoFocus
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-4)]"
+                    onClick={() => setShowResetPassword((v) => !v)}
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--text-4)] mt-1">
+                  At least 8 characters, including letters and numbers.
+                </p>
+              </div>
+              <div>
+                <label className="label">Confirm new password</label>
+                <div className="relative">
+                  <input
+                    type={showResetConfirmPassword ? 'text' : 'password'}
+                    className="input pr-9"
+                    value={resetPasswordForm.confirmPassword}
+                    onChange={(e) =>
+                      setResetPasswordForm((prev) => ({
+                        ...prev,
+                        confirmPassword: e.target.value,
+                      }))
+                    }
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-4)]"
+                    onClick={() => setShowResetConfirmPassword((v) => !v)}
+                  >
+                    {showResetConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setResetPasswordUser(null)}
+                  disabled={savingUserPasswordReset}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingUserPasswordReset}>
+                  {savingUserPasswordReset ? 'Resetting...' : 'Reset password'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <form className="grid grid-cols-1 md:grid-cols-3 gap-4" onSubmit={changeOwnPassword}>
-          <div>
-            <label className="label">Current password</label>
-            <input
-              type={showCurrentPassword ? 'text' : 'password'}
-              className="input"
-              value={passwordForm.currentPassword}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
-              required
-            />
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
-              onClick={() => setShowCurrentPassword((prev) => !prev)}
-            >
-              {showCurrentPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showCurrentPassword ? 'Hide password' : 'Show password'}
-            </button>
-          </div>
-          <div>
-            <label className="label">New password</label>
-            <input
-              type={showNewAccountPassword ? 'text' : 'password'}
-              className="input"
-              value={passwordForm.newPassword}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-              required
-            />
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
-              onClick={() => setShowNewAccountPassword((prev) => !prev)}
-            >
-              {showNewAccountPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showNewAccountPassword ? 'Hide password' : 'Show password'}
-            </button>
-          </div>
-          <div>
-            <label className="label">Confirm new password</label>
-            <input
-              type={showConfirmAccountPassword ? 'text' : 'password'}
-              className="input"
-              value={passwordForm.confirmPassword}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-              required
-            />
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text-2)]"
-              onClick={() => setShowConfirmAccountPassword((prev) => !prev)}
-            >
-              {showConfirmAccountPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showConfirmAccountPassword ? 'Hide confirmation' : 'Show confirmation'}
-            </button>
-          </div>
-          <div className="md:col-span-3 flex justify-end">
-            <button className="btn btn-primary w-full sm:w-auto" type="submit" disabled={savingPasswordChange}>
-              <span className="inline-flex items-center gap-2">
-                <Save className="w-4 h-4" />
-                {savingPasswordChange ? 'Saving...' : 'Update Password'}
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
+      )}
 
+      {/* Edit-user modal */}
       <FormPromptModal
-        open={showRolePrompt}
-        title="Create Role"
-        onClose={() => setShowRolePrompt(false)}
+        open={!!editingUser}
+        title={editingUser ? `Edit ${editingUser.email}` : 'Edit user'}
+        onClose={closeEditUser}
         widthClass="max-w-4xl"
       >
-        <form className="space-y-4" onSubmit={createRole}>
-          <div>
-            <label className="label">Role name</label>
-            <input
-              className="input"
-              value={roleForm.name}
-              onChange={(e) => setRoleForm((prev) => ({ ...prev, name: e.target.value }))}
-              required
-            />
-          </div>
-          <div>
-            <label className="label">Description</label>
-            <textarea
-              className="input min-h-[90px]"
-              value={roleForm.description}
-              onChange={(e) =>
-                setRoleForm((prev) => ({ ...prev, description: e.target.value }))
-              }
-            />
-          </div>
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-[var(--text-1)]">Permissions</p>
-            {!canManageRolePermissions || !canViewPermissions ? (
-              <p className="text-sm text-[var(--text-4)]">
-                Role permissions can be assigned later by users with permission access.
-              </p>
-            ) : permissionGroups.length === 0 ? (
-              <div className="empty-state" style={{ padding: '20px 12px' }}>
-                <div className="empty-state-icon">
-                  <Shield size={22} />
-                </div>
-                <p className="empty-state-title">No permissions available</p>
-                <p className="empty-state-desc">Create permissions to assign to this role.</p>
+        {editingUser && (
+          <form className="space-y-5" onSubmit={submitEditUser}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="label">Name</label>
+                <input
+                  className="input"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  disabled={!canManageUsers}
+                  required
+                />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {permissionGroups.map((group) => {
-                  const groupPermissionIds = group.permissions.map((permission) => permission.id);
-                  const groupSelected = groupPermissionIds.every((id) =>
-                    newRolePermissionIds.includes(id)
-                  );
-                  return (
-                    <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
-                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
-                          <input
-                            type="checkbox"
-                            checked={groupSelected}
-                            onChange={() =>
-                              togglePermissionGroup(
-                                group,
-                                setNewRolePermissionIds,
-                                newRolePermissionIds
-                              )
-                            }
-                          />
-                          All
-                        </label>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {group.permissions.map((permission) => {
-                          const permissionId = permission.id;
-                          const label = formatPermissionLabel(permission.name);
-                          return (
-                            <label
-                              key={permissionId}
-                              className="flex items-center gap-2 text-sm text-[var(--text-2)]"
-                              title={permission.name}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={newRolePermissionIds.includes(permissionId)}
-                                onChange={() =>
-                                  togglePermissionId(
-                                    permissionId,
-                                    setNewRolePermissionIds,
-                                    newRolePermissionIds
-                                  )
-                                }
-                              />
-                              {label}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div>
+                <label className="label">Email</label>
+                <input
+                  type="email"
+                  className="input"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  disabled={!canManageUsers}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Roles */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-[var(--text-1)]">Roles</p>
+              {roles.length === 0 ? (
+                <p className="text-sm text-[var(--text-4)]">No roles defined yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {roles.map((role) => (
+                    <label
+                      key={role.id}
+                      className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editRoleIds.includes(role.id)}
+                        onChange={() =>
+                          setEditRoleIds((prev) =>
+                            prev.includes(role.id)
+                              ? prev.filter((id) => id !== role.id)
+                              : [...prev, role.id]
+                          )
+                        }
+                        disabled={!canAssignRoles}
+                      />
+                      {role.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Venue access */}
+            {banquets.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-[var(--text-3)]" />
+                  <p className="text-sm font-semibold text-[var(--text-1)]">Venue access</p>
+                </div>
+                <label className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3">
+                  <span className="text-sm text-[var(--text-2)]">
+                    <span className="font-medium">All venues</span>
+                    <span className="block text-xs text-[var(--text-4)]">
+                      Access to every banquet (overrides the selection below).
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={editAllVenues}
+                    onChange={(e) => setEditAllVenues(e.target.checked)}
+                    disabled={!canManageUsers}
+                  />
+                </label>
+                <div
+                  className={`grid grid-cols-1 sm:grid-cols-2 gap-2 ${
+                    editAllVenues ? 'opacity-40 pointer-events-none' : ''
+                  }`}
+                >
+                  {banquets.map((b) => (
+                    <label
+                      key={b.id}
+                      className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editBanquetIds.includes(b.id)}
+                        onChange={() =>
+                          setEditBanquetIds((prev) =>
+                            prev.includes(b.id)
+                              ? prev.filter((id) => id !== b.id)
+                              : [...prev, b.id]
+                          )
+                        }
+                        disabled={!canManageUsers}
+                      />
+                      {b.name}
+                      {b.location ? (
+                        <span className="text-xs text-[var(--text-4)]">({b.location})</span>
+                      ) : null}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-[var(--text-4)]">
+                  {editAllVenues
+                    ? 'User can access every banquet.'
+                    : editBanquetIds.length === 0
+                      ? 'No venue access — enable All venues or pick banquets.'
+                      : `Restricted to ${editBanquetIds.length} banquet(s).`}
+                </p>
               </div>
             )}
-          </div>
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setShowRolePrompt(false)}
-            >
-              Cancel
-            </button>
-            <button className="btn btn-primary" type="submit" disabled={savingRole}>
-              <span className="inline-flex items-center gap-2">
-                <Save className="w-4 h-4" />
-                {savingRole ? 'Saving...' : 'Create Role'}
-              </span>
-            </button>
-          </div>
-        </form>
+
+            {/* Per-user permissions (grant / deny on top of roles) */}
+            {canEditUserPermissions && permissionGroups.length > 0 && (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-[var(--text-1)]">Permissions</p>
+                  <p className="text-xs text-[var(--text-4)]">
+                    Default follows the user&apos;s roles. Use Grant to add a permission, or Deny to
+                    remove one — even if a role would allow it.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {permissionGroups.map((group) => (
+                    <div
+                      key={group.key}
+                      className="rounded-xl border border-[var(--border)] p-3 space-y-2"
+                    >
+                      <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
+                      {group.permissions.map((permission) => {
+                        const override = permOverride[permission.id] || 'default';
+                        const inherited = inheritedPermissionIds.has(permission.id);
+                        const effectiveOn =
+                          override === 'grant' || (override === 'default' && inherited);
+                        return (
+                          <div
+                            key={permission.id}
+                            className="flex items-center justify-between gap-2"
+                            title={permission.name}
+                          >
+                            <span className="text-sm text-[var(--text-2)]">
+                              {formatPermissionLabel(permission.name)}
+                              <span
+                                className={`ml-2 text-[10px] uppercase font-semibold ${
+                                  effectiveOn ? 'text-emerald-600' : 'text-[var(--text-4)]'
+                                }`}
+                              >
+                                {effectiveOn ? 'on' : 'off'}
+                              </span>
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {(['default', 'grant', 'deny'] as PermOverride[]).map((opt) => (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  onClick={() => setPermissionOverride(permission.id, opt)}
+                                  className={`px-2 py-0.5 text-[11px] rounded-md border transition ${
+                                    override === opt
+                                      ? opt === 'deny'
+                                        ? 'bg-red-600 text-white border-red-600'
+                                        : opt === 'grant'
+                                          ? 'bg-emerald-600 text-white border-emerald-600'
+                                          : 'bg-primary-600 text-white border-primary-600'
+                                      : 'border-[var(--border)] text-[var(--text-3)] hover:border-primary-200'
+                                  }`}
+                                >
+                                  {opt === 'default'
+                                    ? inherited
+                                      ? 'Role'
+                                      : 'Off'
+                                    : opt === 'grant'
+                                      ? 'Grant'
+                                      : 'Deny'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeEditUser}
+                disabled={savingEditUser}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={savingEditUser}>
+                <span className="inline-flex items-center gap-2">
+                  <Save className="w-4 h-4" />
+                  {savingEditUser ? 'Saving...' : 'Save changes'}
+                </span>
+              </button>
+            </div>
+          </form>
+        )}
       </FormPromptModal>
 
+      {/* Create-user modal */}
       <FormPromptModal
         open={showUserPrompt}
         title="Create User"
@@ -1081,9 +1117,7 @@ function SettingsPageContent() {
                 className="input"
                 autoComplete="new-password"
                 value={userForm.password}
-                onChange={(e) =>
-                  setUserForm((prev) => ({ ...prev, password: e.target.value }))
-                }
+                onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))}
                 required
               />
               <button
@@ -1095,7 +1129,7 @@ function SettingsPageContent() {
                 {showPassword ? 'Hide password' : 'Show password'}
               </button>
               <p className="mt-1 text-xs text-[var(--text-4)]">
-                Use at least 8 characters for staff accounts.
+                At least 8 characters, including letters and numbers.
               </p>
             </div>
             <div>
@@ -1145,16 +1179,19 @@ function SettingsPageContent() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-[var(--text-3)]" />
-                <label className="label m-0">Banquet Access</label>
+                <label className="label m-0">Venue access</label>
                 <span className="text-xs text-[var(--text-4)]">
                   {userForm.banquetAccess.length === 0
-                    ? '— all banquets (no restriction)'
+                    ? '— all banquets'
                     : `— ${userForm.banquetAccess.length} selected`}
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-[var(--border-2)] p-3 bg-slate-50 dark:bg-slate-500/10">
                 {banquets.map((b) => (
-                  <label key={b.id} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
+                  <label
+                    key={b.id}
+                    className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer"
+                  >
                     <input
                       type="checkbox"
                       checked={userForm.banquetAccess.includes(b.id)}
@@ -1168,13 +1205,78 @@ function SettingsPageContent() {
                       }
                     />
                     {b.name}
-                    {b.location ? <span className="text-[var(--text-4)] text-xs">({b.location})</span> : null}
+                    {b.location ? (
+                      <span className="text-[var(--text-4)] text-xs">({b.location})</span>
+                    ) : null}
                   </label>
                 ))}
               </div>
               <p className="text-xs text-[var(--text-4)]">
-                Leave all unchecked = access to all banquets
+                Leave all unchecked = access to all banquets.
               </p>
+            </div>
+          )}
+
+          {canEditUserPermissions && permissionGroups.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-[var(--text-3)]" />
+                <label className="label m-0">Permissions</label>
+              </div>
+              <p className="text-xs text-[var(--text-4)]">
+                {userForm.roleId
+                  ? 'Imported from the selected role. Tick to add or untick to remove for this user.'
+                  : 'Pick a role to import its permissions, or tick individual permissions to grant.'}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {permissionGroups.map((group) => {
+                  const ids = group.permissions.map((p) => p.id);
+                  const allSelected = ids.every((id) => newUserPermIds.includes(id));
+                  return (
+                    <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
+                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={() =>
+                              setNewUserPermIds((prev) =>
+                                allSelected
+                                  ? prev.filter((id) => !ids.includes(id))
+                                  : Array.from(new Set([...prev, ...ids]))
+                              )
+                            }
+                          />
+                          All
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {group.permissions.map((permission) => (
+                          <label
+                            key={permission.id}
+                            className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                            title={permission.name}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={newUserPermIds.includes(permission.id)}
+                              onChange={() =>
+                                setNewUserPermIds((prev) =>
+                                  prev.includes(permission.id)
+                                    ? prev.filter((id) => id !== permission.id)
+                                    : [...prev, permission.id]
+                                )
+                              }
+                            />
+                            {formatPermissionLabel(permission.name)}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -1196,74 +1298,117 @@ function SettingsPageContent() {
         </form>
       </FormPromptModal>
 
+      {/* Role modal (create / edit) */}
       <FormPromptModal
-        open={showPermissionPrompt}
-        title="Create Permission"
-        onClose={() => setShowPermissionPrompt(false)}
-        widthClass="max-w-2xl"
+        open={roleModalOpen}
+        title={editingRole ? `Edit role: ${editingRole.name}` : 'Create role'}
+        onClose={() => setRoleModalOpen(false)}
+        widthClass="max-w-4xl"
       >
-        <form className="space-y-4" onSubmit={createPermission}>
-          <div>
-            <label className="label">Permission key</label>
-            <input
-              className="input"
-              value={permissionForm.name}
-              onChange={(e) =>
-                setPermissionForm((prev) => ({ ...prev, name: e.target.value }))
-              }
-              placeholder="manage_bookings"
-              required
-            />
+        <form className="space-y-4" onSubmit={submitRole}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Role name</label>
+              <input
+                className="input"
+                value={roleForm.name}
+                onChange={(e) => setRoleForm((prev) => ({ ...prev, name: e.target.value }))}
+                disabled={isAdminRoleModal}
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Description</label>
+              <input
+                className="input"
+                value={roleForm.description}
+                onChange={(e) =>
+                  setRoleForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+              />
+            </div>
           </div>
-          <div>
-            <label className="label">Description</label>
-            <textarea
-              className="input min-h-[90px]"
-              value={permissionForm.description}
-              onChange={(e) =>
-                setPermissionForm((prev) => ({ ...prev, description: e.target.value }))
-              }
-            />
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-[var(--text-1)]">Permissions</p>
+            {isAdminRoleModal ? (
+              <p className="text-sm text-[var(--text-4)]">
+                The Admin role always has every permission and cannot be changed.
+              </p>
+            ) : !canManageRolePermissions ? (
+              <p className="text-sm text-[var(--text-4)]">
+                You can edit the role name, but not its permissions.
+              </p>
+            ) : permissionGroups.length === 0 ? (
+              <p className="text-sm text-[var(--text-4)]">No permissions available.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {permissionGroups.map((group) => {
+                  const ids = group.permissions.map((p) => p.id);
+                  const allSelected = ids.every((id) => rolePermIds.includes(id));
+                  return (
+                    <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
+                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={() => toggleRolePermGroup(group)}
+                          />
+                          All
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {group.permissions.map((permission) => (
+                          <label
+                            key={permission.id}
+                            className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                            title={permission.name}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={rolePermIds.includes(permission.id)}
+                              onChange={() => toggleRolePerm(permission.id)}
+                            />
+                            {formatPermissionLabel(permission.name)}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+
           <div className="form-actions">
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => setShowPermissionPrompt(false)}
+              onClick={() => setRoleModalOpen(false)}
             >
               Cancel
             </button>
-            <button className="btn btn-primary" type="submit" disabled={savingPermission}>
+            <button className="btn btn-primary" type="submit" disabled={savingRole}>
               <span className="inline-flex items-center gap-2">
                 <Save className="w-4 h-4" />
-                {savingPermission ? 'Saving...' : 'Create Permission'}
+                {savingRole ? 'Saving...' : editingRole ? 'Save role' : 'Create role'}
               </span>
             </button>
           </div>
         </form>
       </FormPromptModal>
 
+      {/* Tabs */}
       <div className="card p-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
-          {canViewAccessSection && (
-            <button
-              type="button"
-              onClick={() => navigateToSettingsSection('access')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSettingsSection === 'access'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
-            >
-              Access Mapping
-            </button>
-          )}
+        <div className="grid grid-cols-2 gap-2">
           {canAccessUsersSection && (
             <button
               type="button"
-              onClick={() => navigateToSettingsSection('users')}
+              onClick={() => navigateToSection('users')}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSettingsSection === 'users'
+                activeSection === 'users'
                   ? 'bg-primary-600 text-white shadow'
                   : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
@@ -1274,9 +1419,9 @@ function SettingsPageContent() {
           {canAccessRolesSection && (
             <button
               type="button"
-              onClick={() => navigateToSettingsSection('roles')}
+              onClick={() => navigateToSection('roles')}
               className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSettingsSection === 'roles'
+                activeSection === 'roles'
                   ? 'bg-primary-600 text-white shadow'
                   : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
               }`}
@@ -1284,290 +1429,19 @@ function SettingsPageContent() {
               Roles
             </button>
           )}
-          {canAccessPermissionsSection && (
-            <button
-              type="button"
-              onClick={() => navigateToSettingsSection('permissions')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSettingsSection === 'permissions'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
-            >
-              Permissions
-            </button>
-          )}
         </div>
       </div>
 
-      {!canViewAccessSection &&
-        !canAccessUsersSection &&
-        !canAccessRolesSection &&
-        !canAccessPermissionsSection && (
+      {availableSections.length === 0 && (
         <div className="card py-12 text-center">
           <p className="text-sm text-[var(--text-2)]">
-            You do not have permission to view settings sections.
+            You do not have permission to manage users or roles.
           </p>
         </div>
       )}
 
-      <div
-        className={`grid grid-cols-1 xl:grid-cols-2 gap-6 ${
-          activeSettingsSection === 'access' && canViewAccessSection ? '' : 'hidden'
-        }`}
-      >
-        <div className="card space-y-4">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary-600" />
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Assign roles to user</h2>
-          </div>
-          {!canViewUsers || !canViewRoles ? (
-            <p className="text-sm text-[var(--text-4)]">
-              Assigning roles requires both <code>view_user</code> and <code>view_role</code> permissions.
-            </p>
-          ) : (
-            <>
-              <div>
-                <label className="label">User</label>
-                <select
-                  className="input"
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                  disabled={!canAssignRoles || users.length === 0}
-                >
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name || 'Unnamed'} ({user.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {roles.map((role) => (
-                  <label key={role.id} className="flex items-center gap-2 text-sm text-[var(--text-2)]">
-                    <input
-                      type="checkbox"
-                      checked={selectedRoleIds.includes(role.id)}
-                      onChange={() => toggleRole(role.id)}
-                    />
-                    {role.name}
-                  </label>
-                ))}
-              </div>
-              <div className="flex justify-end">
-                <button
-                  className={`btn w-full sm:w-auto ${userRolesDirty ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={updateUserRoles}
-                  disabled={savingUserRoles || !canAssignRoles || !userRolesDirty}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    {userRolesDirty ? (
-                      <span className="inline-block h-2 w-2 rounded-full bg-current" aria-hidden="true" />
-                    ) : null}
-                    {savingUserRoles ? 'Saving...' : userRolesDirty ? 'Save User Roles' : 'Saved'}
-                  </span>
-                </button>
-              </div>
-              {!canAssignRoles && (
-                <p className="text-sm text-[var(--text-4)]">
-                  You can view user-role mapping but cannot modify it.
-                </p>
-              )}
-            </>
-          )}
-        </div>
-
-        {banquets.length > 0 && canViewUsers && (
-          <div className="card space-y-4">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary-600" />
-              <h2 className="text-lg font-semibold text-[var(--text-1)]">Banquet access per user</h2>
-            </div>
-            <p className="text-sm text-[var(--text-3)]">
-              Restrict which banquets a user can view and create bookings for. Leave all unchecked = unrestricted.
-            </p>
-            {!canViewUsers ? (
-              <p className="text-sm text-[var(--text-4)]">Requires <code>view_user</code> permission.</p>
-            ) : (
-              <>
-                <div>
-                  <label className="label">User</label>
-                  <select
-                    className="input"
-                    value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                    disabled={users.length === 0}
-                  >
-                    {users.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name || 'Unnamed'} ({user.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {banquets.map((b) => (
-                    <label key={b.id} className="flex items-center gap-2 text-sm text-[var(--text-2)] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedUserBanquetIds.includes(b.id)}
-                        onChange={() =>
-                          setSelectedUserBanquetIds((prev) =>
-                            prev.includes(b.id)
-                              ? prev.filter((id) => id !== b.id)
-                              : [...prev, b.id]
-                          )
-                        }
-                        disabled={!canAssignRoles}
-                      />
-                      {b.name}
-                      {b.location ? <span className="text-xs text-[var(--text-4)]">({b.location})</span> : null}
-                    </label>
-                  ))}
-                </div>
-                <p className="text-xs text-[var(--text-4)]">
-                  {selectedUserBanquetIds.length === 0
-                    ? 'No restriction — user can access all banquets'
-                    : `User restricted to: ${banquets.filter((b) => selectedUserBanquetIds.includes(b.id)).map((b) => b.name).join(', ')}`}
-                </p>
-                <div className="flex justify-end">
-                  <button
-                    className={`btn w-full sm:w-auto ${userBanquetsDirty ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={saveUserBanquets}
-                    disabled={savingUserBanquets || !canAssignRoles || !userBanquetsDirty}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      {userBanquetsDirty ? <span className="inline-block h-2 w-2 rounded-full bg-current" /> : null}
-                      {savingUserBanquets ? 'Saving...' : userBanquetsDirty ? 'Save Banquet Access' : 'Saved'}
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        <div className="card space-y-4">
-          <div className="flex items-center gap-2">
-            <Settings2 className="w-4 h-4 text-primary-600" />
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Assign permissions to role</h2>
-          </div>
-          {!canViewRoles || !canViewPermissions ? (
-            <p className="text-sm text-[var(--text-4)]">
-              Managing role permissions requires both <code>view_role</code> and <code>view_permission</code> permissions.
-            </p>
-          ) : (
-            <>
-              <div>
-                <label className="label">Role</label>
-                <select
-                  className="input"
-                  value={selectedRoleId}
-                  onChange={(e) => setSelectedRoleId(e.target.value)}
-                  disabled={!canManageRolePermissions || roles.length === 0}
-                >
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {permissionGroups.length === 0 ? (
-                <div className="empty-state" style={{ padding: '20px 12px' }}>
-                  <div className="empty-state-icon">
-                    <Shield size={22} />
-                  </div>
-                  <p className="empty-state-title">No permissions available</p>
-                  <p className="empty-state-desc">Create permissions before mapping them to roles.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {permissionGroups.map((group) => {
-                    const groupPermissionIds = group.permissions.map((permission) => permission.id);
-                    const groupSelected = groupPermissionIds.every((id) =>
-                      selectedPermissionIds.includes(id)
-                    );
-                    return (
-                      <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
-                        <div className="flex items-center justify-between mb-3">
-                          <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
-                          <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
-                            <input
-                              type="checkbox"
-                              checked={groupSelected}
-                              onChange={() =>
-                                togglePermissionGroup(
-                                  group,
-                                  setSelectedPermissionIds,
-                                  selectedPermissionIds
-                                )
-                              }
-                            />
-                            All
-                          </label>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {group.permissions.map((permission) => {
-                            const permissionId = permission.id;
-                            const label = formatPermissionLabel(permission.name);
-                            return (
-                              <label
-                                key={permissionId}
-                                className="flex items-center gap-2 text-sm text-[var(--text-2)]"
-                                title={permission.name}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedPermissionIds.includes(permissionId)}
-                                  onChange={() =>
-                                    togglePermissionId(
-                                      permissionId,
-                                      setSelectedPermissionIds,
-                                      selectedPermissionIds
-                                    )
-                                  }
-                                />
-                                {label}
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="flex justify-end">
-                <button
-                  className={`btn w-full sm:w-auto ${rolePermissionsDirty ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={updateRolePermissions}
-                  disabled={savingRolePermissions || !canManageRolePermissions || !rolePermissionsDirty}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    {rolePermissionsDirty ? (
-                      <span className="inline-block h-2 w-2 rounded-full bg-current" aria-hidden="true" />
-                    ) : null}
-                    {savingRolePermissions
-                      ? 'Saving...'
-                      : rolePermissionsDirty
-                        ? 'Save Role Permissions'
-                        : 'Saved'}
-                  </span>
-                </button>
-              </div>
-              {!canManageRolePermissions && (
-                <p className="text-sm text-[var(--text-4)]">
-                  You can view role permissions but cannot modify them.
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        {activeSettingsSection === 'users' && canAccessUsersSection && (
+      {/* Users tab */}
+      {activeSection === 'users' && canAccessUsersSection && (
         <div className="card">
           <div className="page-head mb-4">
             <h2 className="text-lg font-semibold text-[var(--text-1)]">Users</h2>
@@ -1578,10 +1452,11 @@ function SettingsPageContent() {
                 onClick={() => setShowUserPrompt(true)}
               >
                 <Users className="w-4 h-4" />
-                Add
+                Add user
               </button>
             )}
           </div>
+
           {canViewUsers && (
             <div className="relative mb-4">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-4)]" />
@@ -1593,11 +1468,12 @@ function SettingsPageContent() {
               />
             </div>
           )}
+
           {loading ? (
             <TableSkeleton rows={5} />
           ) : !canViewUsers ? (
             <p className="text-sm text-[var(--text-4)]">
-              You can create or delete users, but you do not have permission to view user records.
+              You can create or delete users, but cannot view user records.
             </p>
           ) : filteredUsers.length === 0 ? (
             <EmptyState
@@ -1610,66 +1486,124 @@ function SettingsPageContent() {
               }
               action={
                 userSearch.trim()
-                  ? {
-                      label: 'Clear search',
-                      onClick: () => setUserSearch(''),
-                    }
+                  ? { label: 'Clear search', onClick: () => setUserSearch('') }
                   : undefined
               }
             />
           ) : (
-            <div className="space-y-3">
-              {filteredUsers.map((user) => (
-                <div key={user.id} className="border border-[var(--border)] rounded-lg p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-[var(--text-1)]">{user.name || 'Unnamed user'}</p>
-                        {user.id === currentUser?.id ? (
-                          <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
-                            You
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="text-xs text-[var(--text-4)] mt-1">{user.email}</p>
-                      <p className="text-xs text-[var(--text-4)] mt-1">
-                        {(user.userRoles || []).map((ur) => ur.role.name).join(', ') || 'No roles'}
-                      </p>
-                      {formatJoinedDate(user.createdAt) ? (
-                        <p className="text-xs text-[var(--text-4)] mt-1">{formatJoinedDate(user.createdAt)}</p>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {currentPermissionSet.has('manage_users') && user.id !== currentUser?.id ? (
-                        <button
-                          className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:text-amber-200 hover:bg-amber-50 dark:bg-amber-500/10 rounded-lg"
-                          onClick={() => resetManagedUserPassword(user)}
-                          disabled={savingUserPasswordReset === user.id}
-                          title="Reset password"
-                        >
-                          <KeyRound className="w-4 h-4" />
-                        </button>
-                      ) : null}
-                      {canDeleteUsers && (
-                        <button
-                          className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-4)]"
-                          onClick={() => removeUser(user.id)}
-                          disabled={user.id === currentUser?.id}
-                          title={user.id === currentUser?.id ? 'You cannot delete your own account' : 'Delete user'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--text-4)] border-b border-[var(--border)]">
+                    <th className="py-2 pr-3 font-semibold">User</th>
+                    <th className="py-2 pr-3 font-semibold">Roles</th>
+                    <th className="py-2 pr-3 font-semibold">Venues</th>
+                    <th className="py-2 pr-3 font-semibold">Status</th>
+                    <th className="py-2 pr-3 font-semibold">Last login</th>
+                    <th className="py-2 pr-3 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((user) => {
+                    const isSelf = user.id === currentUser?.id;
+                    const roleNames = (user.userRoles || []).map((ur) => ur.role.name).join(', ');
+                    return (
+                      <tr
+                        key={user.id}
+                        className="border-b border-[var(--border)] last:border-0 align-top"
+                      >
+                        <td className="py-3 pr-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[var(--text-1)]">
+                              {user.name || 'Unnamed user'}
+                            </span>
+                            {isSelf && (
+                              <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-[var(--text-4)]">{user.email}</div>
+                        </td>
+                        <td className="py-3 pr-3 text-[var(--text-3)]">
+                          {roleNames || <span className="text-[var(--text-4)]">No roles</span>}
+                        </td>
+                        <td className="py-3 pr-3 text-[var(--text-3)]">
+                          {user.hasAllVenueAccess ? 'All venues' : 'Restricted'}
+                        </td>
+                        <td className="py-3 pr-3">
+                          {user.isActive === false ? (
+                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-500/10 dark:text-red-200">
+                              Disabled
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200">
+                              Active
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 text-xs text-[var(--text-4)]">
+                          {user.lastLoginAt
+                            ? new Date(user.lastLoginAt).toLocaleString()
+                            : 'Never'}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {(canManageUsers || canAssignRoles) && (
+                              <button
+                                className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                                onClick={() => openEditUser(user)}
+                                title="Edit roles, venue access and permissions"
+                              >
+                                Edit
+                              </button>
+                            )}
+                            {canManageUsers && !isSelf && (
+                              <button
+                                className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg"
+                                onClick={() => openResetPasswordModal(user)}
+                                title="Reset password"
+                              >
+                                <KeyRound className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canManageUsers && !isSelf && (
+                              <button
+                                className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                                onClick={() => toggleUserStatus(user)}
+                                disabled={savingUserStatus}
+                                title={
+                                  user.isActive === false
+                                    ? 'Enable user (allow login)'
+                                    : 'Disable user (sign out of all devices)'
+                                }
+                              >
+                                {user.isActive === false ? 'Enable' : 'Disable'}
+                              </button>
+                            )}
+                            {canDeleteUsers && !isSelf && (
+                              <button
+                                className="p-2 text-[var(--text-4)] hover:text-red-700 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
+                                onClick={() => removeUser(user)}
+                                title="Delete user (only when the user has no history)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
-        )}
+      )}
 
-        {activeSettingsSection === 'roles' && canAccessRolesSection && (
+      {/* Roles tab */}
+      {activeSection === 'roles' && canAccessRolesSection && (
         <div className="card">
           <div className="page-head mb-4">
             <h2 className="text-lg font-semibold text-[var(--text-1)]">Roles</h2>
@@ -1677,10 +1611,10 @@ function SettingsPageContent() {
               <button
                 type="button"
                 className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-                onClick={() => setShowRolePrompt(true)}
+                onClick={openCreateRole}
               >
                 <Shield className="w-4 h-4" />
-                Add
+                Add role
               </button>
             )}
           </div>
@@ -1688,101 +1622,61 @@ function SettingsPageContent() {
             <TableSkeleton rows={5} />
           ) : !canViewRoles ? (
             <p className="text-sm text-[var(--text-4)]">
-              You can create or delete roles, but you do not have permission to view role records.
+              You can create or delete roles, but cannot view role records.
             </p>
           ) : roles.length === 0 ? (
             <EmptyState
               icon={Shield}
               title="No roles yet"
-              description="Create the first role before mapping access for staff."
+              description="Create the first role before assigning access to staff."
             />
           ) : (
             <div className="space-y-3">
-              {roles.map((role) => (
-                <div key={role.id} className="border border-[var(--border)] rounded-lg p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium text-[var(--text-1)]">{role.name}</p>
-                      {role.description ? (
-                        <p className="text-xs text-[var(--text-3)] mt-1">{role.description}</p>
-                      ) : null}
-                      <p className="text-xs text-[var(--text-4)] mt-1">
-                        {role.permissions?.length || 0} permissions • {role._count?.userRoles || 0} users
-                      </p>
+              {roles.map((role) => {
+                const isAdmin = role.name.toLowerCase() === 'admin';
+                return (
+                  <div key={role.id} className="border border-[var(--border)] rounded-lg p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-[var(--text-1)]">{role.name}</p>
+                        {role.description ? (
+                          <p className="text-xs text-[var(--text-3)] mt-1">{role.description}</p>
+                        ) : null}
+                        <p className="text-xs text-[var(--text-4)] mt-1">
+                          {isAdmin
+                            ? 'All permissions'
+                            : `${role.permissions?.length || 0} permissions`}{' '}
+                          • {role._count?.userRoles || 0} users
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {canEditRoles && (
+                          <button
+                            className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                            onClick={() => openEditRole(role)}
+                            title="Edit role and its permissions"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {canDeleteRoles && !isAdmin && (
+                          <button
+                            className="p-2 text-[var(--text-4)] hover:text-red-700 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
+                            onClick={() => removeRole(role)}
+                            title="Delete role"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {canDeleteRoles && (
-                      <button
-                        className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
-                        onClick={() => removeRole(role.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-        )}
-
-        {activeSettingsSection === 'permissions' && canAccessPermissionsSection && (
-        <div className="card">
-          <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Permissions</h2>
-            {canAddPermissions && (
-              <button
-                type="button"
-                className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-                onClick={() => setShowPermissionPrompt(true)}
-              >
-                <KeyRound className="w-4 h-4" />
-                Add
-              </button>
-            )}
-          </div>
-          {loading ? (
-            <TableSkeleton rows={5} />
-          ) : !canViewPermissions ? (
-            <p className="text-sm text-[var(--text-4)]">
-              You can manage permission definitions, but you do not have permission to view permission records.
-            </p>
-          ) : permissions.length === 0 ? (
-            <EmptyState
-              icon={KeyRound}
-              title="No permissions yet"
-              description="Add permission definitions before attaching them to roles."
-            />
-          ) : (
-            <div className="space-y-3">
-              {permissions.map((permission) => (
-                <div key={permission.id} className="border border-[var(--border)] rounded-lg p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium text-[var(--text-1)]">{permission.name}</p>
-                      {permission.description ? (
-                        <p className="text-xs text-[var(--text-3)] mt-1">{permission.description}</p>
-                      ) : null}
-                      <p className="text-xs text-[var(--text-4)] mt-1">
-                        {(permission._count?.roles || 0).toLocaleString('en-IN')} linked roles
-                      </p>
-                    </div>
-                    {canDeletePermissions && (
-                      <button
-                        className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
-                        onClick={() => removePermission(permission.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -1790,7 +1684,7 @@ function SettingsPageContent() {
 function SettingsPageFallback() {
   return (
     <div className="card py-12 text-center">
-      <p className="text-sm text-[var(--text-2)]">Loading settings workspace...</p>
+      <p className="text-sm text-[var(--text-2)]">Loading user management...</p>
     </div>
   );
 }

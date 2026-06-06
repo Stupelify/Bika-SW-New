@@ -23,11 +23,19 @@ model User {
   verificationToken String?
   resetToken        String?
   resetTokenExpiry  DateTime?
+  isActive          Boolean              @default(true)
+  disabledAt        DateTime?
+  disabledReason    String?
+  hasAllVenueAccess Boolean              @default(false)
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  passwordChangedAt DateTime?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
   sessions            Session[]
   userRoles           UserRole[]
   userBanquets        UserBanquet[]
+  userPermissions     UserPermission[]
   paymentsReceived    BookingPayments[]    @relation("PaymentReceiver")
   finalizedBookings   FinalizedBooking[]   @relation("FinalizedBookingUser")
   finalizedQuotations FinalizedQuotation[]
@@ -61,11 +69,12 @@ model Role {
 }
 
 model Permission {
-  id          String           @id @default(uuid())
-  name        String           @unique
-  description String?
-  createdAt   DateTime         @default(now())
-  roles       RolePermission[]
+  id              String           @id @default(uuid())
+  name            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now())
+  roles           RolePermission[]
+  userPermissions UserPermission[]
 
   @@map("permissions")
 }
@@ -96,6 +105,21 @@ model RolePermission {
   @@index([roleId])
   @@index([permissionId])
   @@map("role_permissions")
+}
+
+model UserPermission {
+  id           String     @id @default(uuid())
+  userId       String
+  permissionId String
+  granted      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
+  @@map("user_permissions")
 }
 
 // ============================================

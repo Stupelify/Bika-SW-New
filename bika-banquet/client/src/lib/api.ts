@@ -231,6 +231,18 @@ export const api = {
   deleteUser: (id: string) => apiClient.delete(`/users/${id}`),
   resetUserPassword: (id: string, data: { newPassword: string }) =>
     apiClient.post(`/users/${id}/reset-password`, data),
+  updateUser: (id: string, data: { name?: string; email?: string }) =>
+    apiClient.put(`/users/${id}`, data),
+  setUserStatus: (id: string, data: { isActive: boolean; reason?: string }) =>
+    apiClient.patch(`/users/${id}/status`, data),
+  setUserAllVenues: (id: string, hasAllVenueAccess: boolean) =>
+    apiClient.put(`/users/${id}/all-venues`, { hasAllVenueAccess }),
+  getUserDirectPermissions: (id: string) =>
+    apiClient.get(`/users/${id}/direct-permissions`),
+  setUserDirectPermissions: (
+    id: string,
+    data: { grants: string[]; denies: string[] }
+  ) => apiClient.put(`/users/${id}/direct-permissions`, data),
   getUserBanquets: (id: string) => apiClient.get(`/users/${id}/banquets`),
   setUserBanquets: (id: string, banquetIds: string[]) =>
     apiClient.put(`/users/${id}/banquets`, { banquetIds }),

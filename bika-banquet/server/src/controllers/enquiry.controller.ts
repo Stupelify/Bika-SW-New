@@ -14,6 +14,9 @@ import {
 } from '../services/googleCalendar.service';
 import { createAuditLog } from '../utils/auditLog';
 import { broadcastBookingEvent } from '../sse';
+import { AuthRequest } from '../middleware/auth.middleware';
+import { getVenueScope } from '../utils/banquetAccess';
+import { enquiryScopeFilter, enquiryInScope } from '../utils/enquiryScope';
 
 // Maps enquiries-page sortable column keys → Prisma orderBy. `id` tie-breaker
 // is appended centrally by buildOrderBy.
@@ -30,6 +33,8 @@ export async function getEnquiryCount(req: Request, res: Response): Promise<void
     const status = req.query.status as string | undefined;
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
+    const scopeFilter = enquiryScopeFilter(getVenueScope(req as AuthRequest));
+    if (scopeFilter) where.AND = [scopeFilter];
     const count = await prisma.enquiry.count({ where });
     sendSuccess(res, { count });
   } catch (error) {
@@ -232,6 +237,10 @@ export async function getEnquiries(req: Request, res: Response): Promise<void> {
         { customer: { phone: { contains: search } } },
       ];
     }
+    const scopeFilter = enquiryScopeFilter(getVenueScope(req as AuthRequest));
+    if (scopeFilter) {
+      where.AND = [scopeFilter];
+    }
 
     const orderBy = buildOrderBy(
       req.query.sort,
@@ -336,6 +345,12 @@ export async function getEnquiryById(
       return;
     }
 
+    const scope = getVenueScope(req as AuthRequest);
+    if (!enquiryInScope(scope, enquiry.halls.map((h) => h.hall?.banquetId))) {
+      sendNotFound(res, 'Enquiry not found');
+      return;
+    }
+
     sendSuccess(res, { enquiry });
   } catch (error) {
     sendError(res, 'Failed to fetch enquiry');
@@ -359,9 +374,16 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
         functionTime: true,
         startTime: true,
         endTime: true,
+        halls: { select: { hall: { select: { banquetId: true } } } },
       },
     });
     if (!exists) {
+      sendNotFound(res, 'Enquiry not found');
+      return;
+    }
+
+    const updateScope = getVenueScope(req as AuthRequest);
+    if (!enquiryInScope(updateScope, exists.halls.map((h) => h.hall?.banquetId))) {
       sendNotFound(res, 'Enquiry not found');
       return;
     }
@@ -489,6 +511,20 @@ export async function updateEnquiry(req: Request, res: Response): Promise<void> 
 export async function deleteEnquiry(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+
+    const existing = await prisma.enquiry.findUnique({
+      where: { id },
+      select: { id: true, halls: { select: { hall: { select: { banquetId: true } } } } },
+    });
+    if (!existing) {
+      sendNotFound(res, 'Enquiry not found');
+      return;
+    }
+    const deleteScope = getVenueScope(req as AuthRequest);
+    if (!enquiryInScope(deleteScope, existing.halls.map((h) => h.hall?.banquetId))) {
+      sendNotFound(res, 'Enquiry not found');
+      return;
+    }
 
     await prisma.enquiry.delete({
       where: { id },

@@ -15,7 +15,7 @@ import {
   getMenuLogoImage,
 } from './booking.shared';
 import {
-  getAllowedBanquetIds,
+  getVenueScope,
   withBookingBanquetScope,
 } from '../utils/banquetAccess';
 import {
@@ -473,10 +473,10 @@ export async function downloadBookingMenuPdf(
   try {
     const { id } = req.params;
     const packId = typeof req.query.packId === 'string' ? req.query.packId : undefined;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     const booking = await prisma.booking.findFirst({
-      where: withBookingBanquetScope({ id, isLatest: true }, allowedBanquetIds),
+      where: withBookingBanquetScope({ id, isLatest: true }, scope),
       include: {
         customer: {
           select: {
@@ -633,10 +633,10 @@ export async function downloadBookingDetailsPdf(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const allowedBanquetIds = getAllowedBanquetIds(req);
+    const scope = getVenueScope(req);
 
     const booking = await prisma.booking.findFirst({
-      where: withBookingBanquetScope({ id }, allowedBanquetIds),
+      where: withBookingBanquetScope({ id }, scope),
       include: BOOKING_RELATION_INCLUDE,
     });
 
