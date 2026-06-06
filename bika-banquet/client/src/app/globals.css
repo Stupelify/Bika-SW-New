@@ -73,6 +73,37 @@
   --cal-conflict-bg: #fef2f2;      /* conflict banner fill */
   --cal-conflict-text: #991b1b;    /* conflict banner text */
   --cal-conflict-border: #fca5a5;  /* conflict banner border */
+
+  /* ── Design-system semantic tokens (handoff styles/tokens.css) ── */
+  --accent:        var(--teal-700);
+  --accent-soft:   var(--teal-50);
+  --accent-hover:  var(--teal-800);
+  --accent-text:   var(--teal-800);
+  --accent-on:     #ffffff;
+
+  --money-pos: #15803D;
+  --money-neg: #B91C1C;
+  --money-warn: #B45309;
+
+  --st-confirmed-bg: #DCFCE7; --st-confirmed-fg: #14532D; --st-confirmed-dot: #16A34A;
+  --st-pencil-bg:    #FEF3C7; --st-pencil-fg:    #78350F; --st-pencil-dot:    #D97706;
+  --st-pending-bg:   #FEF3C7; --st-pending-fg:   #78350F; --st-pending-dot:   #D97706;
+  --st-quotation-bg: #DBEAFE; --st-quotation-fg: #1E3A8A; --st-quotation-dot: #2563EB;
+  --st-enquiry-bg:   #E0F2FE; --st-enquiry-fg:   #075985; --st-enquiry-dot:   #0284C7;
+  --st-cancelled-bg: #FEE2E2; --st-cancelled-fg: #7F1D1D; --st-cancelled-dot: #DC2626;
+
+  --shadow-pop:   0 1px 2px rgba(28,25,23,.04), 0 8px 24px rgba(28,25,23,.08);
+  --shadow-sheet: -16px 0 48px rgba(28,25,23,.10);
+  --shadow-menu:  0 8px 32px rgba(28,25,23,.12), 0 2px 4px rgba(28,25,23,.04);
+
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px; --r-pill: 999px;
+
+  /* Compact density (default) */
+  --row-h: 30px;
+  --cell-py: 5px;
+  --cell-px: 14px;
+  --gap: 10px;
+  --section-py: 14px;
 }
 
 [data-theme="dark"] {
@@ -177,7 +208,11 @@
 }
 
 [data-theme="dark"] tbody tr:hover {
-  background-color: rgba(20, 184, 166, 0.06);
+  background-color: var(--surface-2);
+}
+
+[data-theme="dark"] tbody tr.sel {
+  background-color: var(--teal-100);
 }
 
 [data-theme="dark"] thead th {
@@ -290,8 +325,9 @@
   }
 
   thead th {
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 400;
+    font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-4);
@@ -299,15 +335,16 @@
     padding: 10px 14px;
     text-align: left;
     border-bottom: 1px solid var(--border);
-    white-space: normal;
-    overflow-wrap: break-word;
-    word-break: normal;
+    white-space: nowrap;
     line-height: 1.35;
+    position: sticky;
+    top: 0;
+    z-index: 2;
   }
 
   tbody tr {
-    @apply transition-colors;
     border-bottom: 1px solid var(--border);
+    cursor: pointer;
   }
 
   tbody tr:last-child {
@@ -315,18 +352,26 @@
   }
 
   tbody tr:hover {
+    background-color: var(--surface-2);
+  }
+
+  tbody tr.sel {
     background-color: var(--teal-50);
   }
 
   tbody td {
-    padding: 11px 14px;
-    font-size: 13.5px;
+    padding: var(--cell-py) var(--cell-px);
+    font-size: 12.5px;
     color: var(--text-2);
     vertical-align: middle;
     line-height: 1.45;
     overflow-wrap: break-word;
     word-break: normal;
   }
+
+  /* Density variants */
+  [data-density="comfy"] thead th { padding: 12px 16px; }
+  [data-density="comfy"] tbody td  { padding: 14px 16px; }
 }
 
 @layer components {
@@ -617,6 +662,25 @@
     border-color: var(--teal-500);
     color: var(--teal-700);
     background-color: var(--teal-50);
+  }
+
+  /* Table cell utilities */
+  .num {
+    font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .mono {
+    font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-4);
   }
 
   .status-pill {
