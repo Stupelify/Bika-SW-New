@@ -93,6 +93,11 @@ export function isPathAllowedForUser(
   pathname: string,
   userPermissions: string[] | undefined
 ): boolean {
+  // The profile page (self password change) is available to any authenticated
+  // user regardless of their module permissions.
+  if (routeMatches(pathname, '/dashboard/profile')) {
+    return true;
+  }
   return DASHBOARD_ROUTE_RULES.some(
     (rule) =>
       routeMatches(pathname, rule.href) &&

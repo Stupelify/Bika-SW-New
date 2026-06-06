@@ -103,6 +103,8 @@ export const api = {
   getCurrentUser: () => apiClient.get('/auth/me'),
   getSseToken: () => apiClient.get<{ token: string }>('/auth/sse-token'),
   logout: () => apiClient.post('/auth/logout'),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    apiClient.post('/auth/change-password', data),
 
   // Customers
   getCustomers: (params?: any) => apiClient.get('/customers', { params }),
@@ -237,8 +239,10 @@ export const api = {
     apiClient.put(`/users/${id}/all-venues`, { hasAllVenueAccess }),
   getUserDirectPermissions: (id: string) =>
     apiClient.get(`/users/${id}/direct-permissions`),
-  setUserDirectPermissions: (id: string, permissionIds: string[]) =>
-    apiClient.put(`/users/${id}/direct-permissions`, { permissionIds }),
+  setUserDirectPermissions: (
+    id: string,
+    data: { grants: string[]; denies: string[] }
+  ) => apiClient.put(`/users/${id}/direct-permissions`, data),
   getUserBanquets: (id: string) => apiClient.get(`/users/${id}/banquets`),
   setUserBanquets: (id: string, banquetIds: string[]) =>
     apiClient.put(`/users/${id}/banquets`, { banquetIds }),
