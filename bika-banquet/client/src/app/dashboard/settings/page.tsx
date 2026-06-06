@@ -1498,54 +1498,60 @@ function SettingsPageContent() {
               }
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--text-4)] border-b border-[var(--border)]">
-                    <th className="py-2 pr-3 font-semibold">User</th>
-                    <th className="py-2 pr-3 font-semibold">Roles</th>
-                    <th className="py-2 pr-3 font-semibold">Venues</th>
-                    <th className="py-2 pr-3 font-semibold">Status</th>
-                    <th className="py-2 pr-3 font-semibold">Last login</th>
-                    <th className="py-2 pr-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <>
+              {/* Mobile card view */}
+              <div className="md:hidden">
+                <div className="mobile-card-list">
                   {filteredUsers.map((user) => {
                     const isSelf = user.id === currentUser?.id;
                     const roleNames = (user.userRoles || []).map((ur) => ur.role.name).join(', ');
+                    const hasActions =
+                      canManageUsers ||
+                      canAssignRoles ||
+                      canDeleteUsers;
                     return (
-                      <tr
-                        key={user.id}
-                        className="border-b border-[var(--border)] last:border-0 align-top"
-                      >
-                        <td className="py-3 pr-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-[var(--text-1)]">
-                              {user.name || 'Unnamed user'}
-                            </span>
-                            {isSelf && (
-                              <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
-                                You
-                              </span>
-                            )}
+                      <div key={user.id} className="mobile-card">
+                        <div className="mobile-card-header">
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="mobile-card-title flex items-center gap-2 flex-wrap">
+                              <span>{user.name || 'Unnamed user'}</span>
+                              {isSelf && (
+                                <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                                  You
+                                </span>
+                              )}
+                            </div>
+                            <div className="mobile-card-subtitle">{user.email}</div>
                           </div>
-                          <div className="text-xs text-[var(--text-4)]">{user.email}</div>
-                        </td>
-                        <td className="py-3 pr-3 text-[var(--text-3)]">
-                          {roleNames || <span className="text-[var(--text-4)]">No roles</span>}
-                        </td>
-                        <td className="py-3 pr-3 text-[var(--text-3)]">
-                          {user.hasAllVenueAccess ? 'All venues' : 'Restricted'}
-                        </td>
-                        <td className="py-3 pr-3">
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              user.isActive === false
+                                ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-200'
+                                : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                            }`}
+                          >
+                            {user.isActive === false ? 'Disabled' : 'Active'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span className="mobile-card-label">Roles</span>
+                          <span className="mobile-card-value">
+                            {roleNames || 'No roles'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span className="mobile-card-label">Venues</span>
+                          <span className="mobile-card-value">
+                            {user.hasAllVenueAccess ? 'All venues' : 'Restricted'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span className="mobile-card-label">Active</span>
                           <div className="flex items-center gap-2">
                             <ToggleSwitch
                               checked={user.isActive !== false}
                               onChange={() => toggleUserStatus(user)}
-                              disabled={
-                                savingUserStatus || isSelf || !canManageUsers
-                              }
+                              disabled={savingUserStatus || isSelf || !canManageUsers}
                               ariaLabel={
                                 user.isActive === false
                                   ? `Enable ${user.email}`
@@ -1562,49 +1568,174 @@ function SettingsPageContent() {
                               {user.isActive === false ? 'Off' : 'On'}
                             </span>
                           </div>
-                        </td>
-                        <td className="py-3 pr-3 text-xs text-[var(--text-4)]">
-                          {user.lastLoginAt
-                            ? new Date(user.lastLoginAt).toLocaleString()
-                            : 'Never'}
-                        </td>
-                        <td className="py-3 pr-3">
-                          <div className="flex items-center justify-end gap-1">
+                        </div>
+                        <div className="mobile-card-meta" style={{ marginTop: 8 }}>
+                          <span className="mobile-card-meta-item">
+                            Last login:{' '}
+                            {user.lastLoginAt
+                              ? new Date(user.lastLoginAt).toLocaleString()
+                              : 'Never'}
+                          </span>
+                        </div>
+                        {hasActions && (
+                          <div className="mobile-card-actions">
                             {(canManageUsers || canAssignRoles) && (
                               <button
-                                className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                                type="button"
+                                className="mobile-card-action-btn"
                                 onClick={() => openEditUser(user)}
-                                title="Edit roles, venue access and permissions"
                               >
                                 Edit
                               </button>
                             )}
                             {canManageUsers && !isSelf && (
                               <button
-                                className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg"
+                                type="button"
+                                className="mobile-card-action-btn"
                                 onClick={() => openResetPasswordModal(user)}
-                                title="Reset password"
                               >
-                                <KeyRound className="w-4 h-4" />
+                                <KeyRound className="w-3.5 h-3.5" />
+                                Reset
                               </button>
                             )}
                             {canDeleteUsers && !isSelf && (
                               <button
-                                className="p-2 text-[var(--text-4)] hover:text-red-700 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
+                                type="button"
+                                className="mobile-card-action-btn"
                                 onClick={() => removeUser(user)}
-                                title="Delete user (only when the user has no history)"
+                                style={{ color: '#dc2626' }}
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete
                               </button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        )}
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block table-shell">
+                <table className="data-table">
+                  <thead>
+                    <tr className="border-b border-[var(--border)]">
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        User
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Roles
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Venues
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Status
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Last login
+                      </th>
+                      <th className="py-2 pr-3 text-right text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((user) => {
+                      const isSelf = user.id === currentUser?.id;
+                      const roleNames = (user.userRoles || []).map((ur) => ur.role.name).join(', ');
+                      return (
+                        <tr
+                          key={user.id}
+                          className="border-b border-[var(--border)] last:border-0 align-top"
+                        >
+                          <td className="py-3 pr-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-[var(--text-1)]">
+                                {user.name || 'Unnamed user'}
+                              </span>
+                              {isSelf && (
+                                <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                                  You
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-[var(--text-4)]">{user.email}</div>
+                          </td>
+                          <td className="py-3 pr-3 text-[var(--text-3)]">
+                            {roleNames || <span className="text-[var(--text-4)]">No roles</span>}
+                          </td>
+                          <td className="py-3 pr-3 text-[var(--text-3)]">
+                            {user.hasAllVenueAccess ? 'All venues' : 'Restricted'}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <div className="flex items-center gap-2">
+                              <ToggleSwitch
+                                checked={user.isActive !== false}
+                                onChange={() => toggleUserStatus(user)}
+                                disabled={savingUserStatus || isSelf || !canManageUsers}
+                                ariaLabel={
+                                  user.isActive === false
+                                    ? `Enable ${user.email}`
+                                    : `Disable ${user.email}`
+                                }
+                              />
+                              <span
+                                className={`text-xs font-medium ${
+                                  user.isActive === false
+                                    ? 'text-[var(--text-4)]'
+                                    : 'text-emerald-700 dark:text-emerald-200'
+                                }`}
+                              >
+                                {user.isActive === false ? 'Off' : 'On'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 pr-3 text-xs text-[var(--text-4)]">
+                            {user.lastLoginAt
+                              ? new Date(user.lastLoginAt).toLocaleString()
+                              : 'Never'}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <div className="flex items-center justify-end gap-1">
+                              {(canManageUsers || canAssignRoles) && (
+                                <button
+                                  className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                                  onClick={() => openEditUser(user)}
+                                  title="Edit roles, venue access and permissions"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {canManageUsers && !isSelf && (
+                                <button
+                                  className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg"
+                                  onClick={() => openResetPasswordModal(user)}
+                                  title="Reset password"
+                                >
+                                  <KeyRound className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canDeleteUsers && !isSelf && (
+                                <button
+                                  className="p-2 text-[var(--text-4)] hover:text-red-700 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
+                                  onClick={() => removeUser(user)}
+                                  title="Delete user (only when the user has no history)"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
