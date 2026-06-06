@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Inter_Tight, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import './mobile.css';
 import { Toaster } from 'sonner';
@@ -13,9 +13,24 @@ const inter = Inter({
   display: 'swap',
 });
 
+// Tighter, more architectural display face for headings / KPIs
+const interTight = Inter_Tight({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+// Monospace for status badges, IDs, and tabular numbers
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+});
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
   viewportFit: 'cover',
   interactiveWidget: 'resizes-content',
   themeColor: '#0d9488',
@@ -46,11 +61,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.variable}>
+      <body className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable}`}>
         <CapacitorNativeShell />
         <AuthBootstrap />
         <IonicProvider>{children}</IonicProvider>
-        <Toaster position="bottom-center" richColors />
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );

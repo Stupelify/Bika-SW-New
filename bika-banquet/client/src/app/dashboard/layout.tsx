@@ -623,7 +623,7 @@ function DashboardLayoutContent({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0,
-                  borderRadius: 10,
+                  borderRadius: 6,
                   marginBottom: 1,
                   background: isActive ? 'var(--teal-50)' : 'transparent',
                   position: 'relative',
@@ -649,7 +649,7 @@ function DashboardLayoutContent({
                     fontWeight: isActive ? 600 : 450,
                     color: isActive ? 'var(--teal-700)' : 'var(--text-3)',
                     textDecoration: 'none',
-                    borderRadius: 10,
+                    borderRadius: 6,
                     minWidth: 0,
                     transition: 'color 0.15s',
                   }}
@@ -718,7 +718,7 @@ function DashboardLayoutContent({
                       border: 'none',
                       cursor: 'pointer',
                       color: isActive ? 'var(--teal-600)' : 'var(--text-4)',
-                      borderRadius: 8,
+                      borderRadius: 4,
                       display: 'flex',
                       alignItems: 'center',
                       transition: 'color 0.15s',
@@ -755,7 +755,7 @@ function DashboardLayoutContent({
                         style={{
                           display: 'block',
                           padding: '6px 10px',
-                          borderRadius: 8,
+                          borderRadius: 4,
                           fontSize: 12.5,
                           fontWeight: childActive ? 600 : 450,
                           color: childActive ? 'var(--teal-700)' : 'var(--text-3)',
@@ -793,7 +793,7 @@ function DashboardLayoutContent({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0,
-                  borderRadius: 10,
+                  borderRadius: 6,
                   marginBottom: 1,
                   background: isActive ? 'var(--teal-50)' : 'transparent',
                   position: 'relative',
@@ -819,7 +819,7 @@ function DashboardLayoutContent({
                     fontWeight: isActive ? 600 : 450,
                     color: isActive ? 'var(--teal-700)' : 'var(--text-3)',
                     textDecoration: 'none',
-                    borderRadius: 10,
+                    borderRadius: 6,
                     minWidth: 0,
                     transition: 'color 0.15s',
                   }}
@@ -868,7 +868,7 @@ function DashboardLayoutContent({
                       border: 'none',
                       cursor: 'pointer',
                       color: isActive ? 'var(--teal-600)' : 'var(--text-4)',
-                      borderRadius: 8,
+                      borderRadius: 4,
                       display: 'flex',
                       alignItems: 'center',
                       transition: 'color 0.15s',
@@ -905,7 +905,7 @@ function DashboardLayoutContent({
                         style={{
                           display: 'block',
                           padding: '5px 10px',
-                          borderRadius: 8,
+                          borderRadius: 4,
                           fontSize: 12,
                           fontWeight: childActive ? 600 : 450,
                           color: childActive ? 'var(--teal-700)' : 'var(--text-3)',
@@ -981,7 +981,7 @@ function DashboardLayoutContent({
     );
   }
 
-  const currentSidebarWidth = sidebarCollapsed ? '72px' : 'var(--sidebar-w)';
+  const currentSidebarWidth = sidebarCollapsed ? '60px' : 'var(--sidebar-w)';
 
   return (
     <div
