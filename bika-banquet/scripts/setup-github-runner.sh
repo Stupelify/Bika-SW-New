@@ -46,12 +46,13 @@ if ! docker ps >/dev/null 2>&1; then
   exit 1
 fi
 
-# Runner service dependencies on Debian/Ubuntu minimal images
-if command -v apt-get >/dev/null 2>&1; then
-  apt-get update -qq
-  apt-get install -y -qq curl tar ca-certificates libicu72 liblttng-ust1 2>/dev/null \
-    || apt-get install -y -qq curl tar ca-certificates libicu70 liblttng-ust1 2>/dev/null \
-    || apt-get install -y -qq curl tar ca-certificates
+# Runner service dependencies (skip apt if curl+tar already present — avoids noisy
+# duplicate-mirror warnings on some VPS images).
+if command -v apt-get >/dev/null 2>&1 \
+    && { ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; }; then
+  echo "==> Installing curl/tar (apt warnings about duplicate mirrors are harmless)"
+  apt-get install -y -qq curl tar ca-certificates 2>/dev/null \
+    || apt-get install -y curl tar ca-certificates
 fi
 
 mkdir -p "$RUNNER_DIR"
