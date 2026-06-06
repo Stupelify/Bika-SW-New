@@ -17,6 +17,7 @@ export interface TokenPayload {
   email: string;
   roles: string[];
   permissions: string[];
+  deniedPermissions: string[];
   banquetIds: string[];
   isActive: boolean;
   hasAllVenueAccess: boolean;

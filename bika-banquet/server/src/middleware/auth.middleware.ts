@@ -4,6 +4,7 @@ import { verifyToken, TokenPayload } from '../utils/auth';
 import { sendUnauthorized, sendForbidden } from '../utils/response';
 import prisma from '../config/database';
 import { getRedisClient } from '../config/redis';
+import { resolveEffectivePermissions, canAccess } from '../utils/permissions';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -11,6 +12,7 @@ export interface AuthRequest extends Request {
     email: string;
     roles: string[];
     permissions: string[];
+    deniedPermissions: string[];
     banquetIds: string[];
     isActive: boolean;
     hasAllVenueAccess: boolean;
@@ -140,15 +142,20 @@ async function validateSessionAndResolveUser(
   }
 
   const roles = session.user.userRoles.map((entry) => entry.role.name);
-  // Union of role permissions AND direct user permissions, de-duplicated.
-  const permissions = [
-    ...new Set([
-      ...session.user.userRoles.flatMap((entry) =>
-        entry.role.permissions.map((permission) => permission.permission.name)
-      ),
-      ...session.user.userPermissions.map((up) => up.permission.name),
-    ]),
-  ];
+  const rolePermissions = session.user.userRoles.flatMap((entry) =>
+    entry.role.permissions.map((permission) => permission.permission.name)
+  );
+  const grantedPermissions = session.user.userPermissions
+    .filter((up) => up.granted)
+    .map((up) => up.permission.name);
+  const explicitDenies = session.user.userPermissions
+    .filter((up) => !up.granted)
+    .map((up) => up.permission.name);
+  const { permissions, deniedPermissions } = resolveEffectivePermissions(
+    rolePermissions,
+    grantedPermissions,
+    explicitDenies
+  );
 
   const banquetIds = (session.user as any).userBanquets
     ? (session.user as any).userBanquets.map((ub: any) => ub.banquetId)
@@ -159,6 +166,7 @@ async function validateSessionAndResolveUser(
     email: session.user.email,
     roles,
     permissions,
+    deniedPermissions,
     banquetIds,
     isActive: true,
     hasAllVenueAccess: session.user.hasAllVenueAccess,
@@ -222,6 +230,9 @@ export async function authenticate(
       email: payloadToUse.email,
       roles: payloadToUse.roles,
       permissions: payloadToUse.permissions,
+      deniedPermissions: Array.isArray(payloadToUse.deniedPermissions)
+        ? payloadToUse.deniedPermissions
+        : [],
       banquetIds: Array.isArray(payloadToUse.banquetIds) ? payloadToUse.banquetIds : [],
       isActive: payloadToUse.isActive,
       hasAllVenueAccess: payloadToUse.hasAllVenueAccess,
@@ -274,11 +285,13 @@ export function requirePermission(...permissions: string[]) {
       return sendUnauthorized(res);
     }
 
-    const hasPermission = permissions.some((permission) =>
-      req.user!.permissions.includes(permission)
+    const allowed = canAccess(
+      permissions,
+      req.user.permissions,
+      req.user.deniedPermissions
     );
 
-    if (!hasPermission) {
+    if (!allowed) {
       return sendForbidden(res, 'Insufficient permissions');
     }
 
