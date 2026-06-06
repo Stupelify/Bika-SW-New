@@ -32,6 +32,28 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+echo "==> Checking prerequisites"
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker not found — install Docker before setting up the runner"
+  exit 1
+fi
+if ! docker compose version >/dev/null 2>&1; then
+  echo "ERROR: docker compose not available"
+  exit 1
+fi
+if ! docker ps >/dev/null 2>&1; then
+  echo "ERROR: docker ps failed — ensure Docker daemon is running"
+  exit 1
+fi
+
+# Runner service dependencies on Debian/Ubuntu minimal images
+if command -v apt-get >/dev/null 2>&1; then
+  apt-get update -qq
+  apt-get install -y -qq curl tar ca-certificates libicu72 liblttng-ust1 2>/dev/null \
+    || apt-get install -y -qq curl tar ca-certificates libicu70 liblttng-ust1 2>/dev/null \
+    || apt-get install -y -qq curl tar ca-certificates
+fi
+
 mkdir -p "$RUNNER_DIR"
 cd "$RUNNER_DIR"
 
@@ -48,26 +70,27 @@ if [ ! -f ./config.sh ]; then
   tar xzf actions-runner-linux-${RUNNER_ARCH}-2.319.1.tar.gz
 fi
 
-if [ -f ./.runner ]; then
-  echo "Runner already configured in $RUNNER_DIR — restarting service"
-else
-  echo "==> Configuring runner ($RUNNER_NAME)"
-  ./config.sh \
-    --url "$REPO_URL" \
-    --token "$RUNNER_TOKEN" \
-    --name "$RUNNER_NAME" \
-    --labels "$RUNNER_LABELS" \
-    --unattended \
-    --replace
-fi
+echo "==> Configuring runner ($RUNNER_NAME) labels: $RUNNER_LABELS"
+./config.sh \
+  --url "$REPO_URL" \
+  --token "$RUNNER_TOKEN" \
+  --name "$RUNNER_NAME" \
+  --labels "$RUNNER_LABELS" \
+  --unattended \
+  --replace
 
 ./svc.sh install
 ./svc.sh start
+sleep 2
 ./svc.sh status
 
 echo ""
-echo "Runner installed. Verify in GitHub → Settings → Actions → Runners."
-echo "Future pushes to master will deploy via the self-hosted runner."
+echo "==> Runner setup complete"
+echo "    Verify: GitHub → https://github.com/Stupelify/Bika-SW-New/settings/actions/runners"
+echo "    Status should show: bika-banquet-vps  Idle  labels: self-hosted, Linux, bika-banquet"
 echo ""
-echo "Deploy manually right now (without waiting for CI):"
+echo "Queued deploy jobs will start automatically within ~30s."
+echo "Watch: GitHub → Actions → Deploy to VPS"
+echo ""
+echo "Manual deploy (optional):"
 echo "  cd /root/bika-banquet-v2/bika-banquet && git pull && ./scripts/ci-deploy.sh"
