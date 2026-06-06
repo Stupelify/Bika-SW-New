@@ -66,6 +66,7 @@ export const DASHBOARD_ROUTE_RULES: DashboardRouteRule[] = [
       'manage_permission',
       'manage_roles',
       'manage_users',
+      'view_audit_logs',
     ],
   },
 ];

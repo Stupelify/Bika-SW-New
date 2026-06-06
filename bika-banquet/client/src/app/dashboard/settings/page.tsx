@@ -19,6 +19,7 @@ import EmptyState from '@/components/EmptyState';
 import FormPromptModal from '@/components/FormPromptModal';
 import { TableSkeleton } from '@/components/Skeletons';
 import ToggleSwitch from '@/components/ToggleSwitch';
+import ActivityLogsPanel from '@/components/settings/ActivityLogsPanel';
 
 interface UserRow {
   id: string;
@@ -169,10 +170,10 @@ const initialUserForm = {
 const initialResetPasswordForm = { newPassword: '', confirmPassword: '' };
 const initialRoleForm = { name: '', description: '' };
 
-type SettingsSection = 'users' | 'roles';
+type SettingsSection = 'users' | 'roles' | 'logs';
 
 function isSettingsSection(value: string | null): value is SettingsSection {
-  return value === 'users' || value === 'roles';
+  return value === 'users' || value === 'roles' || value === 'logs';
 }
 
 function SettingsPageContent() {
@@ -261,6 +262,9 @@ function SettingsPageContent() {
 
   const canAccessUsersSection = canViewUsers || canAddUsers || canDeleteUsers || canManageUsers;
   const canAccessRolesSection = canViewRoles || canAddRoles || canEditRoles || canDeleteRoles;
+  const canViewLogs =
+    currentPermissionSet.has('view_audit_logs') || currentPermissionSet.has('manage_users');
+  const canAccessLogsSection = canViewLogs;
   // Whether the per-user permission editor (grant/deny) is available.
   const canEditUserPermissions = canManageRolePermissions;
 
@@ -268,8 +272,9 @@ function SettingsPageContent() {
     const list: SettingsSection[] = [];
     if (canAccessUsersSection) list.push('users');
     if (canAccessRolesSection) list.push('roles');
+    if (canAccessLogsSection) list.push('logs');
     return list;
-  }, [canAccessUsersSection, canAccessRolesSection]);
+  }, [canAccessUsersSection, canAccessRolesSection, canAccessLogsSection]);
 
   useEffect(() => {
     if (availableSections.length === 0) return;
@@ -760,9 +765,9 @@ function SettingsPageContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="page-title">User Management</h1>
+        <h1 className="page-title">Settings</h1>
         <p className="text-sm text-[var(--text-3)] mt-1">
-          Manage staff accounts, their access, and roles.
+          Manage users, roles, and activity logs.
         </p>
       </div>
 
@@ -1385,41 +1390,59 @@ function SettingsPageContent() {
       </FormPromptModal>
 
       {/* Tabs */}
-      <div className="card p-2">
-        <div className="grid grid-cols-2 gap-2">
-          {canAccessUsersSection && (
-            <button
-              type="button"
-              onClick={() => navigateToSection('users')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSection === 'users'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
-            >
-              Users
-            </button>
-          )}
-          {canAccessRolesSection && (
-            <button
-              type="button"
-              onClick={() => navigateToSection('roles')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSection === 'roles'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
-            >
-              Roles
-            </button>
-          )}
+      {availableSections.length > 0 && (
+        <div className="card p-2">
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${availableSections.length}, minmax(0, 1fr))` }}
+          >
+            {canAccessUsersSection && (
+              <button
+                type="button"
+                onClick={() => navigateToSection('users')}
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  activeSection === 'users'
+                    ? 'bg-primary-600 text-white shadow'
+                    : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                }`}
+              >
+                Users
+              </button>
+            )}
+            {canAccessRolesSection && (
+              <button
+                type="button"
+                onClick={() => navigateToSection('roles')}
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  activeSection === 'roles'
+                    ? 'bg-primary-600 text-white shadow'
+                    : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                }`}
+              >
+                Roles
+              </button>
+            )}
+            {canAccessLogsSection && (
+              <button
+                type="button"
+                onClick={() => navigateToSection('logs')}
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  activeSection === 'logs'
+                    ? 'bg-primary-600 text-white shadow'
+                    : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                }`}
+              >
+                Activity Logs
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {availableSections.length === 0 && (
         <div className="card py-12 text-center">
           <p className="text-sm text-[var(--text-2)]">
-            You do not have permission to manage users or roles.
+            You do not have permission to access settings.
           </p>
         </div>
       )}
@@ -1586,6 +1609,13 @@ function SettingsPageContent() {
         </div>
       )}
 
+      {/* Activity logs tab */}
+      {activeSection === 'logs' && canAccessLogsSection && (
+        <div className="card">
+          <ActivityLogsPanel />
+        </div>
+      )}
+
       {/* Roles tab */}
       {activeSection === 'roles' && canAccessRolesSection && (
         <div className="card">
@@ -1668,7 +1698,7 @@ function SettingsPageContent() {
 function SettingsPageFallback() {
   return (
     <div className="card py-12 text-center">
-      <p className="text-sm text-[var(--text-2)]">Loading user management...</p>
+      <p className="text-sm text-[var(--text-2)]">Loading settings...</p>
     </div>
   );
 }
