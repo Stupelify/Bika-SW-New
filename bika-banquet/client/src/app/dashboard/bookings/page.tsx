@@ -79,6 +79,7 @@ import {
   formatDiscountPercentDisplay,
   formatPercentFieldOnBlur,
   formatRupeeAmount,
+  resolveDueAmount,
   roundRupee,
   syncBillingAmounts,
   validateBillingCeiling,
@@ -124,6 +125,9 @@ interface Booking {
   isPencilBooking?: boolean;
   pencilExpiresAt?: string | null;
   grandTotal: number;
+  dueAmountValue?: number | null;
+  dueAmount?: string | number | null;
+  paymentReceivedAmountValue?: number | null;
   customer: {
     name: string;
     phone: string;
@@ -452,6 +456,52 @@ const initialColumnSearch = {
 
 const BOOKINGS_PAGE_SIZE = 75;
 
+function formatInrCompact(amount: number): string {
+  const n = amount || 0;
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
+}
+
+function pencilExpiryDays(pencilExpiresAt?: string | null): number | null {
+  if (!pencilExpiresAt) return null;
+  const expires = new Date(pencilExpiresAt);
+  if (Number.isNaN(expires.getTime())) return null;
+  return Math.ceil((expires.getTime() - Date.now()) / 86400000);
+}
+
+interface BookingSavedView {
+  id: string;
+  label: string;
+  fn: ((booking: Booking) => boolean) | null;
+}
+
+const BOOKING_SAVED_VIEWS: BookingSavedView[] = [
+  { id: 'all', label: 'All', fn: null },
+  {
+    id: 'balance',
+    label: 'Balance due',
+    fn: (b) => resolveDueAmount(b) > 0 && b.status === 'confirmed',
+  },
+  {
+    id: 'pencils',
+    label: 'Pencils expiring',
+    fn: (b) => b.status === 'pencil' && Boolean(b.pencilExpiresAt),
+  },
+  {
+    id: 'unconfirmed',
+    label: 'Unconfirmed',
+    fn: (b) => ['pencil', 'quotation', 'enquiry'].includes(b.status),
+  },
+  { id: 'confirmed', label: 'Confirmed', fn: (b) => b.status === 'confirmed' },
+  {
+    id: 'high',
+    label: 'High value · >₹10L',
+    fn: (b) => (b.grandTotal || 0) >= 1000000,
+  },
+];
+
 function formatCustomerLabel(customer?: {
   name?: string | null;
   phone?: string | null;
@@ -504,6 +554,7 @@ export default function BookingsPage() {
   const canExportMenuPdf = canViewBooking;
 
   const [useServer] = useState(() => usesServerPagination('bookings'));
+  const [savedView, setSavedView] = useState<string>('all');
   const {
     data: legacyBookings = [],
     isLoading: legacyLoading,
@@ -790,6 +841,16 @@ export default function BookingsPage() {
     const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
     return clientFilteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
   }, [useServer, bookings, currentPage, clientFilteredBookings, totalPages]);
+
+  const activeSavedView = useMemo(
+    () => BOOKING_SAVED_VIEWS.find((v) => v.id === savedView) ?? BOOKING_SAVED_VIEWS[0],
+    [savedView]
+  );
+
+  const viewBookings = useMemo(
+    () => (activeSavedView.fn ? paginatedBookings.filter(activeSavedView.fn) : paginatedBookings),
+    [paginatedBookings, activeSavedView]
+  );
 
   const historicalVersions = useMemo(
     () =>
@@ -2712,8 +2773,13 @@ export default function BookingsPage() {
   };
 
   const bookingsValueInView = useMemo(
-    () => paginatedBookings.reduce((sum, b) => sum + (b.grandTotal || 0), 0),
-    [paginatedBookings]
+    () => viewBookings.reduce((sum, b) => sum + (b.grandTotal || 0), 0),
+    [viewBookings]
+  );
+
+  const bookingsOutstandingInView = useMemo(
+    () => viewBookings.reduce((sum, b) => sum + resolveDueAmount(b), 0),
+    [viewBookings]
   );
 
   return (
@@ -2721,8 +2787,22 @@ export default function BookingsPage() {
       <Toolbar
         title="Bookings"
         stats={[
-          { label: 'In view', value: totalBookingsCount },
-          { label: 'Value in view', value: `₹${bookingsValueInView.toLocaleString('en-IN')}` },
+          { label: 'In view', value: viewBookings.length },
+          { label: 'Value in view', value: formatInrCompact(bookingsValueInView) },
+          {
+            label: 'Outstanding',
+            value: (
+              <span
+                className={
+                  bookingsOutstandingInView > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }
+              >
+                {formatInrCompact(bookingsOutstandingInView)}
+              </span>
+            ),
+          },
         ]}
         actions={
           canAddBooking ? (
@@ -4844,6 +4924,28 @@ export default function BookingsPage() {
         </div>
       </FormPromptModal>
 
+      {canViewBooking && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-4)] flex-shrink-0">
+            Views
+          </span>
+          {BOOKING_SAVED_VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setSavedView(v.id)}
+              className={`flex-shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                savedView === v.id
+                  ? 'border-teal-600 bg-teal-600 text-white'
+                  : 'border-[var(--border-2)] bg-[var(--surface)] text-[var(--text-3)] hover:text-[var(--text-1)]'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="relative" style={{ flex: 1 }}>
@@ -4984,12 +5086,22 @@ export default function BookingsPage() {
                     : undefined
             }
           />
+        ) : viewBookings.length === 0 ? (
+          <div className="empty-state" style={{ padding: '32px 16px' }}>
+            <p className="empty-state-title">No bookings match this view</p>
+            <p className="empty-state-desc">Try a different saved view or clear it to see all bookings.</p>
+            {savedView !== 'all' && (
+              <button type="button" className="btn btn-secondary mt-2" onClick={() => setSavedView('all')}>
+                Clear view
+              </button>
+            )}
+          </div>
         ) : (
           <>
             {/* Mobile card view — always shown on small screens */}
             <div className="md:hidden">
               <div className="mobile-card-list">
-                    {paginatedBookings.map((booking) => (
+                    {viewBookings.map((booking) => (
                       <MobileBookingCard
                         key={booking.id}
                         booking={booking}
@@ -5025,7 +5137,7 @@ export default function BookingsPage() {
                         padding: '4px 0',
                       }}
                     >
-                      {paginatedBookings.map((booking) => (
+                      {viewBookings.map((booking) => (
                         <BookingCard
                           key={booking.id}
                           booking={booking}
@@ -5056,6 +5168,7 @@ export default function BookingsPage() {
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
+                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Booking</th>
                     <SortableHeader
                       label="Function"
                       sortKey="functionName"
@@ -5102,13 +5215,17 @@ export default function BookingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedBookings.map((booking) => {
+                  {viewBookings.map((booking) => {
                     const rowStatus = booking.isQuotation ? 'quotation' : booking.status;
+                    const expDays = booking.status === 'pencil' ? pencilExpiryDays(booking.pencilExpiresAt) : null;
                     return (
                       <tr
                         key={booking.id}
                         className={`cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(rowStatus)}`}
                       >
+                      <td className="py-4 px-4 id whitespace-nowrap">
+                        {booking.id.slice(0, 8).toUpperCase()}
+                      </td>
                       <td className="py-4 px-4 main">
                         <p className="font-medium text-[var(--text-1)]">{booking.functionName}</p>
                         <p className="text-xs text-[var(--text-4)] mt-1">{booking.functionType}</p>
@@ -5119,6 +5236,11 @@ export default function BookingsPage() {
                       </td>
                       <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         {formatDateDDMMYYYY(booking.functionDate)}
+                        {expDays != null && (
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                            exp {expDays}d
+                          </div>
+                        )}
                       </td>
                       <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         <span className="inline-flex items-center gap-1">
@@ -5134,8 +5256,8 @@ export default function BookingsPage() {
                       <td className="py-4 px-4">
                         <StatusBadge status={rowStatus} />
                       </td>
-                      <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)] num">
-                        ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
+                      <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)] num" title={`₹${(booking.grandTotal || 0).toLocaleString('en-IN')}`}>
+                        {formatInrCompact(booking.grandTotal || 0)}
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                         <td className="py-4 px-4 text-right">
