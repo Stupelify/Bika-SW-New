@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { customerSearchText, textMatchesSearch } from '@/lib/customerSearch';
 import { CalendarPageSkeleton, CalendarSkeleton } from '@/components/Skeletons';
+import Toolbar from '@/components/Toolbar';
 import { LatestWinsGuard, dedupeSlotsByBookingId } from '@/lib/calendarConcurrency';
 import dynamic from 'next/dynamic';
 import type { TimelineHallRow } from '@/components/VenueTimelineBoard';
@@ -630,9 +631,13 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6 min-w-0 max-w-full overflow-x-hidden">
-      <div>
-        <h1 className="page-title">Calendar</h1>
-      </div>
+      <Toolbar
+        title="Calendar"
+        stats={[
+          { label: 'Bookings in view', value: filteredBookings.length + filteredEnquiries.length },
+          { label: 'Conflicts', value: selectedDayConflicts.length },
+        ]}
+      />
 
       {/* ── Main calendar area (sidebar removed; filters live in header) ── */}
       <div className="min-w-0 space-y-4">

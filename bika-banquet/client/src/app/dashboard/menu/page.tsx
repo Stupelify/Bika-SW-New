@@ -11,6 +11,7 @@ import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
+import Toolbar from '@/components/Toolbar';
 import {
   SortState,
   TableColumnConfig,
@@ -1104,9 +1105,14 @@ function MenuPageContent() {
   return (
     <>
     <div className="space-y-6">
-      <div>
-        <h1 className="page-title">Menu & Items</h1>
-      </div>
+      <Toolbar
+        title="Menu & Items"
+        stats={[
+          { label: 'Item types', value: itemTypes.length },
+          { label: 'Items', value: items.length },
+          { label: 'Template menus', value: templateMenus.length },
+        ]}
+      />
 
       {!canViewItemType && !canViewItem && !canViewTemplate && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">

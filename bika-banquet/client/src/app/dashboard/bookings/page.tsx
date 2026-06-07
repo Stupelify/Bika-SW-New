@@ -103,6 +103,7 @@ import MobileBookingCard from '@/components/MobileBookingCard';
 import BookingCard from '@/components/BookingCard';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import StatusBadge from '@/components/StatusBadge';
+import Toolbar from '@/components/Toolbar';
 import BookingPaymentsLedger from '@/components/BookingPaymentsLedger';
 import BookingFinancialSummary from '@/components/BookingFinancialSummary';
 import FinalizedVersionHistory from '@/components/booking/FinalizedVersionHistory';
@@ -2710,22 +2711,31 @@ export default function BookingsPage() {
     );
   };
 
+  const bookingsValueInView = useMemo(
+    () => paginatedBookings.reduce((sum, b) => sum + (b.grandTotal || 0), 0),
+    [paginatedBookings]
+  );
+
   return (
     <div className="space-y-6">
-      <div className="page-head gap-4">
-        <div>
-          <h1 className="page-title">Bookings</h1>
-        </div>
-        {canAddBooking && (
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-          >
-            <Plus className="w-4 h-4" />
-            Add Booking
-          </button>
-        )}
-      </div>
+      <Toolbar
+        title="Bookings"
+        stats={[
+          { label: 'In view', value: totalBookingsCount },
+          { label: 'Value in view', value: `₹${bookingsValueInView.toLocaleString('en-IN')}` },
+        ]}
+        actions={
+          canAddBooking ? (
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+            >
+              <Plus className="w-4 h-4" />
+              Add Booking
+            </button>
+          ) : null
+        }
+      />
 
       {!canViewBooking && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">

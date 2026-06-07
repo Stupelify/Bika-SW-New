@@ -17,6 +17,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
+import Toolbar from '@/components/Toolbar';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 
@@ -463,9 +464,13 @@ function HallsPageContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="page-title">Venues</h1>
-      </div>
+      <Toolbar
+        title="Venues & Halls"
+        stats={[
+          { label: 'Venues', value: banquets.length },
+          { label: 'Halls', value: halls.length },
+        ]}
+      />
 
       {!canViewBanquet && !canViewHall && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">

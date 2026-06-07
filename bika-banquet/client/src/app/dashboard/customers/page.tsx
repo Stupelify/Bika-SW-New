@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import FormPromptModal from '@/components/FormPromptModal';
+import Toolbar from '@/components/Toolbar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
@@ -762,21 +763,25 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Customers</h1>
-        </div>
-        {canAddCustomer && (
-          <button
-            type="button"
-            onClick={openCreatePrompt}
-            className="btn btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
-          >
-            <Plus className="w-4 h-4" />
-            Add Customer
-          </button>
-        )}
-      </div>
+      <Toolbar
+        title="Customers"
+        stats={[
+          { label: 'Total', value: totalCount },
+          { label: 'Active filters', value: Object.values(columnSearch).filter(Boolean).length },
+        ]}
+        actions={
+          canAddCustomer ? (
+            <button
+              type="button"
+              onClick={openCreatePrompt}
+              className="btn btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
+            >
+              <Plus className="w-4 h-4" />
+              Add Customer
+            </button>
+          ) : null
+        }
+      />
 
       {!canViewCustomer && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
