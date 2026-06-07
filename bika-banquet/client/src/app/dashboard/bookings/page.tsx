@@ -20,7 +20,6 @@ import {
   Search,
   Star,
   Trash2,
-  Users,
   Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,7 +40,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
-import { formatDateDDMMYYYY } from '@/lib/date';
+import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
 import { useAuthStore } from '@/store/authStore';
@@ -5170,14 +5169,8 @@ export default function BookingsPage() {
                   <tr className="border-b border-[var(--border)]">
                     <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Booking</th>
                     <SortableHeader
-                      label="Function"
+                      label="Function / Customer"
                       sortKey="functionName"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Customer"
-                      sortKey="customer"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
@@ -5187,25 +5180,27 @@ export default function BookingsPage() {
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
+                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Hall</th>
                     <SortableHeader
                       label="Guests"
                       sortKey="expectedGuests"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
                     />
-                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Hall / Venue</th>
+                    <SortableHeader
+                      label="Grand total"
+                      sortKey="grandTotal"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
+                    />
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Balance</th>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Amount"
-                      sortKey="grandTotal"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
                     />
                     {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                       <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
@@ -5218,6 +5213,7 @@ export default function BookingsPage() {
                   {viewBookings.map((booking) => {
                     const rowStatus = booking.isQuotation ? 'quotation' : booking.status;
                     const expDays = booking.status === 'pencil' ? pencilExpiryDays(booking.pencilExpiresAt) : null;
+                    const balanceDue = resolveDueAmount(booking);
                     return (
                       <tr
                         key={booking.id}
@@ -5228,14 +5224,10 @@ export default function BookingsPage() {
                       </td>
                       <td className="py-4 px-4 main">
                         <p className="font-medium text-[var(--text-1)]">{booking.functionName}</p>
-                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.functionType}</p>
+                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.customer?.name}</p>
                       </td>
-                      <td className="py-4 px-4">
-                        <p className="text-sm text-[var(--text-1)]">{booking.customer?.name}</p>
-                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.customer?.phone}</p>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
-                        {formatDateDDMMYYYY(booking.functionDate)}
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)] whitespace-nowrap">
+                        {formatDateCompact(booking.functionDate)}
                         {expDays != null && (
                           <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
                             exp {expDays}d
@@ -5243,21 +5235,24 @@ export default function BookingsPage() {
                         )}
                       </td>
                       <td className="py-4 px-4 text-sm text-[var(--text-2)]">
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="w-4 h-4 text-[var(--text-4)]" />
-                          {booking.expectedGuests}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         {(booking.halls || []).length > 0
                           ? (booking.halls || []).map((h) => h.hall ? [h.hall.banquet?.name, h.hall.name].filter(Boolean).join(' / ') : null).filter(Boolean).join(', ')
                           : <span className="text-[var(--text-4)]">—</span>}
                       </td>
-                      <td className="py-4 px-4">
-                        <StatusBadge status={rowStatus} />
+                      <td className="py-4 px-4 text-right text-sm text-[var(--text-2)] num">
+                        {booking.expectedGuests}
                       </td>
                       <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)] num" title={`₹${(booking.grandTotal || 0).toLocaleString('en-IN')}`}>
                         {formatInrCompact(booking.grandTotal || 0)}
+                      </td>
+                      <td
+                        className={`py-4 px-4 text-right text-sm font-medium num ${balanceDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
+                        title={`₹${balanceDue.toLocaleString('en-IN')}`}
+                      >
+                        {balanceDue > 0 ? formatInrCompact(balanceDue) : 'Paid'}
+                      </td>
+                      <td className="py-4 px-4">
+                        <StatusBadge status={rowStatus} />
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                         <td className="py-4 px-4 text-right">

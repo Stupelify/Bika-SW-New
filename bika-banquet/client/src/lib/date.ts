@@ -33,6 +33,18 @@ export function formatDateDDMMYYYY(input: string | Date | null | undefined): str
   }).format(parsed);
 }
 
+/** Compact day + short-month, e.g. "15 Jun" — matches the design table density. */
+export function formatDateCompact(input: string | Date | null | undefined): string {
+  if (!input) return '-';
+  const parsed = parseDateValue(input);
+  if (!parsed) return '-';
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(parsed);
+}
+
 export function formatDateTimeLabel(value?: string | Date | null): string {
   if (!value) return 'N/A';
   const parsed = new Date(value);
