@@ -36,7 +36,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
-import { formatDateDDMMYYYY } from '@/lib/date';
+import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
@@ -321,7 +321,7 @@ function CustomerDetailPanel({
                 {bookings.map((b) => (
                   <tr key={b.id} className="border-b border-[var(--border)] last:border-0">
                     <td className="py-2.5 px-4 text-sm text-[var(--text-1)]">{b.functionName}</td>
-                    <td className="py-2.5 px-4 text-sm text-[var(--text-2)]">{formatDateDDMMYYYY(b.functionDate)}</td>
+                    <td className="py-2.5 px-4 text-sm text-[var(--text-2)] whitespace-nowrap">{formatDateCompact(b.functionDate)}</td>
                     <td className="py-2.5 px-4 text-sm text-right font-medium text-[var(--text-1)]">
                       ₹{(b.grandTotal || 0).toLocaleString('en-IN')}
                     </td>

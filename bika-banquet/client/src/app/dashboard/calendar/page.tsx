@@ -635,7 +635,20 @@ export default function CalendarPage() {
         title="Calendar"
         stats={[
           { label: 'Bookings in view', value: filteredBookings.length + filteredEnquiries.length },
-          { label: 'Conflicts', value: selectedDayConflicts.length },
+          {
+            label: 'Conflicts',
+            value: (
+              <span
+                className={
+                  selectedDayConflicts.length > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }
+              >
+                {selectedDayConflicts.length}
+              </span>
+            ),
+          },
         ]}
       />
 
