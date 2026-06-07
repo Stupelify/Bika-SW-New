@@ -11,6 +11,7 @@ import { resolveDueAmount, resolvePaymentReceivedGross } from '@bika/booking-cor
 import { toast } from 'sonner';
 import { queryKeys } from './keys';
 import { buildListParams, type ListParamsInput, type PaginationMeta } from '@/lib/listQuery';
+import { notifyBookingExternalUpdate } from '@/lib/booking-form/booking-form-sync';
 
 const BOOKINGS_LIST_PARAMS = { page: 1, limit: 5000 } as const;
 
@@ -271,8 +272,9 @@ export function useAddPaymentMutation() {
         'Failed to add payment';
       toast.error(message);
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       toast.success('Payment added');
+      notifyBookingExternalUpdate(input.bookingId);
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
     },
   });

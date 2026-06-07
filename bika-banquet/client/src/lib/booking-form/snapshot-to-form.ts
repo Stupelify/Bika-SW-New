@@ -13,6 +13,7 @@ import {
 } from './form-types';
 import type { MenuItemLike } from './types';
 import { calculateMenuPointsFromMap, templateItemsToMenuItemLikes } from './menu-template';
+import { packHasHallCharge, readPackHallRate } from './map-api-pack';
 
 export interface HallOption {
   id: string;
@@ -89,7 +90,7 @@ export function snapshotToFormReadOnlyData(
     nextPacks[packKey] = {
       bookingPackId: pack.id,
       enabled: true,
-      withHall: resolvedPackHallIds.length > 0 || Boolean(pack.hallRate),
+      withHall: resolvedPackHallIds.length > 0 || packHasHallCharge(pack),
       withCatering: true,
       banquetId: firstPackHall?.banquet?.id || primaryHall?.banquet?.id || '',
       hallIds: resolvedPackHallIds,
@@ -98,7 +99,7 @@ export function snapshotToFormReadOnlyData(
       menuItemIds: rowMenuItemIds,
       startTime: pack.startTime || nextPacks[packKey].startTime,
       endTime: pack.endTime || nextPacks[packKey].endTime,
-      hallRate: pack.hallRate != null ? String(pack.hallRate) : '',
+      hallRate: readPackHallRate(pack),
       menuPoints:
         pack.menuPoint != null
           ? String(pack.menuPoint)
