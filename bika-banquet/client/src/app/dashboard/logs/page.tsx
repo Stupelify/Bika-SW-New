@@ -17,6 +17,7 @@ import {
 } from '@/lib/tableUtils';
 import TablePagination from '@/components/TablePagination';
 import EmptyState from '@/components/EmptyState';
+import Toolbar from '@/components/Toolbar';
 
 interface AuditLog {
   id: string;
@@ -117,20 +118,23 @@ export default function AuditLogsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Activity Logs</h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => void fetchLogs(currentPage, debouncedSearch, true)}
-          className="btn btn-secondary flex items-center gap-2"
-          disabled={refreshing}
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
-      </div>
+      <Toolbar
+        title="Activity Logs"
+        stats={[
+          { label: 'In view', value: total },
+        ]}
+        actions={
+          <button
+            type="button"
+            onClick={() => void fetchLogs(currentPage, debouncedSearch, true)}
+            className="btn btn-secondary flex items-center gap-2"
+            disabled={refreshing}
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        }
+      />
 
       <div className="card space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -271,7 +275,7 @@ export default function AuditLogsPage() {
                     <td className="py-4 px-4 whitespace-nowrap text-sm text-[var(--text-2)]">
                       {new Date(log.createdAt).toLocaleString()}
                     </td>
-                    <td className="py-4 px-4 font-medium text-sm text-[var(--text-1)]">
+                    <td className="py-4 px-4 font-medium text-sm text-[var(--text-1)] main">
                       {log.userName || <span className="text-[var(--text-3)] italic">System</span>}
                     </td>
                     <td className="py-4 px-4">

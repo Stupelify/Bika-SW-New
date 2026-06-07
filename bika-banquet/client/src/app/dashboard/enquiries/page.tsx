@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users, Filter } from 'lucide-react';
 import Combobox from '@/components/Combobox';
+import Toolbar from '@/components/Toolbar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import FormPromptModal from '@/components/FormPromptModal';
 import EmptyState from '@/components/EmptyState';
@@ -35,7 +36,7 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge, { getRowStatusClass } from '@/components/StatusBadge';
 
 interface Enquiry {
   id: string;
@@ -551,22 +552,26 @@ export default function EnquiriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="page-head gap-4">
-        <div>
-          <h1 className="page-title">Enquiries</h1>
-        </div>
-        {canAddEnquiry && (
-          <button
-            type="button"
-            className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-            onClick={openCreatePrompt}
-            disabled={customers.length === 0}
-          >
-            <Plus className="w-4 h-4" />
-            Add Enquiry
-          </button>
-        )}
-      </div>
+      <Toolbar
+        title="Enquiries"
+        stats={[
+          { label: 'In view', value: totalCount },
+          { label: 'Active filters', value: Object.values(columnSearch).filter(Boolean).length },
+        ]}
+        actions={
+          canAddEnquiry ? (
+            <button
+              type="button"
+              className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+              onClick={openCreatePrompt}
+              disabled={customers.length === 0}
+            >
+              <Plus className="w-4 h-4" />
+              Add Enquiry
+            </button>
+          ) : null
+        }
+      />
 
       {!canViewEnquiry && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
@@ -1068,8 +1073,13 @@ export default function EnquiriesPage() {
                 </thead>
                 <tbody>
                   {paginatedEnquiries.map((enquiry) => (
-                    <tr key={enquiry.id} className="border-b border-[var(--border)] hover:bg-[var(--surface-2)]">
-                      <td className="py-4 px-4">
+                    <tr
+                      key={enquiry.id}
+                      className={`border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(
+                        enquiry.isPencilBooked ? 'pencil' : enquiry.quotationSent ? 'quotation' : enquiry.status
+                      )}`}
+                    >
+                      <td className="py-4 px-4 main">
                         <p className="font-medium text-[var(--text-1)]">{enquiry.functionName}</p>
                         <p className="text-xs text-[var(--text-4)] mt-1">{enquiry.functionType}</p>
                       </td>

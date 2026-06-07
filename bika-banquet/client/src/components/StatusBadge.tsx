@@ -48,6 +48,13 @@ const STATUS_CONFIG = {
   },
 } as const;
 
+const ROW_STRIPE_CLASSES = new Set(['confirmed', 'pencil', 'quotation', 'enquiry', 'cancelled']);
+
+export function getRowStatusClass(status: string): string {
+  const normalized = (status || '').trim().toLowerCase();
+  return ROW_STRIPE_CLASSES.has(normalized) ? `st-${normalized}` : '';
+}
+
 function capitalizeStatus(status: string): string {
   if (!status) return 'Pending';
   return status

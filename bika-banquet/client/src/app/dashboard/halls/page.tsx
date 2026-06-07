@@ -822,7 +822,7 @@ function HallsPageContent() {
                   <tbody>
                     {paginatedBanquets.map((banquet) => (
                       <tr key={banquet.id} className="border-b border-[var(--border)]">
-                        <td className="py-3 px-2 text-sm text-[var(--text-1)]">{banquet.name}</td>
+                        <td className="py-3 px-2 text-sm text-[var(--text-1)] main">{banquet.name}</td>
                         <td className="py-3 px-2 text-sm text-[var(--text-2)]">
                           {[banquet.location, banquet.city, banquet.state]
                             .filter(Boolean)

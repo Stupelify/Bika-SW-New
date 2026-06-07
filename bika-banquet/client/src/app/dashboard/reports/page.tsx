@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { PageSkeleton } from '@/components/Skeletons';
+import Toolbar from '@/components/Toolbar';
 import {
   BarChart3,
   CalendarDays,
@@ -292,22 +293,26 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Reports</h1>
-        </div>
-        <select
-          className="input w-full sm:w-auto sm:max-w-[180px]"
-          value={range}
-          onChange={(e) => setRange(e.target.value)}
-        >
-          <option value="1m">Last 1 month</option>
-          <option value="3m">Last 3 months</option>
-          <option value="6m">Last 6 months</option>
-          <option value="1y">Last 1 year</option>
-          <option value="all">All time</option>
-        </select>
-      </div>
+      <Toolbar
+        title="Reports"
+        stats={[
+          { label: 'Bookings', value: report?.summary.bookingsInRange ?? 0 },
+          { label: 'Revenue', value: `₹${(report?.summary.totalRevenue ?? 0).toLocaleString('en-IN')}` },
+        ]}
+        actions={
+          <select
+            className="input w-full sm:w-auto sm:max-w-[180px]"
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+          >
+            <option value="1m">Last 1 month</option>
+            <option value="3m">Last 3 months</option>
+            <option value="6m">Last 6 months</option>
+            <option value="1y">Last 1 year</option>
+            <option value="all">All time</option>
+          </select>
+        }
+      />
 
       {loading ? (
         <PageSkeleton />

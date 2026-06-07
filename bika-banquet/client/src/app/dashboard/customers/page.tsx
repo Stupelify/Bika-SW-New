@@ -1543,7 +1543,7 @@ export default function CustomersPage() {
                       key={customer.id}
                       className="border-b border-[var(--border)] hover:bg-[var(--surface-2)]"
                     >
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-4 main">
                         <p className="font-medium text-[var(--text-1)]">{customer.name}</p>
                       </td>
                       <td className="py-4 px-4">

@@ -102,7 +102,7 @@ import {
 import MobileBookingCard from '@/components/MobileBookingCard';
 import BookingCard from '@/components/BookingCard';
 import FloatingActionButton from '@/components/FloatingActionButton';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge, { getRowStatusClass } from '@/components/StatusBadge';
 import Toolbar from '@/components/Toolbar';
 import BookingPaymentsLedger from '@/components/BookingPaymentsLedger';
 import BookingFinancialSummary from '@/components/BookingFinancialSummary';
@@ -5102,12 +5102,14 @@ export default function BookingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedBookings.map((booking) => (
+                  {paginatedBookings.map((booking) => {
+                    const rowStatus = booking.isQuotation ? 'quotation' : booking.status;
+                    return (
                       <tr
                         key={booking.id}
-                        className="cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)]"
+                        className={`cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(rowStatus)}`}
                       >
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-4 main">
                         <p className="font-medium text-[var(--text-1)]">{booking.functionName}</p>
                         <p className="text-xs text-[var(--text-4)] mt-1">{booking.functionType}</p>
                       </td>
@@ -5130,9 +5132,9 @@ export default function BookingsPage() {
                           : <span className="text-[var(--text-4)]">—</span>}
                       </td>
                       <td className="py-4 px-4">
-                        <StatusBadge status={booking.isQuotation ? 'quotation' : booking.status} />
+                        <StatusBadge status={rowStatus} />
                       </td>
-                      <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)]">
+                      <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)] num">
                         ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
@@ -5185,8 +5187,8 @@ export default function BookingsPage() {
                         </td>
                       )}
                       </tr>
-                    ))
-                  }
+                    );
+                  })}
                 </tbody>
               </table>
               <TablePagination

@@ -2062,7 +2062,7 @@ function MenuPageContent() {
                 <tbody>
                   {paginatedItemTypes.map((itemType) => (
                     <tr key={itemType.id} className="border-b border-[var(--border)]">
-                      <td className="py-3 px-2">
+                      <td className="py-3 px-2 main">
                         <p className="text-sm text-[var(--text-1)]">{itemType.name}</p>
                       </td>
                       <td className="py-3 px-2 text-sm text-[var(--text-2)]">
@@ -2260,7 +2260,7 @@ function MenuPageContent() {
                 <tbody>
                   {paginatedItems.map((item) => (
                     <tr key={item.id} className="border-b border-[var(--border)]">
-                      <td className="py-3 px-2">
+                      <td className="py-3 px-2 main">
                         <p className="text-sm text-[var(--text-1)]">{item.name}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-3)]">
                           <span>{item.isVeg ? 'Veg' : 'Non-veg'}</span>
@@ -2497,9 +2497,9 @@ function MenuPageContent() {
 
                     return (
                       <tr key={template.id} className="border-b border-[var(--border)]">
-                        <td className="py-3 px-2 text-sm text-[var(--text-1)]">{template.name}</td>
+                        <td className="py-3 px-2 text-sm text-[var(--text-1)] main">{template.name}</td>
                         <td className="py-3 px-2 text-sm text-[var(--text-2)]">{template.category || 'General'}</td>
-                        <td className="py-3 px-2 text-sm text-[var(--text-2)]">
+                        <td className="py-3 px-2 text-sm text-[var(--text-2)] num">
                           INR {(template.ratePerPlate || 0).toLocaleString('en-IN')}
                         </td>
                         <td className="py-3 px-2 text-sm font-medium text-teal-700 dark:text-teal-200">

@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import TablePagination from '@/components/TablePagination';
 import Combobox from '@/components/Combobox';
+import Toolbar from '@/components/Toolbar';
 import { PaymentsTableSkeleton } from '@/components/Skeletons';
 import {
   useAddPaymentMutation,
@@ -315,22 +316,25 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="page-head gap-4">
-        <div>
-          <h1 className="page-title">Payments</h1>
-        </div>
-        {canAddPayment && (
-          <button
-            type="button"
-            className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-            onClick={() => setShowPaymentPrompt(true)}
-            disabled={useServer ? totalCount === 0 : bookings.length === 0}
-          >
-            <Plus className="w-4 h-4" />
-            Add Payment
-          </button>
-        )}
-      </div>
+      <Toolbar
+        title="Payments"
+        stats={[
+          { label: 'In view', value: totalCount },
+        ]}
+        actions={
+          canAddPayment ? (
+            <button
+              type="button"
+              className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+              onClick={() => setShowPaymentPrompt(true)}
+              disabled={useServer ? totalCount === 0 : bookings.length === 0}
+            >
+              <Plus className="w-4 h-4" />
+              Add Payment
+            </button>
+          ) : null
+        }
+      />
 
       <FormPromptModal
         open={showPaymentPrompt}
@@ -616,7 +620,7 @@ export default function PaymentsPage() {
                 <tbody>
                   {paginatedBookings.map((booking) => (
                     <tr key={booking.id} className="border-b border-[var(--border)]">
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 main">
                         <p className="text-sm text-[var(--text-1)]">{booking.functionName}</p>
                         <p className="text-xs text-[var(--text-4)] mt-1">
                           {booking.customer?.name} • {booking.customer?.phone}
@@ -625,16 +629,16 @@ export default function PaymentsPage() {
                       <td className="py-3 px-3 text-sm text-[var(--text-2)]">
                         {formatDateDDMMYYYY(booking.functionDate)}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
                         INR {(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
                         INR {resolvePaymentReceivedGross(booking).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm font-medium text-[var(--text-1)]">
+                      <td className="py-3 px-3 text-right text-sm font-medium text-[var(--text-1)] num">
                         INR {resolveDueAmount(booking).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
                         {booking._count?.payments || 0}
                       </td>
                     </tr>
