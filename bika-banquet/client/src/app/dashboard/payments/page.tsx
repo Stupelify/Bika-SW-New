@@ -29,7 +29,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
-import { formatDateDDMMYYYY } from '@/lib/date';
+import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
 import {
   resolveDueAmount,
   resolvePaymentReceivedGross,
@@ -626,17 +626,17 @@ export default function PaymentsPage() {
                           {booking.customer?.name} • {booking.customer?.phone}
                         </p>
                       </td>
-                      <td className="py-3 px-3 text-sm text-[var(--text-2)]">
-                        {formatDateDDMMYYYY(booking.functionDate)}
+                      <td className="py-3 px-3 text-sm text-[var(--text-2)] whitespace-nowrap">
+                        {formatDateCompact(booking.functionDate)}
                       </td>
                       <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
-                        INR {(booking.grandTotal || 0).toLocaleString('en-IN')}
+                        ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
-                        INR {resolvePaymentReceivedGross(booking).toLocaleString('en-IN')}
+                      <td className="py-3 px-3 text-right text-sm text-emerald-600 dark:text-emerald-400 num">
+                        ₹{resolvePaymentReceivedGross(booking).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm font-medium text-[var(--text-1)] num">
-                        INR {resolveDueAmount(booking).toLocaleString('en-IN')}
+                      <td className={`py-3 px-3 text-right text-sm font-medium num ${resolveDueAmount(booking) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {resolveDueAmount(booking) > 0 ? `₹${resolveDueAmount(booking).toLocaleString('en-IN')}` : 'Paid'}
                       </td>
                       <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
                         {booking._count?.payments || 0}

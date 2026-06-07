@@ -2524,6 +2524,20 @@ input[type=number] {
   cursor: pointer;
 }
 .fab:active { transform: scale(0.95); }
+
+/* Design-system table headers — uniform uppercase mono muted columns.
+   Unlayered so it overrides per-page inline @layer utilities on <th>
+   (font-size/weight/colour). Text-alignment utilities are intentionally
+   left untouched so right-aligned numeric headers keep aligning. */
+.data-table thead th {
+  font-size: 10px;
+  font-weight: 400;
+  font-family: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
 @media (min-width: 860px) {
   .fab { display: none; }
 }

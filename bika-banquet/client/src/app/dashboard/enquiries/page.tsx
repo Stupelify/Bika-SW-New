@@ -32,7 +32,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
-import { formatDateDDMMYYYY } from '@/lib/date';
+import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
@@ -1087,10 +1087,10 @@ export default function EnquiriesPage() {
                         <p className="text-sm text-[var(--text-1)]">{enquiry.customer?.name}</p>
                         <p className="text-xs text-[var(--text-4)] mt-1">{enquiry.customer?.phone}</p>
                       </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)] whitespace-nowrap">
                         <span className="inline-flex items-center gap-1">
                           <CalendarDays className="w-4 h-4 text-[var(--text-4)]" />
-                          {formatDateDDMMYYYY(enquiry.functionDate)}
+                          {formatDateCompact(enquiry.functionDate)}
                         </span>
                       </td>
                       <td className="py-4 px-4 text-sm text-[var(--text-2)]">
