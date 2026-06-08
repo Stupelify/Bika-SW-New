@@ -21,3 +21,15 @@ export function formatIndianAmountDisplay(digits: string): string {
 export function parseIndianAmountInput(raw: string): string {
   return stripToDigits(raw);
 }
+
+/**
+ * Compact INR for tables/stats — mirrors the design system's inr():
+ *   ₹1.20Cr, ₹2.50L, ₹75K, ₹999
+ */
+export function formatInrCompact(amount: number | null | undefined): string {
+  const n = amount || 0;
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
+}

@@ -20,6 +20,7 @@ import {
 } from '@/lib/tableUtils';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
+import { formatInrCompact } from '@/lib/indianAmountFormat';
 
 interface ItemType {
   id: string;
@@ -2503,8 +2504,8 @@ function MenuPageContent() {
                       >
                         <td className="py-3 px-2 text-sm text-[var(--text-1)] main">{template.name}</td>
                         <td className="py-3 px-2 text-sm text-[var(--text-2)]">{template.category || 'General'}</td>
-                        <td className="py-3 px-2 text-sm text-[var(--text-2)] num">
-                          INR {(template.ratePerPlate || 0).toLocaleString('en-IN')}
+                        <td className="py-3 px-2 text-sm text-[var(--text-2)] num" title={`₹${(template.ratePerPlate || 0).toLocaleString('en-IN')}`}>
+                          {formatInrCompact(template.ratePerPlate)}
                         </td>
                         <td className="py-3 px-2 text-sm font-medium text-teal-700 dark:text-teal-200">
                           {roundedPoints} pts

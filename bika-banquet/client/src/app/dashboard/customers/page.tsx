@@ -37,6 +37,7 @@ import {
   getNextSort,
 } from '@/lib/tableUtils';
 import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
+import { formatInrCompact } from '@/lib/indianAmountFormat';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
@@ -234,7 +235,7 @@ function CustomerDetailPanel({
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
           {[
-            ['Lifetime value', `₹${lifetimeValue.toLocaleString('en-IN')}`],
+            ['Lifetime value', formatInrCompact(lifetimeValue)],
             ['Bookings', String(bookings.length)],
             ['Priority', `${customer.priority ?? 3}/5`],
             ['Member since', formatDateDDMMYYYY(customer.createdAt)],
@@ -322,8 +323,8 @@ function CustomerDetailPanel({
                   <tr key={b.id} className="border-b border-[var(--border)] last:border-0">
                     <td className="py-2.5 px-4 text-sm text-[var(--text-1)]">{b.functionName}</td>
                     <td className="py-2.5 px-4 text-sm text-[var(--text-2)] whitespace-nowrap">{formatDateCompact(b.functionDate)}</td>
-                    <td className="py-2.5 px-4 text-sm text-right font-medium text-[var(--text-1)]">
-                      ₹{(b.grandTotal || 0).toLocaleString('en-IN')}
+                    <td className="py-2.5 px-4 text-sm text-right font-medium text-[var(--text-1)] num" title={`₹${(b.grandTotal || 0).toLocaleString('en-IN')}`}>
+                      {formatInrCompact(b.grandTotal)}
                     </td>
                     <td className="py-2.5 px-4">
                       <StatusBadge status={b.status} />
