@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bika Banquets — Operations Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/lucide@0.447.0/dist/umd/lucide.min.js"></script>
+<link rel="stylesheet" href="styles/tokens.css"/>
+<link rel="stylesheet" href="styles/app.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="src/data.js"></script>
+<script src="src/live.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- shared helpers -->
+<script type="text/babel" src="src/components.jsx"></script>
+<!-- shell: sidebar, topbar, command palette -->
+<script type="text/babel" src="src/shell.jsx"></script>
+<!-- screens -->
+<script type="text/babel" src="src/screens/Dashboard.jsx"></script>
+<script type="text/babel" src="src/screens/Bookings.jsx"></script>
+<script type="text/babel" src="src/screens/Calendar.jsx"></script>
+<script type="text/babel" src="src/screens/Other.jsx"></script>
+<!-- tweaks panel -->
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─── Tweaks defaults ───────────────────────────────────────────
+const TWEAK_DEFAULTS = {
+  density:  'balanced',   // compact | balanced | comfy
+  theme:    'light',      // light | dark
+  live:     true,         // live activity on/off
+};
+
+// ─── Main App ──────────────────────────────────────────────────
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const { density, theme, live } = tweaks;
+
+  const [route, setRoute] = useState('dashboard');
+  const [sideCollapsed, setSideCollapsed] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const [sheetBookingId, setSheetBookingId] = useState(null);
+  const [newBookingOpen, setNewBookingOpen] = useState(false);
+  const [activity, setActivity] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const tickRef = useRef(null);
+  const intervalRef = useRef(null);
+
+  // ── theme applied to html element ──────────────────────────
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  // ── theme toggle via custom event ──────────────────────────
+  useEffect(() => {
+    const h = () => setTweak('theme', theme === 'dark' ? 'light' : 'dark');
+    window.addEventListener('bika:toggle-theme', h);
+    return () => window.removeEventListener('bika:toggle-theme', h);
+  }, [theme]);
+
+  // ── keyboard shortcuts ─────────────────────────────────────
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdOpen(o => !o); }
+      if (e.key === 'Escape') { setCmdOpen(false); setSheetBookingId(null); setNewBookingOpen(false); }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // ── live activity feed ─────────────────────────────────────
+  useEffect(() => {
+    const tickFn = createActivityFeed(setActivity, live);
+    if (!live || !tickFn) return;
+    intervalRef.current = setInterval(() => tickFn(live), 4200);
+    return () => clearInterval(intervalRef.current);
+  }, [live]);
+
+  // ── toast helper ───────────────────────────────────────────
+  function toast(title, msg, kind = 'info') {
+    const id = Date.now();
+    setToasts(t => [{ id, title, msg, kind }, ...t].slice(0, 4));
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
+  }
+
+  // ── re-init Lucide icons after each render ─────────────────
+  useEffect(() => {
+    if (window.lucide) lucide.createIcons();
+  });
+
+  // ── badge counts ───────────────────────────────────────────
+  const counts = {
+    bookings: BIKA.bookings.filter(b => b.status !== 'cancelled').length,
+    enquiries: BIKA.enquiries.length,
+    duePayments: BIKA.bookings.filter(b => b.balance > 0 && b.status === 'confirmed').length,
+  };
+
+  const crumbs = {
+    dashboard: ['Bika Banquets', 'Dashboard'],
+    bookings:  ['Bika Banquets', 'Bookings'],
+    calendar:  ['Bika Banquets', 'Calendar'],
+    enquiries: ['Bika Banquets', 'Enquiries'],
+    customers: ['Bika Banquets', 'Customers'],
+    payments:  ['Bika Banquets', 'Payments'],
+    venues:    ['Bika Banquets', 'Venues'],
+    menu:      ['Bika Banquets', 'Menu & Items'],
+    reports:   ['Bika Banquets', 'Reports'],
+    logs:      ['Bika Banquets', 'Activity'],
+    settings:  ['Bika Banquets', 'Settings'],
+  }[route] || ['Bika Banquets'];
+
+  function openBookingById(id) {
+    setNewBookingOpen(false);
+    setSheetBookingId(id);
+    if (route !== 'bookings') setRoute('bookings');
+  }
+
+  return (
+    <div className="app" data-density={density} data-side={sideCollapsed ? 'collapsed' : 'open'}>
+      <Sidebar
+        route={route}
+        setRoute={(r) => { setRoute(r); setSheetBookingId(null); setNewBookingOpen(false); }}
+        collapsed={sideCollapsed}
+        counts={counts}
+      />
+
+      <TopBar
+        crumbs={crumbs}
+        onOpenCmd={() => setCmdOpen(true)}
+        live={live}
+        toggleLive={() => setTweak('live', !live)}
+        theme={theme}
+        toggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
+        toggleSide={() => setSideCollapsed(s => !s)}
+      />
+
+      <main className="main">
+        {route === 'dashboard' && (
+          <Dashboard activity={activity} setRoute={setRoute}/>
+        )}
+        {route === 'bookings' && (
+          <>
+            <Bookings
+              openSheetForBookingId={openBookingById}
+              sheetBookingId={sheetBookingId}
+              closeSheet={() => setSheetBookingId(null)}
+              onNew={() => { setSheetBookingId(null); setNewBookingOpen(true); }}
+            />
+            {newBookingOpen && <NewBookingSheet onClose={() => setNewBookingOpen(false)}/>}
+          </>
+        )}
+        {route === 'calendar'  && <Calendar openSheetForBookingId={openBookingById}/>}
+        {route === 'enquiries' && <Enquiries/>}
+        {route === 'customers' && <Customers openCustomer={() => {}}/>}
+        {route === 'payments'  && <Payments/>}
+        {route === 'venues'    && <Venues/>}
+        {route === 'menu'      && <MenuScreen/>}
+        {route === 'reports'   && <Reports/>}
+        {route === 'logs'      && <Logs/>}
+        {route === 'settings'  && <Settings/>}
+      </main>
+
+      {cmdOpen && (
+        <CommandPalette
+          onClose={() => setCmdOpen(false)}
+          setRoute={(r) => { setRoute(r); setCmdOpen(false); }}
+          openBookingById={(id) => { openBookingById(id); setCmdOpen(false); }}
+        />
+      )}
+
+      {/* Toasts */}
+      <div className="toasts">
+        {toasts.map(t => (
+          <div key={t.id} className="toast">
+            <div className="ttl">{t.title}</div>
+            {t.msg && <div className="msg">{t.msg}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Tweaks panel */}
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Density">
+          <TweakRadio label="Density" value={density}
+            options={['compact','balanced','comfy']}
+            onChange={v => setTweak('density', v)}/>
+        </TweakSection>
+        <TweakSection label="Theme">
+          <TweakRadio label="Theme" value={theme}
+            options={['light','dark']}
+            onChange={v => setTweak('theme', v)}/>
+        </TweakSection>
+        <TweakSection label="Live activity">
+          <TweakToggle label="Real-time feed" value={live}
+            onChange={v => setTweak('live', v)}/>
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

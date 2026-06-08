@@ -292,7 +292,7 @@ export default function ReportsPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="ops-route ops-report-route">
       <Toolbar
         title="Reports"
         stats={[

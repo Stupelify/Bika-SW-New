@@ -551,7 +551,7 @@ export default function EnquiriesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ops-route ops-list-route">
       <Toolbar
         title="Enquiries"
         stats={[
@@ -1075,9 +1075,10 @@ export default function EnquiriesPage() {
                   {paginatedEnquiries.map((enquiry) => (
                     <tr
                       key={enquiry.id}
-                      className={`border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(
+                      className={`ops-click-row border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(
                         enquiry.isPencilBooked ? 'pencil' : enquiry.quotationSent ? 'quotation' : enquiry.status
                       )}`}
+                      onClick={() => canEditEnquiry && openEditPrompt(enquiry)}
                     >
                       <td className="py-4 px-4 main">
                         <p className="font-medium text-[var(--text-1)]">{enquiry.functionName}</p>
@@ -1106,7 +1107,7 @@ export default function EnquiriesPage() {
                           {enquiry.isPencilBooked && <StatusBadge status="pencil" />}
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="ops-secondary-actions py-4 px-4 text-right" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           {canEditEnquiry && (
                             <button

@@ -10,7 +10,6 @@ import FilterPanel from '@/components/FilterPanel';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
-import HallCard from '@/components/HallCard';
 import {
   SortState,
   TableColumnConfig,
@@ -102,7 +101,6 @@ function HallsPageContent() {
 
   const [banquets, setBanquets] = useState<Banquet[]>([]);
   const [halls, setHalls] = useState<Hall[]>([]);
-  const [weeklyBookings, setWeeklyBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingBanquet, setSavingBanquet] = useState(false);
   const [savingHall, setSavingHall] = useState(false);
@@ -286,21 +284,15 @@ function HallsPageContent() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const today = new Date();
-      const fromDate = today.toISOString().split('T')[0];
-      const toDate = new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
       const canFetchBanquet = hasAnyPermission(permissionSet, ['view_banquet', 'add_banquet', 'edit_banquet', 'add_hall', 'manage_halls']);
       const canFetchHall = hasAnyPermission(permissionSet, ['view_hall', 'add_hall', 'edit_hall', 'manage_halls']);
-      const [banquetsRes, hallsRes, bookingsRes] = await Promise.all([
+      const [banquetsRes, hallsRes] = await Promise.all([
         canFetchBanquet ? api.getBanquets({ page: 1, limit: 5000 }) : Promise.resolve(null),
         canFetchHall ? api.getHalls({ page: 1, limit: 5000 }) : Promise.resolve(null),
-        canFetchHall ? api.getBookings({ fromDate, toDate, limit: 1000 }) : Promise.resolve(null),
       ]);
       const banquetRows = banquetsRes?.data?.data?.banquets || [];
       setBanquets(banquetRows);
       setHalls(hallsRes?.data?.data?.halls || []);
-      setWeeklyBookings(bookingsRes?.data?.data?.bookings || []);
       if (banquetRows.length > 0) {
         setHallForm((prev) => ({ ...prev, banquetId: prev.banquetId || banquetRows[0].id }));
       }
@@ -463,7 +455,7 @@ function HallsPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ops-route ops-catalog-route">
       <Toolbar
         title="Venues & Halls"
         stats={[
@@ -681,38 +673,32 @@ function HallsPageContent() {
       </FormPromptModal>
 
       {(canViewBanquet || canViewHall) && (
-        <div className="card p-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="ops-section-tabs" role="tablist" aria-label="Venue sections">
             <button
               type="button"
+              role="tab"
+              aria-selected={activeVenueSection === 'banquet'}
               onClick={() => navigateToVenueSection('banquet')}
               disabled={!canViewBanquet}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeVenueSection === 'banquet' && canViewBanquet
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+              className={`ops-section-tab ${activeVenueSection === 'banquet' && canViewBanquet ? 'active' : ''}`}
             >
               Banquet
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={activeVenueSection === 'hall'}
               onClick={() => navigateToVenueSection('hall')}
               disabled={!canViewHall}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeVenueSection === 'hall' && canViewHall
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+              className={`ops-section-tab ${activeVenueSection === 'hall' && canViewHall ? 'active' : ''}`}
             >
               Hall
             </button>
-          </div>
         </div>
       )}
 
       {(canViewBanquet || canViewHall) && (
-        <div className="card">
+        <div className="ops-catalog-panel card">
         {activeVenueSection === 'banquet' ? (
           <>
             <div className="page-head mb-4">
@@ -821,7 +807,11 @@ function HallsPageContent() {
                   </thead>
                   <tbody>
                     {paginatedBanquets.map((banquet) => (
-                      <tr key={banquet.id} className="border-b border-[var(--border)]">
+                      <tr
+                        key={banquet.id}
+                        className="ops-click-row border-b border-[var(--border)]"
+                        onClick={() => canEditBanquet && openEditBanquet(banquet)}
+                      >
                         <td className="py-3 px-2 text-sm text-[var(--text-1)] main">{banquet.name}</td>
                         <td className="py-3 px-2 text-sm text-[var(--text-2)]">
                           {[banquet.location, banquet.city, banquet.state]
@@ -831,7 +821,7 @@ function HallsPageContent() {
                         <td className="py-3 px-2 text-sm text-[var(--text-2)]">
                           {banquet.halls?.length || 0}
                         </td>
-                        <td className="py-3 px-2 text-right">
+                        <td className="ops-secondary-actions py-3 px-2 text-right" onClick={(event) => event.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             {canEditBanquet && (
                               <button
@@ -942,21 +932,50 @@ function HallsPageContent() {
                 <p className="empty-state-desc">Add a hall to make it available for bookings.</p>
               </div>
             ) : (
-              <div className="table-shell" style={{ border: 'none', background: 'transparent', padding: 0 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', paddingBottom: '16px' }}>
-                  {paginatedHalls.map((hall) => (
-                    <HallCard
-                      key={hall.id}
-                      hall={hall as any}
-                      startDate={new Date()}
-                      bookings={weeklyBookings}
-                      canEdit={canEditHall}
-                      canDelete={canDeleteHall}
-                      onEdit={() => openEditHall(hall)}
-                      onDelete={() => deleteHall(hall.id)}
-                    />
-                  ))}
-                </div>
+              <div className="table-shell">
+                <table className="ops-halls-table data-table">
+                  <thead>
+                    <tr>
+                      <th>Hall</th>
+                      <th>Banquet</th>
+                      <th>Location</th>
+                      <th>Capacity</th>
+                      <th>Area</th>
+                      <th>Rate</th>
+                      <th className="text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedHalls.map((hall) => (
+                      <tr
+                        key={hall.id}
+                        className="ops-click-row"
+                        onClick={() => canEditHall && openEditHall(hall)}
+                      >
+                        <td className="main">{hall.name}</td>
+                        <td>{hall.banquet?.name || 'Unassigned'}</td>
+                        <td>{hall.location || '—'}</td>
+                        <td className="num">{hall.capacity || '—'}</td>
+                        <td className="num">{hall.area ? `${hall.area} sq ft` : '—'}</td>
+                        <td className="num">{hall.rate || hall.basePrice || '—'}</td>
+                        <td className="ops-secondary-actions text-right" onClick={(event) => event.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-2">
+                            {canEditHall && (
+                              <button className="p-2" onClick={() => openEditHall(hall)} aria-label={`Edit ${hall.name}`}>
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canDeleteHall && (
+                              <button className="p-2" onClick={() => deleteHall(hall.id)} aria-label={`Delete ${hall.name}`}>
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
                 <TablePagination
                   currentPage={hallPage}
                   totalPages={hallTotalPages}

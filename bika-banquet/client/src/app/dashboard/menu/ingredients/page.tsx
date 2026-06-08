@@ -412,7 +412,7 @@ export default function IngredientsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="ops-route ops-catalog-route">
       <div>
         <h1 className="page-title">Ingredients</h1>
       </div>

@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bika Ops — Design Gap Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FAFAF9;
+    --surface: #FFFFFF;
+    --surface-2: #F5F4F2;
+    --border: #E8E6E3;
+    --border-2: #D1CEC9;
+    --text-1: #1C1917;
+    --text-2: #44403C;
+    --text-3: #78716C;
+    --text-4: #A8A29E;
+    --accent: #0F766E;
+    --accent-soft: #F0FDFA;
+    --red: #B91C1C;
+    --red-soft: #FEF2F2;
+    --amber: #B45309;
+    --amber-soft: #FFFBEB;
+    --green: #15803D;
+    --green-soft: #F0FDF4;
+    --blue: #1D4ED8;
+    --blue-soft: #EFF6FF;
+    --purple: #7C3AED;
+    --purple-soft: #F5F3FF;
+    --font: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --r: 5px;
+  }
+
+  html { background: var(--bg); color: var(--text-1); font-family: var(--font); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+  body { max-width: 1080px; margin: 0 auto; padding: 48px 32px 96px; }
+
+  /* ── Header ── */
+  .doc-header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 40px; }
+  .doc-header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+  .doc-header .meta { display: flex; gap: 20px; margin-top: 8px; color: var(--text-3); font-size: 11.5px; font-family: var(--mono); }
+  .doc-header .meta span { display: flex; align-items: center; gap: 5px; }
+
+  /* ── Section ── */
+  section { margin-bottom: 48px; }
+  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); font-family: var(--mono); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text-1); }
+
+  /* ── Summary cards ── */
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 40px; }
+  .sum-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; }
+  .sum-card .num { font-size: 28px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+  .sum-card .lbl { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+  .sum-card.red .num { color: var(--red); }
+  .sum-card.amber .num { color: var(--amber); }
+  .sum-card.green .num { color: var(--green); }
+  .sum-card.blue .num { color: var(--blue); }
+
+  /* ── Comparison table ── */
+  .cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 8px; }
+  .cmp thead tr { background: var(--surface-2); }
+  .cmp th { text-align: left; padding: 8px 12px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); font-family: var(--mono); border-bottom: 1px solid var(--border); }
+  .cmp th:first-child { width: 18%; }
+  .cmp th:nth-child(2), .cmp th:nth-child(3) { width: 34%; }
+  .cmp th:last-child { width: 14%; text-align: center; }
+  .cmp td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-2); }
+  .cmp td:first-child { font-weight: 500; color: var(--text-1); font-size: 12px; }
+  .cmp td:last-child { text-align: center; }
+  .cmp tr:last-child td { border-bottom: none; }
+  .cmp tr:hover td { background: var(--surface-2); }
+  .cmp .code { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+
+  /* ── Gap tags ── */
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 3px; font-size: 10.5px; font-weight: 600; font-family: var(--mono); white-space: nowrap; }
+  .tag.match    { background: var(--green-soft); color: var(--green); }
+  .tag.minor    { background: var(--amber-soft); color: var(--amber); }
+  .tag.major    { background: var(--red-soft);   color: var(--red); }
+  .tag.new      { background: var(--blue-soft);  color: var(--blue); }
+  .tag.missing  { background: var(--purple-soft);color: var(--purple); }
+
+  /* ── Feature delta lists ── */
+  .delta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .delta-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; }
+  .delta-box h4 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); font-family: var(--mono); margin-bottom: 10px; }
+  .delta-box ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .delta-box li { font-size: 12.5px; color: var(--text-2); display: flex; align-items: flex-start; gap: 8px; }
+  .delta-box li::before { content: "→"; color: var(--text-4); flex-shrink: 0; font-family: var(--mono); font-size: 11px; margin-top: 1px; }
+  .delta-box.redesign { border-color: #99F6E4; background: #FAFFFE; }
+  .delta-box.redesign h4 { color: var(--accent); }
+  .delta-box.codebase { border-color: #BFDBFE; background: #FAFCFF; }
+  .delta-box.codebase h4 { color: var(--blue); }
+
+  /* ── Token diff ── */
+  .token-row { display: grid; grid-template-columns: 140px 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 10px; }
+  .token-row .tk { padding: 10px 14px; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  .token-row .tk:first-child { background: var(--surface-2); font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--text-3); border-right: 1px solid var(--border); }
+  .token-row .tk:nth-child(2) { border-right: 1px solid var(--border); }
+  .token-row .tk:nth-child(3) { background: #FAFFFE; }
+  .swatch { width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.08); }
+
+  /* ── Priority matrix ── */
+  .matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .matrix-col { border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+  .matrix-col .col-head { padding: 8px 12px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; font-family: var(--mono); border-bottom: 1px solid var(--border); }
+  .matrix-col.p1 .col-head { background: #FEF2F2; color: var(--red); }
+  .matrix-col.p2 .col-head { background: #FFFBEB; color: var(--amber); }
+  .matrix-col.p3 .col-head { background: #F0FDF4; color: var(--green); }
+  .matrix-item { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+  .matrix-item:last-child { border-bottom: none; }
+  .matrix-item strong { display: block; color: var(--text-1); font-size: 12px; margin-bottom: 2px; }
+  .matrix-item span { font-size: 11px; color: var(--text-3); }
+
+  /* ── Callout ── */
+  .callout { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--r); padding: 12px 16px; font-size: 12.5px; color: var(--text-2); margin-bottom: 16px; }
+  .callout strong { color: var(--text-1); }
+  .callout.warn { border-left-color: var(--amber); }
+  .callout.bad  { border-left-color: var(--red); }
+
+  /* ── Legend ── */
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-3); }
+
+  /* ── Screen section ── */
+  .screen-section { margin-bottom: 32px; }
+  .screen-section .screen-title { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .screen-title h3 { margin: 0; }
+  .screen-label { font-family: var(--mono); font-size: 10px; color: var(--text-4); background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; padding: 2px 6px; }
+
+  @media (max-width: 720px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .delta-grid { grid-template-columns: 1fr; }
+    .matrix { grid-template-columns: 1fr; }
+    .token-row { grid-template-columns: 120px 1fr; }
+    .token-row .tk:nth-child(3) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <h1>Bika Banquet Ops — Design Gap Analysis</h1>
+  <div class="meta">
+    <span>Redesign: <b>Bika Banquet Redesign.html</b></span>
+    <span>Codebase: <b>eventflow-ops/src</b></span>
+    <span>Date: <b>June 1, 2026</b></span>
+  </div>
+</div>
+
+<!-- SUMMARY COUNTS -->
+<div class="summary-grid">
+  <div class="sum-card red">
+    <div class="num">6</div>
+    <div class="lbl">Major gaps — features in codebase not covered by redesign</div>
+  </div>
+  <div class="sum-card amber">
+    <div class="num">5</div>
+    <div class="lbl">Divergences — same screen, different approach</div>
+  </div>
+  <div class="sum-card green">
+    <div class="num">4</div>
+    <div class="lbl">Redesign improvements over codebase</div>
+  </div>
+  <div class="sum-card blue">
+    <div class="num">3</div>
+    <div class="lbl">Net-new features only in redesign</div>
+  </div>
+</div>
+
+<!-- ── 1. TOKEN SYSTEM ── -->
+<section>
+  <h2>01 — Token &amp; Theme System</h2>
+
+  <div class="callout">
+    The two systems share the same structural intent — semantic CSS custom properties, light/dark modes — but diverge on palette warmth, accent hue, radius scale, and typeface. These differences cascade to every screen and must be resolved before implementation handoff.
+  </div>
+
+  <div class="token-row">
+    <div class="tk">Token</div>
+    <div class="tk" style="font-size:11px;font-weight:600;color:var(--blue);font-family:var(--mono);">Codebase (eventflow-ops)</div>
+    <div class="tk" style="font-size:11px;font-weight:600;color:var(--accent);font-family:var(--mono);">Redesign (Bika Banquet Redesign)</div>
+  </div>
+
+  <div class="token-row">
+    <div class="tk">Background</div>
+    <div class="tk"><div class="swatch" style="background:#fafafa;"></div><span class="code">#fafafa — cool zinc</span></div>
+    <div class="tk"><div class="swatch" style="background:#FAFAF9;"></div><span class="code">#FAFAF9 — warm stone</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Foreground</div>
+    <div class="tk"><div class="swatch" style="background:#18181b;"></div><span class="code">#18181b — zinc-900</span></div>
+    <div class="tk"><div class="swatch" style="background:#1C1917;"></div><span class="code">#1C1917 — stone-900</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Accent (light)</div>
+    <div class="tk"><div class="swatch" style="background:#2563eb;"></div><span class="code">#2563eb — blue-600</span></div>
+    <div class="tk"><div class="swatch" style="background:#0F766E;"></div><span class="code">#0F766E — teal-700</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Accent (dark)</div>
+    <div class="tk"><div class="swatch" style="background:#3b82f6;"></div><span class="code">#3b82f6 — blue-500</span></div>
+    <div class="tk"><div class="swatch" style="background:#2DD4BF;"></div><span class="code">#2DD4BF — teal-400</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Border</div>
+    <div class="tk"><div class="swatch" style="background:#e4e4e7;"></div><span class="code">#e4e4e7 — zinc-200</span></div>
+    <div class="tk"><div class="swatch" style="background:#EBE9E6;"></div><span class="code">#EBE9E6 — warm neutral</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Confirmed</div>
+    <div class="tk"><div class="swatch" style="background:#059669;"></div><span class="code">#059669 — emerald-600</span></div>
+    <div class="tk"><div class="swatch" style="background:#16A34A;"></div><span class="code">#16A34A — green-600</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Pencil</div>
+    <div class="tk"><div class="swatch" style="background:#d97706;"></div><span class="code">#d97706 — amber-600</span></div>
+    <div class="tk"><div class="swatch" style="background:#D97706;"></div><span class="code">#D97706 — amber-600 ✓ match</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Quotation</div>
+    <div class="tk"><div class="swatch" style="background:#7c3aed;"></div><span class="code">#7c3aed — violet-600</span></div>
+    <div class="tk"><div class="swatch" style="background:#2563EB;"></div><span class="code">#2563EB — blue-600</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Conflict/Cancel</div>
+    <div class="tk"><div class="swatch" style="background:#dc2626;"></div><span class="code">#dc2626 — red-600</span></div>
+    <div class="tk"><div class="swatch" style="background:#DC2626;"></div><span class="code">#DC2626 — red-600 ✓ match</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Radius scale</div>
+    <div class="tk"><span class="code">sm: 2px · md: 2px · lg: 3px (near-zero)</span></div>
+    <div class="tk"><span class="code">sm: 4px · md: 6px · lg: 8px · pill: 999px</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Font — sans</div>
+    <div class="tk"><span class="code">IBM Plex Sans 400/500/600</span></div>
+    <div class="tk"><span class="code">Inter Tight 400/500/600/700</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Font — mono</div>
+    <div class="tk"><span class="code">IBM Plex Mono 400/500</span></div>
+    <div class="tk"><span class="code">JetBrains Mono 400/500</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Base font size</div>
+    <div class="tk"><span class="code">12px — fixed compact throughout</span></div>
+    <div class="tk"><span class="code">Variable — density system governs sizing</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Density</div>
+    <div class="tk"><span class="code">None — single fixed density</span></div>
+    <div class="tk"><span class="code">compact / balanced / comfy via CSS vars</span></div>
+  </div>
+  <div class="token-row">
+    <div class="tk">Dark mode</div>
+    <div class="tk"><span class="code">.dark class on html — zinc bg (#09090b)</span></div>
+    <div class="tk"><span class="code">[data-theme=dark] on html — stone bg (#0C0A09)</span></div>
+  </div>
+
+  <p style="font-size:12px; color:var(--text-3); margin-top: 10px;">⚑ <strong style="color:var(--amber)">Action required:</strong> Quotation status colour diverges meaningfully — violet in codebase vs blue in redesign. Needs a single decision before implementation.</p>
+</section>
+
+<!-- ── 2. SHELL / NAVIGATION ── -->
+<section>
+  <h2>02 — Shell &amp; Navigation</h2>
+
+  <div class="callout warn">
+    <strong>Major structural divergence.</strong> The codebase uses a horizontal top-nav bar with all 10 links in a scrollable strip. The redesign uses a collapsible left sidebar with grouped sections and a user footer. This is the most foundational difference — it changes scroll behaviour, available width, and hierarchy across every screen.
+  </div>
+
+  <table class="cmp">
+    <thead>
+      <tr>
+        <th>Element</th>
+        <th>Codebase</th>
+        <th>Redesign</th>
+        <th>Gap</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Nav layout</td>
+        <td>Horizontal header strip, 10 links, scrollable on small screens. Height: 44px (h-11).</td>
+        <td>Left sidebar, collapsible (220px → 56px icon-only), grouped into "Operate" / "Catalog" sections.</td>
+        <td><span class="tag major">MAJOR</span></td>
+      </tr>
+      <tr>
+        <td>Brand mark</td>
+        <td><span class="code">■ BIKA_OPS v2.4</span> — square accent dot + mono label + version badge.</td>
+        <td><span class="code">B</span> monogram mark in sidebar header + "Bika Banquet" wordmark.</td>
+        <td><span class="tag minor">MINOR</span></td>
+      </tr>
+      <tr>
+        <td>Nav grouping</td>
+        <td>Flat list — no visual grouping between primary and ops sections.</td>
+        <td>Two labelled groups: "Operate" (Dashboard–Payments) and "Catalog" (Venues–Settings).</td>
+        <td><span class="tag new">REDESIGN</span></td>
+      </tr>
+      <tr>
+        <td>Badge counts</td>
+        <td>None on nav items.</td>
+        <td>Count badges on Bookings, Enquiries, Payments nav items.</td>
+        <td><span class="tag new">REDESIGN</span></td>
+      </tr>
+      <tr>
+        <td>User identity</td>
+        <td>Initials avatar ("SI") in top-right, no name/role visible.</td>
+        <td>User footer in sidebar: avatar + full name + role + branch ("Priya Nambiar · Operations Lead · Andheri").</td>
+        <td><span class="tag new">REDESIGN</span></td>
+      </tr>
+      <tr>
+        <td>Top bar content</td>
+        <td>Nav links + search trigger + live clock (Mumbai) + theme toggle + avatar.</td>
+        <td>Sidebar toggle + breadcrumbs + search trigger + live indicator dot + theme toggle.</td>
+        <td><span class="tag minor">MINOR</span></td>
+      </tr>
+      <tr>
+        <td>Live clock</td>
+        <td>Present — real-time HH:MM:SS + "Mumbai" label in top-right.</td>
+        <td>Absent — replaced by live activity dot indicator.</td>
+        <td><span class="tag missing">CODEBASE ONLY</span></td>
+      </tr>
+      <tr>
+        <td>Breadcrumbs</td>
+        <td>Absent.</td>
+        <td>Present — "Bika Banquets / Dashboard" style path in top bar.</td>
+        <td><span class="tag new">REDESIGN</span></td>
+      </tr>
+      <tr>
+        <td>Command palette</td>
+        <td>Full implementation — searches Bookings, Customers, Halls, Pages with group labels. ⌘K shortcut.</td>
+        <td>Present — same scope, similar UI.</td>
+        <td><span class="tag match">MATCH</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 3. DASHBOARD ── -->
+<section>
+  <h2>03 — Dashboard</h2>
+
+  <div class="delta-grid">
+    <div class="delta-box codebase">
+      <h4>Codebase only</h4>
+      <ul>
+        <li>6-KPI strip: Revenue, Received, Total dues, Today count, Pencils, Conflicts — all flat numbers, no trends</li>
+        <li>14-day cash inflow bar sparkline (standalone chart below KPIs)</li>
+        <li>Enquiry funnel — horizontal bar chart by stage</li>
+        <li>Today's events table — time, function, customer, hall, guests, total, status</li>
+        <li>Alerts panel — conflicts, pencil expirations, overdue balances with left-border callouts</li>
+        <li>All data wired to live mock data (detectConflicts, bookingTotal, etc.)</li>
+      </ul>
+    </div>
+    <div class="delta-box redesign">
+      <h4>Redesign only / improvements</h4>
+      <ul>
+        <li>5 KPI tiles with inline sparkline + trend delta arrow (↑ / ↓) per tile</li>
+        <li>12-month revenue bar chart (trailing year) with month labels and INR Lakh scale</li>
+        <li>Hall utilization donut chart + legend grid — visual venue mix at a glance</li>
+        <li>Upcoming events table (next 7 days) — same columns as codebase today-table</li>
+        <li>Insights panel — 4 cards with good/warn/bad/info kind badges and icons</li>
+        <li>Live activity feed — real-time event stream (who did what to which booking)</li>
+        <li>Today's checklist widget — 7 tasks, done/undone toggle, assignee labels</li>
+        <li>Date-range tab bar (Today / This week / 30 days / Quarter)</li>
+        <li>Export button and New Booking CTA in page header</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="font-size:12px; color:var(--text-3); margin-top:12px;">The redesign dashboard is substantially richer. The codebase dashboard prioritises operational status (conflicts, pencils, dues). The redesign adds trend awareness (sparklines, 12m chart), strategic context (donut utilization, insights), and team coordination (checklist, live feed). Both are valid but serve different roles — consider merging the conflict/alert logic from the codebase into the redesign's alert section.</p>
+</section>
+
+<!-- ── 4. CALENDAR ── -->
+<section>
+  <h2>04 — Calendar</h2>
+
+  <div class="callout bad">
+    <strong>Biggest codebase advantage.</strong> The HallBoard (venue timeline view) in <code style="font-family:var(--mono);font-size:11px;">eventflow-ops</code> is the most sophisticated screen in the entire system. The redesign's calendar covers month, week, and venue timeline at a high level but lacks several production-grade details that are already built.
+  </div>
+
+  <table class="cmp">
+    <thead>
+      <tr><th>Feature</th><th>Codebase</th><th>Redesign</th><th>Gap</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Venue timeline (hall board)</td>
+        <td>Pixel-precise: 08:00–02:00 (26h), 64px/hr, per-hall rows, hour grid lines, sticky time header, venue group headers.</td>
+        <td>Present — "Venue timeline" tab exists in Calendar.jsx.</td>
+        <td><span class="tag match">MATCH</span></td>
+      </tr>
+      <tr>
+        <td>Conflict detection</td>
+        <td>Real-time detectConflicts() — overlapping hall bookings pulsing red (pulse-conflict animation), sticky conflict banner at top of board, conflict count in KPI strip.</td>
+        <td>Not visible in redesign calendar code.</td>
+        <td><span class="tag missing">CODEBASE ONLY</span></td>
+      </tr>
+      <tr>
+        <td>Pencil hatch pattern</td>
+        <td>CSS diagonal stripe utility (.hatch-pencil) applied to pencil-status event blocks — visually distinct at a glance.</td>
+        <td>Status uses color fill + dot badge; no hatch.</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+      <tr>
+        <td>Left filter rail</td>
+        <td>Date picker + view switcher + status filter checkboxes + source filter (in-app / Google) + per-hall occupancy bars.</td>
+        <td>Filter pill-bar above calendar grid. Rail not shown.</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+      <tr>
+        <td>Hall occupancy bars</td>
+        <td>Per-hall micro progress bars in left rail: used hours vs 14h capacity, colour shifts green→blue→red by occupancy %.</td>
+        <td>Absent.</td>
+        <td><span class="tag missing">CODEBASE ONLY</span></td>
+      </tr>
+      <tr>
+        <td>Google Calendar source</td>
+        <td>Dashed border on Google-sourced bookings, cyan colour token (--google), filter toggle in left rail.</td>
+        <td>No Google source distinction visible.</td>
+        <td><span class="tag missing">CODEBASE ONLY</span></td>
+      </tr>
+      <tr>
+        <td>Pencil expiry countdown</td>
+        <td>Expiry relative time shown inside event block (e.g. "2h left"), coloured with pencil token.</td>
+        <td>Not visible in calendar event blocks.</td>
+        <td><span class="tag missing">CODEBASE ONLY</span></td>
+      </tr>
+      <tr>
+        <td>Month view</td>
+        <td>42-cell grid (Mon-first), per-day revenue badge, overflow "+N more" indicator, click-to-day navigation.</td>
+        <td>Present and similar.</td>
+        <td><span class="tag match">MATCH</span></td>
+      </tr>
+      <tr>
+        <td>Week view</td>
+        <td>7-col grid, today highlight, booking pills per day with customer abbreviation.</td>
+        <td>Present.</td>
+        <td><span class="tag match">MATCH</span></td>
+      </tr>
+      <tr>
+        <td>Booking drawer (right panel)</td>
+        <td>Full 420px drawer: function details, customer, halls, meal packs, money stack, payment ledger, notes. 3-button footer: Edit / Mark Paid / Print.</td>
+        <td>Sheet/overlay approach — detail accessible via booking click.</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 5. BOOKINGS ── -->
+<section>
+  <h2>05 — Bookings</h2>
+
+  <table class="cmp">
+    <thead>
+      <tr><th>Feature</th><th>Codebase</th><th>Redesign</th><th>Gap</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Layout pattern</td>
+        <td>Master-detail: 420px list sidebar + full-width detail pane, both inline on same page.</td>
+        <td>Full-width table list + right-side sheet/drawer overlay for detail.</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+      <tr>
+        <td>List filters</td>
+        <td>Search input + status pill filter (all/confirmed/pencil/quotation/enquiry). Result count shown.</td>
+        <td>Tab bar + search + hall dropdown + date range filter — more filter axes.</td>
+        <td><span class="tag new">REDESIGN</span></td>
+      </tr>
+      <tr>
+        <td>Detail tabs</td>
+        <td>6 tabs: Overview / Money / Packs / Halls / Payments / Versions.</td>
+        <td>Not fully detailed in current screens — likely Overview + Money.</td>
+        <td><span class="tag missing">CODEBASE ONLY</span></td>
+      </tr>
+      <tr>
+        <td>Version history tab</td>
+        <td>Audit trail of edits with version number, date, and editor name (v1…vN).</td>
+        <td>Absent.</td>
+        <td><span class="tag missing">CODEBASE ONLY</span></td>
+      </tr>
+      <tr>
+        <td>Money stack sidebar</td>
+        <td>Always-visible right column in detail: subtotal → discounts → GST → grand total → advance → received → balance + progress bar.</td>
+        <td>Present in drawer.</td>
+        <td><span class="tag match">MATCH</span></td>
+      </tr>
+      <tr>
+        <td>New booking form</td>
+        <td>Full NewBookingSheet component — slide-in overlay with form fields.</td>
+        <td>Present — New booking sheet shown.</td>
+        <td><span class="tag match">MATCH</span></td>
+      </tr>
+      <tr>
+        <td>Paid % progress bar</td>
+        <td>Thin bar per row in list + in detail panel.</td>
+        <td>Present in detail drawer.</td>
+        <td><span class="tag match">MATCH</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 6. OTHER SCREENS ── -->
+<section>
+  <h2>06 — Remaining Screens</h2>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Enquiries</h3>
+      <span class="screen-label">kanban pipeline</span>
+      <span class="tag match">MATCH</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Both implement a 5-column kanban: Lead / Quotation / Pencil / Won / Lost. Column headers show stage name, item count, and aggregated pipeline value. Cards display customer name, function type, date, guest count, estimated value, and halls. Implementation is nearly identical — the redesign uses the same semantic colour tokens per stage.</p>
+  </div>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Customers</h3>
+      <span class="screen-label">master-detail CRM</span>
+      <span class="tag match">MATCH</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Both: 288px list sidebar with search, detail pane with contact fields (phone, alt phone, email, city, community, DOB, anniversary, occupation, company, GST, PAN), referral chain section, and full booking history table. The codebase adds star rating + visit count in the detail header. VIP badge rendered identically (pencil-colour border tag).</p>
+  </div>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Payments</h3>
+      <span class="screen-label">global ledger</span>
+      <span class="tag match">MATCH</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Both: flat table of all payment transactions across all bookings — Date, Booking ID, Customer, Method, Reference, Received by, Amount. Sorted by date descending. Total shown in header. No meaningful difference.</p>
+  </div>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Venues</h3>
+      <span class="screen-label">hall catalogue</span>
+      <span class="tag match">MATCH</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Both: venue-grouped hall tables with Hall name, Floor, Capacity, Floating capacity, Base price, Bookings (30d), Revenue (30d). Codebase version is wired to live mock data calculations.</p>
+  </div>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Menu</h3>
+      <span class="screen-label">items / templates / ingredients / vendors</span>
+      <span class="tag match">MATCH</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Both have 4 tabs. Codebase has Items (with Veg/NV badge), Templates (menu packs with rate + setup cost), Ingredients (stock levels), Vendors (contact + items + last order). Redesign screen exists with equivalent content.</p>
+  </div>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Activity Log</h3>
+      <span class="screen-label">audit trail</span>
+      <span class="tag missing">CODEBASE ONLY</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Codebase has a dedicated Activity route (<code style="font-family:var(--mono);font-size:11px;">activity.tsx</code>) — a full audit log table with When (datetime), User, Action verb, Target booking ID, Function name, and IP address. The redesign surfaces activity only as a live feed widget on the Dashboard, not as a dedicated browsable log screen.</p>
+  </div>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Reports</h3>
+      <span class="screen-label">analytics</span>
+      <span class="tag minor">MINOR</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Codebase: 2 horizontal bar charts — Revenue by function type, Hall utilization by hours. Both wired to live data. Simple and functional. Redesign: donut chart + insights panel on Dashboard partially covers this; a dedicated Reports screen is present but not materially different.</p>
+  </div>
+
+  <div class="screen-section">
+    <div class="screen-title">
+      <h3>Settings</h3>
+      <span class="screen-label">profile / users / roles / integrations / theme</span>
+      <span class="tag match">MATCH</span>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-2);">Both: tabbed settings with Profile, Users (stub), Roles (stub), Integrations (Google Calendar connected status), Theme toggle. Left-rail tab navigation in codebase; redesign uses similar pattern.</p>
+  </div>
+</section>
+
+<!-- ── 7. STATUS BADGE SYSTEM ── -->
+<section>
+  <h2>07 — Status Badge System</h2>
+
+  <div class="callout">
+    This is the most visible design language difference that will affect every list, table, kanban card, and calendar event across the product.
+  </div>
+
+  <table class="cmp">
+    <thead>
+      <tr><th>Aspect</th><th>Codebase</th><th>Redesign</th><th>Gap</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Badge style</td>
+        <td>Border-only. Small uppercase text with coloured border (1px solid tok.color). Transparent background. Very subtle — blends into table rows.</td>
+        <td>Filled background (per-status --st-X-bg). Coloured foreground text (--st-X-fg). Small dot indicator (--st-X-dot). More legible at a glance.</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+      <tr>
+        <td>Status rendering</td>
+        <td><code class="code">statusToken(status)</code> returns <code class="code">{ color, label }</code>. Used inline everywhere with <code class="code">style={{ color: tok.color, border: … }}</code>.</td>
+        <td><code class="code">&lt;StatusBadge s={status}/&gt;</code> component. CSS classes <code class="code">.st.confirmed</code> etc. with dedicated bg/fg/dot vars per status.</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+      <tr>
+        <td>Calendar event fill</td>
+        <td><code class="code">color-mix(in oklab, tok.color 16%, surface)</code> for confirmed; transparent + hatch for pencil; lighter mix for quotation/enquiry.</td>
+        <td>Status background colour fills the event pill in month/week views.</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+      <tr>
+        <td>Quotation colour</td>
+        <td>Violet (#7c3aed)</td>
+        <td>Blue (#2563EB)</td>
+        <td><span class="tag major">CONFLICT</span></td>
+      </tr>
+      <tr>
+        <td>Enquiry colour</td>
+        <td>Zinc/muted (#71717a)</td>
+        <td>Sky blue (#0284C7)</td>
+        <td><span class="tag minor">DIVERGE</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 8. REDESIGN-ONLY FEATURES ── -->
+<section>
+  <h2>08 — Net-New Features in Redesign (not in codebase)</h2>
+
+  <table class="cmp">
+    <thead>
+      <tr><th>Feature</th><th>Description</th><th>Where</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Density system</td>
+        <td>Three-tier: compact / balanced / comfy. Governs --row-h, --cell-py, --cell-px, --gap, --section-py via CSS custom properties on .app[data-density]. Switchable at runtime via Tweaks panel.</td>
+        <td>tokens.css + Tweaks</td>
+      </tr>
+      <tr>
+        <td>Live activity feed</td>
+        <td>Real-time event stream on dashboard: "Anita updated BK-24302 · Pencil → Confirmed". Simulated via createActivityFeed() with 4.2s tick. Togglable via "Live" indicator in top bar.</td>
+        <td>Dashboard, TopBar</td>
+      </tr>
+      <tr>
+        <td>KPI sparklines</td>
+        <td>Each KPI tile includes a 12-point sparkline and a trend delta badge (e.g. "+14.2% ↑"). The codebase shows flat numbers only.</td>
+        <td>Dashboard</td>
+      </tr>
+      <tr>
+        <td>Tweaks panel</td>
+        <td>In-prototype control panel for density, theme, and live feed — useful for demo/handoff but also a genuine density/theme preference surface for production.</td>
+        <td>App-wide</td>
+      </tr>
+      <tr>
+        <td>Insights widget</td>
+        <td>4 AI-style insight cards on dashboard with good/warn/bad/info classification and icons.</td>
+        <td>Dashboard</td>
+      </tr>
+      <tr>
+        <td>Today's checklist</td>
+        <td>7-item daily ops checklist with assignee, done/undone state, completion count in header.</td>
+        <td>Dashboard</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 9. PRIORITY MATRIX ── -->
+<section>
+  <h2>09 — Implementation Priority Matrix</h2>
+
+  <p style="font-size:12.5px; color:var(--text-3); margin-bottom:16px;">What needs to be resolved before the redesign can be handed off to engineering as a complete spec for eventflow-ops.</p>
+
+  <div class="matrix">
+    <div class="matrix-col p1">
+      <div class="col-head">P1 — Resolve before handoff</div>
+      <div class="matrix-item">
+        <strong>Nav: sidebar vs top-nav</strong>
+        <span>Structural decision affects every screen's available width and scrolling behaviour. Pick one — the redesign's sidebar is the better choice for this density of nav items.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Quotation colour: violet vs blue</strong>
+        <span>The conflict with the codebase's violet and redesign's blue must be resolved. Both read differently against the new teal accent.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Status badge style: border-only vs filled</strong>
+        <span>The redesign filled badges are more legible. The codebase statusToken pattern needs to be updated to match the redesign's --st-X-bg/fg/dot var system.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Typeface: IBM Plex vs Inter Tight</strong>
+        <span>Only one can ship. Inter Tight aligns better with the redesign's warmer, slightly more editorial tone. IBM Plex is more utilitarian/IBM-coded.</span>
+      </div>
+    </div>
+    <div class="matrix-col p2">
+      <div class="col-head">P2 — Bring into redesign</div>
+      <div class="matrix-item">
+        <strong>Conflict detection + pulse animation</strong>
+        <span>The pulse-conflict CSS animation and detectConflicts() logic are production-grade and not in the redesign calendar. Must be carried over.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Hall occupancy rail</strong>
+        <span>The per-hall mini occupancy bars in the calendar left rail are genuinely useful for operators. The redesign's filter bar doesn't include this.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Pencil hatch pattern</strong>
+        <span>The diagonal stripe on pencil-status events in the HallBoard is a strong visual cue. Decide: keep hatch or migrate to filled-badge approach consistently.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Version history tab in Bookings</strong>
+        <span>The audit trail (who edited, when, which version) is a real operational need. The redesign bookings sheet needs this tab.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Activity Log as dedicated screen</strong>
+        <span>The codebase has activity.tsx (full audit log with IP). The redesign only surfaces this as a live feed widget — the full log screen needs to be in the nav.</span>
+      </div>
+    </div>
+    <div class="matrix-col p3">
+      <div class="col-head">P3 — Nice to have / later</div>
+      <div class="matrix-item">
+        <strong>Google Calendar source visual</strong>
+        <span>Dashed-border event blocks for Google-sourced bookings in the codebase. Low visibility but useful for ops clarity.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Live clock in top bar</strong>
+        <span>The Mumbai real-time clock in the codebase is a small but appreciated ops-context detail — useful for staff knowing local time during events.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Density system — adopt in codebase</strong>
+        <span>The redesign's 3-tier density is a real feature. Implementing the CSS custom property approach in the codebase would let it serve both tablet and desktop use cases.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>KPI sparklines on dashboard</strong>
+        <span>The redesign's sparkline + delta approach is a clear improvement over flat numbers. Worth porting the Sparkline component.</span>
+      </div>
+      <div class="matrix-item">
+        <strong>Hall utilization donut chart</strong>
+        <span>Nice visual addition on dashboard. Can co-exist with the existing funnel bars or replace them.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 10. OVERALL VERDICT ── -->
+<section>
+  <h2>10 — Overall Verdict</h2>
+
+  <div class="callout">
+    <strong>The redesign is a strong visual and UX upgrade</strong> — the teal palette, sidebar nav, filled status badges, density system, and richer dashboard are all improvements over the codebase's current state. However, the redesign <strong>under-specifies the calendar</strong> (the most critical screen for daily ops) and is missing several production features that are already built in the codebase: conflict detection, hall occupancy rail, pencil countdown in event blocks, version history, and the activity log. The safest implementation path is to adopt the redesign's tokens + layout as the base and back-port the codebase's calendar and booking-detail feature depth on top of it.
+  </div>
+
+  <div class="delta-grid" style="margin-top:16px;">
+    <div class="delta-box redesign">
+      <h4>Take from redesign → codebase</h4>
+      <ul>
+        <li>Warm stone palette + teal accent (replace zinc + blue)</li>
+        <li>Inter Tight + JetBrains Mono (replace IBM Plex pair)</li>
+        <li>Left collapsible sidebar with grouped nav + user footer</li>
+        <li>Filled status badges with --st-X-bg/fg/dot system</li>
+        <li>Density CSS var system (compact/balanced/comfy)</li>
+        <li>KPI sparklines + trend deltas on dashboard</li>
+        <li>Live activity feed (createActivityFeed pattern)</li>
+        <li>Gentle radius scale (4/6/8px vs current 2px)</li>
+        <li>Donut chart for hall utilization on dashboard</li>
+        <li>Insights + checklist widgets on dashboard</li>
+      </ul>
+    </div>
+    <div class="delta-box codebase">
+      <h4>Keep from codebase → must carry over</h4>
+      <ul>
+        <li>detectConflicts() + pulse-conflict animation on HallBoard</li>
+        <li>Hall occupancy mini-bars in calendar left rail</li>
+        <li>Pencil expiry countdown inside event blocks</li>
+        <li>Google Calendar source distinction (dashed border + cyan token)</li>
+        <li>BookingDrawer with full money stack + payment ledger</li>
+        <li>Bookings detail: 6 tabs including Versions audit trail</li>
+        <li>Activity log as dedicated full-page route (not just live feed)</li>
+        <li>Real-time clock + Mumbai timezone label in top bar</li>
+        <li>statusToken() logic — update to output bg/fg/dot vars instead</li>
+        <li>Booking list: 420px master panel remains better than full-width table for this density of metadata per booking</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer style="margin-top:48px; padding-top:20px; border-top:1px solid var(--border); color:var(--text-4); font-size:11px; font-family:var(--mono); display:flex; justify-content:space-between;">
+  <span>Bika Banquet Design System · Gap Analysis</span>
+  <span>Generated June 1, 2026</span>
+</footer>
+
+</body>
+</html>

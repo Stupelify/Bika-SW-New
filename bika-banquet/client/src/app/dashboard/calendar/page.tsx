@@ -630,7 +630,7 @@ export default function CalendarPage() {
   }, [filteredBookings.length, filteredEnquiries.length, hallStatsByLocation, selectedDayConflicts.length]);
 
   return (
-    <div className="space-y-6 min-w-0 max-w-full overflow-x-hidden">
+    <div className="ops-route ops-calendar-page min-w-0 max-w-full overflow-x-hidden">
       <Toolbar
         title="Calendar"
         stats={[
@@ -653,7 +653,7 @@ export default function CalendarPage() {
       />
 
       {/* ── Main calendar area (sidebar removed; filters live in header) ── */}
-      <div className="min-w-0 space-y-4">
+      <div className="ops-route ops-calendar-route min-w-0">
 
           <CalendarToolbar
             viewMode={viewMode}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Colors" name="Semantic Status Colors" subtitle="Confirmed / Pending / Pencil / Cancelled / Quotation / Enquiry" viewport="700x180" -->
+<html lang="en">
+<head><meta charset="UTF-8"><style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .item { border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+  .bar { height: 6px; }
+  .body { padding: 8px 10px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 9999px; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .hex { font-size: 10px; font-family: monospace; color: #94a3b8; margin-top: 2px; }
+</style></head>
+<body>
+  <div class="grid">
+    <div class="item">
+      <div class="bar" style="background:#22c55e"></div>
+      <div class="body">
+        <div class="pill" style="background:#dcfce7;color:#15803d"><span class="dot"></span>Confirmed</div>
+        <div class="hex">bg #dcfce7 · text #15803d</div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="bar" style="background:#f59e0b"></div>
+      <div class="body">
+        <div class="pill" style="background:#fffbeb;color:#92400e"><span class="dot"></span>Pending</div>
+        <div class="hex">bg #fffbeb · text #92400e</div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="bar" style="background:#f59e0b"></div>
+      <div class="body">
+        <div class="pill" style="background:#fffbeb;color:#92400e"><span class="dot"></span>Pencil</div>
+        <div class="hex">bg #fffbeb · text #92400e</div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="bar" style="background:#ef4444"></div>
+      <div class="body">
+        <div class="pill" style="background:#fef2f2;color:#991b1b"><span class="dot"></span>Cancelled</div>
+        <div class="hex">bg #fef2f2 · text #991b1b</div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="bar" style="background:#3b82f6"></div>
+      <div class="body">
+        <div class="pill" style="background:#eff6ff;color:#1d4ed8"><span class="dot"></span>Quotation</div>
+        <div class="hex">bg #eff6ff · text #1d4ed8</div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="bar" style="background:#0ea5e9"></div>
+      <div class="body">
+        <div class="pill" style="background:#f0f9ff;color:#0369a1"><span class="dot"></span>Enquiry</div>
+        <div class="hex">bg #f0f9ff · text #0369a1</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

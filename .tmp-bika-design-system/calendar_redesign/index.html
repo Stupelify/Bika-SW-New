@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Brand" name="Calendar Redesign" subtitle="Two calendar directions — Resource Matrix vs Hall-Coded Editorial, all 4 views" viewport="1440x900" -->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bika Banquet — Calendar Redesign</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f8fafc; --surface: #ffffff; --surface-2: #f1f5f9; --surface-3: #e2e8f0;
+    --text-1: #0f172a; --text-2: #334155; --text-3: #64748b; --text-4: #6b7280;
+    --border: #e2e8f0; --border-2: #cbd5e1;
+    --teal-50: #f0fdfa; --teal-100: #ccfbf1; --teal-200: #99f6e4;
+    --teal-400: #2dd4bf; --teal-500: #14b8a6; --teal-600: #0d9488; --teal-700: #0f766e;
+    --shadow-xs: 0 1px 2px rgba(15,23,42,0.04);
+    --shadow-sm: 0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+  }
+  [data-theme="dark"] {
+    --bg: #0f1011; --surface: #141516; --surface-2: #1b1c1e; --surface-3: #222426;
+    --text-1: #f8fafc; --text-2: #e2e8f0; --text-3: #b3b8c2; --text-4: #8b93a1;
+    --border: #252526; --border-2: #2a2a2a;
+    --teal-50: #021c1b; --teal-100: #08302e;
+  }
+  html, body, #root { height: 100%; overflow: hidden; }
+  body { font-family: 'Inter', ui-sans-serif, sans-serif; font-size: 14px; color: var(--text-2); background: var(--bg); -webkit-font-smoothing: antialiased; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Data + helpers -->
+<script type="text/babel" src="data.js"></script>
+
+<!-- Design Canvas -->
+<script type="text/babel" src="design-canvas.jsx"></script>
+
+<!-- Variant views -->
+<script type="text/babel" src="variantA.jsx"></script>
+<script type="text/babel" src="variantB.jsx"></script>
+<script type="text/babel" src="mobileViews.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+
+/* ─── Variant label pill ─────────────────────────────────────── */
+function VarLabel({ letter, subtitle, color }) {
+  return (
+    <div style={{ padding: '10px 14px', background: color, borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(0,0,0,0.15)', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>V{letter}</span>
+      <div>
+        <span style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.95)', letterSpacing: '-0.01em' }}>Variant {letter}</span>
+        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginLeft: 8 }}>{subtitle}</span>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [theme, setTheme] = useState('light');
+
+  const toggleTheme = () => {
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+  };
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'Inter', sans-serif" }}>
+
+      {/* Canvas banner */}
+      <div style={{ flexShrink: 0, height: 44, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 18px', gap: 12, zIndex: 100 }}>
+        <img src="https://assets.zyrosite.com/MBlLcEqY2yw3y2EF/1-2-removebg-scaled-e1752152009924-7iV2qZXAcVUCou9o.png" style={{ width: 24, height: 24, objectFit: 'contain' }} alt="logo" />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.01em' }}>Bika Banquet · Calendar Redesign</span>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 8 }}>
+          {[['A','Resource Matrix','#0d9488'],['B','Hall-Coded Editorial','#6366f1']].map(([l,s,c]) => (
+            <span key={l} style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 9999, background: c, color: 'white' }}>V{l} {s}</span>
+          ))}
+        </div>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-4)', background: 'var(--surface-2)', padding: '3px 10px', borderRadius: 8, border: '1px solid var(--border)' }}>
+          Scroll &amp; pinch to zoom · Click artboard to focus
+        </span>
+        <button onClick={toggleTheme} style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-3)', borderRadius: 8, padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
+          {theme === 'dark' ? '☀ Light' : '◐ Dark'}
+        </button>
+      </div>
+
+      {/* Design Canvas */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <DesignCanvas>
+          {/* ── Month View ─────────────────────────────────── */}
+          <DCSection id="month" title="Month View — May 2026">
+            <DCArtboard id="month-a" label="Variant A · Resource Matrix" width={1280} height={800}>
+              <VarLabel letter="A" subtitle="Resource Matrix — pill stack, status-coded, teal accent" color="#0d9488" />
+              <div style={{ height: 'calc(100% - 42px)' }}><VA_Month /></div>
+            </DCArtboard>
+            <DCArtboard id="month-b" label="Variant B · Hall-Coded Editorial" width={1280} height={800}>
+              <VarLabel letter="B" subtitle="Editorial — hall-colored bars on each tile, bolder type" color="#6366f1" />
+              <div style={{ height: 'calc(100% - 42px)' }}><VB_Month /></div>
+            </DCArtboard>
+          </DCSection>
+
+          {/* ── Week View ──────────────────────────────────── */}
+          <DCSection id="week" title="Week View — 17–23 May (halls × 7 days matrix)">
+            <DCArtboard id="week-a" label="Variant A · Resource Matrix" width={1280} height={680}>
+              <VarLabel letter="A" subtitle="Slim slot rows, striped pencil, conflict warning badge" color="#0d9488" />
+              <div style={{ height: 'calc(100% - 42px)' }}><VA_Week /></div>
+            </DCArtboard>
+            <DCArtboard id="week-b" label="Variant B · Hall-Coded Editorial" width={1280} height={680}>
+              <VarLabel letter="B" subtitle="Hall accent bar on rows, dashed pencil border, bold day numbers" color="#6366f1" />
+              <div style={{ height: 'calc(100% - 42px)' }}><VB_Week /></div>
+            </DCArtboard>
+          </DCSection>
+
+          {/* ── Day View ───────────────────────────────────── */}
+          <DCSection id="day" title="Day View — Thu 21 May (halls × hours, Gantt)">
+            <DCArtboard id="day-a" label="Variant A · Resource Matrix" width={1280} height={560}>
+              <VarLabel letter="A" subtitle="Horizontal Gantt, slot bg tints, current time teal line" color="#0d9488" />
+              <div style={{ height: 'calc(100% - 42px)' }}><VA_Day /></div>
+            </DCArtboard>
+            <DCArtboard id="day-b" label="Variant B · Hall-Coded Editorial" width={1280} height={560}>
+              <VarLabel letter="B" subtitle="Hall tinted row bg, white cards with hall left-bar, dashed pencil" color="#6366f1" />
+              <div style={{ height: 'calc(100% - 42px)' }}><VB_Day /></div>
+            </DCArtboard>
+          </DCSection>
+
+          {/* ── Mobile — Day/Agenda View ───────────────────── */}
+          <DCSection id="mobile" title="Mobile — Day Agenda (Thu 21 May)">
+            <DCArtboard id="mob-a" label="Variant A · Day Agenda" width={390} height={820}>
+              <VA_Mobile />
+            </DCArtboard>
+            <DCArtboard id="mob-b" label="Variant B · Day Agenda" width={390} height={820}>
+              <VB_Mobile />
+            </DCArtboard>
+          </DCSection>
+
+          {/* ── Mobile — Week View ─────────────────────────── */}
+          <DCSection id="mobile-week" title="Mobile — Week View (17–23 May)">
+            <DCArtboard id="mob-week-a" label="Variant A · Week — Hall × Day Matrix" width={390} height={820}>
+              <VA_MobileWeek />
+            </DCArtboard>
+            <DCArtboard id="mob-week-b" label="Variant B · Week — Day Cards + Hall Rows" width={390} height={820}>
+              <VB_MobileWeek />
+            </DCArtboard>
+          </DCSection>
+
+          {/* ── Mobile — Month View ────────────────────────── */}
+          <DCSection id="mobile-month" title="Mobile — Month View (May 2026)">
+            <DCArtboard id="mob-month-a" label="Variant A · Month — Status Pills + Day Sheet" width={390} height={820}>
+              <VA_MobileMonth />
+            </DCArtboard>
+            <DCArtboard id="mob-month-b" label="Variant B · Month — Hall Dot Bars + Expand Panel" width={390} height={820}>
+              <VB_MobileMonth />
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

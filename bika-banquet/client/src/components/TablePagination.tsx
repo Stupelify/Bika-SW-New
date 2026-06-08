@@ -25,7 +25,7 @@ export default function TablePagination({
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="table-pagination flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-[var(--text-2)]">
         Showing {startItem}-{endItem} of {totalItems} {itemLabel}
       </p>

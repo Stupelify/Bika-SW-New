@@ -30,7 +30,7 @@ export default function FilterPanel({
         />
       ) : null}
       <aside
-        className={`fixed right-0 top-0 z-40 h-full w-[min(100vw,22rem)] border-l border-border bg-surface shadow-lg transition-transform duration-200 ease-out ${
+        className={`filter-panel fixed right-0 top-0 z-40 h-full w-[min(100vw,22rem)] border-l border-border bg-surface shadow-lg transition-transform duration-200 ease-out ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
         aria-hidden={!open}
@@ -53,7 +53,7 @@ export default function FilterPanel({
             </button>
           </div>
         </div>
-        <div className="h-[calc(100%-65px)] overflow-y-auto p-5 pb-[calc(1.25rem+var(--safe-bottom))]">{children}</div>
+        <div className="filter-panel-body">{children}</div>
       </aside>
     </>
   );

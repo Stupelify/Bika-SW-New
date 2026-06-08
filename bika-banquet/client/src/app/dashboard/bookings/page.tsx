@@ -671,7 +671,7 @@ export default function BookingsPage() {
     }
   }, [useServer, serverBookingsLoadError, refetchServerBookings]);
   // view mode: 'table' (default on desktop) or 'cards'
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [inlineCustomerFormData, setInlineCustomerFormData] = useState<InlineCustomerFormData>(
@@ -2782,7 +2782,7 @@ export default function BookingsPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="ops-route ops-list-route">
       <Toolbar
         title="Bookings"
         stats={[
@@ -2804,35 +2804,46 @@ export default function BookingsPage() {
           },
         ]}
         actions={
-          canAddBooking ? (
+          <>
+            <div className="ops-toolbar-search">
+              <Search className="w-4 h-4" aria-hidden="true" />
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(event) => setGlobalSearch(event.target.value)}
+                placeholder="Search..."
+                aria-label="Search bookings"
+              />
+            </div>
             <button
-              onClick={() => setShowCreateForm(true)}
-              className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+              type="button"
+              className="btn btn-secondary ops-filter-button"
+              onClick={() => setShowFilters(true)}
             >
-              <Plus className="w-4 h-4" />
-              Add Booking
+              <Filter className="w-4 h-4" />
+              Filters
+              {Object.values(columnSearch).filter(Boolean).length > 0 && (
+                <span className="ops-filter-count">
+                  {Object.values(columnSearch).filter(Boolean).length}
+                </span>
+              )}
             </button>
-          ) : null
+            {canAddBooking ? (
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="btn btn-primary inline-flex items-center gap-2 justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                New booking
+              </button>
+            ) : null}
+          </>
         }
       />
 
       {!canViewBooking && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
           You do not have permission to view bookings.
-        </div>
-      )}
-
-      {canAddBooking && customers.length === 0 && (
-        <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            No customers found. Add a customer first, then create booking.
-          </p>
-          {canAddCustomer && (
-            <button type="button" className="btn btn-secondary" onClick={openQuickCustomerForm}>
-              <Plus className="w-4 h-4" />
-              Add Customer
-            </button>
-          )}
         </div>
       )}
 
@@ -4924,7 +4935,7 @@ export default function BookingsPage() {
       </FormPromptModal>
 
       {canViewBooking && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="ops-view-bar">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-4)] flex-shrink-0">
             Views
           </span>
@@ -4945,7 +4956,7 @@ export default function BookingsPage() {
         </div>
       )}
 
-      <div className="card">
+      <div className="card ops-list-controls">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="relative" style={{ flex: 1 }}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
@@ -5037,7 +5048,7 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="ops-table-card">
         {!canViewBooking ? (
           <div className="empty-state" style={{ padding: '32px 16px' }}>
             <div className="empty-state-icon">
@@ -5195,7 +5206,7 @@ export default function BookingsPage() {
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                       className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
                     />
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Balance</th>
+                    <th aria-label="Due" className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Due</th>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
@@ -5203,7 +5214,7 @@ export default function BookingsPage() {
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
                     {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
+                      <th className="ops-secondary-actions text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
                         Actions
                       </th>
                     )}
@@ -5217,7 +5228,15 @@ export default function BookingsPage() {
                     return (
                       <tr
                         key={booking.id}
-                        className={`cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(rowStatus)}`}
+                        className={`ops-click-row cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(rowStatus)}`}
+                        onClick={() => openEditBooking(booking.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openEditBooking(booking.id);
+                          }
+                        }}
+                        tabIndex={0}
                       >
                       <td className="py-4 px-4 id whitespace-nowrap">
                         {booking.id.slice(0, 8).toUpperCase()}
@@ -5255,7 +5274,7 @@ export default function BookingsPage() {
                         <StatusBadge status={rowStatus} />
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                        <td className="py-4 px-4 text-right">
+                        <td className="ops-secondary-actions py-4 px-4 text-right" onClick={(event) => event.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             {canExportMenuPdf && (
                               <button

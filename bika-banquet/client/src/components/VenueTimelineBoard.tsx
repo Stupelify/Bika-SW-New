@@ -950,7 +950,7 @@ export function VenueTimelineBoard({rows,viewMode,viewDate,weekDays,selectedDate
   return (
     <>
       {/* Desktop */}
-      <div className="hidden sm:block border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="venue-timeline-shell hidden sm:block border border-[var(--border)] rounded-xl overflow-hidden">
         {viewMode==='day'&&<DesktopDay {...shared} selDate={selectedDate} onCreate={onCreateBooking}/>}
         {viewMode==='week'&&<DesktopWeek {...shared} wdays={weekDays} onCreate={onCreateBooking} onDrill={onDateDrillDown}/>}
         {viewMode==='month'&&<DesktopMonth {...shared} vdate={viewDate} onDrill={onDateDrillDown} onCreate={onCreateBooking}/>}

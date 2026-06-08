@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Colors" name="Neutral & Surface Scale" subtitle="Surface stack + text hierarchy tokens" viewport="700x200" -->
+<html lang="en">
+<head><meta charset="UTF-8"><style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; }
+  .stack { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .swatch { width: 48px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; flex-shrink: 0; }
+  .info { flex: 1; }
+  .name { font-size: 12px; font-weight: 700; color: #0f172a; }
+  .val { font-size: 11px; color: #64748b; font-family: 'SF Mono', monospace; }
+  .usage { font-size: 11px; color: #94a3b8; }
+  .divider { height: 1px; background: #e2e8f0; margin: 8px 0; }
+  .text-row { display: flex; gap: 16px; margin-top: 4px; flex-wrap: wrap; }
+  .t { padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; background: white; border: 1px solid #e2e8f0; }
+</style></head>
+<body>
+  <div class="stack">
+    <div class="row">
+      <div class="swatch" style="background:#f8fafc"></div>
+      <div class="info"><div class="name">--bg</div><div class="val">#f8fafc</div><div class="usage">Page background</div></div>
+    </div>
+    <div class="row">
+      <div class="swatch" style="background:#ffffff"></div>
+      <div class="info"><div class="name">--surface</div><div class="val">#ffffff</div><div class="usage">Cards, panels, sidebar</div></div>
+    </div>
+    <div class="row">
+      <div class="swatch" style="background:#f1f5f9"></div>
+      <div class="info"><div class="name">--surface-2</div><div class="val">#f1f5f9</div><div class="usage">Table headers, tab bar, input bg</div></div>
+    </div>
+    <div class="row">
+      <div class="swatch" style="background:#e2e8f0"></div>
+      <div class="info"><div class="name">--surface-3</div><div class="val">#e2e8f0</div><div class="usage">Dividers, skeleton base, border default</div></div>
+    </div>
+    <div class="row">
+      <div class="swatch" style="background:#cbd5e1"></div>
+      <div class="info"><div class="name">--border-2</div><div class="val">#cbd5e1</div><div class="usage">Stronger borders, hover borders</div></div>
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="text-row">
+    <div class="t" style="color:#0f172a">text-1 · #0f172a</div>
+    <div class="t" style="color:#334155">text-2 · #334155</div>
+    <div class="t" style="color:#64748b">text-3 · #64748b</div>
+    <div class="t" style="color:#6b7280">text-4 · #6b7280</div>
+  </div>
+</body>
+</html>

@@ -117,7 +117,7 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ops-route ops-list-route">
       <Toolbar
         title="Activity Logs"
         stats={[

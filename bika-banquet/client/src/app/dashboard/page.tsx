@@ -548,8 +548,8 @@ export default function DashboardPage() {
   }, [data?.recentBookings]);
 
   if (loading) {
-    return (
-      <div className="space-y-6">
+  return (
+    <div className="ops-route ops-dashboard-route">
         <KpiCardSkeleton />
         <AdaptiveCard>
           <div className="skeleton" style={{ height: 16, width: 160, marginBottom: 12 }} />
@@ -617,7 +617,7 @@ export default function DashboardPage() {
   }));
 
   return (
-    <div className="space-y-5">
+    <div className="ops-route ops-dashboard-route">
       <Toolbar
         title="Operations"
         stats={[
@@ -628,7 +628,7 @@ export default function DashboardPage() {
           { label: 'Avg. booking value', value: formatCurrency(data.averageBookingValue) },
         ]}
         actions={
-          <div className="filter-bar xl:justify-end">
+          <div className="ops-dashboard-filters filter-bar xl:justify-end">
             <Combobox
               className="sm:w-[138px]"
               value={range}

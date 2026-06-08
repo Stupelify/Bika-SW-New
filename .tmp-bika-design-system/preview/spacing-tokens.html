@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Spacing" name="Layout & Spacing Tokens" subtitle="Sidebar, header, padding, max-width tokens" viewport="700x200" -->
+<html lang="en">
+<head><meta charset="UTF-8"><style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 6px 10px; background: #f1f5f9; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 7px 10px; color: #334155; border-bottom: 1px solid #f1f5f9; }
+  td:first-child { font-family: 'SF Mono', monospace; font-size: 11px; color: #0d9488; font-weight: 600; }
+  td:nth-child(2) { font-family: 'SF Mono', monospace; font-size: 11px; color: #64748b; }
+  .bar { height: 10px; background: #0d9488; border-radius: 2px; display: inline-block; vertical-align: middle; opacity: 0.7; }
+</style></head>
+<body>
+  <table>
+    <thead>
+      <tr><th>Token</th><th>Value</th><th>Visual</th><th>Usage</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>--sidebar-w</td><td>208px</td><td><span class="bar" style="width:52px"></span></td><td>Desktop sidebar expanded</td></tr>
+      <tr><td>--sidebar-collapsed-w</td><td>64px</td><td><span class="bar" style="width:16px"></span></td><td>Desktop sidebar icon-only</td></tr>
+      <tr><td>--header-h</td><td>52px</td><td><span class="bar" style="width:13px"></span></td><td>Top header height</td></tr>
+      <tr><td>--bottom-nav-h</td><td>60px</td><td><span class="bar" style="width:15px"></span></td><td>Mobile bottom nav</td></tr>
+      <tr><td>--shell-pad-x</td><td>clamp(12–18px)</td><td><span class="bar" style="width:4px"></span></td><td>Main content horizontal padding</td></tr>
+      <tr><td>--shell-pad-y</td><td>clamp(14–22px)</td><td><span class="bar" style="width:5px"></span></td><td>Main content vertical padding</td></tr>
+      <tr><td>--content-max-w</td><td>1400px</td><td><span class="bar" style="width:100px"></span></td><td>Max content width (centered)</td></tr>
+      <tr><td>Card padding</td><td>16px / 20px</td><td><span class="bar" style="width:5px"></span></td><td>Card inner padding (mobile: 14px)</td></tr>
+      <tr><td>Panel header pad</td><td>16px 20px</td><td><span class="bar" style="width:5px"></span></td><td>Panel header + body padding</td></tr>
+      <tr><td>KPI grid gap</td><td>12–20px</td><td></td><td>Responsive: 2→3→4 columns</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

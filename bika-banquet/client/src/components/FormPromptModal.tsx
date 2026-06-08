@@ -63,6 +63,7 @@ export default function FormPromptModal({
     <div
       className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4"
       data-capacitor-overlay="open"
+      data-ops-form-surface="true"
       style={{ overscrollBehavior: 'contain' }}
     >
       <button

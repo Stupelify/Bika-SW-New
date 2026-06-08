@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Spacing" name="Border Radius Tokens" subtitle="xs(4px) → pill(9999px) — 10-step radius scale" viewport="700x160" -->
+<html lang="en">
+<head><meta charset="UTF-8"><style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .box { background: white; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; width: 60px; height: 40px; }
+  .label { font-size: 10px; color: #64748b; font-weight: 600; text-align: center; }
+  .val { font-size: 10px; font-family: monospace; color: #94a3b8; }
+  .row2 { display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+  .demo { background: white; border: 1px solid #e2e8f0; height: 32px; display: flex; align-items: center; justify-content: center; padding: 0 14px; font-size: 11px; color: #334155; font-weight: 600; }
+</style></head>
+<body>
+  <div class="grid">
+    <div class="item"><div class="box" style="border-radius:4px"><span style="font-size:9px;color:#94a3b8">xs</span></div><div class="label">--radius-xs</div><div class="val">4px</div></div>
+    <div class="item"><div class="box" style="border-radius:6px"><span style="font-size:9px;color:#94a3b8">sm</span></div><div class="label">--radius-sm</div><div class="val">6px</div></div>
+    <div class="item"><div class="box" style="border-radius:8px"><span style="font-size:9px;color:#94a3b8">base</span></div><div class="label">--radius-base</div><div class="val">8px</div></div>
+    <div class="item"><div class="box" style="border-radius:10px"><span style="font-size:9px;color:#94a3b8">md</span></div><div class="label">--radius-md</div><div class="val">10px</div></div>
+    <div class="item"><div class="box" style="border-radius:12px"><span style="font-size:9px;color:#94a3b8">btn</span></div><div class="label">--radius-btn</div><div class="val">12px</div></div>
+    <div class="item"><div class="box" style="border-radius:14px"><span style="font-size:9px;color:#94a3b8">lg</span></div><div class="label">--radius-lg</div><div class="val">14px</div></div>
+    <div class="item"><div class="box" style="border-radius:16px"><span style="font-size:9px;color:#94a3b8">tile</span></div><div class="label">--radius-tile</div><div class="val">16px</div></div>
+    <div class="item"><div class="box" style="border-radius:18px"><span style="font-size:9px;color:#94a3b8">card</span></div><div class="label">--radius-card</div><div class="val">18px</div></div>
+    <div class="item"><div class="box" style="border-radius:22px"><span style="font-size:9px;color:#94a3b8">2xl</span></div><div class="label">--radius-2xl</div><div class="val">22px</div></div>
+    <div class="item"><div class="box" style="border-radius:9999px"><span style="font-size:9px;color:#94a3b8">pill</span></div><div class="label">--radius-pill</div><div class="val">9999px</div></div>
+  </div>
+  <div class="row2">
+    <div class="demo" style="border-radius:12px">Button 12px</div>
+    <div class="demo" style="border-radius:18px">Card 18px</div>
+    <div class="demo" style="border-radius:9999px">Status Pill</div>
+    <div class="demo" style="border-radius:10px">Nav Item 10px</div>
+    <div class="demo" style="border-radius:8px">Row Btn 8px</div>
+  </div>
+</body>
+</html>

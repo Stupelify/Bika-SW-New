@@ -1,0 +1,388 @@
+/**
+ * Bika Banquet Design System — Colors & Typography
+ * Source: Stupelify/Bika-SW-New (bika-banquet/client/src/app/globals.css + tailwind.config.js)
+ *
+ * Import Google Fonts before this file:
+ * @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700;800&display=swap');
+ */
+
+/* ─── Google Font Import ──────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap');
+
+/* ─── Light Mode (default) ────────────────────────────────────── */
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────── */
+  --bg:         #f8fafc;   /* Page background */
+  --surface:    #ffffff;   /* Card / panel background */
+  --surface-2:  #f1f5f9;   /* Table header, tab bar, input bg */
+  --surface-3:  #e2e8f0;   /* Dividers, skeleton base */
+
+  /* ── Text ─────────────────────────────────────────────────── */
+  --text-1:     #0f172a;   /* Primary headings, values */
+  --text-2:     #334155;   /* Body text, descriptions */
+  --text-3:     #64748b;   /* Secondary labels, nav items */
+  --text-4:     #6b7280;   /* Muted labels, placeholders, table headers */
+
+  /* ── Borders ──────────────────────────────────────────────── */
+  --border:     #e2e8f0;   /* Default border */
+  --border-2:   #cbd5e1;   /* Stronger border, hover/focus border */
+
+  /* ── Brand Primary — Teal ─────────────────────────────────── */
+  --teal-50:    #f0fdfa;
+  --teal-100:   #ccfbf1;
+  --teal-200:   #99f6e4;
+  --teal-300:   #5eead4;
+  --teal-400:   #2dd4bf;
+  --teal-500:   #14b8a6;   /* Sparklines, focus outline */
+  --teal-600:   #0d9488;   /* Primary action color */
+  --teal-700:   #0f766e;   /* Primary hover, active nav */
+  --teal-800:   #115e59;
+  --teal-900:   #134e4a;
+
+  /* ── Brand Accent — Orange ────────────────────────────────── */
+  --accent-50:  #fff7ed;
+  --accent-100: #ffedd5;
+  --accent-200: #fed7aa;
+  --accent-300: #fdba74;
+  --accent-400: #fb923c;
+  --accent-500: #f97316;   /* Accent base */
+  --accent-600: #ea580c;
+  --accent-700: #c2410c;
+  --accent-800: #9a3412;
+  --accent-900: #7c2d12;
+
+  /* ── Status Colors ────────────────────────────────────────── */
+  --status-confirmed-bg:   #dcfce7;
+  --status-confirmed-text: #15803d;
+  --status-confirmed-dark-bg:   #052e16;
+  --status-confirmed-dark-text: #86efac;
+
+  --status-pending-bg:     #fffbeb;
+  --status-pending-text:   #92400e;
+  --status-pending-dark-bg:   #2d1a00;
+  --status-pending-dark-text: #fcd34d;
+
+  --status-cancelled-bg:   #fef2f2;
+  --status-cancelled-text: #991b1b;
+  --status-cancelled-dark-bg:   #2d0a0a;
+  --status-cancelled-dark-text: #fca5a5;
+
+  --status-quotation-bg:   #eff6ff;
+  --status-quotation-text: #1d4ed8;
+  --status-quotation-dark-bg:   #0d1f4a;
+  --status-quotation-dark-text: #93c5fd;
+
+  --status-enquiry-bg:     #f0f9ff;
+  --status-enquiry-text:   #0369a1;
+  --status-enquiry-dark-bg:   #0a1f2d;
+  --status-enquiry-dark-text: #7dd3fc;
+
+  /* ── Semantic ─────────────────────────────────────────────── */
+  --ring:       rgba(13, 148, 136, 0.18);   /* Focus ring */
+  --ring-dark:  rgba(20, 184, 166, 0.28);
+
+  /* KPI deltas */
+  --delta-up-bg:      #dcfce7;
+  --delta-up-text:    #15803d;
+  --delta-down-bg:    #fef2f2;
+  --delta-down-text:  #dc2626;
+  --delta-neutral-bg: var(--surface-2);
+  --delta-neutral-text: var(--text-3);
+
+  /* Insight cards */
+  --insight-good-bg:          #f0fdf4;
+  --insight-good-border:      #bbf7d0;
+  --insight-good-accent:      #22c55e;
+  --insight-warn-bg:          #fffbeb;
+  --insight-warn-border:      #fde68a;
+  --insight-warn-accent:      #f59e0b;
+  --insight-neutral-bg:       var(--surface-2);
+  --insight-neutral-border:   var(--border);
+  --insight-neutral-accent:   var(--border-2);
+
+  /* ── Shadows ──────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.05), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px rgba(15, 23, 42, 0.06), 0 4px 6px rgba(15, 23, 42, 0.04);
+
+  /* ── Border Radius ────────────────────────────────────────── */
+  --radius-xs:   4px;   /* kbd badge */
+  --radius-sm:   6px;   /* small elements */
+  --radius-base: 8px;   /* default (row buttons, nav badge) */
+  --radius-md:   10px;  /* nav items, tabs */
+  --radius-btn:  12px;  /* buttons, inputs */
+  --radius-lg:   14px;  /* mobile cards, insight cards */
+  --radius-tile: 16px;  /* resource tiles */
+  --radius-card: 18px;  /* cards, KPI cards */
+  --radius-2xl:  22px;
+  --radius-pill: 9999px; /* status pills, badges */
+
+  /* ── Layout ───────────────────────────────────────────────── */
+  --sidebar-w:           208px;
+  --sidebar-collapsed-w: 64px;
+  --header-h:            52px;
+  --bottom-nav-h:        60px;
+  --shell-pad-x:         clamp(12px, 1vw, 18px);
+  --shell-pad-y:         clamp(14px, 1.4vw, 22px);
+  --content-max-w:       1400px;
+
+  /* ── Typography ───────────────────────────────────────────── */
+  --font-sans:    'Inter', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Georgia', 'Times New Roman', serif;
+  --font-mono:    'SF Mono', 'Fira Code', 'Courier New', monospace;
+
+  --text-base:    15px;
+  --leading-base: 1.5;
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:        #0f1011;
+  --surface:   #141516;
+  --surface-2: #1b1c1e;
+  --surface-3: #222426;
+  --text-1:    #f8fafc;
+  --text-2:    #e2e8f0;
+  --text-3:    #b3b8c2;
+  --text-4:    #8b93a1;
+  --border:    #1f1f1f;
+  --border-2:  #2a2a2a;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 18px rgba(0, 0, 0, 0.55);
+  --ring:      rgba(20, 184, 166, 0.28);
+  --teal-50:   #021c1b;
+  --teal-100:  #08302e;
+  --status-confirmed-bg:   #052e16;
+  --status-confirmed-text: #86efac;
+  --status-pending-bg:     #2d1a00;
+  --status-pending-text:   #fcd34d;
+  --status-cancelled-bg:   #2d0a0a;
+  --status-cancelled-text: #fca5a5;
+  --status-quotation-bg:   #0d1f4a;
+  --status-quotation-text: #93c5fd;
+  --status-enquiry-bg:     #0a1f2d;
+  --status-enquiry-text:   #7dd3fc;
+  --delta-up-bg:    #052e16;
+  --delta-up-text:  #86efac;
+  --delta-down-bg:  #2d0a0a;
+  --delta-down-text: #fca5a5;
+  --insight-good-bg:     #052e16;
+  --insight-good-border: #14532d;
+  --insight-warn-bg:     #2d1a00;
+  --insight-warn-border: #78350f;
+  --insight-good-accent:  #22c55e;
+  --insight-warn-accent:  #f59e0b;
+}
+
+/* ─── Base Typography Styles ──────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  color: var(--text-2);
+  background-color: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Semantic type classes ─────────────────────────────────────── */
+
+/* Page title — 20px, bold, tight tracking */
+.page-title {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* Page subtitle — 13px muted */
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text-4);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+/* Panel title — 14px semibold */
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+}
+
+/* Panel subtitle — 12px muted */
+.panel-subtitle {
+  font-size: 12px;
+  color: var(--text-4);
+  margin-top: 2px;
+}
+
+/* Display heading (login hero, large numbers) */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* KPI value — 24px, bold, tabular nums */
+.kpi-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* KPI label — 12px, uppercase, semibold */
+.kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-4);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Table header — 12px, uppercase */
+.table-th {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+/* Table cell — 13.5px */
+.table-td {
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+/* Form label — 12.5px, semibold */
+.label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-2);
+}
+
+/* Breadcrumb — 13px */
+.breadcrumb-text {
+  font-size: 13px;
+  color: var(--text-4);
+}
+
+/* Monospace — SF Mono etc */
+.font-mono,
+code, kbd {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+/* Numeric data — tabular nums */
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* View all link */
+.view-all {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal-600);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.view-all:hover { color: var(--teal-700); }
+
+/* ─── Component Base Styles ───────────────────────────────────── */
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-btn);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  border: none;
+}
+
+.btn-primary {
+  background-color: var(--teal-600);
+  color: white;
+  box-shadow: 0 1px 3px rgba(13, 148, 136, 0.20);
+}
+.btn-primary:hover { background-color: var(--teal-700); box-shadow: 0 3px 10px rgba(13, 148, 136, 0.30); }
+
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--text-2);
+  border: 1px solid var(--border-2);
+  box-shadow: var(--shadow-xs);
+}
+.btn-secondary:hover { background-color: var(--surface-2); border-color: var(--teal-500); color: var(--teal-700); }
+
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.28);
+}
+.btn-danger:hover { background-color: #dc2626; }
+
+/* Card */
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-xs);
+  padding: 16px 20px;
+}
+
+/* Input */
+.input {
+  width: 100%;
+  border-radius: var(--radius-btn);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  border: 1px solid var(--border-2);
+  background-color: var(--surface);
+  color: var(--text-1);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder { color: var(--text-4); }
+.input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--ring); }
+
+/* Status pill */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-confirmed { background: var(--status-confirmed-bg); color: var(--status-confirmed-text); }
+.status-pending   { background: var(--status-pending-bg);   color: var(--status-pending-text);   }
+.status-cancelled { background: var(--status-cancelled-bg); color: var(--status-cancelled-text); }
+.status-quotation { background: var(--status-quotation-bg); color: var(--status-quotation-text); }
+.status-pencil    { background: var(--status-pending-bg);   color: var(--status-pending-text);   }
+.status-enquiry   { background: var(--status-enquiry-bg);   color: var(--status-enquiry-text);   }

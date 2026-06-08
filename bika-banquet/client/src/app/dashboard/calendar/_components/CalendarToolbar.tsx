@@ -76,7 +76,7 @@ export default function CalendarToolbar({
     });
 
   return (
-    <div className="card overflow-hidden p-0">
+    <div className="calendar-toolbar card overflow-hidden p-0">
       {/* ── Row 1: nav + title + view switcher + actions ───────────────── */}
       <div className="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3 min-w-0">
@@ -125,7 +125,7 @@ export default function CalendarToolbar({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Segmented Month/Week/Day */}
-          <div className="inline-flex overflow-hidden rounded-xl border border-[var(--border)]">
+          <div className="ops-inline-tabs" role="tablist" aria-label="Calendar view">
             {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => (
               <button
                 key={mode}
@@ -134,11 +134,9 @@ export default function CalendarToolbar({
                   setViewMode(mode);
                   setViewDate(startOfDay(parseDateKey(selectedDate)));
                 }}
-                className={`px-3 py-1.5 text-sm capitalize transition ${
-                  viewMode === mode
-                    ? 'bg-[var(--text-1)] font-bold text-white'
-                    : 'bg-[var(--surface)] font-medium text-[var(--text-3)] hover:bg-[var(--surface-2)]'
-                }`}
+                role="tab"
+                aria-selected={viewMode === mode}
+                className={`ops-inline-tab capitalize ${viewMode === mode ? 'active' : ''}`}
               >
                 {mode}
               </button>
@@ -146,7 +144,7 @@ export default function CalendarToolbar({
           </div>
 
           {/* Source filter (kept) */}
-          <div className="inline-flex overflow-hidden rounded-xl border border-[var(--border)]">
+          <div className="ops-inline-tabs" role="tablist" aria-label="Calendar source">
             {(
               [
                 ['all', 'All'],
@@ -158,11 +156,9 @@ export default function CalendarToolbar({
                 key={mode}
                 type="button"
                 onClick={() => setSourceFilter(mode)}
-                className={`px-3 py-1.5 text-sm font-semibold transition ${
-                  sourceFilter === mode
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]'
-                }`}
+                role="tab"
+                aria-selected={sourceFilter === mode}
+                className={`ops-inline-tab ${sourceFilter === mode ? 'active' : ''}`}
               >
                 {label}
               </button>

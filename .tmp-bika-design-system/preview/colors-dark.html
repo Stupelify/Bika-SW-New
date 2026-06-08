@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Colors" name="Dark Mode Palette" subtitle="Dark theme surfaces, text, and teal overrides" viewport="700x200" -->
+<html lang="en">
+<head><meta charset="UTF-8"><style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; }
+  .dark-bg { background: #0f1011; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; gap: 0; border-radius: 10px; overflow: hidden; border: 1px solid #1f1f1f; }
+  .swatch { flex: 1; height: 48px; display: flex; flex-direction: column; justify-content: flex-end; padding: 5px 7px; }
+  .swatch span { font-size: 10px; font-weight: 600; }
+  .text-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .t { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; background: #1b1c1e; }
+  .label { font-size: 10px; color: #8b93a1; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+</style></head>
+<body>
+  <div class="dark-bg">
+    <div class="label">Dark mode surfaces</div>
+    <div class="row">
+      <div class="swatch" style="background:#0f1011"><span style="color:#8b93a1">--bg</span></div>
+      <div class="swatch" style="background:#141516"><span style="color:#b3b8c2">surface</span></div>
+      <div class="swatch" style="background:#1b1c1e"><span style="color:#b3b8c2">surf-2</span></div>
+      <div class="swatch" style="background:#222426"><span style="color:#e2e8f0">surf-3</span></div>
+      <div class="swatch" style="background:#1f1f1f"><span style="color:#e2e8f0">border</span></div>
+      <div class="swatch" style="background:#2a2a2a"><span style="color:#f8fafc">bdr-2</span></div>
+    </div>
+    <div class="label">Dark mode text</div>
+    <div class="text-row">
+      <div class="t" style="color:#f8fafc">text-1</div>
+      <div class="t" style="color:#e2e8f0">text-2</div>
+      <div class="t" style="color:#b3b8c2">text-3</div>
+      <div class="t" style="color:#8b93a1">text-4</div>
+    </div>
+    <div class="label">Dark mode teal</div>
+    <div class="row">
+      <div class="swatch" style="background:#021c1b"><span style="color:#14b8a6">50</span></div>
+      <div class="swatch" style="background:#08302e"><span style="color:#14b8a6">100</span></div>
+      <div class="swatch" style="background:#0d9488"><span style="color:#fff">600</span></div>
+      <div class="swatch" style="background:#0f766e"><span style="color:#fff">700</span></div>
+    </div>
+  </div>
+</body>
+</html>

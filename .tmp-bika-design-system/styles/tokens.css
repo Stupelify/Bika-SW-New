@@ -1,0 +1,180 @@
+/* Bika Banquet — Redesign tokens
+   Warm-neutral stone palette (replaces cool slate) + teal accent retained.
+   Density-driven sizing via --row-h / --cell-py / --gap CSS vars set on .app. */
+
+:root, [data-theme="light"] {
+  /* Surfaces */
+  --bg:          #FAFAF9;
+  --surface:     #FFFFFF;
+  --surface-2:   #F5F5F4;
+  --surface-3:   #EFEDEA;
+  --surface-hover: #F5F5F4;
+
+  /* Borders */
+  --border:        #EBE9E6;
+  --border-2:      #D6D3D1;
+  --border-strong: #A8A29E;
+  --divider:       #EBE9E6;
+
+  /* Text */
+  --text-1: #1C1917;
+  --text-2: #44403C;
+  --text-3: #78716C;
+  --text-4: #A8A29E;
+  --text-inv: #FAFAF9;
+
+  /* Brand — Teal kept */
+  --teal-50:  #F0FDFA;
+  --teal-100: #CCFBF1;
+  --teal-200: #99F6E4;
+  --teal-300: #5EEAD4;
+  --teal-400: #2DD4BF;
+  --teal-500: #14B8A6;
+  --teal-600: #0D9488;
+  --teal-700: #0F766E;
+  --teal-800: #115E59;
+  --teal-900: #134E4A;
+
+  --accent:        var(--teal-700);
+  --accent-soft:   var(--teal-50);
+  --accent-hover:  var(--teal-800);
+  --accent-text:   var(--teal-800);
+  --accent-on:     #FFFFFF;
+
+  /* Money / Signals */
+  --money-pos: #15803D;
+  --money-neg: #B91C1C;
+  --money-warn: #B45309;
+
+  /* Status — restrained, no neon */
+  --st-confirmed-bg: #DCFCE7;
+  --st-confirmed-fg: #14532D;
+  --st-confirmed-dot: #16A34A;
+
+  --st-pencil-bg: #FEF3C7;
+  --st-pencil-fg: #78350F;
+  --st-pencil-dot: #D97706;
+
+  --st-quotation-bg: #DBEAFE;
+  --st-quotation-fg: #1E3A8A;
+  --st-quotation-dot: #2563EB;
+
+  --st-enquiry-bg: #E0F2FE;
+  --st-enquiry-fg: #075985;
+  --st-enquiry-dot: #0284C7;
+
+  --st-cancelled-bg: #FEE2E2;
+  --st-cancelled-fg: #7F1D1D;
+  --st-cancelled-dot: #DC2626;
+
+  /* Shadows — minimal, just for sheets/menus */
+  --shadow-pop: 0 1px 2px rgba(28,25,23,.04), 0 8px 24px rgba(28,25,23,.08);
+  --shadow-sheet: -16px 0 48px rgba(28,25,23,.10);
+  --shadow-menu: 0 8px 32px rgba(28,25,23,.12), 0 2px 4px rgba(28,25,23,.04);
+
+  --ring: 0 0 0 3px rgba(13,148,136,.25);
+
+  /* Radii */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 10px;
+  --r-pill: 999px;
+
+  /* Layout */
+  --side-w: 220px;
+  --side-collapsed-w: 56px;
+  --top-h: 48px;
+
+  /* Density defaults (overridden on .app[data-density]) */
+  --row-h: 36px;
+  --cell-py: 8px;
+  --cell-px: 14px;
+  --gap: 14px;
+  --section-py: 18px;
+  --kbd-bg: var(--surface-2);
+
+  /* Type */
+  --font-sans: "Inter Tight", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-theme="dark"] {
+  --bg:          #0C0A09;
+  --surface:     #14110F;
+  --surface-2:   #1C1917;
+  --surface-3:   #292524;
+  --surface-hover: #1C1917;
+
+  --border:        #262320;
+  --border-2:      #3A3631;
+  --border-strong: #57534E;
+  --divider:       #1F1C1A;
+
+  --text-1: #FAFAF9;
+  --text-2: #E7E5E4;
+  --text-3: #A8A29E;
+  --text-4: #78716C;
+  --text-inv: #0C0A09;
+
+  --accent:       var(--teal-400);
+  --accent-soft:  rgba(20,184,166,.10);
+  --accent-hover: var(--teal-300);
+  --accent-text:  var(--teal-300);
+  --accent-on:    #0C0A09;
+
+  --money-pos: #4ADE80;
+  --money-neg: #F87171;
+  --money-warn: #FBBF24;
+
+  --st-confirmed-bg: rgba(34,197,94,.14);
+  --st-confirmed-fg: #86EFAC;
+  --st-confirmed-dot: #22C55E;
+
+  --st-pencil-bg: rgba(245,158,11,.14);
+  --st-pencil-fg: #FCD34D;
+  --st-pencil-dot: #F59E0B;
+
+  --st-quotation-bg: rgba(59,130,246,.14);
+  --st-quotation-fg: #93C5FD;
+  --st-quotation-dot: #3B82F6;
+
+  --st-enquiry-bg: rgba(2,132,199,.14);
+  --st-enquiry-fg: #7DD3FC;
+  --st-enquiry-dot: #0EA5E9;
+
+  --st-cancelled-bg: rgba(220,38,38,.14);
+  --st-cancelled-fg: #FCA5A5;
+  --st-cancelled-dot: #EF4444;
+
+  --shadow-pop: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+  --shadow-sheet: -16px 0 48px rgba(0,0,0,.5);
+  --shadow-menu: 0 8px 32px rgba(0,0,0,.6), 0 2px 4px rgba(0,0,0,.4);
+
+  --ring: 0 0 0 3px rgba(45,212,191,.30);
+
+  --kbd-bg: var(--surface-2);
+}
+
+/* Density modifiers */
+.app[data-density="compact"] {
+  --row-h: 30px;
+  --cell-py: 5px;
+  --cell-px: 12px;
+  --gap: 10px;
+  --section-py: 14px;
+}
+.app[data-density="balanced"] {
+  --row-h: 36px;
+  --cell-py: 8px;
+  --cell-px: 14px;
+  --gap: 14px;
+  --section-py: 18px;
+}
+.app[data-density="comfy"] {
+  --row-h: 44px;
+  --cell-py: 12px;
+  --cell-px: 16px;
+  --gap: 18px;
+  --section-py: 24px;
+}

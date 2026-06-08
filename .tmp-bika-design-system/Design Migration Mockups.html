@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bika Ops — Design Migration Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="mockups/shared.jsx"></script>
+<script type="text/babel" src="mockups/screens.jsx"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+function App() {
+  return (
+    <DesignCanvas>
+
+      <DCSection id="shell" title="01 — Shell Migration" subtitle="Horizontal top-nav (codebase) vs left sidebar (redesign) — same content, different chrome">
+        <DCArtboard id="before" label="Before — Zinc · IBM Plex · Horizontal Nav" width={1280} height={780}>
+          <BeforeArtboard/>
+        </DCArtboard>
+        <DCArtboard id="after-dash" label="After — Stone · Inter Tight · Left Sidebar + Dashboard" width={1280} height={780}>
+          <AfterDashArtboard/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="calendar" title="02 — Calendar — HallBoard" subtitle="Codebase feature depth (conflict detection, occupancy bars, hatch, Google source) with the new design language">
+        <DCArtboard id="calendar-board" label="Calendar — Hall Board View" width={1280} height={860}>
+          <CalendarArtboard/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="bookings" title="03 — Bookings — Master Detail" subtitle="420px master list + tabbed detail pane + always-visible money stack sidebar">
+        <DCArtboard id="bookings-detail" label="Bookings — Overview tab + Money Stack" width={1280} height={860}>
+          <BookingsArtboard/>
+        </DCArtboard>
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

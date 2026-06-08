@@ -77,16 +77,16 @@ const primaryNavigation: NavigationItem[] = [
     permissions: ['view_calendar', 'view_booking', 'view_enquiry', 'manage_bookings', 'manage_enquiries'],
   },
   {
-    name: 'Customers',
-    href: '/dashboard/customers',
-    icon: Users,
-    permissions: ['view_customer', 'manage_customers'],
-  },
-  {
     name: 'Enquiries',
     href: '/dashboard/enquiries',
     icon: PhoneCall,
     permissions: ['view_enquiry', 'manage_enquiries'],
+  },
+  {
+    name: 'Customers',
+    href: '/dashboard/customers',
+    icon: Users,
+    permissions: ['view_customer', 'manage_customers'],
   },
   {
     name: 'Payments',
@@ -156,7 +156,7 @@ const secondaryNavigation: NavigationItem[] = [
     permissions: ['view_reports'],
   },
   {
-    name: 'Activity Logs',
+    name: 'Activity',
     href: '/dashboard/logs',
     icon: Activity,
     permissions: ['view_audit_logs', 'manage_users'],
@@ -332,6 +332,7 @@ function DashboardLayoutContent({
   >([]);
   const [pendingEnquiries, setPendingEnquiries] = useState(0);
   const [outstandingPayments, setOutstandingPayments] = useState(0);
+  const [totalBookings, setTotalBookings] = useState(0);
 
   const sectionParam = searchParams.get('section');
 
@@ -498,12 +499,17 @@ function DashboardLayoutContent({
   useEffect(() => {
     if (!isAuthenticated) return;
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const cleanApiBase = apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase;
     Promise.all([
-      fetch(`${apiBase}/api/enquiries/count?status=pending`, { credentials: 'include' })
+      fetch(`${cleanApiBase}/api/bookings/count`, { credentials: 'include' })
+        .then((r) => r.ok ? r.json() : { count: 0 })
+        .then((d) => setTotalBookings(d?.data?.count ?? d?.count ?? 0))
+        .catch(() => setTotalBookings(0)),
+      fetch(`${cleanApiBase}/api/enquiries/count?status=pending`, { credentials: 'include' })
         .then((r) => r.ok ? r.json() : { count: 0 })
         .then((d) => setPendingEnquiries(d?.data?.count ?? d?.count ?? 0))
         .catch(() => setPendingEnquiries(0)),
-      fetch(`${apiBase}/api/bookings/count?status=outstanding`, { credentials: 'include' })
+      fetch(`${cleanApiBase}/api/bookings/count?status=outstanding`, { credentials: 'include' })
         .then((r) => r.ok ? r.json() : { count: 0 })
         .then((d) => setOutstandingPayments(d?.data?.count ?? d?.count ?? 0))
         .catch(() => setOutstandingPayments(0)),
@@ -988,7 +994,9 @@ function DashboardLayoutContent({
     name: item.name,
     href: item.href,
     badge:
-      item.name === 'Enquiries' && pendingEnquiries > 0
+      item.name === 'Bookings' && totalBookings > 0
+        ? totalBookings
+        : item.name === 'Enquiries' && pendingEnquiries > 0
         ? pendingEnquiries
         : item.name === 'Payments' && outstandingPayments > 0
         ? outstandingPayments
@@ -997,7 +1005,7 @@ function DashboardLayoutContent({
 
   return (
     <div
-      className={sidebarCollapsed ? 'sidebar-collapsed dashboard-root' : 'dashboard-root'}
+      className={sidebarCollapsed ? 'sidebar-collapsed ops-replica dashboard-root' : 'ops-replica dashboard-root'}
       style={{ '--current-sidebar-w': currentSidebarWidth } as React.CSSProperties}
     >
       <a href="#main-content" className="skip-nav">Skip to main content</a>
@@ -1009,9 +1017,6 @@ function DashboardLayoutContent({
         userName={user?.name}
       />
 
-      <div className="hidden lg:flex sidebar-toggle-container">
-        {navToggleButton}
-      </div>
       {sidebarOpen && (
         <button
           type="button"
@@ -1022,13 +1027,6 @@ function DashboardLayoutContent({
       )}
 
       <aside
-        className="hidden lg:block desktop-sidebar"
-        style={{ width: 'var(--current-sidebar-w)' }}
-      >
-        {renderSidebarContent(false, sidebarCollapsed)}
-      </aside>
-
-      <aside
         className="lg:hidden mobile-sidebar"
         aria-hidden={!sidebarOpen}
         style={{ transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)' }}
@@ -1036,8 +1034,8 @@ function DashboardLayoutContent({
         {renderSidebarContent(true, false)}
       </aside>
 
-      <div className="ml-0 lg:ml-[var(--current-sidebar-w)] content-wrapper">
-        <header className="dashboard-header">
+      <div className="ops-content-wrapper content-wrapper">
+        <header className="ops-mobile-header dashboard-header">
           <div className="lg:hidden">{navToggleButton}</div>
           <div className="header-logo-group">
             <img
@@ -1088,11 +1086,11 @@ function DashboardLayoutContent({
 
         <main
           id="main-content"
-          className="has-bottom-nav lg:!pb-0 dashboard-main"
+          className="ops-main has-bottom-nav lg:!pb-0 dashboard-main"
           style={{
-            maxWidth: pathname.startsWith('/dashboard/calendar') ? '100%' : 1400,
-            paddingLeft: pathname.startsWith('/dashboard/calendar') ? '0' : 'clamp(16px, 2.5vw, 28px)',
-            paddingRight: pathname.startsWith('/dashboard/calendar') ? '0' : 'clamp(16px, 2.5vw, 28px)',
+            maxWidth: '100%',
+            paddingLeft: '0',
+            paddingRight: '0',
             /* paddingBottom is intentionally omitted here so the
                .has-bottom-nav class can apply the correct bottom
                clearance (nav height + safe-area + extra breathing room).
@@ -1109,6 +1107,8 @@ function DashboardLayoutContent({
       <BottomNav
         permissions={user?.permissions || []}
         onMoreClick={() => setSidebarOpen(true)}
+        bookingsCount={totalBookings}
+        enquiriesCount={pendingEnquiries}
       />
 
       <CommandPalette

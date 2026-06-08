@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Form Inputs" subtitle="Text / select / date / textarea / error states" viewport="700x280" -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap">
+<style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .label { font-size: 12.5px; font-weight: 600; color: #334155; }
+  .input { width: 100%; border-radius: 12px; padding: 8px 12px; font-size: 14px; font-family: inherit; border: 1px solid #cbd5e1; background: white; color: #0f172a; box-sizing: border-box; }
+  .input:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(13,148,136,0.18); }
+  .input::placeholder { color: #6b7280; }
+  .input-error { border-color: #ef4444; }
+  .input-error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
+  .hint { font-size: 11px; color: #94a3b8; }
+  .error-msg { font-size: 11px; color: #ef4444; font-weight: 600; }
+  .select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  .textarea { min-height: 72px; resize: vertical; }
+  .relative { position: relative; }
+  .relative svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; stroke: #6b7280; fill: none; stroke-width: 1.75; pointer-events: none; }
+  .relative .input { padding-left: 32px; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="field">
+      <span class="label">Customer Name</span>
+      <input class="input" placeholder="Enter customer name" value="" />
+      <span class="hint">Full name as per records</span>
+    </div>
+    <div class="field">
+      <span class="label">Phone Number</span>
+      <div class="relative">
+        <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6.29 6.29l1.65-1.65a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+        <input class="input" placeholder="+91 98765 43210" />
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Function Type</span>
+      <select class="input select">
+        <option>Wedding</option>
+        <option>Reception</option>
+        <option>Birthday</option>
+        <option>Corporate</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="label">Function Date</span>
+      <input class="input" type="date" value="2024-12-25" />
+    </div>
+    <div class="field">
+      <span class="label">Email Address (Error state)</span>
+      <input class="input input-error" value="not-an-email" />
+      <span class="error-msg">Enter a valid email address</span>
+    </div>
+    <div class="field">
+      <span class="label">Special Notes</span>
+      <textarea class="input textarea" placeholder="Any special requirements…"></textarea>
+    </div>
+  </div>
+</body>
+</html>

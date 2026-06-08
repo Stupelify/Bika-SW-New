@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Colors" name="Accent Color Scale" subtitle="Orange accent — used for login gradient & warn states only" viewport="700x160" -->
+<html lang="en">
+<head><meta charset="UTF-8"><style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; }
+  .row { display: flex; gap: 0; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+  .swatch { flex: 1; height: 72px; display: flex; flex-direction: column; justify-content: flex-end; padding: 6px 8px; }
+  .swatch span { font-size: 10px; font-weight: 600; line-height: 1.3; }
+  .meta { display: flex; gap: 24px; margin-top: 10px; flex-wrap: wrap; }
+  .meta-item { display: flex; flex-direction: column; gap: 3px; }
+  .meta-item label { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .meta-item span { font-size: 12px; color: #0f172a; font-weight: 600; }
+  .note { margin-top: 10px; font-size: 11px; color: #64748b; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 6px 10px; }
+</style></head>
+<body>
+  <div class="row">
+    <div class="swatch" style="background:#fff7ed"><span style="color:#c2410c">50</span></div>
+    <div class="swatch" style="background:#ffedd5"><span style="color:#c2410c">100</span></div>
+    <div class="swatch" style="background:#fed7aa"><span style="color:#c2410c">200</span></div>
+    <div class="swatch" style="background:#fdba74"><span style="color:#c2410c">300</span></div>
+    <div class="swatch" style="background:#fb923c"><span style="color:#fff">400</span></div>
+    <div class="swatch" style="background:#f97316"><span style="color:#fff">500 ★</span></div>
+    <div class="swatch" style="background:#ea580c"><span style="color:#fff">600</span></div>
+    <div class="swatch" style="background:#c2410c"><span style="color:#fff">700</span></div>
+    <div class="swatch" style="background:#9a3412"><span style="color:#fff">800</span></div>
+    <div class="swatch" style="background:#7c2d12"><span style="color:#fff">900</span></div>
+  </div>
+  <div class="meta">
+    <div class="meta-item"><label>Login gradient</label><span>accent-100/60 → white → primary-100/70</span></div>
+    <div class="meta-item"><label>Insight warn</label><span>#fffbeb bg / #f59e0b accent</span></div>
+  </div>
+  <div class="note">Accent orange is used sparingly — login page gradient & warning insight cards only. Not used for primary actions or nav.</div>
+</body>
+</html>

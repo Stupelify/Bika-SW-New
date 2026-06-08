@@ -27,6 +27,7 @@ function useClock() {
           hour12: false,
           hour: '2-digit',
           minute: '2-digit',
+          second: '2-digit',
         })
       );
     tick();
@@ -118,7 +119,7 @@ export default function TopNav({ items, pathname, onSearchClick, userName }: Top
         {clock && (
           <div className="top-nav-clock" aria-label={`Current time: ${clock} IST`}>
             <span className="top-nav-time">{clock}</span>
-            <span className="top-nav-tz">IST</span>
+            <span className="top-nav-tz">Mumbai</span>
           </div>
         )}
 

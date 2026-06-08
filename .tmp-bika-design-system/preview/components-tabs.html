@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- @dsCard group="Components" name="Tab Bar & Bottom Nav" subtitle="Section tab bars + mobile bottom navigation" viewport="700x240" -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap">
+<style>
+  body { margin: 0; padding: 16px; font-family: 'Inter', ui-sans-serif, sans-serif; background: #f8fafc; display: flex; flex-direction: column; gap: 14px; }
+  .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 6px; }
+  .tab-row { display: flex; gap: 4px; padding: 4px; background: #f1f5f9; border-radius: 12px; width: fit-content; }
+  .tab { padding: 6px 14px; font-size: 13px; font-weight: 500; color: #64748b; border-radius: 9px; cursor: pointer; transition: all 0.15s; white-space: nowrap; background: transparent; border: none; font-family: inherit; }
+  .tab.active { background: white; color: #0f172a; font-weight: 600; box-shadow: 0 1px 3px rgba(15,23,42,0.08); }
+  .tab:hover:not(.active) { color: #0f172a; background: white; }
+  .bottom-nav { display: flex; align-items: flex-start; justify-content: center; gap: 2px; background: white; border-top: 1px solid #e2e8f0; border-radius: 14px; padding: 8px 8px 4px; box-shadow: 0 -1px 6px rgba(15,23,42,0.04); width: fit-content; }
+  .bn-item { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 8px; border: none; background: none; color: #6b7280; font-size: 11px; font-weight: 500; cursor: pointer; border-radius: 10px; min-width: 56px; font-family: inherit; }
+  .bn-item.active { color: #0f766e; font-weight: 600; background: #f0fdfa; }
+  .bn-item svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="tag">Tab Bar (section filter)</div>
+    <div class="tab-row">
+      <button class="tab active">All</button>
+      <button class="tab">Confirmed</button>
+      <button class="tab">Pending</button>
+      <button class="tab">Cancelled</button>
+    </div>
+  </div>
+  <div>
+    <div class="tag">Tab Bar (content sections)</div>
+    <div class="tab-row">
+      <button class="tab">Item Types</button>
+      <button class="tab active">Items</button>
+      <button class="tab">Template Menus</button>
+      <button class="tab">Ingredients</button>
+    </div>
+  </div>
+  <div>
+    <div class="tag">Bottom Navigation (mobile)</div>
+    <div class="bottom-nav">
+      <button class="bn-item">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Home
+      </button>
+      <button class="bn-item active">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
+        Bookings
+      </button>
+      <button class="bn-item">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Customers
+      </button>
+      <button class="bn-item">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        More
+      </button>
+    </div>
+  </div>
+</body>
+</html>

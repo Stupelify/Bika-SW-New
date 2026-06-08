@@ -33,11 +33,11 @@ export default function BookingDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/45 p-4 sm:p-6"
+      className="calendar-booking-drawer fixed inset-0 z-50 bg-black/45"
       onClick={onClose}
     >
       <div
-        className="mx-auto h-full w-full max-w-3xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl"
+        className="calendar-booking-drawer-panel h-full w-full max-w-3xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 sm:px-5">
