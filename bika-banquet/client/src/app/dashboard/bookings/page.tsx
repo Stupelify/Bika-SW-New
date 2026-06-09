@@ -69,6 +69,9 @@ import {
   histToSnapshot,
   type DiffSnapshot,
 } from '@/lib/booking-form/version-history';
+import { recalcBillingWhenMealsSubtotalChanges } from '@/lib/booking-form/billing-recalc';
+import { BOOKING_EXTERNAL_UPDATE_EVENT } from '@/lib/booking-form/booking-form-sync';
+import { packHasHallCharge, readPackHallRate } from '@/lib/booking-form/map-api-pack';
 import {
   buildBookingHallRows,
   computePackRowAmount,
@@ -623,6 +626,7 @@ export default function BookingsPage() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
   const [isFormDirty, setIsFormDirty] = useState(false);
+  const isFormDirtyRef = useRef(false);
   const [inlineCustomerFormData, setInlineCustomerFormData] = useState<InlineCustomerFormData>(
     initialInlineCustomerFormData
   );
@@ -642,6 +646,15 @@ export default function BookingsPage() {
   // The auto-recalc effect will NOT overwrite it when pack rates change.
   const [discountManuallySet, setDiscountManuallySet] = useState(false);
   const prevTotalPackAmountRef = useRef<number | null>(null);
+  const refreshOpenBookingFinancialsRef = useRef<(bookingId: string) => void>(() => {});
+
+  useEffect(() => {
+    isFormDirtyRef.current = isFormDirty;
+  }, [isFormDirty]);
+
+  const syncMealsSubtotalBaseline = useCallback((mealsSubtotal: number) => {
+    prevTotalPackAmountRef.current = mealsSubtotal;
+  }, []);
 
   const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -1363,13 +1376,27 @@ export default function BookingsPage() {
     if (prevTotalPackAmountRef.current === mealsBillBase) return;
     prevTotalPackAmountRef.current = mealsBillBase;
     if (!discountManuallySet) return;
-    setFormData((prev) => ({
-      ...prev,
-      finalDiscountPercent: '',
-      finalDiscountAmount: '',
-      finalAmount: formatComputedAmount(mealsBillBase),
-    }));
-  }, [mealsBillBase, discountManuallySet, showCreateForm, formatComputedAmount]);
+    setFormData((prev) => {
+      const nextValues = recalcBillingWhenMealsSubtotalChanges(
+        prev,
+        mealsBillBase,
+        amountSyncMode
+      );
+      if (
+        prev.finalDiscountAmount === nextValues.finalDiscountAmount &&
+        prev.finalDiscountPercent === nextValues.finalDiscountPercent &&
+        prev.finalAmount === nextValues.finalAmount
+      ) {
+        return prev;
+      }
+      return { ...prev, ...nextValues };
+    });
+  }, [
+    amountSyncMode,
+    discountManuallySet,
+    mealsBillBase,
+    showCreateForm,
+  ]);
 
   useEffect(() => {
     if (bookingsLoadError) {
@@ -1411,9 +1438,12 @@ export default function BookingsPage() {
 
         eventSource.onmessage = (event) => {
           try {
-            const payload = JSON.parse(event.data) as { type?: string };
+            const payload = JSON.parse(event.data) as { type?: string; id?: string };
             if (payload.type?.startsWith('booking:')) {
               void loadBookings();
+              if (payload.id) {
+                refreshOpenBookingFinancialsRef.current(payload.id);
+              }
             }
           } catch {
             // Ignore malformed SSE payloads and keep the stream alive.
@@ -1813,6 +1843,7 @@ export default function BookingsPage() {
   };
 
   const closeBookingForm = () => {
+    prevTotalPackAmountRef.current = null;
     setShowCreateForm(false);
     setEditingBookingId(null);
     setEditingBookingStatus(null);
@@ -1867,6 +1898,7 @@ export default function BookingsPage() {
     setActiveCustomerSearchField(null);
     setAmountSyncMode('discountPercent');
     setDiscountManuallySet(false);
+    prevTotalPackAmountRef.current = null;
 
     let nextForm: BookingFormData = {
       ...initialFormData,
@@ -1976,7 +2008,7 @@ export default function BookingsPage() {
         nextPacks[packKey] = {
           bookingPackId: pack.id,
           enabled: true,
-          withHall: resolvedPackHallIds.length > 0 || Boolean(pack.hallRate),
+          withHall: resolvedPackHallIds.length > 0 || packHasHallCharge(pack),
           withCatering: true,
           banquetId: firstPackHall?.banquet?.id || primaryHall?.banquet?.id || '',
           hallIds: resolvedPackHallIds,
@@ -1984,7 +2016,7 @@ export default function BookingsPage() {
           menuItemIds: rowMenuItemIds,
           startTime: pack.startTime || nextPacks[packKey].startTime,
           endTime: pack.endTime || nextPacks[packKey].endTime,
-          hallRate: pack.hallRate || '',
+          hallRate: readPackHallRate(pack),
           menuPoints:
             pack.menuPoint !== null && pack.menuPoint !== undefined
               ? String(pack.menuPoint)
@@ -2069,6 +2101,7 @@ export default function BookingsPage() {
         packs: nextPacks,
       };
       setFormData(loadedFormData);
+      syncMealsSubtotalBaseline(computeMealsSubtotal(loadedFormData.packs));
       setIsFormDirty(false);
       setActiveBookingObj(booking);
       // Snapshot of server state — used to reset on submission failure.
@@ -2303,10 +2336,41 @@ export default function BookingsPage() {
               : prev.dueAmount,
       };
       savedFormDataRef.current = next;
+      syncMealsSubtotalBaseline(computeMealsSubtotal(next.packs));
       return next;
     });
     setActiveBookingObj(booking);
-  }, []);
+  }, [syncMealsSubtotalBaseline]);
+
+  const refreshOpenBookingFinancials = useCallback(
+    async (bookingId: string) => {
+      if (!showCreateForm || !editingBookingId || editingBookingId !== bookingId) return;
+      if (isFormDirtyRef.current) return;
+      try {
+        const response = await api.getBooking(bookingId);
+        const booking = response.data?.data?.booking;
+        if (!booking) return;
+        applyBookingToForm(booking);
+      } catch {
+        // Non-blocking — list/SSE already refreshed; form stays on last known state.
+      }
+    },
+    [applyBookingToForm, editingBookingId, showCreateForm]
+  );
+  refreshOpenBookingFinancialsRef.current = (bookingId) => {
+    void refreshOpenBookingFinancials(bookingId);
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onExternalUpdate = (event: Event) => {
+      const bookingId = (event as CustomEvent<{ bookingId?: string }>).detail?.bookingId;
+      if (!bookingId) return;
+      void refreshOpenBookingFinancials(bookingId);
+    };
+    window.addEventListener(BOOKING_EXTERNAL_UPDATE_EVENT, onExternalUpdate);
+    return () => window.removeEventListener(BOOKING_EXTERNAL_UPDATE_EVENT, onExternalUpdate);
+  }, [refreshOpenBookingFinancials]);
 
   const doSaveBooking = async (opts?: { keepOpen?: boolean }): Promise<string | null> => {
     if (savingInFlightRef.current) return null;

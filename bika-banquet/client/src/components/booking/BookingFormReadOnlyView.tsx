@@ -60,10 +60,16 @@ export default function BookingFormReadOnlyView({
   };
 
   const billingTotals = useMemo(() => {
-    const mealsSubtotal = computeMealsSubtotal(formData.packs);
+    const mealsSubtotal =
+      apiPacks.length > 0
+        ? apiPacks.reduce(
+            (sum, pack) => sum + computePackRowAmountFromApiPack(pack),
+            0
+          )
+        : computeMealsSubtotal(formData.packs);
     const extrasSubtotal = computeExtrasSubtotal(formData.additionalRequirements);
     return { mealsSubtotal, extrasSubtotal, preDiscountTotal: mealsSubtotal + extrasSubtotal };
-  }, [formData.packs, formData.additionalRequirements]);
+  }, [apiPacks, formData.packs, formData.additionalRequirements]);
 
   const payableGrandTotal = useMemo(
     () =>
