@@ -38,7 +38,6 @@ import {
   Users,
   UtensilsCrossed,
   X,
-  Activity,
 } from 'lucide-react';
 
 interface NavigationChild {
@@ -155,12 +154,6 @@ const secondaryNavigation: NavigationItem[] = [
     permissions: ['view_reports'],
   },
   {
-    name: 'Activity Logs',
-    href: '/dashboard/logs',
-    icon: Activity,
-    permissions: ['view_audit_logs', 'manage_users'],
-  },
-  {
     name: 'Settings',
     href: '/dashboard/settings',
     icon: Settings,
@@ -178,6 +171,7 @@ const secondaryNavigation: NavigationItem[] = [
       'manage_permission',
       'manage_roles',
       'manage_users',
+      'view_audit_logs',
     ],
     children: [
       {
@@ -196,6 +190,11 @@ const secondaryNavigation: NavigationItem[] = [
           'manage_roles',
           'manage_permission',
         ],
+      },
+      {
+        name: 'Activity Logs',
+        href: '/dashboard/settings?section=logs',
+        permissions: ['view_audit_logs', 'manage_users'],
       },
     ],
   },

@@ -18,6 +18,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import EmptyState from '@/components/EmptyState';
 import FormPromptModal from '@/components/FormPromptModal';
 import { TableSkeleton } from '@/components/Skeletons';
+import ToggleSwitch from '@/components/ToggleSwitch';
+import ActivityLogsPanel from '@/components/settings/ActivityLogsPanel';
 
 interface UserRow {
   id: string;
@@ -168,10 +170,10 @@ const initialUserForm = {
 const initialResetPasswordForm = { newPassword: '', confirmPassword: '' };
 const initialRoleForm = { name: '', description: '' };
 
-type SettingsSection = 'users' | 'roles';
+type SettingsSection = 'users' | 'roles' | 'logs';
 
 function isSettingsSection(value: string | null): value is SettingsSection {
-  return value === 'users' || value === 'roles';
+  return value === 'users' || value === 'roles' || value === 'logs';
 }
 
 function SettingsPageContent() {
@@ -260,6 +262,9 @@ function SettingsPageContent() {
 
   const canAccessUsersSection = canViewUsers || canAddUsers || canDeleteUsers || canManageUsers;
   const canAccessRolesSection = canViewRoles || canAddRoles || canEditRoles || canDeleteRoles;
+  const canViewLogs =
+    currentPermissionSet.has('view_audit_logs') || currentPermissionSet.has('manage_users');
+  const canAccessLogsSection = canViewLogs;
   // Whether the per-user permission editor (grant/deny) is available.
   const canEditUserPermissions = canManageRolePermissions;
 
@@ -267,8 +272,9 @@ function SettingsPageContent() {
     const list: SettingsSection[] = [];
     if (canAccessUsersSection) list.push('users');
     if (canAccessRolesSection) list.push('roles');
+    if (canAccessLogsSection) list.push('logs');
     return list;
-  }, [canAccessUsersSection, canAccessRolesSection]);
+  }, [canAccessUsersSection, canAccessRolesSection, canAccessLogsSection]);
 
   useEffect(() => {
     if (availableSections.length === 0) return;
@@ -609,6 +615,15 @@ function SettingsPageContent() {
     });
   };
 
+  const togglePermissionEffective = (permissionId: string, turnOn: boolean) => {
+    const inherited = inheritedPermissionIds.has(permissionId);
+    if (turnOn) {
+      setPermissionOverride(permissionId, inherited ? 'default' : 'grant');
+    } else {
+      setPermissionOverride(permissionId, inherited ? 'deny' : 'default');
+    }
+  };
+
   const submitEditUser = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingUser) return;
@@ -745,32 +760,14 @@ function SettingsPageContent() {
     }
   };
 
-  const toggleRolePerm = (permissionId: string) => {
-    setRolePermIds((prev) =>
-      prev.includes(permissionId)
-        ? prev.filter((id) => id !== permissionId)
-        : [...prev, permissionId]
-    );
-  };
-
-  const toggleRolePermGroup = (group: PermissionGroup) => {
-    const ids = group.permissions.map((p) => p.id);
-    const allSelected = ids.every((id) => rolePermIds.includes(id));
-    setRolePermIds((prev) =>
-      allSelected
-        ? prev.filter((id) => !ids.includes(id))
-        : Array.from(new Set([...prev, ...ids]))
-    );
-  };
-
   const isAdminRoleModal = editingRole?.name.toLowerCase() === 'admin';
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="page-title">User Management</h1>
+        <h1 className="page-title">Settings</h1>
         <p className="text-sm text-[var(--text-3)] mt-1">
-          Manage staff accounts, their access, and roles.
+          Manage users, roles, and activity logs.
         </p>
       </div>
 
@@ -987,14 +984,14 @@ function SettingsPageContent() {
               </div>
             )}
 
-            {/* Per-user permissions (grant / deny on top of roles) */}
+            {/* Per-user permissions */}
             {canEditUserPermissions && permissionGroups.length > 0 && (
               <div className="space-y-3">
                 <div>
                   <p className="text-sm font-semibold text-[var(--text-1)]">Permissions</p>
                   <p className="text-xs text-[var(--text-4)]">
-                    Default follows the user&apos;s roles. Use Grant to add a permission, or Deny to
-                    remove one — even if a role would allow it.
+                    Turn each permission on or off for this user. Changes apply on top of their
+                    assigned roles.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1012,45 +1009,17 @@ function SettingsPageContent() {
                         return (
                           <div
                             key={permission.id}
-                            className="flex items-center justify-between gap-2"
+                            className="flex items-center justify-between gap-3"
                             title={permission.name}
                           >
                             <span className="text-sm text-[var(--text-2)]">
                               {formatPermissionLabel(permission.name)}
-                              <span
-                                className={`ml-2 text-[10px] uppercase font-semibold ${
-                                  effectiveOn ? 'text-emerald-600' : 'text-[var(--text-4)]'
-                                }`}
-                              >
-                                {effectiveOn ? 'on' : 'off'}
-                              </span>
                             </span>
-                            <div className="flex items-center gap-1">
-                              {(['default', 'grant', 'deny'] as PermOverride[]).map((opt) => (
-                                <button
-                                  key={opt}
-                                  type="button"
-                                  onClick={() => setPermissionOverride(permission.id, opt)}
-                                  className={`px-2 py-0.5 text-[11px] rounded-md border transition ${
-                                    override === opt
-                                      ? opt === 'deny'
-                                        ? 'bg-red-600 text-white border-red-600'
-                                        : opt === 'grant'
-                                          ? 'bg-emerald-600 text-white border-emerald-600'
-                                          : 'bg-primary-600 text-white border-primary-600'
-                                      : 'border-[var(--border)] text-[var(--text-3)] hover:border-primary-200'
-                                  }`}
-                                >
-                                  {opt === 'default'
-                                    ? inherited
-                                      ? 'Role'
-                                      : 'Off'
-                                    : opt === 'grant'
-                                      ? 'Grant'
-                                      : 'Deny'}
-                                </button>
-                              ))}
-                            </div>
+                            <ToggleSwitch
+                              checked={effectiveOn}
+                              onChange={(on) => togglePermissionEffective(permission.id, on)}
+                              ariaLabel={`${effectiveOn ? 'Disable' : 'Enable'} ${formatPermissionLabel(permission.name)}`}
+                            />
                           </div>
                         );
                       })}
@@ -1225,8 +1194,8 @@ function SettingsPageContent() {
               </div>
               <p className="text-xs text-[var(--text-4)]">
                 {userForm.roleId
-                  ? 'Imported from the selected role. Tick to add or untick to remove for this user.'
-                  : 'Pick a role to import its permissions, or tick individual permissions to grant.'}
+                  ? 'Imported from the selected role. Turn permissions on or off for this user.'
+                  : 'Pick a role to import its permissions, or turn individual permissions on.'}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {permissionGroups.map((group) => {
@@ -1234,43 +1203,47 @@ function SettingsPageContent() {
                   const allSelected = ids.every((id) => newUserPermIds.includes(id));
                   return (
                     <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-3 gap-3">
                         <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
-                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
-                          <input
-                            type="checkbox"
+                        <div className="flex items-center gap-2 text-xs text-[var(--text-2)]">
+                          <span>All</span>
+                          <ToggleSwitch
                             checked={allSelected}
-                            onChange={() =>
+                            onChange={(on) =>
                               setNewUserPermIds((prev) =>
-                                allSelected
-                                  ? prev.filter((id) => !ids.includes(id))
-                                  : Array.from(new Set([...prev, ...ids]))
+                                on
+                                  ? Array.from(new Set([...prev, ...ids]))
+                                  : prev.filter((id) => !ids.includes(id))
                               )
                             }
+                            ariaLabel={`${allSelected ? 'Disable' : 'Enable'} all ${group.label} permissions`}
                           />
-                          All
-                        </label>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-2">
                         {group.permissions.map((permission) => (
-                          <label
+                          <div
                             key={permission.id}
-                            className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                            className="flex items-center justify-between gap-3"
                             title={permission.name}
                           >
-                            <input
-                              type="checkbox"
+                            <span className="text-sm text-[var(--text-2)]">
+                              {formatPermissionLabel(permission.name)}
+                            </span>
+                            <ToggleSwitch
                               checked={newUserPermIds.includes(permission.id)}
-                              onChange={() =>
+                              onChange={(on) =>
                                 setNewUserPermIds((prev) =>
-                                  prev.includes(permission.id)
-                                    ? prev.filter((id) => id !== permission.id)
-                                    : [...prev, permission.id]
+                                  on
+                                    ? prev.includes(permission.id)
+                                      ? prev
+                                      : [...prev, permission.id]
+                                    : prev.filter((id) => id !== permission.id)
                                 )
                               }
+                              ariaLabel={`${newUserPermIds.includes(permission.id) ? 'Disable' : 'Enable'} ${formatPermissionLabel(permission.name)}`}
                             />
-                            {formatPermissionLabel(permission.name)}
-                          </label>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1348,31 +1321,47 @@ function SettingsPageContent() {
                   const allSelected = ids.every((id) => rolePermIds.includes(id));
                   return (
                     <div key={group.key} className="rounded-xl border border-[var(--border)] p-3">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-3 gap-3">
                         <p className="text-sm font-semibold text-[var(--text-1)]">{group.label}</p>
-                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-2)]">
-                          <input
-                            type="checkbox"
+                        <div className="flex items-center gap-2 text-xs text-[var(--text-2)]">
+                          <span>All</span>
+                          <ToggleSwitch
                             checked={allSelected}
-                            onChange={() => toggleRolePermGroup(group)}
+                            onChange={(on) =>
+                              setRolePermIds((prev) =>
+                                on
+                                  ? Array.from(new Set([...prev, ...ids]))
+                                  : prev.filter((id) => !ids.includes(id))
+                              )
+                            }
+                            ariaLabel={`${allSelected ? 'Disable' : 'Enable'} all ${group.label} permissions`}
                           />
-                          All
-                        </label>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-2">
                         {group.permissions.map((permission) => (
-                          <label
+                          <div
                             key={permission.id}
-                            className="flex items-center gap-2 text-sm text-[var(--text-2)]"
+                            className="flex items-center justify-between gap-3"
                             title={permission.name}
                           >
-                            <input
-                              type="checkbox"
+                            <span className="text-sm text-[var(--text-2)]">
+                              {formatPermissionLabel(permission.name)}
+                            </span>
+                            <ToggleSwitch
                               checked={rolePermIds.includes(permission.id)}
-                              onChange={() => toggleRolePerm(permission.id)}
+                              onChange={(on) =>
+                                setRolePermIds((prev) =>
+                                  on
+                                    ? prev.includes(permission.id)
+                                      ? prev
+                                      : [...prev, permission.id]
+                                    : prev.filter((id) => id !== permission.id)
+                                )
+                              }
+                              ariaLabel={`${rolePermIds.includes(permission.id) ? 'Disable' : 'Enable'} ${formatPermissionLabel(permission.name)}`}
                             />
-                            {formatPermissionLabel(permission.name)}
-                          </label>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1401,41 +1390,59 @@ function SettingsPageContent() {
       </FormPromptModal>
 
       {/* Tabs */}
-      <div className="card p-2">
-        <div className="grid grid-cols-2 gap-2">
-          {canAccessUsersSection && (
-            <button
-              type="button"
-              onClick={() => navigateToSection('users')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSection === 'users'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
-            >
-              Users
-            </button>
-          )}
-          {canAccessRolesSection && (
-            <button
-              type="button"
-              onClick={() => navigateToSection('roles')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSection === 'roles'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
-            >
-              Roles
-            </button>
-          )}
+      {availableSections.length > 0 && (
+        <div className="card p-2">
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${availableSections.length}, minmax(0, 1fr))` }}
+          >
+            {canAccessUsersSection && (
+              <button
+                type="button"
+                onClick={() => navigateToSection('users')}
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  activeSection === 'users'
+                    ? 'bg-primary-600 text-white shadow'
+                    : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                }`}
+              >
+                Users
+              </button>
+            )}
+            {canAccessRolesSection && (
+              <button
+                type="button"
+                onClick={() => navigateToSection('roles')}
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  activeSection === 'roles'
+                    ? 'bg-primary-600 text-white shadow'
+                    : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                }`}
+              >
+                Roles
+              </button>
+            )}
+            {canAccessLogsSection && (
+              <button
+                type="button"
+                onClick={() => navigateToSection('logs')}
+                className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  activeSection === 'logs'
+                    ? 'bg-primary-600 text-white shadow'
+                    : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
+                }`}
+              >
+                Activity Logs
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {availableSections.length === 0 && (
         <div className="card py-12 text-center">
           <p className="text-sm text-[var(--text-2)]">
-            You do not have permission to manage users or roles.
+            You do not have permission to access settings.
           </p>
         </div>
       )}
@@ -1491,114 +1498,252 @@ function SettingsPageContent() {
               }
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-[var(--text-4)] border-b border-[var(--border)]">
-                    <th className="py-2 pr-3 font-semibold">User</th>
-                    <th className="py-2 pr-3 font-semibold">Roles</th>
-                    <th className="py-2 pr-3 font-semibold">Venues</th>
-                    <th className="py-2 pr-3 font-semibold">Status</th>
-                    <th className="py-2 pr-3 font-semibold">Last login</th>
-                    <th className="py-2 pr-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <>
+              {/* Mobile card view */}
+              <div className="md:hidden">
+                <div className="mobile-card-list">
                   {filteredUsers.map((user) => {
                     const isSelf = user.id === currentUser?.id;
                     const roleNames = (user.userRoles || []).map((ur) => ur.role.name).join(', ');
+                    const hasActions =
+                      canManageUsers ||
+                      canAssignRoles ||
+                      canDeleteUsers;
                     return (
-                      <tr
-                        key={user.id}
-                        className="border-b border-[var(--border)] last:border-0 align-top"
-                      >
-                        <td className="py-3 pr-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-[var(--text-1)]">
-                              {user.name || 'Unnamed user'}
-                            </span>
-                            {isSelf && (
-                              <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
-                                You
-                              </span>
-                            )}
+                      <div key={user.id} className="mobile-card">
+                        <div className="mobile-card-header">
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="mobile-card-title flex items-center gap-2 flex-wrap">
+                              <span>{user.name || 'Unnamed user'}</span>
+                              {isSelf && (
+                                <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                                  You
+                                </span>
+                              )}
+                            </div>
+                            <div className="mobile-card-subtitle">{user.email}</div>
                           </div>
-                          <div className="text-xs text-[var(--text-4)]">{user.email}</div>
-                        </td>
-                        <td className="py-3 pr-3 text-[var(--text-3)]">
-                          {roleNames || <span className="text-[var(--text-4)]">No roles</span>}
-                        </td>
-                        <td className="py-3 pr-3 text-[var(--text-3)]">
-                          {user.hasAllVenueAccess ? 'All venues' : 'Restricted'}
-                        </td>
-                        <td className="py-3 pr-3">
-                          {user.isActive === false ? (
-                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-500/10 dark:text-red-200">
-                              Disabled
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              user.isActive === false
+                                ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-200'
+                                : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                            }`}
+                          >
+                            {user.isActive === false ? 'Disabled' : 'Active'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span className="mobile-card-label">Roles</span>
+                          <span className="mobile-card-value">
+                            {roleNames || 'No roles'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span className="mobile-card-label">Venues</span>
+                          <span className="mobile-card-value">
+                            {user.hasAllVenueAccess ? 'All venues' : 'Restricted'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span className="mobile-card-label">Active</span>
+                          <div className="flex items-center gap-2">
+                            <ToggleSwitch
+                              checked={user.isActive !== false}
+                              onChange={() => toggleUserStatus(user)}
+                              disabled={savingUserStatus || isSelf || !canManageUsers}
+                              ariaLabel={
+                                user.isActive === false
+                                  ? `Enable ${user.email}`
+                                  : `Disable ${user.email}`
+                              }
+                            />
+                            <span
+                              className={`text-xs font-medium ${
+                                user.isActive === false
+                                  ? 'text-[var(--text-4)]'
+                                  : 'text-emerald-700 dark:text-emerald-200'
+                              }`}
+                            >
+                              {user.isActive === false ? 'Off' : 'On'}
                             </span>
-                          ) : (
-                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200">
-                              Active
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-3 text-xs text-[var(--text-4)]">
-                          {user.lastLoginAt
-                            ? new Date(user.lastLoginAt).toLocaleString()
-                            : 'Never'}
-                        </td>
-                        <td className="py-3 pr-3">
-                          <div className="flex items-center justify-end gap-1">
+                          </div>
+                        </div>
+                        <div className="mobile-card-meta" style={{ marginTop: 8 }}>
+                          <span className="mobile-card-meta-item">
+                            Last login:{' '}
+                            {user.lastLoginAt
+                              ? new Date(user.lastLoginAt).toLocaleString()
+                              : 'Never'}
+                          </span>
+                        </div>
+                        {hasActions && (
+                          <div className="mobile-card-actions">
                             {(canManageUsers || canAssignRoles) && (
                               <button
-                                className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                                type="button"
+                                className="mobile-card-action-btn"
                                 onClick={() => openEditUser(user)}
-                                title="Edit roles, venue access and permissions"
                               >
                                 Edit
                               </button>
                             )}
                             {canManageUsers && !isSelf && (
                               <button
-                                className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg"
+                                type="button"
+                                className="mobile-card-action-btn"
                                 onClick={() => openResetPasswordModal(user)}
-                                title="Reset password"
                               >
-                                <KeyRound className="w-4 h-4" />
-                              </button>
-                            )}
-                            {canManageUsers && !isSelf && (
-                              <button
-                                className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
-                                onClick={() => toggleUserStatus(user)}
-                                disabled={savingUserStatus}
-                                title={
-                                  user.isActive === false
-                                    ? 'Enable user (allow login)'
-                                    : 'Disable user (sign out of all devices)'
-                                }
-                              >
-                                {user.isActive === false ? 'Enable' : 'Disable'}
+                                <KeyRound className="w-3.5 h-3.5" />
+                                Reset
                               </button>
                             )}
                             {canDeleteUsers && !isSelf && (
                               <button
-                                className="p-2 text-[var(--text-4)] hover:text-red-700 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
+                                type="button"
+                                className="mobile-card-action-btn"
                                 onClick={() => removeUser(user)}
-                                title="Delete user (only when the user has no history)"
+                                style={{ color: '#dc2626' }}
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete
                               </button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        )}
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block table-shell">
+                <table className="data-table">
+                  <thead>
+                    <tr className="border-b border-[var(--border)]">
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        User
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Roles
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Venues
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Status
+                      </th>
+                      <th className="py-2 pr-3 text-left text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Last login
+                      </th>
+                      <th className="py-2 pr-3 text-right text-xs uppercase tracking-wide text-[var(--text-4)] font-semibold">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((user) => {
+                      const isSelf = user.id === currentUser?.id;
+                      const roleNames = (user.userRoles || []).map((ur) => ur.role.name).join(', ');
+                      return (
+                        <tr
+                          key={user.id}
+                          className="border-b border-[var(--border)] last:border-0 align-top"
+                        >
+                          <td className="py-3 pr-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-[var(--text-1)]">
+                                {user.name || 'Unnamed user'}
+                              </span>
+                              {isSelf && (
+                                <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                                  You
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-[var(--text-4)]">{user.email}</div>
+                          </td>
+                          <td className="py-3 pr-3 text-[var(--text-3)]">
+                            {roleNames || <span className="text-[var(--text-4)]">No roles</span>}
+                          </td>
+                          <td className="py-3 pr-3 text-[var(--text-3)]">
+                            {user.hasAllVenueAccess ? 'All venues' : 'Restricted'}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <div className="flex items-center gap-2">
+                              <ToggleSwitch
+                                checked={user.isActive !== false}
+                                onChange={() => toggleUserStatus(user)}
+                                disabled={savingUserStatus || isSelf || !canManageUsers}
+                                ariaLabel={
+                                  user.isActive === false
+                                    ? `Enable ${user.email}`
+                                    : `Disable ${user.email}`
+                                }
+                              />
+                              <span
+                                className={`text-xs font-medium ${
+                                  user.isActive === false
+                                    ? 'text-[var(--text-4)]'
+                                    : 'text-emerald-700 dark:text-emerald-200'
+                                }`}
+                              >
+                                {user.isActive === false ? 'Off' : 'On'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 pr-3 text-xs text-[var(--text-4)]">
+                            {user.lastLoginAt
+                              ? new Date(user.lastLoginAt).toLocaleString()
+                              : 'Never'}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <div className="flex items-center justify-end gap-1">
+                              {(canManageUsers || canAssignRoles) && (
+                                <button
+                                  className="px-2 py-1 text-xs rounded-lg border border-[var(--border)] text-[var(--text-3)] hover:bg-[var(--surface-2)]"
+                                  onClick={() => openEditUser(user)}
+                                  title="Edit roles, venue access and permissions"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {canManageUsers && !isSelf && (
+                                <button
+                                  className="p-2 text-[var(--text-4)] hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg"
+                                  onClick={() => openResetPasswordModal(user)}
+                                  title="Reset password"
+                                >
+                                  <KeyRound className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canDeleteUsers && !isSelf && (
+                                <button
+                                  className="p-2 text-[var(--text-4)] hover:text-red-700 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
+                                  onClick={() => removeUser(user)}
+                                  title="Delete user (only when the user has no history)"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
+        </div>
+      )}
+
+      {/* Activity logs tab */}
+      {activeSection === 'logs' && canAccessLogsSection && (
+        <div className="card">
+          <ActivityLogsPanel />
         </div>
       )}
 
@@ -1684,7 +1829,7 @@ function SettingsPageContent() {
 function SettingsPageFallback() {
   return (
     <div className="card py-12 text-center">
-      <p className="text-sm text-[var(--text-2)]">Loading user management...</p>
+      <p className="text-sm text-[var(--text-2)]">Loading settings...</p>
     </div>
   );
 }
