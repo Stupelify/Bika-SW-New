@@ -6,6 +6,10 @@ import {
   sumAllPaymentAmounts,
   sumPaymentsTowardDue,
 } from '@/lib/booking-form/payment-credit';
+import {
+  paymentRowChanged,
+  paymentWasEditedOnServer,
+} from '@/lib/booking-form/payments';
 import type { PaymentRow } from '@/lib/booking-form/types';
 import { Plus } from 'lucide-react';
 import { IndianAmountInput } from '@/components/IndianAmountInput';
@@ -56,6 +60,27 @@ export default function BookingPaymentsLedger({
   const modeLabelFor = (mode: string) =>
     PAYMENT_MODES.find((m) => m.value === mode.toLowerCase())?.label ?? mode;
 
+  // Corrections must read as corrections: tag entries that were edited after
+  // they were first recorded so they can't pass as original entries.
+  const editedTag = (payment: PaymentRow) =>
+    paymentWasEditedOnServer(payment) ? (
+      <span
+        className="ml-1.5 inline-flex items-center rounded-full border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300 align-middle"
+        title={`This entry was edited after it was first recorded${
+          payment.updatedAt
+            ? ` — last change ${new Date(payment.updatedAt).toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`
+            : ''
+        }`}
+      >
+        edited
+      </span>
+    ) : null;
+
   return (
     <div className="space-y-3 max-w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
@@ -94,7 +119,10 @@ export default function BookingPaymentsLedger({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--text-1)]">{modeLabel}</p>
+                    <p className="text-sm font-semibold text-[var(--text-1)]">
+                      {modeLabel}
+                      {editedTag(payment)}
+                    </p>
                     <p className="text-xs text-[var(--text-4)]">{payment.date || '—'}</p>
                   </div>
                   <p
@@ -239,7 +267,10 @@ export default function BookingPaymentsLedger({
                     </td>
                     <td className="px-2 py-1.5">
                       {fieldsLocked ? (
-                        <span className="text-[var(--text-2)]">{modeLabel}</span>
+                        <span className="text-[var(--text-2)]">
+                          {modeLabel}
+                          {editedTag(payment)}
+                        </span>
                       ) : (
                         <select
                           className="input py-1 text-sm"
@@ -314,7 +345,16 @@ export default function BookingPaymentsLedger({
                     {!isReadOnly && (
                       <td className="px-2 py-1.5 text-right">
                         {isExisting ? (
-                          <span className="text-xs text-[var(--text-4)] select-none">saved</span>
+                          paymentRowChanged(payment) ? (
+                            <span
+                              className="text-xs text-amber-600 dark:text-amber-400 select-none"
+                              title="This change updates the existing entry when you submit the booking"
+                            >
+                              will update
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[var(--text-4)] select-none">saved</span>
+                          )
                         ) : (
                           <button
                             type="button"

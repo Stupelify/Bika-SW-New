@@ -4,6 +4,9 @@ import { useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
 import { matchesEventPrefix, nextBackoffDelay } from '@/lib/sseSubscription';
+import { useSseStatusStore, type SseConnectionStatus } from '@/lib/sseStatusStore';
+
+let sseInstanceCounter = 0;
 
 export function useSSE(
   eventPrefixes: string[],
@@ -28,8 +31,17 @@ export function useSSE(
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let attempt = 0;
 
+    // Report connection state so the UI can show Live / Reconnecting / Offline
+    // instead of silently serving stale data while disconnected.
+    const instanceId = `sse-${(sseInstanceCounter += 1)}`;
+    const reportStatus = (status: SseConnectionStatus) => {
+      if (!cancelled) useSseStatusStore.getState().setStatus(instanceId, status);
+    };
+    reportStatus('connecting');
+
     const scheduleReconnect = () => {
       if (cancelled || reconnectTimer) return;
+      reportStatus(attempt >= 3 ? 'offline' : 'reconnecting');
       const delay = nextBackoffDelay(attempt);
       attempt += 1;
       reconnectTimer = setTimeout(() => {
@@ -55,6 +67,7 @@ export function useSSE(
 
         source.onopen = () => {
           attempt = 0; // reset backoff once connected
+          reportStatus('connected');
         };
 
         source.onmessage = (event) => {
@@ -86,6 +99,7 @@ export function useSSE(
       cancelled = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       eventSource?.close();
+      useSseStatusStore.getState().removeStatus(instanceId);
     };
   }, [enabled]);
 }

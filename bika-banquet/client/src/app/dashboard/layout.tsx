@@ -12,6 +12,7 @@ import CommandPalette from '@/components/CommandPalette';
 import IdleTimeoutModal from '@/components/IdleTimeoutModal';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
 import { useSSE } from '@/hooks/useSSE';
+import SseStatusChip from '@/components/SseStatusChip';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -1080,6 +1081,7 @@ function DashboardLayoutContent({
             <Search className="icon-16" aria-hidden="true" />
           </button>
 
+          <SseStatusChip />
           <ThemeToggle />
 
           <div className="hidden md:flex">

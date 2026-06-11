@@ -24,6 +24,8 @@ export function mapBookingPaymentsFromApi(payments: unknown[]): PaymentRow[] {
       amount,
       reference,
       clearingDate,
+      createdAt: payment.createdAt ? String(payment.createdAt) : undefined,
+      updatedAt: payment.updatedAt ? String(payment.updatedAt) : undefined,
       _original: {
         mode,
         narration,
@@ -35,6 +37,19 @@ export function mapBookingPaymentsFromApi(payments: unknown[]): PaymentRow[] {
       },
     };
   });
+}
+
+/**
+ * True when an existing ledger entry was modified after it was first
+ * recorded (beyond a small tolerance for insert-time timestamp skew) —
+ * surfaces corrections so they can't pass as original entries.
+ */
+export function paymentWasEditedOnServer(payment: PaymentRow): boolean {
+  if (!payment.id || !payment.createdAt || !payment.updatedAt) return false;
+  const created = new Date(payment.createdAt).getTime();
+  const updated = new Date(payment.updatedAt).getTime();
+  if (!Number.isFinite(created) || !Number.isFinite(updated)) return false;
+  return updated - created > 1000;
 }
 
 export function paymentRowChanged(payment: PaymentRow): boolean {

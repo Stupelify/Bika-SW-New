@@ -7,6 +7,9 @@ export interface PaymentRow {
   amount: string;
   reference: string;
   clearingDate: string;
+  /** Server timestamps — used to surface "edited" entries in the ledger. */
+  createdAt?: string;
+  updatedAt?: string;
   _original?: {
     mode: string;
     narration: string;

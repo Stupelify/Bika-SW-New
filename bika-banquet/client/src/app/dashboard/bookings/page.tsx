@@ -765,6 +765,9 @@ export default function BookingsPage() {
     stale: boolean;
     formData: BookingFormData;
   } | null>(null);
+  // Finalizing is irreversible — show a review of what gets locked in,
+  // not a bare browser confirm().
+  const [showFinalizeReview, setShowFinalizeReview] = useState(false);
 
   const readDraftOfferFor = (
     bookingId: string | null,
@@ -2006,6 +2009,7 @@ export default function BookingsPage() {
     setActiveBookingTab('details');
     setActiveBookingObj(null);
     setImportedTemplateExtras([]);
+    setShowFinalizeReview(false);
     // Explicit close (incl. "Discard & Close") — the locally retained draft
     // for this form session is no longer wanted.
     clearBookingDraft(editingBookingId);
@@ -2826,50 +2830,114 @@ export default function BookingsPage() {
         if (savedBookingId) setEditingBookingId(savedBookingId);
       }
 
+      const failedPayments: Array<{ row: PaymentRow; kind: 'add' | 'update' }> = [];
       if (savedBookingId) {
         const { changedPayments, newPayments } = partitionPaymentsForSave(formData.payments);
 
-        await Promise.all([
-          ...changedPayments.map((p) =>
-            api.updatePayment(savedBookingId, p.id!, {
-              amount: parseFloat(p.amount),
-              method: p.mode,
-              narration: p.narration || undefined,
-              paymentDate: p.date,
-              reference: p.reference || undefined,
-              clearingDate: p.clearingDate || undefined,
-            })
-          ),
-          ...newPayments.map((p) =>
-            api.addPayment(savedBookingId, {
-              amount: parseFloat(p.amount),
-              method: p.mode,
-              narration: p.narration || undefined,
-              paymentDate: p.date,
-              reference: p.reference || undefined,
-              clearingDate: p.clearingDate || undefined,
-            })
-          ),
-        ]);
+        const paymentTasks: Array<{
+          row: PaymentRow;
+          kind: 'add' | 'update';
+          run: () => Promise<unknown>;
+        }> = [
+          ...changedPayments.map((p) => ({
+            row: p,
+            kind: 'update' as const,
+            run: () =>
+              api.updatePayment(savedBookingId, p.id!, {
+                amount: parseFloat(p.amount),
+                method: p.mode,
+                narration: p.narration || undefined,
+                paymentDate: p.date,
+                reference: p.reference || undefined,
+                clearingDate: p.clearingDate || undefined,
+              }),
+          })),
+          ...newPayments.map((p) => ({
+            row: p,
+            kind: 'add' as const,
+            run: () =>
+              api.addPayment(savedBookingId, {
+                amount: parseFloat(p.amount),
+                method: p.mode,
+                narration: p.narration || undefined,
+                paymentDate: p.date,
+                reference: p.reference || undefined,
+                clearingDate: p.clearingDate || undefined,
+              }),
+          })),
+        ];
+
+        // Settle every payment mutation so one failure can't mask the others —
+        // the user is told exactly which entries did not record.
+        const results = await Promise.allSettled(paymentTasks.map((task) => task.run()));
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            failedPayments.push({
+              row: paymentTasks[index].row,
+              kind: paymentTasks[index].kind,
+            });
+          }
+        });
 
         const refreshResponse = await api.getBooking(savedBookingId);
         const refreshedBooking = refreshResponse.data?.data?.booking;
         if (refreshedBooking) {
           applyBookingToForm(refreshedBooking);
         }
+
+        if (failedPayments.length > 0) {
+          // The refetch reset the form to server state, which doesn't contain
+          // the failed entries — re-attach them so nothing typed is lost and
+          // submitting again retries exactly these entries.
+          const failedNewRows = failedPayments
+            .filter((f) => f.kind === 'add')
+            .map((f) => f.row);
+          const failedUpdates = failedPayments.filter(
+            (f) => f.kind === 'update' && f.row.id
+          );
+          setFormData((prev) => ({
+            ...prev,
+            payments: [
+              ...prev.payments.map((p) => {
+                const failedEdit = failedUpdates.find((f) => f.row.id === p.id);
+                return failedEdit ? { ...failedEdit.row } : p;
+              }),
+              ...failedNewRows,
+            ],
+          }));
+        }
       }
 
-      // Saved — the locally retained draft for this session is now obsolete.
-      // (For creates, `editingBookingId` is still null here, clearing 'new'.)
-      clearBookingDraft(editingBookingId);
-      setDraftOffer(null);
+      if (failedPayments.length === 0) {
+        // Saved — the locally retained draft for this session is now obsolete.
+        // (For creates, `editingBookingId` is still null here, clearing 'new'.)
+        clearBookingDraft(editingBookingId);
+        setDraftOffer(null);
 
-      toast.success(editingBookingId ? 'Booking updated successfully' : 'Booking created successfully');
-      if (!opts?.keepOpen) {
-        closeBookingForm();
-        await loadBookings();
+        toast.success(editingBookingId ? 'Booking updated successfully' : 'Booking created successfully');
+        if (!opts?.keepOpen) {
+          closeBookingForm();
+          await loadBookings();
+        } else {
+          setIsFormDirty(false);
+          await loadBookings();
+        }
       } else {
-        setIsFormDirty(false);
+        // Partial success: the booking saved but some payment entries didn't.
+        // Keep the form open and dirty (draft retention included) so the
+        // entries can be retried; report precisely what didn't record.
+        const labels = failedPayments
+          .map((f) => `₹${Number(f.row.amount || 0).toLocaleString('en-IN')} ${f.row.mode}`)
+          .join(', ');
+        toast.error(
+          `Booking ${editingBookingId ? 'updated' : 'created'}, but ${failedPayments.length} payment ${
+            failedPayments.length === 1 ? 'entry' : 'entries'
+          } did not record: ${labels}. The ${
+            failedPayments.length === 1 ? 'entry is' : 'entries are'
+          } still in the Payments tab — submit again to retry.`,
+          { duration: 10000 }
+        );
+        setIsFormDirty(true);
         await loadBookings();
       }
       return savedBookingId;
@@ -2899,10 +2967,13 @@ export default function BookingsPage() {
     await doSaveBooking({ keepOpen: true });
   };
 
-  const handleFinalizeBooking = async (e: React.MouseEvent) => {
+  const handleFinalizeBooking = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!confirm('Finalize this booking? It will become read-only and a new editable replica will be generated.')) return;
+    setShowFinalizeReview(true);
+  };
 
+  const confirmFinalizeBooking = async () => {
+    setShowFinalizeReview(false);
     const bookingId = await doSaveBooking({ keepOpen: true });
     if (!bookingId) return;
 
@@ -5587,6 +5658,137 @@ export default function BookingsPage() {
           </>
         )}
       </div>
+
+      {showFinalizeReview &&
+        (() => {
+          const enabledPacks = (Object.keys(formData.packs) as PackKey[])
+            .map((key) => ({ key, row: formData.packs[key] }))
+            .filter((entry) => entry.row.enabled);
+          const hallNamesFor = (hallIds: string[]) =>
+            hallIds
+              .map((id) => halls.find((hall) => hall.id === id)?.name)
+              .filter(Boolean)
+              .join(', ');
+          const customerLabel =
+            customerSearchInputs.primary ||
+            formatCustomerLabel(
+              customers.find((customer) => customer.id === formData.customerId)
+            ) ||
+            '—';
+          const paymentsTotal = formData.payments.reduce(
+            (sum, p) => sum + (Number(p.amount) || 0),
+            0
+          );
+          return (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+              <button
+                type="button"
+                className="absolute inset-0 bg-slate-900/45"
+                onClick={() => setShowFinalizeReview(false)}
+                aria-label="Cancel finalize"
+              />
+              <div className="relative bg-surface rounded-2xl border border-[var(--border)] shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
+                <div>
+                  <h3 className="text-base font-semibold text-[var(--text-1)] mb-1 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
+                    Review before finalizing
+                  </h3>
+                  <p className="text-sm text-[var(--text-3)]">
+                    Finalizing saves the booking, locks this version permanently as
+                    read-only, and creates a new editable replica.
+                  </p>
+                </div>
+
+                <dl className="text-sm space-y-1.5">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-3)]">Customer</dt>
+                    <dd className="font-medium text-[var(--text-1)] text-right">{customerLabel}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-3)]">Function</dt>
+                    <dd className="font-medium text-[var(--text-1)] text-right">
+                      {formData.functionType || '—'}
+                      {formData.functionDate
+                        ? ` · ${formatDateDDMMYYYY(formData.functionDate)}`
+                        : ''}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="rounded-xl border border-[var(--border-2)] divide-y divide-[var(--border)] text-sm">
+                  {enabledPacks.length === 0 && (
+                    <p className="px-3 py-2.5 text-[var(--text-4)]">No meal packs enabled.</p>
+                  )}
+                  {enabledPacks.map(({ key, row }) => (
+                    <div key={key} className="px-3 py-2.5">
+                      <p className="font-medium text-[var(--text-1)]">
+                        {PACK_LABELS[key]}
+                        {row.startTime && row.endTime ? (
+                          <span className="ml-2 text-xs font-normal text-[var(--text-3)]">
+                            {row.startTime}–{row.endTime}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-[var(--text-3)] mt-0.5">
+                        {hallNamesFor(row.hallIds) || 'No hall'}
+                        {row.pax ? ` · ${row.pax} PAX` : ''}
+                        {row.ratePerPlate
+                          ? ` · ₹${Number(row.ratePerPlate).toLocaleString('en-IN')}/plate`
+                          : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <dl className="text-sm space-y-1.5 border-t border-[var(--border)] pt-3">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-3)]">Grand total</dt>
+                    <dd className="font-semibold text-[var(--text-1)]">
+                      ₹{Number(payableGrandTotal || 0).toLocaleString('en-IN')}
+                    </dd>
+                  </div>
+                  {Number(formData.finalDiscountAmount) > 0 && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-3)]">Discount</dt>
+                      <dd className="text-[var(--text-1)]">
+                        ₹{Number(formData.finalDiscountAmount).toLocaleString('en-IN')}
+                        {Number(formData.finalDiscountPercent) > 0
+                          ? ` (${formData.finalDiscountPercent}%)`
+                          : ''}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-3)]">
+                      Payments recorded (incl. pending cheques)
+                    </dt>
+                    <dd className="text-[var(--text-1)]">
+                      {formData.payments.length} · ₹{paymentsTotal.toLocaleString('en-IN')}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="flex flex-wrap gap-3 justify-end pt-1">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowFinalizeReview(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={saving}
+                    onClick={() => void confirmFinalizeBooking()}
+                  >
+                    {saving ? 'Working…' : 'Save & Finalize'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {saveConflict && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
