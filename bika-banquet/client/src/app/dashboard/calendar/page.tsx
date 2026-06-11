@@ -136,8 +136,8 @@ export default function CalendarPage() {
 
   const openEnquiryDetails = useCallback((enquiryId: string) => {
     if (!enquiryId) return;
-    window.location.href = `/dashboard/enquiries?section=edit&id=${enquiryId}`;
-  }, []);
+    router.push(`/dashboard/enquiries?section=edit&id=${enquiryId}`);
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

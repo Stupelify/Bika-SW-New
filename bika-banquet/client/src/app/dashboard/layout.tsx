@@ -11,6 +11,7 @@ import Avatar from '@/components/Avatar';
 import CommandPalette from '@/components/CommandPalette';
 import IdleTimeoutModal from '@/components/IdleTimeoutModal';
 import { useIdleTimeout } from '@/hooks/useIdleTimeout';
+import { useSSE } from '@/hooks/useSSE';
 import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
@@ -25,7 +26,6 @@ import {
   ChevronDown,
   ChevronRight,
   DollarSign,
-  HelpCircle,
   LayoutDashboard,
   LucideIcon,
   LogOut,
@@ -335,7 +335,7 @@ function DashboardLayoutContent({
   const sectionParam = searchParams.get('section');
 
   // ── Idle timeout ────────────────────────────────────────────────────────────
-  // 30-minute idle window. 60-second warning before auto-logout.
+  // 4-hour idle window (IDLE_TIMEOUT_MS). 60-second warning before auto-logout.
   // Staff share computers so we need to protect against walk-away sessions.
   const [idleWarningOpen, setIdleWarningOpen] = useState(false);
   const [idleCountdown, setIdleCountdown] = useState(IDLE_WARN_SECONDS);
@@ -494,10 +494,10 @@ function DashboardLayoutContent({
   }, [paletteOpen]);
 
   // Task 6.3 — fetch pending counts for nav badges
-  useEffect(() => {
+  const refreshNavBadges = useCallback(() => {
     if (!isAuthenticated) return;
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
-    Promise.all([
+    void Promise.all([
       fetch(`${apiBase}/api/enquiries/count?status=pending`, { credentials: 'include' })
         .then((r) => r.ok ? r.json() : { count: 0 })
         .then((d) => setPendingEnquiries(d?.data?.count ?? d?.count ?? 0))
@@ -508,6 +508,34 @@ function DashboardLayoutContent({
         .catch(() => setOutstandingPayments(0)),
     ]);
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    refreshNavBadges();
+  }, [refreshNavBadges]);
+
+  // Keep badges live: refresh on enquiry/booking realtime events (debounced so
+  // bulk updates trigger one refetch) with a slow interval fallback for
+  // sessions where SSE is down.
+  const badgeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefreshNavBadges = useCallback(() => {
+    if (badgeRefreshTimerRef.current) clearTimeout(badgeRefreshTimerRef.current);
+    badgeRefreshTimerRef.current = setTimeout(() => {
+      badgeRefreshTimerRef.current = null;
+      refreshNavBadges();
+    }, 2000);
+  }, [refreshNavBadges]);
+
+  useEffect(() => () => {
+    if (badgeRefreshTimerRef.current) clearTimeout(badgeRefreshTimerRef.current);
+  }, []);
+
+  useSSE(['enquiry:', 'booking:'], debouncedRefreshNavBadges, isAuthenticated);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(refreshNavBadges, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, refreshNavBadges]);
 
   useEffect(() => {
     if (!isAuthReady || typeof window === 'undefined') return;
@@ -1053,13 +1081,6 @@ function DashboardLayoutContent({
           </button>
 
           <ThemeToggle />
-          <button
-            type="button"
-            aria-label="Help"
-            className="header-icon-btn header-icon-hover nav-toggle-btn"
-          >
-            <HelpCircle className="icon-16" aria-hidden="true" />
-          </button>
 
           <div className="hidden md:flex">
             <Avatar name={user?.name} size="md" />
