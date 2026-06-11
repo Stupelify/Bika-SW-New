@@ -120,6 +120,7 @@ import FinalizedVersionHistory from '@/components/booking/FinalizedVersionHistor
 import BookingPartyOverForm from '@/components/BookingPartyOverForm';
 import { AutoResizeTextarea } from '@/components/AutoResizeTextarea';
 import BookingTermsSection from '@/components/booking/BookingTermsSection';
+import BookingMenuEditorModal from '@/components/booking/BookingMenuEditorModal';
 import { IndianAmountInput } from '@/components/IndianAmountInput';
 
 interface Booking {
@@ -5049,185 +5050,26 @@ export default function BookingsPage() {
         </form>
       </FormPromptModal>
 
-      <FormPromptModal
-        open={Boolean(menuEditorPack)}
-        title={
-          menuEditorPack
-            ? `${PACK_LABELS[menuEditorPack]} Menu Selection`
-            : 'Menu Selection'
-        }
+      <BookingMenuEditorModal
+        packKey={menuEditorPack}
+        packRow={activeMenuPackRow}
+        templateMenus={templateMenus}
+        menuItemSearch={menuItemSearch}
+        onMenuItemSearchChange={setMenuItemSearch}
+        groupedMenuItems={groupedMenuItems}
+        selectedMenuItemsByGroup={selectedMenuItemsByGroup}
+        formDiff={formDiff}
+        onImportTemplate={importTemplateToPack}
+        onToggleMenuItem={togglePackMenuItem}
+        onQuickAddItem={() => {
+          setQuickItemForm({ name: '', itemTypeId: itemTypes[0]?.id || '', points: '' });
+          setShowQuickAddItem(true);
+        }}
         onClose={() => {
           setMenuEditorPack(null);
           setMenuItemSearch('');
         }}
-        widthClass="max-w-6xl"
-      >
-        {menuEditorPack && activeMenuPackRow ? (
-          <div className="space-y-4">
-            <div>
-              <label className="label">Template Menu</label>
-              <select
-                className="input"
-                value={activeMenuPackRow.templateMenuId}
-                onChange={(e) => {
-                  void importTemplateToPack(menuEditorPack, e.target.value);
-                }}
-              >
-                <option value="">Custom (no template)</option>
-                {templateMenus.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-[var(--text-4)]">
-                Selecting a template replaces the current menu with all template items. You will be
-                asked to confirm if items are already selected.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <div className="rounded-xl border border-[var(--border)] p-3">
-                <div className="flex gap-2 mb-3">
-                  <input
-                    className="input flex-1"
-                    placeholder="Search items..."
-                    value={menuItemSearch}
-                    onChange={(e) => setMenuItemSearch(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm flex items-center gap-1 shrink-0"
-                    onClick={() => {
-                      setQuickItemForm({ name: '', itemTypeId: itemTypes[0]?.id || '', points: '' });
-                      setShowQuickAddItem(true);
-                    }}
-                  >
-                    <Plus size={14} />
-                    Add Item
-                  </button>
-                </div>
-                <div
-                  className="max-h-[360px] overflow-y-auto rounded-lg border border-[var(--border)]"
-                  style={{ contain: 'content', overscrollBehavior: 'contain' }}
-                >
-                  {groupedMenuItems.length === 0 ? (
-                    <div className="empty-state" style={{ padding: '20px 12px' }}>
-                      <div className="empty-state-icon">
-                        <Search size={20} />
-                      </div>
-                      <p className="empty-state-title">No matching items</p>
-                      <p className="empty-state-desc">Try another keyword.</p>
-                    </div>
-                  ) : (
-                    groupedMenuItems.map(([group, grouped]) => (
-                      <div key={group}>
-                        <div className="px-3 py-2 text-sm font-semibold text-[var(--text-1)] bg-primary-50 dark:bg-primary-900/40 border-b border-[var(--border)]">
-                          {group}
-                        </div>
-                        {grouped.map((item) => {
-                            const _edPDK = menuEditorPack ? PACK_LABELS[menuEditorPack].toLowerCase() : '';
-                            const _edPD = formDiff?.packs[_edPDK];
-                            const _isAdded = _edPD?.addedItemIds.includes(item.id);
-                            const _isRemoved = _edPD?.removedItemIds.includes(item.id);
-                            return (
-                              <label
-                                key={`${menuEditorPack}-${item.id}`}
-                                className={`cv-auto flex items-center gap-2 px-3 py-2 text-sm border-b border-[var(--border)] last:border-b-0 ${
-                                  _isAdded ? 'bg-green-50 dark:bg-green-500/10 text-green-900 dark:text-green-200' : _isRemoved ? 'bg-red-50 dark:bg-red-500/10 text-red-900 dark:text-red-200' : 'text-[var(--text-2)]'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={activeMenuPackRow.menuItemIds.includes(item.id)}
-                                  onChange={() => togglePackMenuItem(menuEditorPack, item.id)}
-                                />
-                                <span>{item.name}</span>
-                                {_isAdded && <span className="ml-auto text-xs font-semibold text-green-700 dark:text-green-200">+ added</span>}
-                                {_isRemoved && <span className="ml-auto text-xs font-semibold text-red-700 dark:text-red-200">− removed</span>}
-                              </label>
-                            );
-                          })}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-[var(--border)] p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-[var(--text-1)]">Selected Items</p>
-                  {activeMenuPackRow.menuItemIds.length > 0 && (
-                    <span className="text-xs font-semibold text-teal-700 dark:text-teal-200 bg-teal-50 dark:bg-teal-500/10 px-2 py-0.5 rounded-full">
-                      {activeMenuPackRow.menuItemIds.length} items · {activeMenuPackRow.menuPoints || '0'} pts
-                    </span>
-                  )}
-                </div>
-                {activeMenuPackRow.menuItemIds.length === 0 ? (
-                  <div className="empty-state" style={{ padding: '20px 12px' }}>
-                    <div className="empty-state-icon">
-                      <FileText size={20} />
-                    </div>
-                    <p className="empty-state-title">No items selected</p>
-                    <p className="empty-state-desc">Choose items from the list to build this pack.</p>
-                  </div>
-                ) : (
-                  <div
-                    className="max-h-[360px] overflow-y-auto space-y-3"
-                    style={{ contain: 'content', overscrollBehavior: 'contain' }}
-                  >
-                    {selectedMenuItemsByGroup.map(([group, grouped]) => (
-                      <div key={`selected-group-${group}`} className="space-y-2">
-                        <p className="text-sm font-semibold text-[var(--text-1)]">{group}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {grouped.map((item) => {
-                              const _sPDK = menuEditorPack ? PACK_LABELS[menuEditorPack].toLowerCase() : '';
-                              const _sPD = formDiff?.packs[_sPDK];
-                              const _sAdded = _sPD?.addedItemIds.includes(item.id);
-                              const _sRemoved = _sPD?.removedItemIds.includes(item.id);
-                              return (
-                                <span
-                                  key={`selected-${menuEditorPack}-${item.id}`}
-                                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${
-                                    _sAdded ? 'border-green-400 bg-green-50 dark:bg-green-500/10 text-green-900 dark:text-green-200' : _sRemoved ? 'border-red-400 bg-red-50 dark:bg-red-500/10 text-red-900 dark:text-red-200' : 'border-[var(--border-2)] bg-[var(--surface)]'
-                                  }`}
-                                >
-                                  {_sAdded && <span className="text-green-600 font-bold text-xs">+</span>}
-                                  {_sRemoved && <span className="text-red-600 font-bold text-xs">−</span>}
-                                  {item.name}
-                                  <button
-                                    type="button"
-                                    className="text-red-600"
-                                    onClick={() => togglePackMenuItem(menuEditorPack, item.id)}
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => {
-                  setMenuEditorPack(null);
-                  setMenuItemSearch('');
-                }}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </FormPromptModal>
+      />
 
       <FormPromptModal
         open={Boolean(menuPdfBookingId)}
