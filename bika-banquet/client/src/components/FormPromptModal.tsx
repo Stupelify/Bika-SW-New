@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -13,6 +13,14 @@ interface FormPromptModalProps {
   isDirty?: boolean;
 }
 
+// Modals nest (booking form → menu editor → quick-add item), so Escape must
+// only close the topmost one. Module-level stack of open modal ids.
+const openModalStack: number[] = [];
+let modalIdCounter = 0;
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export default function FormPromptModal({
   open,
   title,
@@ -23,6 +31,9 @@ export default function FormPromptModal({
 }: FormPromptModalProps) {
   const [mounted, setMounted] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const modalIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -69,13 +80,84 @@ export default function FormPromptModal({
     }
   };
 
+  // Escape behaves like the close button (and dismisses the unsaved-changes
+  // confirm first). Routed through a ref so the document listener always sees
+  // the latest dirty state without re-subscribing.
+  const onEscapeRef = useRef<() => void>(() => {});
+  onEscapeRef.current = () => {
+    if (showCloseConfirm) {
+      setShowCloseConfirm(false);
+      return;
+    }
+    handleCloseRequest();
+  };
+
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return;
+
+    const id = (modalIdCounter += 1);
+    modalIdRef.current = id;
+    openModalStack.push(id);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (openModalStack[openModalStack.length - 1] !== id) return;
+      event.stopPropagation();
+      onEscapeRef.current();
+    };
+    document.addEventListener('keydown', onKeyDown);
+
+    // Move focus into the dialog unless something inside (e.g. an autofocused
+    // field) already has it; restore the previous focus on close.
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusTimer = setTimeout(() => {
+      const root = containerRef.current;
+      const active = document.activeElement;
+      if (root && active && active !== document.body && root.contains(active)) return;
+      panelRef.current?.focus();
+    }, 50);
+
+    return () => {
+      clearTimeout(focusTimer);
+      document.removeEventListener('keydown', onKeyDown);
+      const idx = openModalStack.indexOf(id);
+      if (idx !== -1) openModalStack.splice(idx, 1);
+      modalIdRef.current = null;
+      previouslyFocused?.focus?.();
+    };
+  }, [open]);
+
+  // Keep Tab cycling within the modal while it is open.
+  const handleTrapKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Tab') return;
+    const root = containerRef.current;
+    if (!root) return;
+    const focusables = root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (event.shiftKey) {
+      if (active === first || !root.contains(active)) {
+        event.preventDefault();
+        last.focus();
+      }
+    } else if (active === last || !root.contains(active)) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   if (!open || !mounted || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
+      ref={containerRef}
       className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4"
       data-capacitor-overlay="open"
       style={{ overscrollBehavior: 'contain' }}
+      onKeyDown={handleTrapKeyDown}
     >
       <button
         type="button"
@@ -84,7 +166,12 @@ export default function FormPromptModal({
         aria-label="Close form prompt backdrop"
       />
       <div
-        className={`capacitor-modal-panel relative z-10 w-full ${widthClass} max-h-[calc(100dvh-var(--safe-top)-var(--keyboard-offset,0px))] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-surface shadow-xl`}
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`capacitor-modal-panel relative z-10 w-full ${widthClass} max-h-[calc(100dvh-var(--safe-top)-var(--keyboard-offset,0px))] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-surface shadow-xl outline-none`}
       >
         <div className="sticky top-0 z-10 bg-surface/95 border-b border-[var(--border)] px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-display font-semibold text-[var(--text-1)]">{title}</h2>

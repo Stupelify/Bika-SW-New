@@ -3626,9 +3626,10 @@ export default function BookingsPage() {
 
             {/* ── Pack & Summary Table (desktop) ── */}
             <section className="space-y-3">
-              {/* ── Desktop table ── */}
-              <div className="hidden xl:block rounded-2xl border border-[var(--border)]">
-                  <table className="w-full text-sm border-collapse">
+              {/* ── Desktop/tablet table (lg+) — scrolls horizontally rather
+                    than dropping columns on narrower screens ── */}
+              <div className="hidden lg:block rounded-2xl border border-[var(--border)] overflow-x-auto">
+                  <table className="w-full min-w-[1000px] text-sm border-collapse">
                     <thead>
                       <tr className="bg-[var(--surface-2)] border-b border-[var(--border)]">
                         <th className="px-2 py-2 text-left text-xs font-semibold text-[var(--text-2)] whitespace-nowrap">Meal</th>
@@ -4156,8 +4157,8 @@ export default function BookingsPage() {
                   </table>
               </div>
 
-              {/* ── Mobile cards (xl:hidden) ── */}
-              <div className="xl:hidden space-y-3">
+              {/* ── Mobile cards (below lg) ── */}
+              <div className="lg:hidden space-y-3">
                 {(Object.keys(PACK_LABELS) as PackKey[]).map((packKey) => {
                   const row = formData.packs[packKey];
                   const packDiffKey = PACK_LABELS[packKey].toLowerCase();

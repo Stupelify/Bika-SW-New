@@ -64,11 +64,18 @@ function hasAccess(userPerms: string[], requiredPerms: string[]): boolean {
     return requiredPerms.some((p) => userPerms.includes(p));
 }
 
+// 4 items + "More" = 5 well-spaced touch targets. Items beyond the cap stay
+// one tap away in the full menu that "More" opens; priority is array order.
+const MAX_VISIBLE_ITEMS = 4;
+
 export default function BottomNav({ permissions, onMoreClick }: BottomNavProps) {
     const pathname = usePathname();
 
     const visibleItems = useMemo(
-        () => navItems.filter((item) => hasAccess(permissions, item.permissions)),
+        () =>
+            navItems
+                .filter((item) => hasAccess(permissions, item.permissions))
+                .slice(0, MAX_VISIBLE_ITEMS),
         [permissions]
     );
 

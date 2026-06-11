@@ -528,6 +528,9 @@ function MonthDayTile({day,inMonth,groups,onBook,onDrill,onCreate}:{
   const conflictKeys=new Map<string,number>();
   for(const s of list){const b=bucketSlot(s.startMinutes);if(b)conflictKeys.set(`${s.hallKey}|${b.id}`,(conflictKeys.get(`${s.hallKey}|${b.id}`)||0)+1);}
   const isConflict=(s:MonthDaySlot)=>{const b=bucketSlot(s.startMinutes);return!!b&&(conflictKeys.get(`${s.hallKey}|${b.id}`)||0)>1;};
+  // Day-level flag so a conflict hidden in the "+ N more" overflow still
+  // shows on the tile itself.
+  const anyConflict=list.some(isConflict);
 
   // Hall-composition strip: one segment per venue GROUP with ≥1 booking today.
   const busyGroups=groups.filter(g=>g.halls.some(h=>h.slots.some(s=>s.date===iso)));
@@ -561,6 +564,7 @@ function MonthDayTile({day,inMonth,groups,onBook,onDrill,onCreate}:{
             color:tod?'#fff':wknd?'rgb(220,38,38)':'var(--text-1)',
           }}>{day.getDate()}</button>
         {n>0&&<span style={{fontSize:9.5,color:'var(--text-4)',fontWeight:700,fontVariantNumeric:'tabular-nums'}}>· {n}</span>}
+        {anyConflict&&<span title="Overlapping bookings in the same hall on this day" style={{fontSize:10,color:CONFLICT,fontWeight:800,lineHeight:1}}>⚠</span>}
       </div>
       {/* Booking pills (VB_Card) */}
       <div style={{display:'flex',flexDirection:'column',gap:2,overflow:'hidden',flex:1}}>
@@ -862,12 +866,23 @@ function MobileMonth({groups,vdate,onBook,onCreate,onDrill}:{groups:VenueGroup[]
             if(!d)return<div key={i} style={{minHeight:46}}/>;
             const dkey=mdk(d),daySlots=dedupeSlotsByBookingId(groups.flatMap(g=>g.halls.flatMap(h=>h.slots.filter(s=>s.date===dkey))));
             const venuesHere=groups.filter(g=>g.halls.some(h=>h.slots.some(s=>s.date===dkey)));
+            // Same-hall same-slot overlap → flag the day (matches MonthDayTile).
+            const cKeys=new Map<string,number>();
+            let dayConflict=false;
+            for(const g of groups)for(const h of g.halls)for(const s of h.slots){
+              if(s.date!==dkey)continue;
+              const b=bucketSlot(s.startMinutes);if(!b)continue;
+              const k=`${h.hallId||h.hallName}|${b.id}`;const cnt=(cKeys.get(k)||0)+1;
+              if(cnt>1){dayConflict=true;break;}
+              cKeys.set(k,cnt);
+            }
             const isSel=d===selDay,isTod=isCM&&d===today.getDate(),isWk=i%7===0||i%7===6;
             return (
               <button key={i} type="button" onClick={()=>{setSelDay(d);onDrill?.(dkey);}}
                 style={{padding:'2px 1px',borderRadius:5,background:isSel?'var(--teal-600)':isTod?'rgba(239,68,68,.07)':'transparent',border:isTod&&!isSel?'1.5px solid rgba(239,68,68,.35)':'1.5px solid transparent',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,minHeight:46}}>
                 <span style={{fontSize:12,fontWeight:isSel?700:isTod?600:400,color:isSel?'#fff':isTod?'rgb(239,68,68)':isWk?'rgba(239,68,68,.45)':'var(--text-2)',lineHeight:1.4}}>{d}</span>
-                <div style={{display:'flex',gap:2,flexWrap:'wrap',justifyContent:'center'}}>
+                <div style={{display:'flex',gap:2,flexWrap:'wrap',justifyContent:'center',alignItems:'center'}}>
+                  {dayConflict&&<span style={{fontSize:8,color:isSel?'#fff':CONFLICT,lineHeight:1,fontWeight:800}}>⚠</span>}
                   {venuesHere.slice(0,3).map(g=>(<div key={g.name} style={{width:5,height:5,borderRadius:'50%',background:isSel?'rgba(255,255,255,.75)':g.pal.solid}}/>))}
                   {daySlots.length>3&&!isSel&&<span style={{fontSize:6.5,color:'var(--text-4)',lineHeight:1}}>+{daySlots.length-3}</span>}
                 </div>
