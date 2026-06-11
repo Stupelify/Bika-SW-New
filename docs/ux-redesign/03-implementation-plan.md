@@ -1,5 +1,16 @@
 # Bika Banquet — Reliability & UX Fix Implementation Plan
 
+> **Implementation status (2026-06-11):** Phases 0–3 and items 4.1/4.2 are
+> implemented on `claude/vigilant-sagan-5ciojk` (commits `11e31f7`, `d9fc643`,
+> `bc33862`, `f9a0d3d`). Typecheck clean, 141/141 unit tests pass,
+> `next build` succeeds. Remaining: **4.3** sidebar style normalization,
+> **4.4** incremental bookings-page extraction (scheduled after 0–3 merge by
+> design), **4.5** broader motion-token pass (the new chips/banners already
+> use simple, reduced-motion-safe transitions). Two findings were corrected
+> during implementation: week/month calendar views already mark conflicting
+> bookings per-pill (audit M5 was partially stale — the remaining
+> "+N more"-overflow gap is now closed), and the Bookings FAB already existed.
+
 **Scope:** every problem from `01-forensic-audit.md` **except R4** (Google Calendar
 external-event blocking/labelling) and **R7** (dual status-badge system), per product
 decision. R7's exclusion also removes audit problem #5 (status collapsing) from scope.
