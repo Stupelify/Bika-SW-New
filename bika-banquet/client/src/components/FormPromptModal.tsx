@@ -32,6 +32,18 @@ export default function FormPromptModal({
     if (!open) setShowCloseConfirm(false);
   }, [open]);
 
+  // Warn on browser-level exits (refresh / tab close / back) while there are
+  // unsaved changes — the in-app close button is already guarded below.
+  useEffect(() => {
+    if (!open || !isDirty || typeof window === 'undefined') return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [open, isDirty]);
+
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
 

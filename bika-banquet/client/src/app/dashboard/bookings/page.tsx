@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
+  AlertTriangle,
   CalendarCheck,
   CheckCircle,
   ChevronDown,
@@ -12,6 +13,7 @@ import {
   Edit,
   FileText,
   Flag,
+  History,
   Lock,
   PencilLine,
   Plus,
@@ -71,6 +73,12 @@ import {
 } from '@/lib/booking-form/version-history';
 import { recalcBillingWhenMealsSubtotalChanges } from '@/lib/booking-form/billing-recalc';
 import { BOOKING_EXTERNAL_UPDATE_EVENT } from '@/lib/booking-form/booking-form-sync';
+import {
+  clearBookingDraft,
+  pruneStaleBookingDrafts,
+  readBookingDraft,
+  saveBookingDraft,
+} from '@/lib/booking-form/bookingDraft';
 import { packHasHallCharge, readPackHallRate } from '@/lib/booking-form/map-api-pack';
 import {
   buildBookingHallRows,
@@ -681,6 +689,13 @@ export default function BookingsPage() {
     return Array.from(ids);
   }, [formData.packs]);
 
+  // The check's own state must be visible: a failed check ('error') is
+  // rendered distinctly so it can never look like "hall is free".
+  const [availabilityCheck, setAvailabilityCheck] = useState<
+    'idle' | 'checking' | 'clear' | 'clash' | 'error'
+  >('idle');
+  const [availabilityRecheckNonce, setAvailabilityRecheckNonce] = useState(0);
+
   // Debounced availability check — fires when date or halls change
   const availabilityCheckKey = `${formData.functionDate}|${selectedHallIds.sort().join(',')}`;
   const availabilityCheckKeyRef = useRef(availabilityCheckKey);
@@ -689,8 +704,10 @@ export default function BookingsPage() {
   useEffect(() => {
     if (!formData.functionDate || selectedHallIds.length === 0) {
       setHallClashWarnings([]);
+      setAvailabilityCheck('idle');
       return;
     }
+    setAvailabilityCheck('checking');
     const timer = setTimeout(async () => {
       if (availabilityCheckKeyRef.current !== availabilityCheckKey) return;
       try {
@@ -700,25 +717,149 @@ export default function BookingsPage() {
           ...(editingBookingId ? { excludeBookingId: editingBookingId } : {}),
         };
         const res = await api.checkBookingAvailability(params);
+        // Stale-response guard: halls/date changed while the request was in flight.
+        if (availabilityCheckKeyRef.current !== availabilityCheckKey) return;
         const data = res.data?.data;
         if (data && !data.available) {
           setHallClashWarnings(data.clashes || []);
+          setAvailabilityCheck('clash');
         } else {
           setHallClashWarnings([]);
+          setAvailabilityCheck('clear');
         }
       } catch {
+        if (availabilityCheckKeyRef.current !== availabilityCheckKey) return;
+        // Never render "no clashes" on failure — surface the failure instead.
         setHallClashWarnings([]);
+        setAvailabilityCheck('error');
       }
     }, 500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availabilityCheckKey, editingBookingId]);
+  }, [availabilityCheckKey, editingBookingId, availabilityRecheckNonce]);
   // ── End hall clash detection ──────────────────────────────────────────────
 
   const isReadOnlyBooking = useMemo(
     () => Boolean(editingBookingId && editingBookingStatus === 'completed'),
     [editingBookingId, editingBookingStatus]
   );
+
+  // ── Data-safety state (concurrent edits, stale financials, drafts) ───────
+  // Last server `updatedAt` seen for the open booking; compared before save so
+  // two people editing the same booking can't silently overwrite each other.
+  const bookingBaselineUpdatedAtRef = useRef<string | null>(null);
+  const [saveConflict, setSaveConflict] = useState<{
+    serverUpdatedAt: string | null;
+    opts?: { keepOpen?: boolean };
+  } | null>(null);
+  // Set when the open booking changes on the server while the form has
+  // unsaved edits — totals on screen may be stale.
+  const [externalUpdateNotice, setExternalUpdateNotice] = useState<{
+    at: string;
+    confirmingReload: boolean;
+  } | null>(null);
+  // Offer to resume a locally retained draft after a crash/refresh.
+  const [draftOffer, setDraftOffer] = useState<{
+    bookingId: string | null;
+    savedAt: string;
+    stale: boolean;
+    formData: BookingFormData;
+  } | null>(null);
+
+  const readDraftOfferFor = (
+    bookingId: string | null,
+    serverUpdatedAt: string | null
+  ) => {
+    const draft = readBookingDraft<BookingFormData>(bookingId);
+    if (!draft) return null;
+    return {
+      bookingId,
+      savedAt: draft.savedAt,
+      stale: Boolean(
+        serverUpdatedAt &&
+          draft.baselineUpdatedAt &&
+          new Date(serverUpdatedAt).getTime() >
+            new Date(draft.baselineUpdatedAt).getTime()
+      ),
+      formData: draft.formData,
+    };
+  };
+
+  const resumeDraft = () => {
+    if (!draftOffer) return;
+    setFormData(draftOffer.formData);
+    syncMealsSubtotalBaseline(computeMealsSubtotal(draftOffer.formData.packs));
+    setIsFormDirty(true);
+    setDraftOffer(null);
+  };
+
+  const discardDraft = () => {
+    if (!draftOffer) return;
+    clearBookingDraft(draftOffer.bookingId);
+    setDraftOffer(null);
+  };
+
+  useEffect(() => {
+    pruneStaleBookingDrafts();
+  }, []);
+
+  // Retain unsaved form edits locally (debounced) so a crash/refresh can't
+  // destroy work. Cleared on successful save and on explicit discard/close.
+  useEffect(() => {
+    if (!showCreateForm || !isFormDirty || isReadOnlyBooking) return;
+    const timer = setTimeout(() => {
+      saveBookingDraft(editingBookingId, {
+        savedAt: new Date().toISOString(),
+        baselineUpdatedAt: bookingBaselineUpdatedAtRef.current,
+        formData,
+      });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [showCreateForm, isFormDirty, isReadOnlyBooking, editingBookingId, formData]);
+
+  const availabilityChip = (() => {
+    if (availabilityCheck === 'idle') return null;
+    if (availabilityCheck === 'checking') {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-3)]">
+          <span
+            className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-4)] border-t-transparent"
+            aria-hidden
+          />
+          Checking hall availability…
+        </span>
+      );
+    }
+    if (availabilityCheck === 'clear') {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+          <CheckCircle className="h-3 w-3 shrink-0" aria-hidden />
+          No hall clashes for the selected date
+        </span>
+      );
+    }
+    if (availabilityCheck === 'clash') {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-xs text-amber-800 dark:text-amber-200">
+          <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
+          {hallClashWarnings.length} booking{hallClashWarnings.length === 1 ? '' : 's'} clash with the selected halls
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 text-xs text-red-700 dark:text-red-300">
+        <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
+        Couldn’t verify hall availability
+        <button
+          type="button"
+          className="font-semibold underline underline-offset-2"
+          onClick={() => setAvailabilityRecheckNonce((n) => n + 1)}
+        >
+          Retry
+        </button>
+      </span>
+    );
+  })();
   const todayIsoDate = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -1865,6 +2006,13 @@ export default function BookingsPage() {
     setActiveBookingTab('details');
     setActiveBookingObj(null);
     setImportedTemplateExtras([]);
+    // Explicit close (incl. "Discard & Close") — the locally retained draft
+    // for this form session is no longer wanted.
+    clearBookingDraft(editingBookingId);
+    bookingBaselineUpdatedAtRef.current = null;
+    setExternalUpdateNotice(null);
+    setSaveConflict(null);
+    setDraftOffer(null);
     // Clear any active search so the freshly-saved booking is always visible
     // in the list (Bug: booking appeared to vanish because search was still active)
     clearSearch();
@@ -1931,6 +2079,10 @@ export default function BookingsPage() {
     void lookupsPromise;
     setFormData(nextForm);
     setIsFormDirty(false);
+    bookingBaselineUpdatedAtRef.current = null;
+    setExternalUpdateNotice(null);
+    setSaveConflict(null);
+    setDraftOffer(readDraftOfferFor(null, null));
     setShowCreateForm(true);
   };
 
@@ -2126,6 +2278,11 @@ export default function BookingsPage() {
       setOpenHallPickerPack(null);
       setAmountSyncMode('finalAmount');
       setDiscountManuallySet(true); // existing booking already has deliberate amounts
+      const serverUpdatedAt = booking.updatedAt ? String(booking.updatedAt) : null;
+      bookingBaselineUpdatedAtRef.current = serverUpdatedAt;
+      setExternalUpdateNotice(null);
+      setSaveConflict(null);
+      setDraftOffer(readDraftOfferFor(bookingId, serverUpdatedAt));
       setShowCreateForm(true);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Failed to load booking');
@@ -2340,12 +2497,43 @@ export default function BookingsPage() {
       return next;
     });
     setActiveBookingObj(booking);
+    // Form now reflects this server state — update the concurrency baseline
+    // and clear any stale-data notice.
+    if (booking.updatedAt) {
+      bookingBaselineUpdatedAtRef.current = String(booking.updatedAt);
+    }
+    setExternalUpdateNotice(null);
   }, [syncMealsSubtotalBaseline]);
 
   const refreshOpenBookingFinancials = useCallback(
     async (bookingId: string) => {
       if (!showCreateForm || !editingBookingId || editingBookingId !== bookingId) return;
-      if (isFormDirtyRef.current) return;
+      // Our own save also emits this event — the post-save refetch already
+      // refreshes the form and the baseline, so don't react mid-save.
+      if (savingInFlightRef.current) return;
+      if (isFormDirtyRef.current) {
+        // Unsaved edits — never clobber them. Verify the change is genuinely
+        // external (not an echo of our own last save), then surface a notice
+        // so stale totals are visible rather than silent.
+        try {
+          const head = await api.getBooking(bookingId);
+          const serverUpdatedAt = head.data?.data?.booking?.updatedAt
+            ? String(head.data.data.booking.updatedAt)
+            : null;
+          if (
+            serverUpdatedAt &&
+            serverUpdatedAt !== bookingBaselineUpdatedAtRef.current
+          ) {
+            setExternalUpdateNotice((prev) => ({
+              at: new Date().toISOString(),
+              confirmingReload: prev?.confirmingReload ?? false,
+            }));
+          }
+        } catch {
+          // Can't verify — the pre-save conflict guard still protects the save.
+        }
+        return;
+      }
       try {
         const response = await api.getBooking(bookingId);
         const booking = response.data?.data?.booking;
@@ -2372,7 +2560,9 @@ export default function BookingsPage() {
     return () => window.removeEventListener(BOOKING_EXTERNAL_UPDATE_EVENT, onExternalUpdate);
   }, [refreshOpenBookingFinancials]);
 
-  const doSaveBooking = async (opts?: { keepOpen?: boolean }): Promise<string | null> => {
+  const doSaveBooking = async (
+    opts?: { keepOpen?: boolean; skipConflictCheck?: boolean }
+  ): Promise<string | null> => {
     if (savingInFlightRef.current) return null;
     if (!formData.customerId || !formData.functionType.trim() || !formData.functionDate) {
       toast.error('Primary customer, function type and date are required');
@@ -2420,6 +2610,33 @@ export default function BookingsPage() {
     try {
       savingInFlightRef.current = true;
       setSaving(true);
+
+      // Concurrent-edit guard: refuse to silently overwrite changes someone
+      // else saved since this form loaded the booking. On conflict the user
+      // chooses explicitly (reload / overwrite / cancel) via the dialog.
+      if (
+        editingBookingId &&
+        !opts?.skipConflictCheck &&
+        bookingBaselineUpdatedAtRef.current
+      ) {
+        try {
+          const head = await api.getBooking(editingBookingId);
+          const serverUpdatedAt = head.data?.data?.booking?.updatedAt
+            ? String(head.data.data.booking.updatedAt)
+            : null;
+          if (
+            serverUpdatedAt &&
+            serverUpdatedAt !== bookingBaselineUpdatedAtRef.current
+          ) {
+            setSaveConflict({ serverUpdatedAt, opts });
+            return null;
+          }
+        } catch {
+          // Head-check unavailable — proceed with the normal save; the server
+          // remains the authority on what is valid.
+        }
+      }
+
       const toNumber = (value: string) => {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : 0;
@@ -2642,6 +2859,11 @@ export default function BookingsPage() {
         }
       }
 
+      // Saved — the locally retained draft for this session is now obsolete.
+      // (For creates, `editingBookingId` is still null here, clearing 'new'.)
+      clearBookingDraft(editingBookingId);
+      setDraftOffer(null);
+
       toast.success(editingBookingId ? 'Booking updated successfully' : 'Booking created successfully');
       if (!opts?.keepOpen) {
         closeBookingForm();
@@ -2849,6 +3071,107 @@ export default function BookingsPage() {
           </button>
         </div>
 
+        {draftOffer && (
+          <div className="mb-4 rounded-xl border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 text-sm text-sky-900 dark:text-sky-200">
+            <History className="w-4 h-4 shrink-0" aria-hidden />
+            <span className="min-w-0">
+              Unsaved draft from{' '}
+              {new Date(draftOffer.savedAt).toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}{' '}
+              found.
+              {draftOffer.stale &&
+                ' Note: this booking has changed on the server since the draft was made.'}
+            </span>
+            <span className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary text-xs px-2.5 py-1.5"
+                onClick={resumeDraft}
+              >
+                Resume draft
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary text-xs px-2.5 py-1.5"
+                onClick={discardDraft}
+              >
+                Discard
+              </button>
+            </span>
+          </div>
+        )}
+
+        {externalUpdateNotice && editingBookingId && (
+          <div
+            role="status"
+            className="mb-4 rounded-xl border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
+          >
+            {!externalUpdateNotice.confirmingReload ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
+                <span className="min-w-0">
+                  This booking was updated outside this form at{' '}
+                  {new Date(externalUpdateNotice.at).toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                  . Totals and payments shown may be out of date.
+                </span>
+                <span className="ml-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary text-xs px-2.5 py-1.5"
+                    onClick={() =>
+                      setExternalUpdateNotice({ ...externalUpdateNotice, confirmingReload: true })
+                    }
+                  >
+                    Reload latest
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary text-xs px-2.5 py-1.5"
+                    onClick={() => setExternalUpdateNotice(null)}
+                  >
+                    Keep editing
+                  </button>
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
+                <span className="min-w-0">
+                  Reloading replaces your unsaved edits with the latest saved version.
+                </span>
+                <span className="ml-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-danger text-xs px-2.5 py-1.5"
+                    onClick={() => {
+                      setExternalUpdateNotice(null);
+                      void openEditBooking(editingBookingId);
+                    }}
+                  >
+                    Reload &amp; discard my edits
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary text-xs px-2.5 py-1.5"
+                    onClick={() =>
+                      setExternalUpdateNotice({ ...externalUpdateNotice, confirmingReload: false })
+                    }
+                  >
+                    Back
+                  </button>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         <fieldset disabled={isReadOnlyBooking}>
         <form
           ref={formRef}
@@ -2906,6 +3229,9 @@ export default function BookingsPage() {
                     Menu PDF
                   </span>
                 </button>
+              )}
+              {!isReadOnlyBooking && availabilityChip && (
+                <span className="ml-auto">{availabilityChip}</span>
               )}
             </div>
 
@@ -3187,6 +3513,12 @@ export default function BookingsPage() {
                     <PencilLine className="w-4 h-4 shrink-0" />
                     Pencil hold — auto-releases on {new Date(formData.pencilExpiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </div>
+                )}
+
+                {/* Availability check status — visible for every state so a
+                    failed check can never be mistaken for "hall is free" */}
+                {availabilityChip && !isReadOnlyBooking && (
+                  <div className="mt-1">{availabilityChip}</div>
                 )}
 
                 {/* Hall clash warning banner */}
@@ -5255,6 +5587,67 @@ export default function BookingsPage() {
           </>
         )}
       </div>
+
+      {saveConflict && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/45"
+            onClick={() => setSaveConflict(null)}
+            aria-label="Dismiss conflict dialog"
+          />
+          <div className="relative bg-surface rounded-2xl border border-[var(--border)] shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-[var(--text-1)] mb-1 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
+                Booking changed by someone else
+              </h3>
+              <p className="text-sm text-[var(--text-3)]">
+                This booking was updated
+                {saveConflict.serverUpdatedAt
+                  ? ` at ${new Date(saveConflict.serverUpdatedAt).toLocaleString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}`
+                  : ''}{' '}
+                while you were editing. Saving now would overwrite those changes.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 justify-end">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSaveConflict(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setSaveConflict(null);
+                  if (editingBookingId) void openEditBooking(editingBookingId);
+                }}
+              >
+                Reload latest (discard my edits)
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  const pendingOpts = saveConflict.opts;
+                  setSaveConflict(null);
+                  void doSaveBooking({ ...pendingOpts, skipConflictCheck: true });
+                }}
+              >
+                Save anyway (overwrite)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {canAddBooking && (
         <FloatingActionButton
