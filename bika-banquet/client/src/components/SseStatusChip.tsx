@@ -35,7 +35,7 @@ export default function SseStatusChip({ className = '' }: { className?: string }
     <span
       role="status"
       title={ui.title}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-medium select-none ${ui.chip} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-medium select-none motion-colors ${ui.chip} ${className}`}
     >
       <span className={`h-2 w-2 rounded-full shrink-0 ${ui.dot}`} aria-hidden />
       <span className="hidden sm:inline">{ui.label}</span>

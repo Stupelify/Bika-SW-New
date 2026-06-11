@@ -824,7 +824,7 @@ export default function BookingsPage() {
     if (availabilityCheck === 'idle') return null;
     if (availabilityCheck === 'checking') {
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-3)]">
+        <span className="fade-in-soft inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs text-[var(--text-3)]">
           <span
             className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-4)] border-t-transparent"
             aria-hidden
@@ -835,7 +835,7 @@ export default function BookingsPage() {
     }
     if (availabilityCheck === 'clear') {
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+        <span className="fade-in-soft inline-flex items-center gap-1.5 rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
           <CheckCircle className="h-3 w-3 shrink-0" aria-hidden />
           No hall clashes for the selected date
         </span>
@@ -843,14 +843,14 @@ export default function BookingsPage() {
     }
     if (availabilityCheck === 'clash') {
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-xs text-amber-800 dark:text-amber-200">
+        <span className="fade-in-soft inline-flex items-center gap-1.5 rounded-full border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-xs text-amber-800 dark:text-amber-200">
           <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
           {hallClashWarnings.length} booking{hallClashWarnings.length === 1 ? '' : 's'} clash with the selected halls
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 text-xs text-red-700 dark:text-red-300">
+      <span className="fade-in-soft inline-flex items-center gap-1.5 rounded-full border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 text-xs text-red-700 dark:text-red-300">
         <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
         Couldn’t verify hall availability
         <button
@@ -3143,7 +3143,7 @@ export default function BookingsPage() {
         </div>
 
         {draftOffer && (
-          <div className="mb-4 rounded-xl border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 text-sm text-sky-900 dark:text-sky-200">
+          <div className="fade-in-soft mb-4 rounded-xl border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 text-sm text-sky-900 dark:text-sky-200">
             <History className="w-4 h-4 shrink-0" aria-hidden />
             <span className="min-w-0">
               Unsaved draft from{' '}
@@ -3179,7 +3179,7 @@ export default function BookingsPage() {
         {externalUpdateNotice && editingBookingId && (
           <div
             role="status"
-            className="mb-4 rounded-xl border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
+            className="fade-in-soft mb-4 rounded-xl border border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
           >
             {!externalUpdateNotice.confirmingReload ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -5688,7 +5688,7 @@ export default function BookingsPage() {
                 onClick={() => setShowFinalizeReview(false)}
                 aria-label="Cancel finalize"
               />
-              <div className="relative bg-surface rounded-2xl border border-[var(--border)] shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
+              <div className="modal-panel relative bg-surface rounded-2xl border border-[var(--border)] shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
                 <div>
                   <h3 className="text-base font-semibold text-[var(--text-1)] mb-1 flex items-center gap-2">
                     <Lock className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
@@ -5799,7 +5799,7 @@ export default function BookingsPage() {
             onClick={() => setSaveConflict(null)}
             aria-label="Dismiss conflict dialog"
           />
-          <div className="relative bg-surface rounded-2xl border border-[var(--border)] shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
+          <div className="modal-panel relative bg-surface rounded-2xl border border-[var(--border)] shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
             <div>
               <h3 className="text-base font-semibold text-[var(--text-1)] mb-1 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
