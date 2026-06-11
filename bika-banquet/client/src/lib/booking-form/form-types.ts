@@ -32,6 +32,44 @@ export interface AdditionalRequirementRow {
   amount: string;
 }
 
+export interface BanquetOption {
+  id: string;
+  name: string;
+}
+
+export interface HallOption {
+  id: string;
+  name: string;
+  banquet?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+/** Editable booking form state (moved verbatim from the bookings page). */
+export interface BookingFormData {
+  customerId: string;
+  includeSecondCustomer: boolean;
+  secondCustomerId: string;
+  referredById: string;
+  priority: string;
+  functionType: string;
+  functionDate: string;
+  isPencilBooking: boolean;
+  pencilDays: string;
+  pencilExpiresAt: string;
+  advanceRequired: string;
+  dueAmount: string;
+  /** Meals net after discount (UI: Net Amount). Not payable grand total. */
+  finalDiscountAmount: string;
+  finalDiscountPercent: string;
+  finalAmount: string;
+  notes: string;
+  additionalRequirements: AdditionalRequirementRow[];
+  packs: Record<PackKey, BookingPackRow>;
+  payments: PaymentRow[];
+}
+
 export interface BookingFormReadOnlyData {
   primaryCustomerLabel: string;
   secondCustomerLabel: string;

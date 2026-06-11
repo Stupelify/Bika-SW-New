@@ -66,6 +66,14 @@ import {
   templateItemsToMenuItemLikes,
 } from '@/lib/booking-form/menu-template';
 import type { MenuItemLike, PaymentRow } from '@/lib/booking-form/types';
+import type { PackKey } from '@/lib/booking-form/constants';
+import type {
+  AdditionalRequirementRow,
+  BanquetOption,
+  BookingFormData,
+  BookingPackRow,
+  HallOption,
+} from '@/lib/booking-form/form-types';
 import {
   computeVersionDiff,
   histToSnapshot,
@@ -176,20 +184,6 @@ interface CustomerSearchInputState {
   referred: string;
 }
 
-interface BanquetOption {
-  id: string;
-  name: string;
-}
-
-interface HallOption {
-  id: string;
-  name: string;
-  banquet?: {
-    id: string;
-    name: string;
-  } | null;
-}
-
 interface ItemOption {
   id: string;
   name: string;
@@ -221,38 +215,7 @@ interface TemplateMenuOption {
   }>;
 }
 
-type PackKey = 'breakfast' | 'lunch' | 'hiTea' | 'dinner';
 type AmountSyncMode = BillingAmountSyncMode;
-
-interface BookingPackRow {
-  bookingPackId?: string;
-  enabled: boolean;
-  withHall: boolean;
-  withCatering: boolean;
-  banquetId: string;
-  hallIds: string[];
-  templateMenuId: string;
-  menuItemIds: string[];
-  startTime: string;
-  endTime: string;
-  hallRate: string;
-  menuPoints: string;
-  ratePerPlate: string;
-  pax: string;
-  amount: string;
-  extraPlate?: number;
-  extraRateValue?: number;
-  extraRate?: string;
-  extraAmountValue?: number;
-  extraAmount?: string;
-  extraCharges?: number;
-  setupCost?: string;
-}
-
-interface AdditionalRequirementRow {
-  description: string;
-  amount: string;
-}
 
 interface InlineCustomerFormData {
   name: string;
@@ -278,29 +241,6 @@ interface InlineCustomerFormData {
   priority: string;
   rating: string;
   notes: string;
-}
-
-interface BookingFormData {
-  customerId: string;
-  includeSecondCustomer: boolean;
-  secondCustomerId: string;
-  referredById: string;
-  priority: string;
-  functionType: string;
-  functionDate: string;
-  isPencilBooking: boolean;
-  pencilDays: string;
-  pencilExpiresAt: string;
-  advanceRequired: string;
-  dueAmount: string;
-  /** Meals net after discount (UI: Net Amount). Not payable grand total. */
-  finalDiscountAmount: string;
-  finalDiscountPercent: string;
-  finalAmount: string;
-  notes: string;
-  additionalRequirements: AdditionalRequirementRow[];
-  packs: Record<PackKey, BookingPackRow>;
-  payments: PaymentRow[];
 }
 
 const initialFormData: BookingFormData = {
