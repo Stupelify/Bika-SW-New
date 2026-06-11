@@ -3,13 +3,32 @@
 > **Implementation status (2026-06-11):** Phases 0–3 and items 4.1/4.2 are
 > implemented on `claude/vigilant-sagan-5ciojk` (commits `11e31f7`, `d9fc643`,
 > `bc33862`, `f9a0d3d`). Typecheck clean, 141/141 unit tests pass,
-> `next build` succeeds. Remaining: **4.3** sidebar style normalization,
-> **4.4** incremental bookings-page extraction (scheduled after 0–3 merge by
-> design), **4.5** broader motion-token pass (the new chips/banners already
-> use simple, reduced-motion-safe transitions). Two findings were corrected
+> `next build` succeeds. Two findings were corrected
 > during implementation: week/month calendar views already mark conflicting
 > bookings per-pill (audit M5 was partially stale — the remaining
 > "+N more"-overflow gap is now closed), and the Bookings FAB already existed.
+>
+> **Update (same day):** 4.3, 4.5, and the 4.4 first pass are now also done.
+> **4.3** (`d2bbb45`): sidebar nav inline styles moved to token-based CSS
+> classes, primary/secondary render blocks deduplicated into one helper —
+> pixel-parity, no behavior change. **4.5** (`fa5ec50`): motion scale tokens
+> (`--motion-fast/base/slow`, one easing) added and every ad-hoc transition
+> duration in globals.css mapped onto them; SSE chip cross-fades via
+> `.motion-colors`; new banners/chips fade in via reduced-motion-gated
+> `.fade-in-soft`; the new dialogs reuse `.modal-panel`. **4.4** (`0de2c5f`,
+> `6d91c45`, `ed8784e`, `6c6cf35`): form types moved to
+> `lib/booking-form/form-types.ts`, then three verbatim props-only
+> extractions — `BookingMenuEditorModal`, `BookingPackTable`,
+> `BookingPackMobileCards` (page: 5,951 → 5,033 lines). The planned
+> `PaymentRowsSection` already existed as `BookingPaymentsLedger`.
+> `BookingFormHeader` was assessed and deliberately **not** extracted: its
+> rows are built around the page-internal `renderCustomerTypeahead` render
+> function, so a props-only extraction is a render-prop passthrough with no
+> real decoupling, and moving the typeahead state would violate this pass's
+> no-state-relocation rule. It remains a candidate for a second pass that
+> extracts the customer typeahead (state included) as its own component.
+> All gates re-verified after each commit: typecheck clean, 141/141 tests,
+> `next build` succeeds.
 
 **Scope:** every problem from `01-forensic-audit.md` **except R4** (Google Calendar
 external-event blocking/labelling) and **R7** (dual status-badge system), per product
