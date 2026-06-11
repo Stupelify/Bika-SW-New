@@ -1765,6 +1765,187 @@ input[type=number] {
   margin: 8px 4px;
 }
 
+/* Nav row: link + optional submenu caret share one highlight surface.
+   Collapsed-state overrides are scoped to .sidebar-inner.sidebar-collapsed
+   (the desktop sidebar's wrapper) so the mobile drawer — which lives under
+   the same dashboard root — never inherits collapsed layout. */
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-radius: 10px;
+  margin-bottom: 1px;
+  background: transparent;
+  position: relative;
+}
+
+.nav-row.active {
+  background: var(--teal-50);
+}
+
+.nav-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 7px 10px;
+  font-size: 13.5px;
+  font-weight: 450;
+  color: var(--text-3);
+  text-decoration: none;
+  border-radius: 10px;
+  min-width: 0;
+  transition: color 0.15s;
+}
+
+.nav-link.active {
+  font-weight: 600;
+  color: var(--teal-700);
+}
+
+/* Secondary (admin/config) group is slightly smaller and dimmer */
+.nav-link-secondary {
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
+.sidebar-inner.sidebar-collapsed .nav-link {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  padding: 8px 6px;
+}
+
+.nav-link-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.65;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.nav-link.active .nav-link-icon {
+  opacity: 1;
+  color: var(--teal-600);
+}
+
+.nav-link-secondary .nav-link-icon {
+  width: 15px;
+  height: 15px;
+  opacity: 0.7;
+}
+
+.nav-link-secondary.active .nav-link-icon {
+  opacity: 0.9;
+}
+
+.sidebar-inner.sidebar-collapsed .nav-link-icon {
+  margin-bottom: 4px;
+}
+
+.nav-link-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar-inner.sidebar-collapsed .nav-link-text {
+  flex: none;
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+/* Count badge on a nav link (pending enquiries / outstanding payments) */
+.nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  border-radius: 100px;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 14px;
+  flex-shrink: 0;
+}
+
+.nav-badge-danger {
+  background: #ef4444;
+}
+
+.nav-badge-warning {
+  background: #f59e0b;
+}
+
+/* Submenu expand/collapse caret next to a nav link */
+.nav-caret-btn {
+  padding: 7px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-4);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.nav-row.active .nav-caret-btn {
+  color: var(--teal-600);
+}
+
+.nav-caret-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s;
+  transform: rotate(0deg);
+}
+
+.nav-caret-icon.open {
+  transform: rotate(180deg);
+}
+
+/* Submenu (child links) container */
+.nav-children {
+  margin-left: 35px;
+  margin-bottom: 4px;
+}
+
+.sidebar-inner.sidebar-collapsed .nav-children {
+  display: none;
+  margin-left: 0;
+}
+
+.nav-child-link {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 450;
+  color: var(--text-3);
+  background: transparent;
+  text-decoration: none;
+  margin-bottom: 1px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-child-link.active {
+  font-weight: 600;
+  color: var(--teal-700);
+  background: var(--teal-100);
+}
+
+.nav-children-secondary .nav-child-link {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
 /* Sidebar footer */
 .sidebar-footer {
   padding: 10px 8px;
@@ -2004,9 +2185,18 @@ input[type=number] {
   padding-top: clamp(16px, 2.5vw, 28px);
 }
 
-/* Sidebar user row (justifyContent, gap, padding set inline as they depend on isCollapsed) */
+/* Sidebar user row */
 .sidebar-user-row {
   display: flex;
   align-items: center;
   border-radius: 10px;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 8px 10px;
+}
+
+.sidebar-inner.sidebar-collapsed .sidebar-user-row {
+  justify-content: center;
+  gap: 0;
+  padding: 8px 4px;
 }

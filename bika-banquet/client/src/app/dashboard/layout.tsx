@@ -615,6 +615,78 @@ function DashboardLayoutContent({
     </button>
   );
 
+  const renderNavItem = (item: NavigationItem, secondary: boolean, isCollapsed: boolean) => {
+    const isActive = routeMatches(pathname, item.href);
+    const hasChildren = Boolean(item.children && item.children.length > 0);
+    const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
+    const badge =
+      !secondary && item.name === 'Enquiries' && pendingEnquiries > 0
+        ? { count: pendingEnquiries, toneClass: 'nav-badge-danger' }
+        : !secondary && item.name === 'Payments' && outstandingPayments > 0
+        ? { count: outstandingPayments, toneClass: 'nav-badge-warning' }
+        : null;
+
+    return (
+      <div key={item.name} className="nav-item-wrapper">
+        <div className={`nav-row${isActive ? ' active' : ''}`}>
+          {isActive && <div className="nav-active-bar" />}
+          <Link
+            href={item.href}
+            prefetch={shouldPrefetchDashboardRoute(item.href)}
+            aria-current={isActive ? 'page' : undefined}
+            title={isCollapsed ? item.name : undefined}
+            className={`nav-link${secondary ? ' nav-link-secondary' : ''}${isActive ? ' active' : ''}`}
+          >
+            <item.icon className="nav-link-icon" aria-hidden="true" />
+            <span className="sidebar-label sidebar-nav-label nav-link-text">{item.name}</span>
+            {badge && !isCollapsed && (
+              <span className={`nav-badge ${badge.toneClass}`}>
+                {badge.count > 99 ? '99+' : badge.count}
+              </span>
+            )}
+          </Link>
+          {hasChildren && !isCollapsed && (
+            <button
+              type="button"
+              aria-label={`Toggle ${item.name} submenu`}
+              aria-expanded={isOpen}
+              onClick={() =>
+                setOpenGroups((prev) => ({
+                  ...prev,
+                  [item.name]: !isOpen,
+                }))
+              }
+              className="nav-caret-btn"
+            >
+              <ChevronDown
+                aria-hidden="true"
+                className={`nav-caret-icon${isOpen ? ' open' : ''}`}
+              />
+            </button>
+          )}
+        </div>
+
+        {hasChildren && isOpen && (
+          <div className={`nav-children${secondary ? ' nav-children-secondary' : ''}`}>
+            {item.children?.map((child) => {
+              const childActive = isHrefActive(child.href);
+              return (
+                <Link
+                  key={`${item.name}-${child.name}`}
+                  href={child.href}
+                  prefetch={shouldPrefetchDashboardRoute(child.href)}
+                  className={`nav-child-link${childActive ? ' active' : ''}`}
+                >
+                  {child.name}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSidebarContent = (isMobile: boolean, isCollapsed: boolean) => (
     <div
       className={isCollapsed ? 'sidebar-collapsed sidebar-inner' : 'sidebar-inner'}
@@ -634,175 +706,7 @@ function DashboardLayoutContent({
 
       <nav aria-label="Main navigation" className="sidebar-nav">
         {/* PRIMARY nav group */}
-        {visiblePrimary.map((item) => {
-          const isActive = routeMatches(pathname, item.href);
-          const hasChildren = Boolean(item.children && item.children.length > 0);
-          const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
-          const badge =
-            item.name === 'Enquiries' && pendingEnquiries > 0
-              ? { count: pendingEnquiries, color: '#ef4444' }
-              : item.name === 'Payments' && outstandingPayments > 0
-              ? { count: outstandingPayments, color: '#f59e0b' }
-              : null;
-
-          return (
-            <div key={item.name} className="nav-item-wrapper">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0,
-                  borderRadius: 10,
-                  marginBottom: 1,
-                  background: isActive ? 'var(--teal-50)' : 'transparent',
-                  position: 'relative',
-                }}
-              >
-                {isActive && (
-                  <div className="nav-active-bar" />
-                )}
-                <Link
-                  href={item.href}
-                  prefetch={shouldPrefetchDashboardRoute(item.href)}
-                  aria-current={isActive ? 'page' : undefined}
-                  title={isCollapsed ? item.name : undefined}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    flexDirection: isCollapsed ? 'column' : 'row',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                    gap: isCollapsed ? 0 : 9,
-                    padding: isCollapsed ? '8px 6px' : '7px 10px',
-                    fontSize: 13.5,
-                    fontWeight: isActive ? 600 : 450,
-                    color: isActive ? 'var(--teal-700)' : 'var(--text-3)',
-                    textDecoration: 'none',
-                    borderRadius: 10,
-                    minWidth: 0,
-                    transition: 'color 0.15s',
-                  }}
-                >
-                  <item.icon
-                    style={{
-                      width: 16,
-                      height: 16,
-                      opacity: isActive ? 1 : 0.65,
-                      flexShrink: 0,
-                      color: isActive ? 'var(--teal-600)' : 'currentColor',
-                      marginBottom: isCollapsed ? 4 : 0,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span
-                    className="sidebar-label sidebar-nav-label"
-                    style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flex: isCollapsed ? undefined : 1,
-                      width: isCollapsed ? '100%' : undefined,
-                      opacity: 1,
-                      textAlign: isCollapsed ? 'center' : 'left',
-                      fontSize: isCollapsed ? 10 : undefined,
-                      lineHeight: isCollapsed ? 1.1 : undefined,
-                    }}
-                  >
-                    {item.name}
-                  </span>
-                  {badge && !isCollapsed && (
-                    <span
-                      style={{
-                        marginLeft: 'auto',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        background: badge.color,
-                        color: 'white',
-                        borderRadius: 100,
-                        padding: '1px 5px',
-                        minWidth: 16,
-                        textAlign: 'center',
-                        lineHeight: '14px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {badge.count > 99 ? '99+' : badge.count}
-                    </span>
-                  )}
-                </Link>
-                {hasChildren && !isCollapsed && (
-                  <button
-                    type="button"
-                    aria-label={`Toggle ${item.name} submenu`}
-                    aria-expanded={isOpen}
-                    onClick={() =>
-                      setOpenGroups((prev) => ({
-                        ...prev,
-                        [item.name]: !isOpen,
-                      }))
-                    }
-                    style={{
-                      padding: '7px 8px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: isActive ? 'var(--teal-600)' : 'var(--text-4)',
-                      borderRadius: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      transition: 'color 0.15s',
-                    }}
-                  >
-                    <ChevronDown
-                      aria-hidden="true"
-                      style={{
-                        width: 14,
-                        height: 14,
-                        transition: 'transform 0.2s',
-                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                      }}
-                    />
-                  </button>
-                )}
-              </div>
-
-              {hasChildren && isOpen && (
-                <div
-                  style={{
-                    marginLeft: isCollapsed ? 0 : 35,
-                    marginBottom: 4,
-                    display: isCollapsed ? 'none' : 'block',
-                  }}
-                >
-                  {item.children?.map((child) => {
-                    const childActive = isHrefActive(child.href);
-                    return (
-                      <Link
-                        key={`${item.name}-${child.name}`}
-                        href={child.href}
-                        prefetch={shouldPrefetchDashboardRoute(child.href)}
-                        style={{
-                          display: 'block',
-                          padding: '6px 10px',
-                          borderRadius: 8,
-                          fontSize: 12.5,
-                          fontWeight: childActive ? 600 : 450,
-                          color: childActive ? 'var(--teal-700)' : 'var(--text-3)',
-                          background: childActive ? 'var(--teal-100)' : 'transparent',
-                          textDecoration: 'none',
-                          marginBottom: 1,
-                          transition: 'background 0.15s, color 0.15s',
-                        }}
-                      >
-                        {child.name}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {visiblePrimary.map((item) => renderNavItem(item, false, isCollapsed))}
 
         {/* Divider between primary and secondary nav */}
         {visibleSecondary.length > 0 && (
@@ -810,160 +714,11 @@ function DashboardLayoutContent({
         )}
 
         {/* SECONDARY nav group — de-emphasised admin/config items */}
-        {visibleSecondary.map((item) => {
-          const isActive = routeMatches(pathname, item.href);
-          const hasChildren = Boolean(item.children && item.children.length > 0);
-          const isOpen = hasChildren ? (openGroups[item.name] ?? isActive) : false;
-
-          return (
-            <div key={item.name} className="nav-item-wrapper">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0,
-                  borderRadius: 10,
-                  marginBottom: 1,
-                  background: isActive ? 'var(--teal-50)' : 'transparent',
-                  position: 'relative',
-                }}
-              >
-                {isActive && (
-                  <div className="nav-active-bar" />
-                )}
-                <Link
-                  href={item.href}
-                  prefetch={shouldPrefetchDashboardRoute(item.href)}
-                  aria-current={isActive ? 'page' : undefined}
-                  title={isCollapsed ? item.name : undefined}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    flexDirection: isCollapsed ? 'column' : 'row',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                    gap: isCollapsed ? 0 : 9,
-                    padding: isCollapsed ? '8px 6px' : '6px 10px',
-                    fontSize: 12.5,
-                    fontWeight: isActive ? 600 : 450,
-                    color: isActive ? 'var(--teal-700)' : 'var(--text-3)',
-                    textDecoration: 'none',
-                    borderRadius: 10,
-                    minWidth: 0,
-                    transition: 'color 0.15s',
-                  }}
-                >
-                  <item.icon
-                    style={{
-                      width: 15,
-                      height: 15,
-                      opacity: isActive ? 0.9 : 0.7,
-                      flexShrink: 0,
-                      color: isActive ? 'var(--teal-600)' : 'currentColor',
-                      marginBottom: isCollapsed ? 4 : 0,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span
-                    className="sidebar-label sidebar-nav-label"
-                    style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      width: isCollapsed ? '100%' : undefined,
-                      opacity: 1,
-                      textAlign: isCollapsed ? 'center' : 'left',
-                      fontSize: isCollapsed ? 10 : 12.5,
-                      lineHeight: isCollapsed ? 1.1 : undefined,
-                    }}
-                  >
-                    {item.name}
-                  </span>
-                </Link>
-                {hasChildren && !isCollapsed && (
-                  <button
-                    type="button"
-                    aria-label={`Toggle ${item.name} submenu`}
-                    aria-expanded={isOpen}
-                    onClick={() =>
-                      setOpenGroups((prev) => ({
-                        ...prev,
-                        [item.name]: !isOpen,
-                      }))
-                    }
-                    style={{
-                      padding: '7px 8px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: isActive ? 'var(--teal-600)' : 'var(--text-4)',
-                      borderRadius: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      transition: 'color 0.15s',
-                    }}
-                  >
-                    <ChevronDown
-                      aria-hidden="true"
-                      style={{
-                        width: 14,
-                        height: 14,
-                        transition: 'transform 0.2s',
-                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                      }}
-                    />
-                  </button>
-                )}
-              </div>
-
-              {hasChildren && isOpen && (
-                <div
-                  style={{
-                    marginLeft: isCollapsed ? 0 : 35,
-                    marginBottom: 4,
-                    display: isCollapsed ? 'none' : 'block',
-                  }}
-                >
-                  {item.children?.map((child) => {
-                    const childActive = isHrefActive(child.href);
-                    return (
-                      <Link
-                        key={`${item.name}-${child.name}`}
-                        href={child.href}
-                        prefetch={shouldPrefetchDashboardRoute(child.href)}
-                        style={{
-                          display: 'block',
-                          padding: '5px 10px',
-                          borderRadius: 8,
-                          fontSize: 12,
-                          fontWeight: childActive ? 600 : 450,
-                          color: childActive ? 'var(--teal-700)' : 'var(--text-3)',
-                          background: childActive ? 'var(--teal-100)' : 'transparent',
-                          textDecoration: 'none',
-                          marginBottom: 1,
-                          transition: 'background 0.15s, color 0.15s',
-                        }}
-                      >
-                        {child.name}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {visibleSecondary.map((item) => renderNavItem(item, true, isCollapsed))}
       </nav>
 
       <div className="sidebar-footer">
-        <div
-          className="sidebar-user-row"
-          style={{
-            justifyContent: isCollapsed ? 'center' : 'flex-start',
-            gap: isCollapsed ? 0 : 9,
-            padding: isCollapsed ? '8px 4px' : '8px 10px',
-          }}
-        >
+        <div className="sidebar-user-row">
           <Avatar name={user?.name} size="sm" />
           <button
             type="button"
