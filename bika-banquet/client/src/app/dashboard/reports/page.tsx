@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { PageSkeleton } from '@/components/Skeletons';
+import { TrendComposedChart } from '@/components/charts';
 import Toolbar from '@/components/Toolbar';
 import {
   BarChart3,
@@ -54,12 +55,6 @@ interface ReportResponse {
   };
 }
 
-function formatAxisValue(value: number): string {
-  if (value >= 100000) return `${(value / 100000).toFixed(1)}L`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
-  return `${Math.round(value)}`;
-}
-
 function formatMonthShort(monthKey: string): string {
   const date = new Date(`${monthKey}-01T00:00:00`);
   if (Number.isNaN(date.getTime())) return monthKey;
@@ -79,105 +74,6 @@ function downloadCSV(rows: Record<string, any>[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function LineChart({
-  data,
-  height = 220,
-}: {
-  data: Array<{ month: string; bookings: number; revenue: number }>;
-  height?: number;
-}) {
-  const width = 640;
-  const padding = { top: 16, right: 24, bottom: 32, left: 40 };
-  const innerWidth = width - padding.left - padding.right;
-  const innerHeight = height - padding.top - padding.bottom;
-  const maxValue = Math.max(
-    1,
-    ...data.map((row) => Math.max(row.bookings, row.revenue))
-  );
-
-  const pointFor = (value: number, index: number) => {
-    const x =
-      padding.left +
-      (data.length === 1 ? innerWidth / 2 : (innerWidth * index) / (data.length - 1));
-    const y = padding.top + innerHeight - (value / maxValue) * innerHeight;
-    return { x, y };
-  };
-
-  const bookingsPoints = data
-    .map((row, index) => {
-      const point = pointFor(row.bookings, index);
-      return `${point.x},${point.y}`;
-    })
-    .join(' ');
-
-  const revenuePoints = data
-    .map((row, index) => {
-      const point = pointFor(row.revenue, index);
-      return `${point.x},${point.y}`;
-    })
-    .join(' ');
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
-      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-        const y = padding.top + innerHeight - innerHeight * ratio;
-        const value = maxValue * ratio;
-        return (
-          <g key={`grid-${ratio}`}>
-            <line
-              x1={padding.left}
-              x2={width - padding.right}
-              y1={y}
-              y2={y}
-              stroke="var(--border)"
-              strokeDasharray="4 6"
-            />
-            <text
-              x={padding.left - 8}
-              y={y + 4}
-              textAnchor="end"
-              fontSize="10"
-              fill="var(--text-4)"
-            >
-              {formatAxisValue(value)}
-            </text>
-          </g>
-        );
-      })}
-
-      <polyline
-        points={bookingsPoints}
-        fill="none"
-        stroke="var(--teal-500)"
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-      <polyline
-        points={revenuePoints}
-        fill="none"
-        stroke="#6366f1"
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-
-      {data.map((row, index) => {
-        const point = pointFor(Math.max(row.bookings, row.revenue), index);
-        return (
-          <text
-            key={`label-${row.month}`}
-            x={point.x}
-            y={height - 10}
-            textAnchor="middle"
-            fontSize="10"
-            fill="var(--text-4)"
-          >
-            {formatMonthShort(row.month)}
-          </text>
-        );
-      })}
-    </svg>
-  );
-}
 
 export default function ReportsPage() {
   const { user } = useAuthStore();
@@ -416,7 +312,7 @@ export default function ReportsPage() {
                   </div>
                 ) : (
                   <>
-                    <LineChart data={filteredMonthly} />
+                    <TrendComposedChart data={filteredMonthly} formatMonth={formatMonthShort} />
                     <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-3)' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <span

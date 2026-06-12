@@ -10,6 +10,7 @@ import { formatDateDDMMYYYY } from '@/lib/date';
 import { KpiCardSkeleton } from '@/components/Skeletons';
 import KpiCard from '@/components/KpiCard';
 import EmptyState from '@/components/EmptyState';
+import { RevenueBarChart, UtilizationDonut } from '@/components/charts';
 import Combobox from '@/components/Combobox';
 import {
   AlertTriangle,
@@ -208,161 +209,7 @@ function formatYAxisValue(value: number): string {
   return `₹${Math.round(value)}`;
 }
 
-function BarChart({
-  data,
-  height = 200,
-  color = 'var(--teal-500)',
-}: {
-  data: Array<{ label: string; value: number }>;
-  height?: number;
-  color?: string;
-}) {
-  const width = 640;
-  const padding = { top: 16, right: 12, bottom: 28, left: 48 };
-  const innerWidth = width - padding.left - padding.right;
-  const innerHeight = height - padding.top - padding.bottom;
-  const maxValue = Math.max(1, ...data.map((item) => item.value));
-  const gap = 4;
-  const barWidth = data.length
-    ? (innerWidth - gap * (data.length - 1)) / data.length
-    : innerWidth;
 
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
-      <defs>
-        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--teal-400, #2dd4bf)" />
-          <stop offset="100%" stopColor="var(--teal-600)" />
-        </linearGradient>
-      </defs>
-      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-        const y = padding.top + innerHeight - innerHeight * ratio;
-        return (
-          <g key={`grid-${ratio}`}>
-            <line
-              x1={padding.left}
-              x2={width - padding.right}
-              y1={y}
-              y2={y}
-              stroke="var(--border)"
-              strokeDasharray="4 6"
-            />
-            <text
-              x={padding.left - 8}
-              y={y + 4}
-              textAnchor="end"
-              fontSize="10"
-              fill="var(--text-4)"
-            >
-              {formatYAxisValue(maxValue * ratio)}
-            </text>
-          </g>
-        );
-      })}
-      {data.map((item, index) => {
-        const x = padding.left + index * (barWidth + gap);
-        const barHeight = (item.value / maxValue) * innerHeight;
-        const y = padding.top + innerHeight - barHeight;
-        return (
-          <g key={item.label} className="bar-grow">
-            <rect
-              x={x}
-              y={y}
-              width={barWidth}
-              height={barHeight}
-              rx={3}
-              fill="url(#barGradient)"
-              style={{ transformOrigin: 'center bottom', transformBox: 'fill-box' }}
-            >
-              <title>
-                {item.label}: {formatCurrency(item.value)}
-              </title>
-            </rect>
-          </g>
-        );
-      })}
-      {data.map((item, index) => {
-        const x = padding.left + index * (barWidth + gap) + barWidth / 2;
-        return (
-          <text
-            key={`${item.label}-label`}
-            x={x}
-            y={height - 8}
-            textAnchor="middle"
-            fontSize="10"
-            fill="var(--text-4)"
-          >
-            {item.label}
-          </text>
-        );
-      })}
-    </svg>
-  );
-}
-
-function DonutChart({
-  data,
-  size = 180,
-  thickness = 22,
-}: {
-  data: Array<{ label: string; value: number }>;
-  size?: number;
-  thickness?: number;
-}) {
-  const radius = (size - thickness) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const total = Math.max(1, data.reduce((sum, item) => sum + item.value, 0));
-  let offset = 0;
-
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
-      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="var(--surface-2)"
-          strokeWidth={thickness}
-        />
-        {data.map((item, index) => {
-          const fraction = item.value / total;
-          const dash = fraction * circumference;
-          const segment = (
-            <circle
-              key={item.label}
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              fill="none"
-              stroke={DONUT_COLORS[index % DONUT_COLORS.length]}
-              strokeWidth={thickness}
-              strokeDasharray={`${dash} ${circumference - dash}`}
-              strokeDashoffset={-offset}
-            >
-              <title>
-                {item.label}: {item.value}
-              </title>
-            </circle>
-          );
-          offset += dash;
-          return segment;
-        })}
-      </g>
-      <text
-        x={size / 2}
-        y={size / 2}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="22"
-        fontWeight={700}
-        fill="var(--text-1)"
-      >
-        {total}
-      </text>
-    </svg>
-  );
-}
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -722,7 +569,7 @@ export default function DashboardPage() {
               />
             ) : (
               <div className="flex flex-col sm:flex-row items-center gap-5">
-                <DonutChart
+                <UtilizationDonut colors={DONUT_COLORS}
                   data={hallSections.top.map((hall) => ({ label: hall.hallName, value: hall.bookings }))}
                 />
                 <div className="flex-1 min-w-0 space-y-2 w-full">
@@ -765,7 +612,7 @@ export default function DashboardPage() {
                 description="Try changing the date range."
               />
             ) : (
-              <BarChart data={monthlyRevenueData} height={200} />
+              <RevenueBarChart data={monthlyRevenueData} height={200} valueLabel="Revenue (₹ Lakhs)" inr={false} />
             )}
           </div>
         </AdaptiveCard>
