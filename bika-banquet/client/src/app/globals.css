@@ -3466,6 +3466,21 @@ input[type=number] {
     overflow-y: auto;
   }
 
+  .ops-replica .ops-route > .toolbar .toolbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .ops-replica .ops-dashboard-filters {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .ops-replica .ops-dashboard-filters .input {
+    flex: 1 1 0;
+    min-width: 110px;
+  }
+
   .ops-replica .ops-route > .toolbar {
     min-height: 48px;
     height: auto;
