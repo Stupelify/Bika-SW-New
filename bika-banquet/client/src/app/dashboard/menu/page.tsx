@@ -11,6 +11,7 @@ import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
+import Toolbar from '@/components/Toolbar';
 import {
   SortState,
   TableColumnConfig,
@@ -1103,10 +1104,15 @@ function MenuPageContent() {
 
   return (
     <>
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-title">Menu & Items</h1>
-      </div>
+    <div className="ops-route ops-catalog-route">
+      <Toolbar
+        title="Menu & Items"
+        stats={[
+          { label: 'Item types', value: itemTypes.length },
+          { label: 'Items', value: items.length },
+          { label: 'Packs', value: templateMenus.length },
+        ]}
+      />
 
       {!canViewItemType && !canViewItem && !canViewTemplate && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
@@ -1848,73 +1854,61 @@ function MenuPageContent() {
       </FormPromptModal>
 
       {(canViewItemType || canViewItem || canViewTemplate) && (
-        <div className="card p-2">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+        <div className="ops-section-tabs" role="tablist" aria-label="Menu sections">
             <button
               type="button"
+              role="tab"
+              aria-selected={activeMenuSection === 'itemType' && !isIngredientsPage && !isVendorsPage}
               onClick={() => navigateToMenuSection('itemType')}
               disabled={!canViewItemType}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeMenuSection === 'itemType' && canViewItemType && !isIngredientsPage && !isVendorsPage
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+              className={`ops-section-tab ${activeMenuSection === 'itemType' && canViewItemType && !isIngredientsPage && !isVendorsPage ? 'active' : ''}`}
             >
               Item Types
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={activeMenuSection === 'item' && !isIngredientsPage && !isVendorsPage}
               onClick={() => navigateToMenuSection('item')}
               disabled={!canViewItem}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeMenuSection === 'item' && canViewItem && !isIngredientsPage && !isVendorsPage
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+              className={`ops-section-tab ${activeMenuSection === 'item' && canViewItem && !isIngredientsPage && !isVendorsPage ? 'active' : ''}`}
             >
               Items
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={activeMenuSection === 'template' && !isIngredientsPage && !isVendorsPage}
               onClick={() => navigateToMenuSection('template')}
               disabled={!canViewTemplate}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeMenuSection === 'template' && canViewTemplate && !isIngredientsPage && !isVendorsPage
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+              className={`ops-section-tab ${activeMenuSection === 'template' && canViewTemplate && !isIngredientsPage && !isVendorsPage ? 'active' : ''}`}
             >
-              Template Menus
+              Packs
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={isIngredientsPage}
               onClick={() => router.push('/dashboard/menu/ingredients')}
               disabled={!canViewItem}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                isIngredientsPage && canViewItem
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+              className={`ops-section-tab ${isIngredientsPage && canViewItem ? 'active' : ''}`}
             >
               Ingredients
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={isVendorsPage}
               onClick={() => router.push('/dashboard/menu/vendors')}
               disabled={!canViewItem}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                isVendorsPage && canViewItem
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
+              className={`ops-section-tab ${isVendorsPage && canViewItem ? 'active' : ''}`}
             >
               Vendors
             </button>
-          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="ops-catalog-panels grid grid-cols-1">
         <div
           className={`card ${
             activeMenuSection === 'itemType' && canViewItemType ? '' : 'hidden'
@@ -2055,15 +2049,19 @@ function MenuPageContent() {
                 </thead>
                 <tbody>
                   {paginatedItemTypes.map((itemType) => (
-                    <tr key={itemType.id} className="border-b border-[var(--border)]">
-                      <td className="py-3 px-2">
+                    <tr
+                      key={itemType.id}
+                      className="ops-click-row border-b border-[var(--border)]"
+                      onClick={() => canEditItemType && openEditType(itemType)}
+                    >
+                      <td className="py-3 px-2 main">
                         <p className="text-sm text-[var(--text-1)]">{itemType.name}</p>
                       </td>
                       <td className="py-3 px-2 text-sm text-[var(--text-2)]">
                         {itemType.order ?? itemType.displayOrder ?? 0}
                       </td>
                       <td className="py-3 px-2 text-sm text-[var(--text-2)]">{itemType._count?.items || 0}</td>
-                      <td className="py-3 px-2 text-right">
+                      <td className="ops-secondary-actions py-3 px-2 text-right" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           {canEditItemType && (
                             <button
@@ -2253,8 +2251,14 @@ function MenuPageContent() {
                 </thead>
                 <tbody>
                   {paginatedItems.map((item) => (
-                    <tr key={item.id} className="border-b border-[var(--border)]">
-                      <td className="py-3 px-2">
+                    <tr
+                      key={item.id}
+                      className="ops-click-row border-b border-[var(--border)]"
+                      onClick={() => {
+                        if (canEditItem) void openEditItem(item);
+                      }}
+                    >
+                      <td className="py-3 px-2 main">
                         <p className="text-sm text-[var(--text-1)]">{item.name}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-3)]">
                           <span>{item.isVeg ? 'Veg' : 'Non-veg'}</span>
@@ -2272,7 +2276,7 @@ function MenuPageContent() {
                       <td className="py-3 px-2 text-sm text-[var(--text-2)]">
                         {item.points ?? item.point ?? '-'}
                       </td>
-                      <td className="py-3 px-2 text-right">
+                      <td className="ops-secondary-actions py-3 px-2 text-right" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           {canEditItem && (
                             <button
@@ -2331,7 +2335,7 @@ function MenuPageContent() {
           }`}
         >
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Template menus</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Packs</h2>
             {canAddTemplate && (
               <button
                 type="button"
@@ -2350,7 +2354,7 @@ function MenuPageContent() {
                 className="input pl-9"
                 value={templateGlobalSearch}
                 onChange={(e) => setTemplateGlobalSearch(e.target.value)}
-                placeholder="Overall search in template menus..."
+                placeholder="Overall search in packs..."
               />
             </div>
             <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowTemplateFilters(true)}>
@@ -2490,16 +2494,22 @@ function MenuPageContent() {
                     const roundedPoints = Math.round(totalPoints * 100) / 100;
 
                     return (
-                      <tr key={template.id} className="border-b border-[var(--border)]">
-                        <td className="py-3 px-2 text-sm text-[var(--text-1)]">{template.name}</td>
+                      <tr
+                        key={template.id}
+                        className="ops-click-row border-b border-[var(--border)]"
+                        onClick={() => {
+                          if (canEditTemplate) void openEditTemplate(template);
+                        }}
+                      >
+                        <td className="py-3 px-2 text-sm text-[var(--text-1)] main">{template.name}</td>
                         <td className="py-3 px-2 text-sm text-[var(--text-2)]">{template.category || 'General'}</td>
-                        <td className="py-3 px-2 text-sm text-[var(--text-2)]">
+                        <td className="py-3 px-2 text-sm text-[var(--text-2)] num">
                           INR {(template.ratePerPlate || 0).toLocaleString('en-IN')}
                         </td>
                         <td className="py-3 px-2 text-sm font-medium text-teal-700 dark:text-teal-200">
                           {roundedPoints} pts
                         </td>
-                        <td className="py-3 px-2 text-right">
+                        <td className="ops-secondary-actions py-3 px-2 text-right" onClick={(event) => event.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             {canEditTemplate && (
                               <button
@@ -2532,7 +2542,7 @@ function MenuPageContent() {
                 totalPages={templateTotalPages}
                 totalItems={filteredTemplateMenus.length}
                 pageSize={TEMPLATE_MENUS_PAGE_SIZE}
-                itemLabel="template menus"
+                itemLabel="packs"
                 onPageChange={setTemplatePage}
               />
             </>

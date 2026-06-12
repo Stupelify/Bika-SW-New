@@ -5,11 +5,9 @@ import { usePathname } from 'next/navigation';
 import { shouldPrefetchDashboardRoute } from '@/lib/navigationPrefetch';
 import {
     CalendarDays,
-    DollarSign,
     CalendarCheck,
     LayoutDashboard,
     Menu,
-    Users,
     ClipboardList,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -17,11 +15,13 @@ import { useMemo } from 'react';
 interface BottomNavProps {
     permissions: string[];
     onMoreClick: () => void;
+    bookingsCount?: number;
+    enquiriesCount?: number;
 }
 
 const navItems = [
     {
-        name: 'Home',
+        name: 'Dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
         permissions: ['view_dashboard'],
@@ -34,28 +34,16 @@ const navItems = [
         permissions: ['view_booking', 'manage_bookings'],
     },
     {
-        name: 'Enquiries',
-        href: '/dashboard/enquiries',
-        icon: ClipboardList,
-        permissions: ['view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'],
-    },
-    {
-        name: 'Customers',
-        href: '/dashboard/customers',
-        icon: Users,
-        permissions: ['view_customer', 'add_customer', 'edit_customer', 'manage_customers'],
-    },
-    {
         name: 'Calendar',
         href: '/dashboard/calendar',
         icon: CalendarDays,
         permissions: ['view_calendar', 'view_booking', 'view_enquiry', 'manage_bookings', 'manage_enquiries'],
     },
     {
-        name: 'Payments',
-        href: '/dashboard/payments',
-        icon: DollarSign,
-        permissions: ['manage_payments'],
+        name: 'Enquiries',
+        href: '/dashboard/enquiries',
+        icon: ClipboardList,
+        permissions: ['view_enquiry', 'add_enquiry', 'edit_enquiry', 'manage_enquiries'],
     },
 ];
 
@@ -68,7 +56,12 @@ function hasAccess(userPerms: string[], requiredPerms: string[]): boolean {
 // one tap away in the full menu that "More" opens; priority is array order.
 const MAX_VISIBLE_ITEMS = 4;
 
-export default function BottomNav({ permissions, onMoreClick }: BottomNavProps) {
+export default function BottomNav({
+    permissions,
+    onMoreClick,
+    bookingsCount = 0,
+    enquiriesCount = 0,
+}: BottomNavProps) {
     const pathname = usePathname();
 
     const visibleItems = useMemo(
@@ -85,6 +78,12 @@ export default function BottomNav({ permissions, onMoreClick }: BottomNavProps) 
                 const isActive = item.exact
                     ? pathname === item.href
                     : pathname.startsWith(item.href);
+                const badge =
+                    item.name === 'Bookings'
+                        ? bookingsCount
+                        : item.name === 'Enquiries'
+                        ? enquiriesCount
+                        : 0;
                 return (
                     <Link
                         key={item.href}
@@ -95,6 +94,11 @@ export default function BottomNav({ permissions, onMoreClick }: BottomNavProps) 
                     >
                         <item.icon className="bottom-nav-icon" aria-hidden="true" />
                         <span>{item.name}</span>
+                        {badge > 0 && (
+                            <span className="bottom-nav-badge" aria-label={`${badge} ${item.name.toLowerCase()}`}>
+                                {badge > 99 ? '99+' : badge}
+                            </span>
+                        )}
                     </Link>
                 );
             })}

@@ -497,7 +497,7 @@ export default function VendorsPage() {
     (vendor.supplies || []).filter((supply) => supply.productType === 'item').length;
 
   return (
-    <div className="space-y-6">
+    <div className="ops-route ops-catalog-route">
       <div>
         <h1 className="page-title">Vendors</h1>
       </div>

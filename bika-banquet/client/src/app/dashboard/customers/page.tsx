@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import FormPromptModal from '@/components/FormPromptModal';
+import StatusBadge from '@/components/StatusBadge';
+import Toolbar from '@/components/Toolbar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
@@ -34,7 +36,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
-import { formatDateDDMMYYYY } from '@/lib/date';
+import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
@@ -104,6 +106,239 @@ interface CustomerRow {
     enquiries?: number;
     bookings?: number;
   };
+}
+
+interface CustomerDetailBooking {
+  id: string;
+  functionName: string;
+  functionDate: string;
+  status: string;
+  grandTotal?: number | null;
+}
+
+interface CustomerDetailData {
+  id: string;
+  name: string;
+  phone: string;
+  phoneCountryCode?: string | null;
+  alterPhone?: string | null;
+  alternatePhone?: string | null;
+  email?: string | null;
+  city?: string | null;
+  state?: string | null;
+  caste?: string | null;
+  occupation?: string | null;
+  companyName?: string | null;
+  gstNumber?: string | null;
+  panNumber?: string | null;
+  dateOfBirth?: string | null;
+  anniversary?: string | null;
+  priority?: number | null;
+  rating?: string | null;
+  visitCount?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  referredBy?: { id: string; name: string } | null;
+  referrals?: Array<{ id: string; name: string }>;
+  bookings?: CustomerDetailBooking[];
+}
+
+function customerInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+function CustomerStars({ rating }: { rating?: string | null }) {
+  const n = Number(rating || 0);
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          className={`w-3 h-3 ${i <= n ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+function CustomerDetailField({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-[var(--text-4)]">{label}</p>
+      <p className="text-sm text-[var(--text-1)] mt-0.5">{value || '—'}</p>
+    </div>
+  );
+}
+
+function CustomerDetailPanel({
+  customer,
+  canEdit,
+  canDelete,
+  onEdit,
+  onDelete,
+}: {
+  customer: CustomerDetailData;
+  canEdit: boolean;
+  canDelete: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const bookings = customer.bookings || [];
+  const lifetimeValue = bookings.reduce((sum, b) => sum + (b.grandTotal || 0), 0);
+  const altPhone = customer.alterPhone || customer.alternatePhone;
+  const location = [customer.city, customer.state].filter(Boolean).join(', ');
+
+  return (
+    <div>
+      <div className="px-6 py-5 border-b border-[var(--border)]">
+        <div className="flex items-start gap-4">
+          <div
+            className="flex-shrink-0 rounded-full flex items-center justify-center text-base font-semibold text-white"
+            style={{ width: 52, height: 52, background: 'var(--primary-600, #0d9488)' }}
+          >
+            {customerInitials(customer.name)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">{customer.name}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <CustomerStars rating={customer.rating} />
+              <span className="text-xs text-[var(--text-3)]">
+                {customer.visitCount ?? 0} visits
+                {customer.occupation ? ` · ${customer.occupation}` : ''}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <button type="button" className="btn btn-secondary text-xs px-2.5 py-1.5" onClick={onEdit}>
+                <Edit className="w-3.5 h-3.5" /> Edit
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                className="btn btn-secondary text-xs px-2.5 py-1.5"
+                style={{ color: '#dc2626' }}
+                onClick={onDelete}
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
+          {[
+            ['Lifetime value', `₹${lifetimeValue.toLocaleString('en-IN')}`],
+            ['Bookings', String(bookings.length)],
+            ['Priority', `${customer.priority ?? 3}/5`],
+            ['Member since', formatDateDDMMYYYY(customer.createdAt)],
+          ].map(([k, v]) => (
+            <div key={k}>
+              <p className="text-[10px] uppercase tracking-wide text-[var(--text-4)]">{k}</p>
+              <p className="text-base font-semibold text-[var(--text-1)] mt-0.5">{v}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6 px-6 py-5">
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)]">Contact</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <CustomerDetailField label="Phone" value={`${customer.phoneCountryCode || '+91'} ${customer.phone}`} />
+            <CustomerDetailField label="Alt phone" value={altPhone} />
+            <CustomerDetailField label="Email" value={customer.email} />
+            <CustomerDetailField label="City" value={location || customer.city} />
+          </div>
+        </section>
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)]">Profile</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <CustomerDetailField label="Community" value={customer.caste} />
+            <CustomerDetailField
+              label="DOB"
+              value={customer.dateOfBirth ? formatDateDDMMYYYY(customer.dateOfBirth) : null}
+            />
+            <CustomerDetailField
+              label="Anniversary"
+              value={customer.anniversary ? formatDateDDMMYYYY(customer.anniversary) : null}
+            />
+            <CustomerDetailField label="Company" value={customer.companyName} />
+          </div>
+        </section>
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)]">Tax</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <CustomerDetailField label="GST" value={customer.gstNumber} />
+            <CustomerDetailField label="PAN" value={customer.panNumber} />
+          </div>
+        </section>
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)]">Referrals</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <CustomerDetailField label="Referred by" value={customer.referredBy?.name || 'Direct'} />
+            <CustomerDetailField
+              label="Referred"
+              value={
+                customer.referrals && customer.referrals.length
+                  ? customer.referrals.map((r) => r.name).join(', ')
+                  : 'None'
+              }
+            />
+          </div>
+        </section>
+      </div>
+
+      {customer.notes && (
+        <div className="px-6 pb-5">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)] mb-2">Notes</h3>
+          <p className="text-sm text-[var(--text-2)] leading-relaxed bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 whitespace-pre-wrap">
+            {customer.notes}
+          </p>
+        </div>
+      )}
+
+      <div className="px-6 pb-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)] mb-2">Booking history</h3>
+        <div className="card overflow-hidden p-0">
+          {bookings.length ? (
+            <table className="data-table">
+              <thead>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="py-2.5 px-4 text-xs font-semibold text-[var(--text-3)]">Function</th>
+                  <th className="py-2.5 px-4 text-xs font-semibold text-[var(--text-3)]">Date</th>
+                  <th className="py-2.5 px-4 text-xs font-semibold text-[var(--text-3)] text-right">Total</th>
+                  <th className="py-2.5 px-4 text-xs font-semibold text-[var(--text-3)]">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map((b) => (
+                  <tr key={b.id} className="border-b border-[var(--border)] last:border-0">
+                    <td className="py-2.5 px-4 text-sm text-[var(--text-1)]">{b.functionName}</td>
+                    <td className="py-2.5 px-4 text-sm text-[var(--text-2)] whitespace-nowrap">{formatDateCompact(b.functionDate)}</td>
+                    <td className="py-2.5 px-4 text-sm text-right font-medium text-[var(--text-1)]">
+                      ₹{(b.grandTotal || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <StatusBadge status={b.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="py-8 text-center text-sm text-[var(--text-4)]">No bookings yet.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const initialFormData: CustomerFormData = {
@@ -183,6 +418,9 @@ export default function CustomersPage() {
   }>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<CustomerDetailData | null>(null);
+  const [selectedCustomerLoading, setSelectedCustomerLoading] = useState(false);
   const debouncedPincode = useDebounce(formData.pincode, 350);
 
   // Fold any active column search into the global server search so server
@@ -459,6 +697,29 @@ export default function CustomersPage() {
   const loadCustomers = useCallback(async () => {
     await refetchCustomers();
   }, [refetchCustomers]);
+
+  const selectCustomer = useCallback(async (id: string) => {
+    setSelectedCustomerId(id);
+    setSelectedCustomerLoading(true);
+    try {
+      const response = await api.getCustomer(id);
+      setSelectedCustomerDetail(response?.data?.data?.customer ?? null);
+    } catch (error) {
+      toast.error('Failed to load customer details');
+      setSelectedCustomerDetail(null);
+    } finally {
+      setSelectedCustomerLoading(false);
+    }
+  }, []);
+
+  // Auto-select the first row once results load, mirroring the design's
+  // master-detail pattern (a customer is always shown on desktop).
+  useEffect(() => {
+    if (selectedCustomerId) return;
+    const first = paginatedCustomers[0];
+    if (first) void selectCustomer(first.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginatedCustomers]);
 
   const customersDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedLoadCustomers = useCallback(() => {
@@ -761,22 +1022,26 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Customers</h1>
-        </div>
-        {canAddCustomer && (
-          <button
-            type="button"
-            onClick={openCreatePrompt}
-            className="btn btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
-          >
-            <Plus className="w-4 h-4" />
-            Add Customer
-          </button>
-        )}
-      </div>
+    <div className="ops-route ops-list-route">
+      <Toolbar
+        title="Customers"
+        stats={[
+          { label: 'Total', value: totalCount },
+          { label: 'Active filters', value: Object.values(columnSearch).filter(Boolean).length },
+        ]}
+        actions={
+          canAddCustomer ? (
+            <button
+              type="button"
+              onClick={openCreatePrompt}
+              className="btn btn-primary flex items-center gap-2 w-full sm:w-auto justify-center"
+            >
+              <Plus className="w-4 h-4" />
+              Add Customer
+            </button>
+          ) : null
+        }
+      />
 
       {!canViewCustomer && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
@@ -1492,155 +1757,86 @@ export default function CustomersPage() {
               )}
             </div>
 
-            {/* Desktop table view */}
-            <div className="hidden md:block table-shell">
-              <table className="data-table">
-                <thead>
-                  <tr className="border-b border-[var(--border)]">
-                    <SortableHeader
-                      label="Name"
-                      sortKey="name"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Contact"
-                      sortKey="contact"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Location"
-                      sortKey="location"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Stats"
-                      sortKey="stats"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Created"
-                      sortKey="createdAt"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedCustomers.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      className="border-b border-[var(--border)] hover:bg-[var(--surface-2)]"
-                    >
-                      <td className="py-4 px-4">
-                        <p className="font-medium text-[var(--text-1)]">{customer.name}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
-                            <Phone className="w-4 h-4" />
+            {/* Desktop master-detail split view */}
+            <div className="hidden md:flex" style={{ height: 640, border: '1px solid var(--border)', borderRadius: 'var(--radius, 12px)', overflow: 'hidden' }}>
+              <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {paginatedCustomers.map((customer) => {
+                    const isSelected = selectedCustomerId === customer.id;
+                    return (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        onClick={() => void selectCustomer(customer.id)}
+                        className={`w-full text-left flex items-center gap-3 px-3.5 py-2.5 border-b border-[var(--border)] transition-colors ${
+                          isSelected ? 'bg-primary-50 dark:bg-primary-500/10' : 'hover:bg-[var(--surface-2)]'
+                        }`}
+                        style={{ borderLeft: `2px solid ${isSelected ? 'var(--primary-600, #0d9488)' : 'transparent'}` }}
+                      >
+                        <div
+                          className="flex-shrink-0 rounded-full flex items-center justify-center text-xs font-semibold"
+                          style={{ width: 34, height: 34, background: 'var(--surface-3, var(--surface-2))', color: 'var(--text-2)' }}
+                        >
+                          {customerInitials(customer.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[var(--text-1)] truncate">{customer.name}</p>
+                          <p className="text-xs text-[var(--text-3)]">
                             {(customer.phoneCountryCode || '+91') + ' ' + customer.phone}
-                          </div>
-                          {customer.email && (
-                            <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
-                              <Mail className="w-4 h-4" />
-                              {customer.email}
-                            </div>
-                          )}
+                          </p>
                         </div>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
-                        {customer.city && customer.state
-                          ? `${customer.city}, ${customer.state}`
-                          : '-'}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex gap-3 text-sm">
-                          <span className="text-[var(--text-2)]">
-                            {customer._count?.enquiries ?? 0} enquiries
-                          </span>
-                          <span className="text-[var(--text-2)]">
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-[11px] text-[var(--text-3)]">
                             {customer._count?.bookings ?? 0} bookings
-                          </span>
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
-                        {formatDateDDMMYYYY(customer.createdAt)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          {canViewCustomer && (
-                            <Link
-                              href={`/dashboard/customers/${customer.id}`}
-                              className="p-2 text-[var(--text-2)] hover:text-primary-600 hover:bg-primary-50 rounded-lg"
-                              title="View"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Link>
-                          )}
-                          {canEditCustomer && (
-                            <button
-                              type="button"
-                              onClick={() => void openEditPrompt(customer.id)}
-                              className="p-2 text-[var(--text-2)] hover:text-blue-600 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
-                              title="Edit"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          )}
-                          {canDeleteCustomer && (
-                            <button
-                              onClick={() => handleDelete(customer.id)}
-                              className="p-2 text-[var(--text-2)] hover:text-red-600 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {totalCount > CUSTOMERS_PAGE_SIZE && (
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-[var(--text-2)]">
-                    Showing {(currentPage - 1) * CUSTOMERS_PAGE_SIZE + 1}-
-                    {Math.min(currentPage * CUSTOMERS_PAGE_SIZE, totalCount)} of{' '}
-                    {totalCount} customers
-                  </p>
-                  <div className="flex items-center gap-2">
+                      </button>
+                    );
+                  })}
+                </div>
+                {totalCount > CUSTOMERS_PAGE_SIZE && (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-[var(--border)]">
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      className="btn btn-secondary text-xs px-2.5 py-1.5"
                       disabled={currentPage <= 1}
                       onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                     >
-                      Previous
+                      Prev
                     </button>
-                    <span className="text-sm text-[var(--text-2)]">
-                      Page {currentPage} of {totalPages}
+                    <span className="text-xs text-[var(--text-3)]">
+                      {currentPage} / {totalPages}
                     </span>
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      className="btn btn-secondary text-xs px-2.5 py-1.5"
                       disabled={currentPage >= totalPages}
-                      onClick={() =>
-                        setCurrentPage((page) => Math.min(totalPages, page + 1))
-                      }
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                     >
                       Next
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="flex-1 min-w-0 overflow-y-auto">
+                {selectedCustomerLoading ? (
+                  <div className="py-6 px-6">
+                    <TableSkeleton rows={5} />
+                  </div>
+                ) : selectedCustomerDetail ? (
+                  <CustomerDetailPanel
+                    customer={selectedCustomerDetail}
+                    canEdit={canEditCustomer}
+                    canDelete={canDeleteCustomer}
+                    onEdit={() => void openEditPrompt(selectedCustomerDetail.id)}
+                    onDelete={() => handleDelete(selectedCustomerDetail.id)}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-[var(--text-3)]">
+                    Select a customer
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}

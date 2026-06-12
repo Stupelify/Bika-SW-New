@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { customerSearchText, textMatchesSearch } from '@/lib/customerSearch';
 import { CalendarPageSkeleton, CalendarSkeleton } from '@/components/Skeletons';
+import Toolbar from '@/components/Toolbar';
 import { LatestWinsGuard, dedupeSlotsByBookingId } from '@/lib/calendarConcurrency';
 import dynamic from 'next/dynamic';
 import type { TimelineHallRow } from '@/components/VenueTimelineBoard';
@@ -629,13 +630,30 @@ export default function CalendarPage() {
   }, [filteredBookings.length, filteredEnquiries.length, hallStatsByLocation, selectedDayConflicts.length]);
 
   return (
-    <div className="space-y-6 min-w-0 max-w-full overflow-x-hidden">
-      <div>
-        <h1 className="page-title">Calendar</h1>
-      </div>
+    <div className="ops-route ops-calendar-page min-w-0 max-w-full overflow-x-hidden">
+      <Toolbar
+        title="Calendar"
+        stats={[
+          { label: 'Bookings in view', value: filteredBookings.length + filteredEnquiries.length },
+          {
+            label: 'Conflicts',
+            value: (
+              <span
+                className={
+                  selectedDayConflicts.length > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }
+              >
+                {selectedDayConflicts.length}
+              </span>
+            ),
+          },
+        ]}
+      />
 
       {/* ── Main calendar area (sidebar removed; filters live in header) ── */}
-      <div className="min-w-0 space-y-4">
+      <div className="ops-route ops-calendar-route min-w-0">
 
           <CalendarToolbar
             viewMode={viewMode}

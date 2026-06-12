@@ -19,18 +19,14 @@ import {
   CalendarCheck,
   DollarSign,
   IndianRupee,
-  Landmark,
-  Layers,
-  ListChecks,
-  PhoneCall,
   RefreshCw,
   Sparkles,
-  UserCircle2,
-  Users,
-  UtensilsCrossed,
 } from 'lucide-react';
 import { AdaptiveCard } from '@/components/adaptive/AdaptiveCard';
 import { AdaptiveButton } from '@/components/adaptive/AdaptiveButton';
+import Toolbar from '@/components/Toolbar';
+
+const DONUT_COLORS = ['#14b8a6', '#0d9488', '#f59e0b', '#6366f1', '#ec4899', '#94a3b8'];
 
 interface DashboardAnalytics {
   range: {
@@ -87,19 +83,6 @@ interface BookingRow {
 }
 
 
-interface ResourceCounts {
-  itemTypes: number;
-  items: number;
-  templateMenus: number;
-  enquiries: number;
-  halls: number;
-  customers: number;
-  banquets: number;
-  users: number;
-  roles: number;
-  bookings: number;
-}
-
 interface HallRevenue {
   hallId: string;
   hallName: string;
@@ -122,7 +105,6 @@ interface DashboardState {
   insights: Insight[];
   pencilBookings: number;
   averageBookingValue: number;
-  resourceCounts: ResourceCounts;
 }
 
 function toSafeNumber(input: unknown): number {
@@ -318,6 +300,70 @@ function BarChart({
   );
 }
 
+function DonutChart({
+  data,
+  size = 180,
+  thickness = 22,
+}: {
+  data: Array<{ label: string; value: number }>;
+  size?: number;
+  thickness?: number;
+}) {
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const total = Math.max(1, data.reduce((sum, item) => sum + item.value, 0));
+  let offset = 0;
+
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="var(--surface-2)"
+          strokeWidth={thickness}
+        />
+        {data.map((item, index) => {
+          const fraction = item.value / total;
+          const dash = fraction * circumference;
+          const segment = (
+            <circle
+              key={item.label}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={DONUT_COLORS[index % DONUT_COLORS.length]}
+              strokeWidth={thickness}
+              strokeDasharray={`${dash} ${circumference - dash}`}
+              strokeDashoffset={-offset}
+            >
+              <title>
+                {item.label}: {item.value}
+              </title>
+            </circle>
+          );
+          offset += dash;
+          return segment;
+        })}
+      </g>
+      <text
+        x={size / 2}
+        y={size / 2}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize="22"
+        fontWeight={700}
+        fill="var(--text-1)"
+      >
+        {total}
+      </text>
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const canViewDashboard = user?.permissions?.includes('view_dashboard');
@@ -367,17 +413,7 @@ export default function DashboardPage() {
       const normalizedStart = toDateOnly(analytics.range.startDate);
       const normalizedEnd = toDateOnly(analytics.range.endDate);
 
-      const [
-        enquiriesRes,
-        recentBookingsRes,
-        itemTypesRes,
-        itemsRes,
-        templateMenusRes,
-        hallsRes,
-        banquetsRes,
-        usersRes,
-        rolesRes,
-      ] = await Promise.all([
+      const [enquiriesRes, recentBookingsRes] = await Promise.all([
         api.getEnquiries({ page: 1, limit: 1, isPencilBooked: 'true' }),
         api.getBookings({
           page: 1,
@@ -385,13 +421,6 @@ export default function DashboardPage() {
           fromDate: normalizedStart || undefined,
           toDate: normalizedEnd || undefined,
         }),
-        api.getItemTypes({ page: 1, limit: 1 }),
-        api.getItems({ page: 1, limit: 1 }),
-        api.getTemplateMenus({ page: 1, limit: 1 }),
-        api.getHalls({ page: 1, limit: 1 }),
-        api.getBanquets({ page: 1, limit: 1 }),
-        api.getUsers({ page: 1, limit: 1 }),
-        api.getRoles(),
       ]);
 
       const pencilBookings = (enquiriesRes.data?.data?.pagination?.total ?? 0) as number;
@@ -460,21 +489,6 @@ export default function DashboardPage() {
         },
       ];
 
-      const resourceCounts: ResourceCounts = {
-        itemTypes: Number(itemTypesRes.data?.data?.pagination?.total || 0),
-        items: Number(itemsRes.data?.data?.pagination?.total || 0),
-        templateMenus: Number(templateMenusRes.data?.data?.pagination?.total || 0),
-        enquiries: Number(enquiriesRes.data?.data?.pagination?.total || 0),
-        halls: Number(hallsRes.data?.data?.pagination?.total || 0),
-        customers: Number(analytics.summary.totalCustomers || 0),
-        banquets: Number(banquetsRes.data?.data?.pagination?.total || 0),
-        users: Number(usersRes.data?.data?.pagination?.total || 0),
-        roles: Array.isArray(rolesRes.data?.data?.roles)
-          ? rolesRes.data.data.roles.length
-          : 0,
-        bookings: Number(analytics.summary.totalBookings || 0),
-      };
-
       const recentBookings = (recentBookingsRes.data?.data?.bookings ?? []) as BookingRow[];
 
       setData({
@@ -488,7 +502,6 @@ export default function DashboardPage() {
           analytics.summary.bookingsInRange > 0
             ? analytics.summary.totalRevenue / analytics.summary.bookingsInRange
             : 0,
-        resourceCounts,
       });
     } catch (error) {
       toast.error('Failed to load dashboard analytics');
@@ -526,9 +539,17 @@ export default function DashboardPage() {
     };
   }, [data?.hallsByRevenue]);
 
+  const upcomingEvents = useMemo(() => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    return [...(data?.recentBookings || [])]
+      .filter((booking) => toDateOnly(booking.functionDate) >= todayKey)
+      .sort((a, b) => toDateOnly(a.functionDate).localeCompare(toDateOnly(b.functionDate)))
+      .slice(0, 7);
+  }, [data?.recentBookings]);
+
   if (loading) {
-    return (
-      <div className="space-y-6">
+  return (
+    <div className="ops-route ops-dashboard-route">
         <KpiCardSkeleton />
         <AdaptiveCard>
           <div className="skeleton" style={{ height: 16, width: 160, marginBottom: 12 }} />
@@ -557,7 +578,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { analytics, resourceCounts } = data;
+  const { analytics } = data;
   const monthlyTrend = buildContinuousMonthlyTrend(
     analytics.trends.monthly,
     analytics.range.startDate,
@@ -590,22 +611,24 @@ export default function DashboardPage() {
       )
       : 0;
 
-  const maxHallBookings = Math.max(1, ...hallSections.top.map((row) => row.bookings));
   const monthlyRevenueData = monthlyTrend.map((entry) => ({
     label: formatMonthShort(entry.month),
     value: toSafeNumber(entry.revenue),
   }));
 
   return (
-    <div className="space-y-5">
-      <AdaptiveCard>
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
-          <div>
-            <h1 className="page-title">
-              Key Metrics & Performance
-            </h1>
-          </div>
-          <div className="filter-bar xl:justify-end">
+    <div className="ops-route ops-dashboard-route">
+      <Toolbar
+        title="Operations"
+        stats={[
+          { label: 'Bookings in range', value: analytics.summary.bookingsInRange },
+          { label: 'Revenue', value: formatCurrency(analytics.summary.totalRevenue) },
+          { label: 'Pencil bookings', value: data.pencilBookings },
+          { label: 'Cancelled', value: analytics.summary.cancelledBookings },
+          { label: 'Avg. booking value', value: formatCurrency(data.averageBookingValue) },
+        ]}
+        actions={
+          <div className="ops-dashboard-filters filter-bar xl:justify-end">
             <Combobox
               className="sm:w-[138px]"
               value={range}
@@ -639,8 +662,8 @@ export default function DashboardPage() {
               Refresh
             </AdaptiveButton>
           </div>
-        </div>
-      </AdaptiveCard>
+        }
+      />
 
       <div className="kpi-grid">
         <KpiCard
@@ -681,15 +704,15 @@ export default function DashboardPage() {
         <AdaptiveCard noPadding>
           <div className="panel-header">
             <div>
-              <p className="panel-title">Top Performing Halls</p>
-              <p className="panel-subtitle">By booking count in selected period</p>
+              <p className="panel-title">Hall Utilization</p>
+              <p className="panel-subtitle">Share of bookings by hall in selected period</p>
             </div>
-            <Link href="/dashboard/reports" className="view-all">
+            <Link href="/dashboard/halls" className="view-all">
               View all
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="panel-body space-y-0">
+          <div className="panel-body">
             {hallSections.top.length === 0 ? (
               <EmptyState
                 icon={Building2}
@@ -698,26 +721,27 @@ export default function DashboardPage() {
                 description="Try changing the date range."
               />
             ) : (
-              hallSections.top.map((hall, index) => (
-                <div
-                  key={hall.hallId}
-                  className="grid grid-cols-[24px_minmax(0,1fr)_minmax(120px,160px)_auto] items-center gap-3 border-b border-[var(--border)] py-3 last:border-0"
-                >
-                  <p className="text-[13px] font-semibold text-[var(--text-4)] num">{index + 1}</p>
-                  <p className="text-[15px] font-semibold text-[var(--text-1)] truncate">
-                    {hall.hallName}
-                  </p>
-                  <div className="h-2 rounded-full bg-[var(--surface-2)] overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-500"
-                      style={{ width: `${Math.max((hall.bookings / maxHallBookings) * 100, 12)}%` }}
-                    />
-                  </div>
-                  <p className="text-[15px] font-semibold text-[var(--text-1)] num">
-                    {hall.bookings} {hall.bookings === 1 ? 'booking' : 'bookings'}
-                  </p>
+              <div className="flex flex-col sm:flex-row items-center gap-5">
+                <DonutChart
+                  data={hallSections.top.map((hall) => ({ label: hall.hallName, value: hall.bookings }))}
+                />
+                <div className="flex-1 min-w-0 space-y-2 w-full">
+                  {hallSections.top.map((hall, index) => (
+                    <div key={hall.hallId} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ background: DONUT_COLORS[index % DONUT_COLORS.length] }}
+                        />
+                        <span className="text-[var(--text-2)] truncate">{hall.hallName}</span>
+                      </span>
+                      <span className="font-semibold text-[var(--text-1)] num shrink-0">
+                        {hall.bookings} {hall.bookings === 1 ? 'booking' : 'bookings'}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))
+              </div>
             )}
           </div>
         </AdaptiveCard>
@@ -813,160 +837,135 @@ export default function DashboardPage() {
       <AdaptiveCard noPadding>
         <div className="panel-header">
           <div>
-            <h2 className="panel-title">Business Insights</h2>
-            <p className="panel-subtitle">Actionable metrics for the selected period</p>
+            <h2 className="panel-title">Triage Queue</h2>
+            <p className="panel-subtitle">Items worth a closer look this period</p>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-1 text-[12px] font-semibold text-amber-700 dark:text-amber-200">
             <Sparkles className="w-3.5 h-3.5" />
             Actionable
           </span>
         </div>
-        <div className="panel-body grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="panel-body space-y-0">
           {data.insights.map((insight) => (
             <div
               key={insight.title}
-              className={`insight-card ${insight.tone === 'good'
-                  ? 'good'
-                  : insight.tone === 'warn'
-                    ? 'warn'
-                    : 'neutral'
-                }`}
+              className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-3 last:border-0"
             >
-              <p className="insight-label">{insight.title}</p>
-              <p className="insight-value num">{insight.value}</p>
-              <p className="insight-detail">{insight.detail}</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <span
+                  className={`inline-flex h-2.5 w-2.5 rounded-full shrink-0 ${
+                    insight.tone === 'warn'
+                      ? 'bg-amber-500'
+                      : insight.tone === 'good'
+                        ? 'bg-teal-500'
+                        : 'bg-[var(--text-4)]'
+                  }`}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[var(--text-1)] truncate">{insight.title}</p>
+                  <p className="text-xs text-[var(--text-4)] truncate">{insight.detail}</p>
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-[var(--text-1)] num shrink-0">{insight.value}</p>
             </div>
           ))}
         </div>
       </AdaptiveCard>
 
-      <AdaptiveCard noPadding>
-        <div className="panel-header">
-          <div>
-            <h2 className="panel-title">Resource Counts</h2>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <AdaptiveCard noPadding>
+          <div className="panel-header">
+            <h2 className="panel-title">Upcoming Events</h2>
+            <Link href="/dashboard/calendar" className="view-all">
+              View calendar
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-        </div>
-        <div className="panel-body grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-          <Link href="/dashboard/menu" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Item Types</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.itemTypes.toLocaleString('en-IN')}
-            </p>
-            <Layers className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/menu" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Items</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.items.toLocaleString('en-IN')}
-            </p>
-            <UtensilsCrossed className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/menu" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Template Menu</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.templateMenus.toLocaleString('en-IN')}
-            </p>
-            <ListChecks className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/enquiries" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Enquiry</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.enquiries.toLocaleString('en-IN')}
-            </p>
-            <PhoneCall className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/halls" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Hall</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.halls.toLocaleString('en-IN')}
-            </p>
-            <Building2 className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/customers" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Manage Customers</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.customers.toLocaleString('en-IN')}
-            </p>
-            <Users className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/halls" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Banquet</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.banquets.toLocaleString('en-IN')}
-            </p>
-            <Landmark className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/settings" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Manage Users</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.users.toLocaleString('en-IN')}
-            </p>
-            <UserCircle2 className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/bookings" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Booking</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.bookings.toLocaleString('en-IN')}
-            </p>
-            <CalendarCheck className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-          <Link href="/dashboard/settings" className="resource-tile">
-            <p className="text-xs text-[var(--text-4)]">Manage Roles</p>
-            <p className="text-xl font-semibold text-[var(--text-1)] mt-1 num">
-              {resourceCounts.roles.toLocaleString('en-IN')}
-            </p>
-            <BarChart3 className="w-4 h-4 text-primary-600 mt-2" />
-          </Link>
-        </div>
-      </AdaptiveCard>
+          <div className="panel-body space-y-3">
+            {upcomingEvents.length === 0 ? (
+              <EmptyState
+                icon={CalendarCheck}
+                variant="page"
+                title="No upcoming events"
+                description="Functions scheduled for the coming days will appear here."
+              />
+            ) : (
+              upcomingEvents.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-[var(--border)] last:border-0"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-1)] break-words">
+                      {booking.functionName}
+                    </p>
+                    <p className="text-xs text-[var(--text-4)] mt-1 break-words">
+                      {booking.customer?.name || 'Unknown customer'} •{' '}
+                      {booking.halls?.[0]?.hall?.name || booking.functionType}
+                    </p>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm text-[var(--text-1)]">
+                      {formatDateDDMMYYYY(booking.functionDate)}
+                    </p>
+                    <p className="text-xs text-[var(--text-2)] mt-1">
+                      {formatCurrency(toSafeNumber(booking.grandTotal))}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </AdaptiveCard>
 
-      <AdaptiveCard noPadding>
-        <div className="panel-header">
-          <h2 className="panel-title">Recent Bookings</h2>
-          <Link
-            href="/dashboard/bookings"
-            className="view-all"
-          >
-            View all
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-        <div className="panel-body space-y-3">
-          {data.recentBookings.length === 0 ? (
-            <EmptyState
-              icon={CalendarCheck}
-              variant="page"
-              title="No recent bookings"
-              description="Bookings created recently will appear here."
-            />
-          ) : (
-            data.recentBookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-[var(--border)] last:border-0"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[var(--text-1)] break-words">
-                    {booking.functionName}
-                  </p>
-                  <p className="text-xs text-[var(--text-4)] mt-1 break-words">
-                    {booking.customer?.name || 'Unknown customer'} •{' '}
-                    {booking.customer?.phone || 'N/A'}
-                  </p>
+        <AdaptiveCard noPadding>
+          <div className="panel-header">
+            <h2 className="panel-title">Recent Bookings</h2>
+            <Link
+              href="/dashboard/bookings"
+              className="view-all"
+            >
+              View all
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="panel-body space-y-3">
+            {data.recentBookings.length === 0 ? (
+              <EmptyState
+                icon={CalendarCheck}
+                variant="page"
+                title="No recent bookings"
+                description="Bookings created recently will appear here."
+              />
+            ) : (
+              data.recentBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-[var(--border)] last:border-0"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-1)] break-words">
+                      {booking.functionName}
+                    </p>
+                    <p className="text-xs text-[var(--text-4)] mt-1 break-words">
+                      {booking.customer?.name || 'Unknown customer'} •{' '}
+                      {booking.customer?.phone || 'N/A'}
+                    </p>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm text-[var(--text-1)]">
+                      {formatDateDDMMYYYY(booking.functionDate)}
+                    </p>
+                    <p className="text-xs text-[var(--text-2)] mt-1">
+                      {formatCurrency(toSafeNumber(booking.grandTotal))}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-sm text-[var(--text-1)]">
-                    {formatDateDDMMYYYY(booking.functionDate)}
-                  </p>
-                  <p className="text-xs text-[var(--text-2)] mt-1">
-                    {formatCurrency(toSafeNumber(booking.grandTotal))}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </AdaptiveCard>
+              ))
+            )}
+          </div>
+        </AdaptiveCard>
+      </div>
     </div>
   );
 }

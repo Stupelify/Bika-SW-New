@@ -592,13 +592,16 @@ model Booking {
 }
 
 model BookingHall {
-  id        String   @id @default(uuid())
-  bookingId String
-  hallId    String
-  charges   Float    @default(0)
-  createdAt DateTime @default(now())
-  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  hall      Hall     @relation(fields: [hallId], references: [id])
+  id              String   @id @default(uuid())
+  bookingId       String
+  hallId          String
+  charges         Float    @default(0)
+  createdAt       DateTime @default(now())
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hall            Hall     @relation(fields: [hallId], references: [id])
+  timeRange       Unsupported("tsrange")? @map("time_range")
+  bookingStatus   String?                 @map("booking_status")
+  bookingIsLatest Boolean?                @map("booking_is_latest")
 
   @@unique([bookingId, hallId])
   @@index([bookingId])
@@ -766,4 +769,11 @@ model AuditLog {
   @@index([createdAt])
   @@index([action])
   @@map("audit_logs")
+}
+
+model RawMigration {
+  name      String   @id
+  appliedAt DateTime @default(now()) @map("applied_at")
+
+  @@map("_raw_migrations")
 }

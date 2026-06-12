@@ -22,7 +22,6 @@ import {
   Search,
   Star,
   Trash2,
-  Users,
   Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -43,7 +42,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
-import { formatDateDDMMYYYY } from '@/lib/date';
+import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
 import { useDebounce } from '@/lib/useDebounce';
 import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
 import { useAuthStore } from '@/store/authStore';
@@ -98,6 +97,7 @@ import {
   formatDiscountPercentDisplay,
   formatPercentFieldOnBlur,
   formatRupeeAmount,
+  resolveDueAmount,
   roundRupee,
   syncBillingAmounts,
   validateBillingCeiling,
@@ -121,7 +121,8 @@ import {
 import MobileBookingCard from '@/components/MobileBookingCard';
 import BookingCard from '@/components/BookingCard';
 import FloatingActionButton from '@/components/FloatingActionButton';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge, { getRowStatusClass } from '@/components/StatusBadge';
+import Toolbar from '@/components/Toolbar';
 import BookingPaymentsLedger from '@/components/BookingPaymentsLedger';
 import BookingFinancialSummary from '@/components/BookingFinancialSummary';
 import FinalizedVersionHistory from '@/components/booking/FinalizedVersionHistory';
@@ -145,6 +146,9 @@ interface Booking {
   isPencilBooking?: boolean;
   pencilExpiresAt?: string | null;
   grandTotal: number;
+  dueAmountValue?: number | null;
+  dueAmount?: string | number | null;
+  paymentReceivedAmountValue?: number | null;
   customer: {
     name: string;
     phone: string;
@@ -399,6 +403,52 @@ const initialColumnSearch = {
 
 const BOOKINGS_PAGE_SIZE = 75;
 
+function formatInrCompact(amount: number): string {
+  const n = amount || 0;
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${n}`;
+}
+
+function pencilExpiryDays(pencilExpiresAt?: string | null): number | null {
+  if (!pencilExpiresAt) return null;
+  const expires = new Date(pencilExpiresAt);
+  if (Number.isNaN(expires.getTime())) return null;
+  return Math.ceil((expires.getTime() - Date.now()) / 86400000);
+}
+
+interface BookingSavedView {
+  id: string;
+  label: string;
+  fn: ((booking: Booking) => boolean) | null;
+}
+
+const BOOKING_SAVED_VIEWS: BookingSavedView[] = [
+  { id: 'all', label: 'All', fn: null },
+  {
+    id: 'balance',
+    label: 'Balance due',
+    fn: (b) => resolveDueAmount(b) > 0 && b.status === 'confirmed',
+  },
+  {
+    id: 'pencils',
+    label: 'Pencils expiring',
+    fn: (b) => b.status === 'pencil' && Boolean(b.pencilExpiresAt),
+  },
+  {
+    id: 'unconfirmed',
+    label: 'Unconfirmed',
+    fn: (b) => ['pencil', 'quotation', 'enquiry'].includes(b.status),
+  },
+  { id: 'confirmed', label: 'Confirmed', fn: (b) => b.status === 'confirmed' },
+  {
+    id: 'high',
+    label: 'High value · >₹10L',
+    fn: (b) => (b.grandTotal || 0) >= 1000000,
+  },
+];
+
 function formatCustomerLabel(customer?: {
   name?: string | null;
   phone?: string | null;
@@ -451,6 +501,7 @@ export default function BookingsPage() {
   const canExportMenuPdf = canViewBooking;
 
   const [useServer] = useState(() => usesServerPagination('bookings'));
+  const [savedView, setSavedView] = useState<string>('all');
   const {
     data: legacyBookings = [],
     isLoading: legacyLoading,
@@ -568,7 +619,7 @@ export default function BookingsPage() {
     }
   }, [useServer, serverBookingsLoadError, refetchServerBookings]);
   // view mode: 'table' (default on desktop) or 'cards'
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const isFormDirtyRef = useRef(false);
@@ -883,6 +934,16 @@ export default function BookingsPage() {
     const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
     return clientFilteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
   }, [useServer, bookings, currentPage, clientFilteredBookings, totalPages]);
+
+  const activeSavedView = useMemo(
+    () => BOOKING_SAVED_VIEWS.find((v) => v.id === savedView) ?? BOOKING_SAVED_VIEWS[0],
+    [savedView]
+  );
+
+  const viewBookings = useMemo(
+    () => (activeSavedView.fn ? paginatedBookings.filter(activeSavedView.fn) : paginatedBookings),
+    [paginatedBookings, activeSavedView]
+  );
 
   const historicalVersions = useMemo(
     () =>
@@ -3004,40 +3065,79 @@ export default function BookingsPage() {
     );
   };
 
+  const bookingsValueInView = useMemo(
+    () => viewBookings.reduce((sum, b) => sum + (b.grandTotal || 0), 0),
+    [viewBookings]
+  );
+
+  const bookingsOutstandingInView = useMemo(
+    () => viewBookings.reduce((sum, b) => sum + resolveDueAmount(b), 0),
+    [viewBookings]
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="page-head gap-4">
-        <div>
-          <h1 className="page-title">Bookings</h1>
-        </div>
-        {canAddBooking && (
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-          >
-            <Plus className="w-4 h-4" />
-            Add Booking
-          </button>
-        )}
-      </div>
+    <div className="ops-route ops-list-route">
+      <Toolbar
+        title="Bookings"
+        stats={[
+          { label: 'In view', value: viewBookings.length },
+          { label: 'Value in view', value: formatInrCompact(bookingsValueInView) },
+          {
+            label: 'Outstanding',
+            value: (
+              <span
+                className={
+                  bookingsOutstandingInView > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }
+              >
+                {formatInrCompact(bookingsOutstandingInView)}
+              </span>
+            ),
+          },
+        ]}
+        actions={
+          <>
+            <div className="ops-toolbar-search">
+              <Search className="w-4 h-4" aria-hidden="true" />
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(event) => setGlobalSearch(event.target.value)}
+                placeholder="Search..."
+                aria-label="Search bookings"
+              />
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary ops-filter-button"
+              onClick={() => setShowFilters(true)}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {Object.values(columnSearch).filter(Boolean).length > 0 && (
+                <span className="ops-filter-count">
+                  {Object.values(columnSearch).filter(Boolean).length}
+                </span>
+              )}
+            </button>
+            {canAddBooking ? (
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="btn btn-primary inline-flex items-center gap-2 justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                New booking
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       {!canViewBooking && (
         <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm">
           You do not have permission to view bookings.
-        </div>
-      )}
-
-      {canAddBooking && customers.length === 0 && (
-        <div className="card border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            No customers found. Add a customer first, then create booking.
-          </p>
-          {canAddCustomer && (
-            <button type="button" className="btn btn-secondary" onClick={openQuickCustomerForm}>
-              <Plus className="w-4 h-4" />
-              Add Customer
-            </button>
-          )}
         </div>
       )}
 
@@ -4384,7 +4484,29 @@ export default function BookingsPage() {
         </div>
       </FormPromptModal>
 
-      <div className="card">
+      {canViewBooking && (
+        <div className="ops-view-bar">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-4)] flex-shrink-0">
+            Views
+          </span>
+          {BOOKING_SAVED_VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setSavedView(v.id)}
+              className={`flex-shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                savedView === v.id
+                  ? 'border-teal-600 bg-teal-600 text-white'
+                  : 'border-[var(--border-2)] bg-[var(--surface)] text-[var(--text-3)] hover:text-[var(--text-1)]'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="card ops-list-controls">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div className="relative" style={{ flex: 1 }}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-4)]" />
@@ -4476,7 +4598,7 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="ops-table-card">
         {!canViewBooking ? (
           <div className="empty-state" style={{ padding: '32px 16px' }}>
             <div className="empty-state-icon">
@@ -4524,12 +4646,22 @@ export default function BookingsPage() {
                     : undefined
             }
           />
+        ) : viewBookings.length === 0 ? (
+          <div className="empty-state" style={{ padding: '32px 16px' }}>
+            <p className="empty-state-title">No bookings match this view</p>
+            <p className="empty-state-desc">Try a different saved view or clear it to see all bookings.</p>
+            {savedView !== 'all' && (
+              <button type="button" className="btn btn-secondary mt-2" onClick={() => setSavedView('all')}>
+                Clear view
+              </button>
+            )}
+          </div>
         ) : (
           <>
             {/* Mobile card view — always shown on small screens */}
             <div className="md:hidden">
               <div className="mobile-card-list">
-                    {paginatedBookings.map((booking) => (
+                    {viewBookings.map((booking) => (
                       <MobileBookingCard
                         key={booking.id}
                         booking={booking}
@@ -4565,7 +4697,7 @@ export default function BookingsPage() {
                         padding: '4px 0',
                       }}
                     >
-                      {paginatedBookings.map((booking) => (
+                      {viewBookings.map((booking) => (
                         <BookingCard
                           key={booking.id}
                           booking={booking}
@@ -4596,15 +4728,10 @@ export default function BookingsPage() {
               <table className="data-table">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
+                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Booking</th>
                     <SortableHeader
-                      label="Function"
+                      label="Function / Customer"
                       sortKey="functionName"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                    />
-                    <SortableHeader
-                      label="Customer"
-                      sortKey="customer"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
@@ -4614,69 +4741,90 @@ export default function BookingsPage() {
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
+                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Hall</th>
                     <SortableHeader
                       label="Guests"
                       sortKey="expectedGuests"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
                     />
-                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Hall / Venue</th>
+                    <SortableHeader
+                      label="Grand total"
+                      sortKey="grandTotal"
+                      sort={sort}
+                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
+                    />
+                    <th aria-label="Due" className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Due</th>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                     />
-                    <SortableHeader
-                      label="Amount"
-                      sortKey="grandTotal"
-                      sort={sort}
-                      onSort={(key) => setSort((prev) => getNextSort(prev, key))}
-                      className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
-                    />
                     {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
+                      <th className="ops-secondary-actions text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
                         Actions
                       </th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedBookings.map((booking) => (
+                  {viewBookings.map((booking) => {
+                    const rowStatus = booking.isQuotation ? 'quotation' : booking.status;
+                    const expDays = booking.status === 'pencil' ? pencilExpiryDays(booking.pencilExpiresAt) : null;
+                    const balanceDue = resolveDueAmount(booking);
+                    return (
                       <tr
                         key={booking.id}
-                        className="cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)]"
+                        className={`ops-click-row cv-auto-row border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${getRowStatusClass(rowStatus)}`}
+                        onClick={() => openEditBooking(booking.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openEditBooking(booking.id);
+                          }
+                        }}
+                        tabIndex={0}
                       >
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-4 id whitespace-nowrap">
+                        {booking.id.slice(0, 8).toUpperCase()}
+                      </td>
+                      <td className="py-4 px-4 main">
                         <p className="font-medium text-[var(--text-1)]">{booking.functionName}</p>
-                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.functionType}</p>
+                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.customer?.name}</p>
                       </td>
-                      <td className="py-4 px-4">
-                        <p className="text-sm text-[var(--text-1)]">{booking.customer?.name}</p>
-                        <p className="text-xs text-[var(--text-4)] mt-1">{booking.customer?.phone}</p>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
-                        {formatDateDDMMYYYY(booking.functionDate)}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-[var(--text-2)]">
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="w-4 h-4 text-[var(--text-4)]" />
-                          {booking.expectedGuests}
-                        </span>
+                      <td className="py-4 px-4 text-sm text-[var(--text-2)] whitespace-nowrap">
+                        {formatDateCompact(booking.functionDate)}
+                        {expDays != null && (
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                            exp {expDays}d
+                          </div>
+                        )}
                       </td>
                       <td className="py-4 px-4 text-sm text-[var(--text-2)]">
                         {(booking.halls || []).length > 0
                           ? (booking.halls || []).map((h) => h.hall ? [h.hall.banquet?.name, h.hall.name].filter(Boolean).join(' / ') : null).filter(Boolean).join(', ')
                           : <span className="text-[var(--text-4)]">—</span>}
                       </td>
-                      <td className="py-4 px-4">
-                        <StatusBadge status={booking.isQuotation ? 'quotation' : booking.status} />
+                      <td className="py-4 px-4 text-right text-sm text-[var(--text-2)] num">
+                        {booking.expectedGuests}
                       </td>
-                      <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)]">
-                        ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
+                      <td className="py-4 px-4 text-right text-sm font-medium text-[var(--text-1)] num" title={`₹${(booking.grandTotal || 0).toLocaleString('en-IN')}`}>
+                        {formatInrCompact(booking.grandTotal || 0)}
+                      </td>
+                      <td
+                        className={`py-4 px-4 text-right text-sm font-medium num ${balanceDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
+                        title={`₹${balanceDue.toLocaleString('en-IN')}`}
+                      >
+                        {balanceDue > 0 ? formatInrCompact(balanceDue) : 'Paid'}
+                      </td>
+                      <td className="py-4 px-4">
+                        <StatusBadge status={rowStatus} />
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
-                        <td className="py-4 px-4 text-right">
+                        <td className="ops-secondary-actions py-4 px-4 text-right" onClick={(event) => event.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             {canExportMenuPdf && (
                               <button
@@ -4725,8 +4873,8 @@ export default function BookingsPage() {
                         </td>
                       )}
                       </tr>
-                    ))
-                  }
+                    );
+                  })}
                 </tbody>
               </table>
               <TablePagination

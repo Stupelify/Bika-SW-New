@@ -25,7 +25,7 @@ interface Booking {
   status: string;
   isQuotation: boolean;
   grandTotal: number;
-  dueAmountValue?: number;
+  dueAmountValue?: number | null;
   customer: {
     name: string;
     phone: string;

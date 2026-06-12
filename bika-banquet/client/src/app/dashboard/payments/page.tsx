@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import TablePagination from '@/components/TablePagination';
 import Combobox from '@/components/Combobox';
+import Toolbar from '@/components/Toolbar';
 import { PaymentsTableSkeleton } from '@/components/Skeletons';
 import {
   useAddPaymentMutation,
@@ -28,7 +29,7 @@ import {
   filterAndSortRows,
   getNextSort,
 } from '@/lib/tableUtils';
-import { formatDateDDMMYYYY } from '@/lib/date';
+import { formatDateDDMMYYYY, formatDateCompact } from '@/lib/date';
 import {
   resolveDueAmount,
   resolvePaymentReceivedGross,
@@ -314,23 +315,26 @@ export default function PaymentsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="page-head gap-4">
-        <div>
-          <h1 className="page-title">Payments</h1>
-        </div>
-        {canAddPayment && (
-          <button
-            type="button"
-            className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
-            onClick={() => setShowPaymentPrompt(true)}
-            disabled={useServer ? totalCount === 0 : bookings.length === 0}
-          >
-            <Plus className="w-4 h-4" />
-            Add Payment
-          </button>
-        )}
-      </div>
+    <div className="ops-route ops-list-route">
+      <Toolbar
+        title="Payments"
+        stats={[
+          { label: 'In view', value: totalCount },
+        ]}
+        actions={
+          canAddPayment ? (
+            <button
+              type="button"
+              className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+              onClick={() => setShowPaymentPrompt(true)}
+              disabled={useServer ? totalCount === 0 : bookings.length === 0}
+            >
+              <Plus className="w-4 h-4" />
+              Add Payment
+            </button>
+          ) : null
+        }
+      />
 
       <FormPromptModal
         open={showPaymentPrompt}
@@ -615,26 +619,32 @@ export default function PaymentsPage() {
                 </thead>
                 <tbody>
                   {paginatedBookings.map((booking) => (
-                    <tr key={booking.id} className="border-b border-[var(--border)]">
-                      <td className="py-3 px-3">
+                    <tr
+                      key={booking.id}
+                      className="ops-click-row border-b border-[var(--border)]"
+                      onClick={() => {
+                        window.location.href = `/dashboard/bookings?section=edit&id=${booking.id}`;
+                      }}
+                    >
+                      <td className="py-3 px-3 main">
                         <p className="text-sm text-[var(--text-1)]">{booking.functionName}</p>
                         <p className="text-xs text-[var(--text-4)] mt-1">
                           {booking.customer?.name} • {booking.customer?.phone}
                         </p>
                       </td>
-                      <td className="py-3 px-3 text-sm text-[var(--text-2)]">
-                        {formatDateDDMMYYYY(booking.functionDate)}
+                      <td className="py-3 px-3 text-sm text-[var(--text-2)] whitespace-nowrap">
+                        {formatDateCompact(booking.functionDate)}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
-                        INR {(booking.grandTotal || 0).toLocaleString('en-IN')}
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
+                        ₹{(booking.grandTotal || 0).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
-                        INR {resolvePaymentReceivedGross(booking).toLocaleString('en-IN')}
+                      <td className="py-3 px-3 text-right text-sm text-emerald-600 dark:text-emerald-400 num">
+                        ₹{resolvePaymentReceivedGross(booking).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm font-medium text-[var(--text-1)]">
-                        INR {resolveDueAmount(booking).toLocaleString('en-IN')}
+                      <td className={`py-3 px-3 text-right text-sm font-medium num ${resolveDueAmount(booking) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {resolveDueAmount(booking) > 0 ? `₹${resolveDueAmount(booking).toLocaleString('en-IN')}` : 'Paid'}
                       </td>
-                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)]">
+                      <td className="py-3 px-3 text-right text-sm text-[var(--text-2)] num">
                         {booking._count?.payments || 0}
                       </td>
                     </tr>

@@ -133,10 +133,11 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }
     setLoading(true);
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const cleanApiBase = apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase;
     const t = window.setTimeout(async () => {
       try {
         const resp = await fetch(
-          `${apiBase}/api/search?q=${encodeURIComponent(trimmed)}`,
+          `${cleanApiBase}/api/search?q=${encodeURIComponent(trimmed)}`,
           { credentials: 'include' }
         );
         if (!resp.ok) throw new Error('search failed');

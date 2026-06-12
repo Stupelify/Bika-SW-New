@@ -18,6 +18,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import EmptyState from '@/components/EmptyState';
 import FormPromptModal from '@/components/FormPromptModal';
 import { TableSkeleton } from '@/components/Skeletons';
+import Toolbar from '@/components/Toolbar';
 
 interface UserRow {
   id: string;
@@ -766,13 +767,14 @@ function SettingsPageContent() {
   const isAdminRoleModal = editingRole?.name.toLowerCase() === 'admin';
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-title">User Management</h1>
-        <p className="text-sm text-[var(--text-3)] mt-1">
-          Manage staff accounts, their access, and roles.
-        </p>
-      </div>
+    <div className="ops-route ops-catalog-route">
+      <Toolbar
+        title="User Management"
+        stats={[
+          { label: 'Users', value: users.length },
+          { label: 'Roles', value: roles.length },
+        ]}
+      />
 
       {/* Reset password modal */}
       {resetPasswordUser && (
@@ -1401,17 +1403,14 @@ function SettingsPageContent() {
       </FormPromptModal>
 
       {/* Tabs */}
-      <div className="card p-2">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="ops-section-tabs" role="tablist" aria-label="Account sections">
           {canAccessUsersSection && (
             <button
               type="button"
+              role="tab"
+              aria-selected={activeSection === 'users'}
               onClick={() => navigateToSection('users')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSection === 'users'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
+              className={`ops-section-tab ${activeSection === 'users' ? 'active' : ''}`}
             >
               Users
             </button>
@@ -1419,17 +1418,14 @@ function SettingsPageContent() {
           {canAccessRolesSection && (
             <button
               type="button"
+              role="tab"
+              aria-selected={activeSection === 'roles'}
               onClick={() => navigateToSection('roles')}
-              className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                activeSection === 'roles'
-                  ? 'bg-primary-600 text-white shadow'
-                  : 'bg-[var(--surface)] text-[var(--text-2)] border border-[var(--border)] hover:border-primary-200'
-              }`}
+              className={`ops-section-tab ${activeSection === 'roles' ? 'active' : ''}`}
             >
               Roles
             </button>
           )}
-        </div>
       </div>
 
       {availableSections.length === 0 && (
