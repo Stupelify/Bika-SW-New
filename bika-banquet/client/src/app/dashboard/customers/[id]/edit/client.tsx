@@ -121,7 +121,7 @@ export default function EditCustomerPage() {
       const customer = response.data.data.customer;
       setFormData({
         name: customer.name || '',
-        phoneCountryIso: getCountryIsoByCode(customer.phoneCountryCode),
+        phoneCountryIso: getCountryIsoByCode(customer.phoneCountryCode ?? undefined),
         phone: customer.phone || '',
         email: customer.email || '',
         priority:

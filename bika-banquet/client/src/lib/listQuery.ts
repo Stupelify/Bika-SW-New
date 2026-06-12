@@ -19,7 +19,7 @@
 
 export type SortDir = 'asc' | 'desc';
 
-export interface ListParamsInput {
+export type ListParamsInput = {
   page: number;
   limit: number;
   search?: string;
@@ -30,7 +30,7 @@ export interface ListParamsInput {
   toDate?: string;
 }
 
-export interface ListParams {
+export type ListParams = {
   page: number;
   limit: number;
   search?: string;

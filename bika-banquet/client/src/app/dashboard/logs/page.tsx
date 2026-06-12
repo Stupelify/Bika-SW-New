@@ -19,18 +19,7 @@ import TablePagination from '@/components/TablePagination';
 import EmptyState from '@/components/EmptyState';
 import Toolbar from '@/components/Toolbar';
 
-interface AuditLog {
-  id: string;
-  userId?: string;
-  userName?: string;
-  action: string;
-  resource: string;
-  resourceId?: string;
-  resourceLabel?: string;
-  details?: any;
-  ipAddress?: string;
-  createdAt: string;
-}
+import type { AuditLog } from '@/types/api';
 
 const PAGE_SIZE = 50;
 
@@ -61,11 +50,11 @@ export default function AuditLogsPage() {
     try {
       if (manual) setRefreshing(true);
       else setLoading(true);
-      const params: any = { page, limit: PAGE_SIZE };
+      const params: Record<string, string | number> = { page, limit: PAGE_SIZE };
       if (search) params.search = search;
       const res = await api.getAuditLogs(params);
       setLogs(res.data.data.logs || []);
-      setTotal(res.data.data.pagination.total || 0);
+      setTotal(res.data.data.pagination?.total || 0);
     } catch (error) {
       toast.error('Failed to load activity logs');
     } finally {

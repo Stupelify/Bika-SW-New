@@ -1,4 +1,6 @@
-export const STALE_TIME_MS = 30_000;
+// 2 minutes — matches the TTL of the removed axios memCache so list pages keep
+// the same freshness economics with React Query as the single cache.
+export const STALE_TIME_MS = 120_000;
 
 export const queryKeys = {
   bookings: {
