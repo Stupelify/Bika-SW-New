@@ -6,6 +6,7 @@ import Link from 'next/link';
 import QueryProvider from '@/components/QueryProvider';
 import { shouldPrefetchDashboardRoute } from '@/lib/navigationPrefetch';
 import { getStoredAuthToken, useAuthStore } from '@/store/authStore';
+import apiClient from '@/lib/api';
 import BottomNav from '@/components/BottomNav';
 import Avatar from '@/components/Avatar';
 import TopNav, { type TopNavItem } from '@/components/TopNav';
@@ -499,20 +500,15 @@ function DashboardLayoutContent({
   // Task 6.3 — fetch pending counts for nav badges
   const refreshNavBadges = useCallback(() => {
     if (!isAuthenticated) return;
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
-    const cleanApiBase = apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase;
     void Promise.all([
-      fetch(`${cleanApiBase}/api/bookings/count`, { credentials: 'include' })
-        .then((r) => r.ok ? r.json() : { count: 0 })
-        .then((d) => setTotalBookings(d?.data?.count ?? d?.count ?? 0))
+      apiClient.get('/bookings/count')
+        .then((r) => setTotalBookings(r.data?.data?.count ?? r.data?.count ?? 0))
         .catch(() => setTotalBookings(0)),
-      fetch(`${cleanApiBase}/api/enquiries/count?status=pending`, { credentials: 'include' })
-        .then((r) => r.ok ? r.json() : { count: 0 })
-        .then((d) => setPendingEnquiries(d?.data?.count ?? d?.count ?? 0))
+      apiClient.get('/enquiries/count?status=pending')
+        .then((r) => setPendingEnquiries(r.data?.data?.count ?? r.data?.count ?? 0))
         .catch(() => setPendingEnquiries(0)),
-      fetch(`${cleanApiBase}/api/bookings/count?status=outstanding`, { credentials: 'include' })
-        .then((r) => r.ok ? r.json() : { count: 0 })
-        .then((d) => setOutstandingPayments(d?.data?.count ?? d?.count ?? 0))
+      apiClient.get('/bookings/count?status=outstanding')
+        .then((r) => setOutstandingPayments(r.data?.data?.count ?? r.data?.count ?? 0))
         .catch(() => setOutstandingPayments(0)),
     ]);
   }, [isAuthenticated]);
