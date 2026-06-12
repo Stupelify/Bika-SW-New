@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bika Banquet — Three Design Directions</title>
+<style>
+  :root {
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+    --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: #0b0c0e; color: #e5e7eb; padding: 24px; }
+  .page-title { font-size: 15px; font-weight: 600; color: #9ca3af; margin-bottom: 4px; letter-spacing: .02em; }
+  .page-sub { font-size: 12.5px; color: #6b7280; margin-bottom: 22px; max-width: 760px; line-height: 1.5; }
+  .dir { margin-bottom: 40px; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .dir-cap { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #9ca3af; margin: 0 0 10px 2px; }
+  .dir-cap small { display:block; text-transform:none; letter-spacing:0; font-weight:400; color:#6b7280; font-size:11.5px; margin-top:3px; }
+
+  /* ============ shared screen scaffold (each direction restyles) ============ */
+  .screen { display: grid; grid-template-columns: 200px 1fr; height: 560px; }
+  .rail { display: flex; flex-direction: column; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 0 18px; height: 52px; flex-shrink: 0; }
+  .content { padding: 16px 18px; overflow: hidden; flex: 1; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi { padding: 11px 13px; }
+  .kpi-l { font-size: 11px; }
+  .kpi-v { font-size: 21px; font-weight: 700; margin-top: 3px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 7px 10px; }
+  td { padding: 9px 10px; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .badge { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 100px; white-space: nowrap; }
+  .navi { display: flex; align-items: center; gap: 9px; padding: 8px 12px; font-size: 13px; cursor: default; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .ico { width: 15px; height: 15px; flex-shrink: 0; opacity: .8; }
+  .ev { font-weight: 600; }
+  .muted { opacity: .6; }
+  .right-pad { margin-left: auto; }
+
+  /* =================== DIRECTION 1 — Operational Command Center =================== */
+  .d1 { background: #0f1011; color: #e5e7eb; }
+  .d1 .rail { background: #141516; border-right: 1px solid #262626; }
+  .d1 .brand { display:flex; align-items:center; gap:8px; padding: 15px 14px; font-weight:700; font-size:13px; color:#f3f4f6; border-bottom:1px solid #262626; }
+  .d1 .brand .sq { width:18px; height:18px; border-radius:5px; background:#0d9488; }
+  .d1 .navi { color:#9ca3af; border-left:2px solid transparent; }
+  .d1 .navi.on { color:#5eead4; background:#08302e; border-left:2px solid #14b8a6; }
+  .d1 .navi .ico { width:14px; height:14px; }
+  .d1 .topbar { border-bottom:1px solid #262626; background:#0f1011; }
+  .d1 .crumb { font-size:13px; color:#9ca3af; }
+  .d1 .crumb b { color:#e5e7eb; font-weight:600; }
+  .d1 .pill { margin-left:auto; font-size:11px; padding:3px 9px; border-radius:100px; border:1px solid #14532d; color:#86efac; display:flex; align-items:center; gap:6px; }
+  .d1 .kpi { background:#141516; border:1px solid #262626; border-radius:8px; }
+  .d1 .kpi-l { color:#6b7280; text-transform:uppercase; letter-spacing:.04em; }
+  .d1 .kpi-v { color:#f3f4f6; font-family:var(--mono); }
+  .d1 .kpi.warn .kpi-v { color:#fbbf24; }
+  .d1 .kpi.bad .kpi-v { color:#f87171; }
+  .d1 table { border:1px solid #262626; border-radius:8px; overflow:hidden; }
+  .d1 th { background:#141516; color:#6b7280; border-bottom:1px solid #262626; }
+  .d1 td { border-bottom:1px solid #1c1d1f; color:#cbd5e1; }
+  .d1 tr:last-child td { border-bottom:none; }
+  .d1 .ev { color:#f3f4f6; }
+  .d1 .num { font-family:var(--mono); }
+  .d1 .b-confirmed { background:#052e16; color:#86efac; }
+  .d1 .b-pencil { background:#2d1a00; color:#fcd34d; }
+  .d1 .b-quotation { background:#0d1f4a; color:#93c5fd; }
+  .d1 .b-enquiry { background:#0a1f2d; color:#7dd3fc; }
+  .d1 .warnrow td { background:rgba(245,158,11,.05); }
+
+  /* =================== DIRECTION 2 — Luxury Hospitality ERP =================== */
+  .d2 { background:#f7f4ee; color:#3a352c; }
+  .d2 .rail { background:#fbf9f4; border-right:1px solid #e7e0d3; }
+  .d2 .brand { padding:18px 18px 14px; border-bottom:1px solid #e7e0d3; }
+  .d2 .brand .nm { font-family:var(--serif); font-size:18px; font-weight:600; color:#2b2620; letter-spacing:.01em; }
+  .d2 .brand .tag { font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:#a98b4e; margin-top:2px; }
+  .d2 .navi { color:#6b6457; border-radius:8px; margin:1px 8px; }
+  .d2 .navi.on { color:#7a5c1e; background:#f1e9d8; }
+  .d2 .topbar { border-bottom:1px solid #e7e0d3; background:#fbf9f4; }
+  .d2 .crumb { font-size:13px; color:#8a8174; }
+  .d2 .crumb b { color:#2b2620; font-weight:600; }
+  .d2 .pill { margin-left:auto; font-size:11px; padding:4px 11px; border-radius:100px; background:#f3ead4; color:#8a6d2b; border:1px solid #e3d3a6; letter-spacing:.02em; }
+  .d2 .content { background:#f7f4ee; }
+  .d2 .kpi { background:#fbf9f4; border:1px solid #e7e0d3; border-radius:10px; }
+  .d2 .kpi-l { color:#a39884; text-transform:uppercase; letter-spacing:.08em; font-size:10px; }
+  .d2 .kpi-v { color:#2b2620; font-weight:600; }
+  .d2 .kpi.rev .kpi-v { color:#a07d34; }
+  .d2 table { background:#fbf9f4; border:1px solid #e7e0d3; border-radius:10px; overflow:hidden; }
+  .d2 th { color:#a39884; border-bottom:1px solid #e7e0d3; }
+  .d2 td { border-bottom:1px solid #efe9dd; color:#5b5347; }
+  .d2 tr:last-child td { border-bottom:none; }
+  .d2 .ev { font-family:var(--serif); font-size:14px; font-weight:600; color:#2b2620; }
+  .d2 .cust { font-family:var(--serif); font-style:italic; color:#6b6457; }
+  .d2 .b-confirmed { background:#efe4c6; color:#86692a; border:1px solid #e0cf9f; }
+  .d2 .b-pencil { background:#f6ecd6; color:#9a7430; }
+  .d2 .b-quotation { background:#e7eef6; color:#4d6b93; }
+  .d2 .b-enquiry { background:#e9f1f3; color:#4a7a86; }
+
+  /* =================== DIRECTION 3 — Power User Dense Interface =================== */
+  .d3 { background:#ffffff; color:#1f2937; }
+  .d3 .screen { grid-template-columns: 168px 1fr 250px; }
+  .d3 .rail { background:#f8fafc; border-right:1px solid #e2e8f0; }
+  .d3 .brand { padding:11px 13px; font-weight:700; font-size:12.5px; color:#0f172a; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:7px; }
+  .d3 .brand .sq { width:16px; height:16px; border-radius:4px; background:#0d9488; }
+  .d3 .navi { color:#475569; padding:6px 13px; font-size:12.5px; }
+  .d3 .navi.on { color:#0f766e; background:#f0fdfa; font-weight:600; }
+  .d3 .viewtabs { display:flex; gap:2px; padding:0 12px; height:36px; align-items:flex-end; border-bottom:1px solid #e2e8f0; background:#fff; }
+  .d3 .vtab { font-size:12px; padding:6px 11px; color:#64748b; border-bottom:2px solid transparent; cursor:default; }
+  .d3 .vtab.on { color:#0f172a; font-weight:600; border-bottom:2px solid #0d9488; }
+  .d3 .toolbar { display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid #e2e8f0; font-size:11.5px; color:#64748b; }
+  .d3 .chip2 { border:1px solid #cbd5e1; border-radius:6px; padding:2px 8px; color:#475569; }
+  .d3 .content { padding:0; }
+  .d3 table { font-size:12px; }
+  .d3 th { background:#f8fafc; border-bottom:1px solid #e2e8f0; border-right:1px solid #eef2f6; color:#64748b; padding:6px 10px; }
+  .d3 td { border-bottom:1px solid #eef2f6; border-right:1px solid #f1f5f9; height:32px; padding:0 10px; color:#334155; }
+  .d3 tbody tr:hover td { background:#f8fafc; }
+  .d3 .ev { color:#0f172a; }
+  .d3 .celledit { outline:2px solid #0d9488; outline-offset:-2px; background:#f0fdfa; border-radius:2px; }
+  .d3 .chk { width:13px; height:13px; border:1.5px solid #cbd5e1; border-radius:3px; display:inline-block; vertical-align:middle; }
+  .d3 .chk.on { background:#0d9488; border-color:#0d9488; }
+  .d3 .b-confirmed { background:#dcfce7; color:#15803d; }
+  .d3 .b-pencil { background:#fef3c7; color:#92400e; }
+  .d3 .b-quotation { background:#dbeafe; color:#1d4ed8; }
+  .d3 .b-enquiry { background:#e0f2fe; color:#0369a1; }
+  .d3 .split { border-left:1px solid #e2e8f0; background:#fcfdfe; padding:14px; }
+  .d3 .split h4 { font-size:13px; color:#0f172a; margin-bottom:2px; }
+  .d3 .split .sc { font-size:11.5px; color:#64748b; margin-bottom:12px; }
+  .d3 .frow { display:flex; justify-content:space-between; font-size:12px; padding:5px 0; border-bottom:1px solid #f1f5f9; }
+  .d3 .frow .k { color:#64748b; }
+  .d3 .frow .v { color:#0f172a; font-weight:600; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+  <div class="page-title">BIKA BANQUET — Same screen, three visual directions</div>
+  <div class="page-sub">Identical data and layout in every panel; only the visual language changes. Bookings list + today's operational counts. Use this to judge feel, density, and how loud the status colors stay in each treatment.</div>
+
+  <!-- ============================ DIRECTION 1 ============================ -->
+  <div class="dir-cap">Direction 1 — Operational Command Center
+    <small>Near-monochrome slate, single teal accent, mono numerals, 1px borders / no shadows, dark-first. Inspired by Linear / incident tooling.</small>
+  </div>
+  <div class="dir d1">
+    <div class="screen">
+      <aside class="rail">
+        <div class="brand"><span class="sq"></span> Bika Ops</div>
+        <div class="navi on"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Bookings</div>
+        <div class="navi"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Calendar</div>
+        <div class="navi"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Customers</div>
+        <div class="navi"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Enquiries</div>
+        <div class="navi"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Payments</div>
+      </aside>
+      <div class="main">
+        <div class="topbar">
+          <span class="crumb">Bookings / <b>All bookings</b></span>
+          <span class="pill"><span class="dot" style="background:#22c55e"></span> Live</span>
+        </div>
+        <div class="content">
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-l">Follow-ups due</div><div class="kpi-v">3</div></div>
+            <div class="kpi warn"><div class="kpi-l">Pencils expiring</div><div class="kpi-v">2</div></div>
+            <div class="kpi bad"><div class="kpi-l">Hall clashes</div><div class="kpi-v">1</div></div>
+            <div class="kpi"><div class="kpi-l">Outstanding</div><div class="kpi-v">₹6.80L</div></div>
+          </div>
+          <table>
+            <thead><tr><th>Function</th><th>Customer</th><th>Date</th><th>Hall</th><th>Status</th><th class="num">PAX</th><th class="num">Amount</th><th class="num">Due</th></tr></thead>
+            <tbody>
+              <tr><td class="ev">Sharma–Gupta Wedding</td><td>Rajesh Sharma</td><td>Sat 14 Jun</td><td>Grand Ballroom</td><td><span class="badge b-confirmed">Confirmed</span></td><td class="num">450</td><td class="num">8,40,000</td><td class="num">2,10,000</td></tr>
+              <tr class="warnrow"><td class="ev">Mehta Reception</td><td>Anil Mehta</td><td>Sun 15 Jun</td><td>Crystal Hall</td><td><span class="badge b-pencil">Pencil · 3d</span></td><td class="num">250</td><td class="num">4,20,000</td><td class="num">4,20,000</td></tr>
+              <tr><td class="ev">Verma Engagement</td><td>Pooja Verma</td><td>Fri 20 Jun</td><td>Garden Lawn</td><td><span class="badge b-quotation">Quotation</span></td><td class="num">180</td><td class="num">2,95,000</td><td class="num muted">—</td></tr>
+              <tr><td class="ev">Khanna Sangeet</td><td>Vikram Khanna</td><td>Sat 21 Jun</td><td>Grand Ballroom</td><td><span class="badge b-enquiry">Enquiry</span></td><td class="num">600</td><td class="num muted">—</td><td class="num muted">—</td></tr>
+              <tr><td class="ev">Iyer 60th Birthday</td><td>Lakshmi Iyer</td><td>Sun 22 Jun</td><td>Crystal Hall</td><td><span class="badge b-confirmed">Confirmed</span></td><td class="num">120</td><td class="num">1,75,000</td><td class="num">50,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ DIRECTION 2 ============================ -->
+  <div class="dir-cap">Direction 2 — Luxury Hospitality ERP
+    <small>Ivory / charcoal, brass accent on revenue moments, serif for event &amp; customer names only, hairline dividers, labeled sidebar. Warm &amp; premium.</small>
+  </div>
+  <div class="dir d2">
+    <div class="screen">
+      <aside class="rail">
+        <div class="brand"><div class="nm">Bika Banquet</div><div class="tag">Estate Operations</div></div>
+        <div class="navi on">Bookings</div>
+        <div class="navi">Calendar</div>
+        <div class="navi">Customers</div>
+        <div class="navi">Enquiries</div>
+        <div class="navi">Payments</div>
+      </aside>
+      <div class="main">
+        <div class="topbar">
+          <span class="crumb">Bookings / <b>All bookings</b></span>
+          <span class="pill">◆ Live</span>
+        </div>
+        <div class="content">
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-l">Follow-ups due</div><div class="kpi-v">3</div></div>
+            <div class="kpi"><div class="kpi-l">Pencils expiring</div><div class="kpi-v">2</div></div>
+            <div class="kpi"><div class="kpi-l">Hall clashes</div><div class="kpi-v">1</div></div>
+            <div class="kpi rev"><div class="kpi-l">Confirmed revenue</div><div class="kpi-v">₹10.15L</div></div>
+          </div>
+          <table>
+            <thead><tr><th>Function</th><th>Customer</th><th>Date</th><th>Hall</th><th>Status</th><th class="num">PAX</th><th class="num">Amount</th><th class="num">Due</th></tr></thead>
+            <tbody>
+              <tr><td class="ev">Sharma–Gupta Wedding</td><td class="cust">Rajesh Sharma</td><td>Sat 14 Jun</td><td>Grand Ballroom</td><td><span class="badge b-confirmed">Confirmed</span></td><td class="num">450</td><td class="num">8,40,000</td><td class="num">2,10,000</td></tr>
+              <tr><td class="ev">Mehta Reception</td><td class="cust">Anil Mehta</td><td>Sun 15 Jun</td><td>Crystal Hall</td><td><span class="badge b-pencil">Pencil · 3d</span></td><td class="num">250</td><td class="num">4,20,000</td><td class="num">4,20,000</td></tr>
+              <tr><td class="ev">Verma Engagement</td><td class="cust">Pooja Verma</td><td>Fri 20 Jun</td><td>Garden Lawn</td><td><span class="badge b-quotation">Quotation</span></td><td class="num">180</td><td class="num">2,95,000</td><td class="num muted">—</td></tr>
+              <tr><td class="ev">Khanna Sangeet</td><td class="cust">Vikram Khanna</td><td>Sat 21 Jun</td><td>Grand Ballroom</td><td><span class="badge b-enquiry">Enquiry</span></td><td class="num">600</td><td class="num muted">—</td><td class="num muted">—</td></tr>
+              <tr><td class="ev">Iyer 60th Birthday</td><td class="cust">Lakshmi Iyer</td><td>Sun 22 Jun</td><td>Crystal Hall</td><td><span class="badge b-confirmed">Confirmed</span></td><td class="num">120</td><td class="num">1,75,000</td><td class="num">50,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ DIRECTION 3 ============================ -->
+  <div class="dir-cap">Direction 3 — Power User Dense Interface
+    <small>Spreadsheet DNA: 32px rows, visible grid lines, view tabs, inline cell edit, batch select, right-hand split panel instead of a route. Maximum throughput.</small>
+  </div>
+  <div class="dir d3">
+    <div class="screen">
+      <aside class="rail">
+        <div class="brand"><span class="sq"></span> Bika</div>
+        <div class="navi on">Bookings</div>
+        <div class="navi">Calendar</div>
+        <div class="navi">Customers</div>
+        <div class="navi">Enquiries</div>
+        <div class="navi">Payments</div>
+      </aside>
+      <div class="main">
+        <div class="viewtabs">
+          <div class="vtab on">All</div><div class="vtab">This week</div><div class="vtab">Pencils</div><div class="vtab">Unpaid</div><div class="vtab">+ View</div>
+        </div>
+        <div class="toolbar"><span class="chip2">⌄ Filter</span><span class="chip2">⇅ Sort</span><span class="chip2">Group: Hall</span><span class="right-pad">2 selected · <span style="color:#0d9488">Bulk edit</span></span></div>
+        <div class="content">
+          <table>
+            <thead><tr><th style="width:26px"></th><th>Function</th><th>Customer</th><th>Date</th><th>Hall</th><th>Status</th><th class="num">PAX</th><th class="num">Amount</th></tr></thead>
+            <tbody>
+              <tr><td><span class="chk on"></span></td><td class="ev">Sharma–Gupta Wedding</td><td>Rajesh Sharma</td><td>Sat 14 Jun</td><td>Grand Ballroom</td><td><span class="badge b-confirmed">Confirmed</span></td><td class="num">450</td><td class="num">8,40,000</td></tr>
+              <tr><td><span class="chk on"></span></td><td class="ev">Mehta Reception</td><td>Anil Mehta</td><td>Sun 15 Jun</td><td>Crystal Hall</td><td><span class="badge b-pencil">Pencil · 3d</span></td><td class="num"><span class="celledit">250</span></td><td class="num">4,20,000</td></tr>
+              <tr><td><span class="chk"></span></td><td class="ev">Verma Engagement</td><td>Pooja Verma</td><td>Fri 20 Jun</td><td>Garden Lawn</td><td><span class="badge b-quotation">Quotation</span></td><td class="num">180</td><td class="num">2,95,000</td></tr>
+              <tr><td><span class="chk"></span></td><td class="ev">Khanna Sangeet</td><td>Vikram Khanna</td><td>Sat 21 Jun</td><td>Grand Ballroom</td><td><span class="badge b-enquiry">Enquiry</span></td><td class="num">600</td><td class="num muted">—</td></tr>
+              <tr><td><span class="chk"></span></td><td class="ev">Iyer 60th Birthday</td><td>Lakshmi Iyer</td><td>Sun 22 Jun</td><td>Crystal Hall</td><td><span class="badge b-confirmed">Confirmed</span></td><td class="num">120</td><td class="num">1,75,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <aside class="split">
+        <h4>Mehta Reception</h4>
+        <div class="sc">Anil Mehta · Crystal Hall</div>
+        <div class="frow"><span class="k">Date</span><span class="v">Sun 15 Jun</span></div>
+        <div class="frow"><span class="k">PAX</span><span class="v">250</span></div>
+        <div class="frow"><span class="k">Status</span><span class="v">Pencil · 3d left</span></div>
+        <div class="frow"><span class="k">Amount</span><span class="v">₹4,20,000</span></div>
+        <div class="frow"><span class="k">Paid</span><span class="v">₹0</span></div>
+        <div class="frow"><span class="k">Due</span><span class="v">₹4,20,000</span></div>
+        <div style="margin-top:12px;font-size:11.5px;color:#64748b">Edits here apply without leaving the list →</div>
+      </aside>
+    </div>
+  </div>
+
+</body>
+</html>
