@@ -211,9 +211,9 @@ export default function CalendarToolbar({
       </div>
 
       {/* ── Row 2: hall pills (grouped) + status legend ─────────────────── */}
-      <div className="flex items-center gap-3 border-t border-[var(--border)] px-4 py-2.5">
+      <div className="flex items-center gap-3 border-t border-[var(--border)] px-4 py-2.5 max-[859px]:flex-wrap">
         {/* Hall pills — horizontally scrollable WITHIN this container only */}
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar max-[859px]:flex-wrap max-[859px]:overflow-x-visible max-[859px]:gap-y-1.5">
           <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-4)]">
             Halls
           </span>
@@ -221,7 +221,7 @@ export default function CalendarToolbar({
             <span className="shrink-0 text-[11px] italic text-[var(--text-4)]">No halls</span>
           )}
           {hallStatsByLocation.map(([locationName, locationHalls]) => (
-            <div key={locationName} className="flex shrink-0 items-center gap-1.5">
+            <div key={locationName} className="flex shrink-0 items-center gap-1.5 max-[859px]:flex-wrap max-[859px]:shrink max-[859px]:gap-y-1.5">
               <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.04em] text-[var(--text-4)]">
                 {locationName}
               </span>
@@ -256,7 +256,7 @@ export default function CalendarToolbar({
         </div>
 
         {/* Status legend — clickable to toggle status filter */}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 max-[859px]:w-full max-[859px]:flex-wrap">
           {STATUS_PILLS.map(({ key, label, bg, text, accent }) => {
             const active = selectedStatuses.has(key);
             return (

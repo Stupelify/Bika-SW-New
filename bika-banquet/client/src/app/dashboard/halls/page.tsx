@@ -775,7 +775,66 @@ function HallsPageContent() {
                 <p className="empty-state-desc">Create a banquet to start adding halls.</p>
               </div>
             ) : (
-              <div className="table-shell">
+              <>
+              {/* Mobile card view */}
+              <div className="md:hidden">
+                <div className="mobile-card-list">
+                  {paginatedBanquets.map((banquet) => (
+                    <div key={banquet.id} className="mobile-card">
+                      <div className="mobile-card-header">
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="mobile-card-title">{banquet.name}</div>
+                        </div>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Location</span>
+                        <span className="mobile-card-value">
+                          {[banquet.location, banquet.city, banquet.state].filter(Boolean).join(', ') || '—'}
+                        </span>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Halls</span>
+                        <span className="mobile-card-value">{banquet.halls?.length || 0}</span>
+                      </div>
+                      {(canEditBanquet || canDeleteBanquet) && (
+                        <div className="mobile-card-actions">
+                          {canEditBanquet && (
+                            <button
+                              type="button"
+                              className="mobile-card-action-btn"
+                              onClick={() => openEditBanquet(banquet)}
+                            >
+                              <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Edit
+                            </button>
+                          )}
+                          {canDeleteBanquet && (
+                            <button
+                              type="button"
+                              className="mobile-card-action-btn"
+                              onClick={() => deleteBanquet(banquet.id)}
+                              style={{ color: '#dc2626' }}
+                            >
+                              <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <TablePagination
+                  currentPage={banquetPage}
+                  totalPages={banquetTotalPages}
+                  totalItems={filteredBanquets.length}
+                  pageSize={BANQUETS_PAGE_SIZE}
+                  itemLabel="banquets"
+                  onPageChange={setBanquetPage}
+                />
+              </div>
+
+              <div className="table-shell hidden md:block">
                 <table className="data-table">
                   <thead>
                     <tr className="border-b border-[var(--border)]">
@@ -854,6 +913,7 @@ function HallsPageContent() {
                   onPageChange={setBanquetPage}
                 />
               </div>
+              </>
             )}
           </>
         ) : (
@@ -932,7 +992,76 @@ function HallsPageContent() {
                 <p className="empty-state-desc">Add a hall to make it available for bookings.</p>
               </div>
             ) : (
-              <div className="table-shell">
+              <>
+              {/* Mobile card view */}
+              <div className="md:hidden">
+                <div className="mobile-card-list">
+                  {paginatedHalls.map((hall) => (
+                    <div key={hall.id} className="mobile-card">
+                      <div className="mobile-card-header">
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="mobile-card-title">{hall.name}</div>
+                        </div>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Banquet</span>
+                        <span className="mobile-card-value">{hall.banquet?.name || 'Unassigned'}</span>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Location</span>
+                        <span className="mobile-card-value">{hall.location || '—'}</span>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Capacity</span>
+                        <span className="mobile-card-value">{hall.capacity || '—'}</span>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Area</span>
+                        <span className="mobile-card-value">{hall.area ? `${hall.area} sq ft` : '—'}</span>
+                      </div>
+                      <div className="mobile-card-row">
+                        <span className="mobile-card-label">Rate</span>
+                        <span className="mobile-card-value">{hall.rate || hall.basePrice || '—'}</span>
+                      </div>
+                      {(canEditHall || canDeleteHall) && (
+                        <div className="mobile-card-actions">
+                          {canEditHall && (
+                            <button
+                              type="button"
+                              className="mobile-card-action-btn"
+                              onClick={() => openEditHall(hall)}
+                            >
+                              <Edit style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Edit
+                            </button>
+                          )}
+                          {canDeleteHall && (
+                            <button
+                              type="button"
+                              className="mobile-card-action-btn"
+                              onClick={() => deleteHall(hall.id)}
+                              style={{ color: '#dc2626' }}
+                            >
+                              <Trash2 style={{ width: 14, height: 14 }} aria-hidden="true" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <TablePagination
+                  currentPage={hallPage}
+                  totalPages={hallTotalPages}
+                  totalItems={filteredHalls.length}
+                  pageSize={HALLS_PAGE_SIZE}
+                  itemLabel="halls"
+                  onPageChange={setHallPage}
+                />
+              </div>
+
+              <div className="table-shell hidden md:block">
                 <table className="ops-halls-table data-table">
                   <thead>
                     <tr>
@@ -985,6 +1114,7 @@ function HallsPageContent() {
                   onPageChange={setHallPage}
                 />
               </div>
+              </>
             )}
           </>
         )}

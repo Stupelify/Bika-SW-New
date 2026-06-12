@@ -3498,6 +3498,19 @@ input[type=number] {
 
   .ops-replica .ops-view-bar {
     padding: 7px 12px;
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .ops-replica .ops-section-tabs {
+    gap: 8px;
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .ops-replica .ops-section-tab {
+    padding: 0 5px;
+    min-height: 44px;
   }
 
   .ops-replica .ops-list-controls {
