@@ -5,6 +5,16 @@ import { describe, expect, it } from 'vitest';
 const clientRoot = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(clientRoot, path), 'utf8');
 
+// globals.css is an @import manifest; the design-system rules live in
+// src/app/styles/*.css. Concatenate them in manifest order for content checks.
+const readDesignSystemCss = () => {
+  const manifest = read('src/app/globals.css');
+  const imports = [...manifest.matchAll(/@import '\.\/(styles\/[^']+)';/g)].map(
+    (m) => m[1]
+  );
+  return imports.map((file) => read(`src/app/${file}`)).join('\n');
+};
+
 describe('standalone operations UI contract', () => {
   it('uses the fixed top-nav replica shell without changing form modals', () => {
     const layout = read('src/app/dashboard/layout.tsx');
@@ -31,7 +41,7 @@ describe('standalone operations UI contract', () => {
   });
 
   it('defines warm-stone compact replica tokens', () => {
-    const css = read('src/app/globals.css');
+    const css = readDesignSystemCss();
 
     expect(css).toContain('.ops-replica {');
     expect(css).toContain('--bg: #fafaf9;');
@@ -79,7 +89,7 @@ describe('standalone operations UI contract', () => {
   });
 
   it('defines shared compact route, view-bar, and table primitives', () => {
-    const css = read('src/app/globals.css');
+    const css = readDesignSystemCss();
 
     expect(css).toContain('.ops-replica .ops-route');
     expect(css).toContain('--ops-gutter: clamp(20px, 1.5vw, 28px);');
@@ -120,7 +130,7 @@ describe('standalone operations UI contract', () => {
     const dashboard = read('src/app/dashboard/page.tsx');
     const pagination = read('src/components/TablePagination.tsx');
     const filters = read('src/components/FilterPanel.tsx');
-    const css = read('src/app/globals.css');
+    const css = readDesignSystemCss();
 
     expect(dashboard).toContain('className="ops-route ops-dashboard-route"');
     expect(dashboard).toContain('className="ops-dashboard-filters');
