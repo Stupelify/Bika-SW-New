@@ -9,7 +9,8 @@ const read = (path: string) => readFileSync(resolve(clientRoot, path), 'utf8');
 // src/app/styles/*.css. Concatenate them in manifest order for content checks.
 const readDesignSystemCss = () => {
   const manifest = read('src/app/globals.css');
-  const imports = [...manifest.matchAll(/@import '\.\/(styles\/[^']+)';/g)].map(
+  const imports = Array.from(
+    manifest.matchAll(/@import '\.\/(styles\/[^']+)';/g),
     (m) => m[1]
   );
   return imports.map((file) => read(`src/app/${file}`)).join('\n');
@@ -60,7 +61,11 @@ describe('standalone operations UI contract', () => {
   });
 
   it('uses the exact compact bookings table interaction contract', () => {
-    const bookings = read('src/app/dashboard/bookings/page.tsx');
+    // The list UI lives in _components/BookingsListSection.tsx; the page owns
+    // state (view mode) and the route shell.
+    const bookings =
+      read('src/app/dashboard/bookings/page.tsx') +
+      read('src/app/dashboard/bookings/_components/BookingsListSection.tsx');
 
     expect(bookings).toContain("useState<'table' | 'cards'>('table')");
     expect(bookings).toContain('className="ops-route ops-list-route"');
