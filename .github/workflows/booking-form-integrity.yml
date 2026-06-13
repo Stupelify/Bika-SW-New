@@ -51,6 +51,20 @@ jobs:
     defaults:
       run:
         working-directory: bika-banquet
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bika_banquet_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,4 +75,11 @@ jobs:
       - run: npm ci
       - run: npm run build:shared
       - run: npm run prisma:generate --workspace=bika-banquet-server
+      - name: Prepare test database schema
+        working-directory: bika-banquet/server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/bika_banquet_test?schema=public
+        run: npx prisma db push --skip-generate
       - run: npm test --workspace=bika-banquet-server -- --testPathPatterns=booking
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/bika_banquet_test?schema=public
