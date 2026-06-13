@@ -1,0 +1,64 @@
+name: Booking Form Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'bika-banquet/client/src/app/dashboard/bookings/**'
+      - 'bika-banquet/client/src/components/Booking*.tsx'
+      - 'bika-banquet/client/src/lib/booking-form/**'
+      - 'bika-banquet/client/e2e/booking-form/**'
+      - 'bika-banquet/server/src/controllers/booking.*'
+      - 'bika-banquet/server/src/routes/booking.routes.ts'
+      - 'bika-banquet/shared/booking-core/**'
+      - 'bika-banquet/.github/workflows/booking-form-integrity.yml'
+      - '.github/workflows/booking-form-integrity.yml'
+
+jobs:
+  # Canonical billing math + client/server parity (single source of truth).
+  unit-booking-core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bika-banquet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: bika-banquet/package-lock.json
+      - run: npm ci
+      - run: npm run test:shared
+
+  unit-booking-form:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bika-banquet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: bika-banquet/package-lock.json
+      - run: npm ci
+      - run: npm run build:shared
+      - run: npm run test:unit:booking-form --workspace=bika-banquet-client
+
+  server-booking-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bika-banquet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: bika-banquet/package-lock.json
+      - run: npm ci
+      - run: npm run build:shared
+      - run: npm run prisma:generate --workspace=bika-banquet-server
+      - run: npm test --workspace=bika-banquet-server -- --testPathPatterns=booking
