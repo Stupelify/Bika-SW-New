@@ -17,11 +17,20 @@ export default defineConfig({
   globalSetup: require.resolve('./e2e/booking-form/_globalSetup.ts'),
   use: {
     baseURL: process.env.PW_BASE_URL || 'http://localhost:3030',
-    storageState: path.join(__dirname, 'e2e/.auth/admin.json'),
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'setup', testMatch: /booking-form\/auth\.setup\.ts/ },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: path.join(__dirname, 'e2e/.auth/admin.json'),
+      },
+      dependencies: ['setup'],
+    },
+  ],
   webServer: [
     {
       command: 'npm --prefix ../server run dev',
@@ -41,6 +50,8 @@ export default defineConfig({
         REDIS_URL: '',
         PORT: '5050',
         NODE_ENV: 'development',
+        CLIENT_URL: 'http://localhost:3030',
+        ALLOWED_ORIGINS: 'http://localhost:3030',
       },
     },
     {
@@ -50,7 +61,12 @@ export default defineConfig({
       timeout: 120_000,
       stdout: 'ignore',
       stderr: 'pipe',
-      env: { PORT: '3030' },
+      env: {
+        PORT: '3030',
+        // Bypass Docker hostname proxy; talk to the Playwright test server directly.
+        NEXT_PUBLIC_API_URL: 'http://localhost:5050/api',
+        INTERNAL_SERVER_URL: 'http://localhost:5050',
+      },
     },
   ],
 });

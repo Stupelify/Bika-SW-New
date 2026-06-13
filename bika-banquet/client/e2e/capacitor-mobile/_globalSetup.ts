@@ -33,7 +33,13 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
 
   const stdout = execFileSync('npx', ['tsx', cliPath], {
     cwd: path.join(__dirname, '..', '..', '..', 'server'),
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      DATABASE_URL:
+        process.env.DATABASE_URL_TEST ||
+        process.env.DATABASE_URL ||
+        'postgresql://postgres:secure_password_change_me@localhost:5433/bika_banquet_test?schema=public',
+    },
     stdio: ['ignore', 'pipe', 'inherit'],
     maxBuffer: 10 * 1024 * 1024,
   })
