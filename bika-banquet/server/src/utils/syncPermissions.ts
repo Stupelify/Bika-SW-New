@@ -2,6 +2,8 @@ import prisma from '../config/database';
 import logger from './logger';
 import { PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from '../config/permissions';
 
+type PermissionIdRow = { id: string };
+
 /**
  * Idempotently reconcile the permission/role registry with the database.
  *
@@ -70,7 +72,7 @@ export async function syncPermissions(): Promise<void> {
       continue;
     }
 
-    const permissions = await prisma.permission.findMany({
+    const permissions: PermissionIdRow[] = await prisma.permission.findMany({
       where: { name: { in: permissionNames } },
       select: { id: true },
     });
