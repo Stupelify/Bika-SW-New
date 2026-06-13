@@ -95,7 +95,7 @@ sudo -u "$RUNNER_USER" bash -c "cd '$RUNNER_DIR' && ./config.sh \
 
 echo "==> Installing runner service (svc.sh must run as root)"
 cd "$RUNNER_DIR"
-./svc.sh install
+./svc.sh install "$RUNNER_USER"
 ./svc.sh start
 sleep 2
 ./svc.sh status
