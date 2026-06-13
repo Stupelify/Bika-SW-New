@@ -9,6 +9,10 @@ export type CustomerSearchFields = {
   email?: string | null;
 };
 
+export type CustomerSuggestionFields = CustomerSearchFields & {
+  id: string;
+};
+
 export function customerSearchText(customer: CustomerSearchFields): string {
   return [
     customer.name,
@@ -58,6 +62,93 @@ export function textMatchesSearch(text: string, query: string): boolean {
   }
 
   return false;
+}
+
+export function compareCustomersByName<T extends CustomerSuggestionFields>(
+  a: T,
+  b: T
+): number {
+  const aName = (a.name || '').trim();
+  const bName = (b.name || '').trim();
+  const nameCompare = aName.localeCompare(bName, undefined, {
+    sensitivity: 'base',
+    numeric: true,
+  });
+  if (nameCompare !== 0) return nameCompare;
+
+  const phoneCompare = (a.phone || '').localeCompare(b.phone || '', undefined, {
+    sensitivity: 'base',
+    numeric: true,
+  });
+  if (phoneCompare !== 0) return phoneCompare;
+
+  return a.id.localeCompare(b.id);
+}
+
+export function uniqueCustomersById<T extends { id: string }>(customers: T[]): T[] {
+  const seen = new Set<string>();
+  return customers.filter((customer) => {
+    if (seen.has(customer.id)) return false;
+    seen.add(customer.id);
+    return true;
+  });
+}
+
+function matchesBookingSuggestion(customer: CustomerSuggestionFields, query: string): boolean {
+  const name = (customer.name || '').toLowerCase();
+  const phone = (customer.phone || '').toLowerCase();
+  const queryDigits = query.replace(/\D/g, '');
+  if (name.includes(query)) return true;
+  if (phone.includes(query)) return true;
+  if (queryDigits.length >= 2) {
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.includes(queryDigits)) return true;
+  }
+  return false;
+}
+
+function bookingSuggestionScore(customer: CustomerSuggestionFields, query: string): number {
+  const name = (customer.name || '').toLowerCase();
+  const phone = (customer.phone || '').toLowerCase();
+  if (name.startsWith(query)) return 0;
+  if (name.includes(query)) return 1;
+  if (phone.startsWith(query)) return 2;
+  if (phone.includes(query)) return 3;
+  return 4;
+}
+
+export function filterCustomerSuggestions<T extends CustomerSuggestionFields>(
+  customers: T[],
+  rawQuery: string,
+  selectedCustomerId = '',
+  limit = 80
+): T[] {
+  const query = rawQuery.trim().toLowerCase();
+  let filtered = [...customers];
+
+  if (query) {
+    // Booking dropdown labels only show name and primary phone, so suppress
+    // matches from hidden fields such as email or alternate phone.
+    filtered = filtered.filter((customer) => matchesBookingSuggestion(customer, query));
+    filtered.sort((a, b) => {
+      const diff = bookingSuggestionScore(a, query) - bookingSuggestionScore(b, query);
+      return diff !== 0 ? diff : compareCustomersByName(a, b);
+    });
+  } else {
+    filtered.sort(compareCustomersByName);
+  }
+
+  if (
+    selectedCustomerId &&
+    !filtered.some((customer) => customer.id === selectedCustomerId)
+  ) {
+    const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
+    if (selectedCustomer) {
+      filtered = [selectedCustomer, ...filtered];
+    }
+  }
+
+  return filtered.slice(0, limit);
 }
 
 export function formatCustomerOptionLabel(customer: CustomerSearchFields): string {

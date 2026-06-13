@@ -47,7 +47,12 @@ import { handleEnterAsTabKeyDown } from '@/lib/focusNextField';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import { buildSseEventStreamUrl } from '@/lib/dashboardNavigation';
-import { customerSearchText, matchesCustomerSearch } from '@/lib/customerSearch';
+import {
+  compareCustomersByName,
+  customerSearchText,
+  filterCustomerSuggestions,
+  uniqueCustomersById,
+} from '@/lib/customerSearch';
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
 import {
@@ -465,24 +470,6 @@ function formatCustomerLabel(customer?: {
   if (!phone) return name;
   if (!name) return phone;
   return `${name} (${phone})`;
-}
-
-function compareCustomersByName(a: CustomerOption, b: CustomerOption): number {
-  const aName = (a.name || '').trim();
-  const bName = (b.name || '').trim();
-  const nameCompare = aName.localeCompare(bName, undefined, {
-    sensitivity: 'base',
-    numeric: true,
-  });
-  if (nameCompare !== 0) return nameCompare;
-
-  const phoneCompare = (a.phone || '').localeCompare(b.phone || '', undefined, {
-    sensitivity: 'base',
-    numeric: true,
-  });
-  if (phoneCompare !== 0) return phoneCompare;
-
-  return a.id.localeCompare(b.id);
 }
 
 function computePencilExpiry(days: number): string {
@@ -986,57 +973,11 @@ export default function BookingsPage() {
 
   const getCustomerSuggestions = useCallback(
     (field: CustomerSearchField): CustomerOption[] => {
-      const query = (customerSearchInputs[field] || '').trim().toLowerCase();
-      let filtered = [...customers];
-
-      if (query) {
-        // Only match on name and phone — email/alt-phone matches are confusing
-        // in a dropdown that only displays name and phone.
-        filtered = filtered.filter((customer) => {
-          const name = (customer.name || '').toLowerCase();
-          const phone = (customer.phone || '').toLowerCase();
-          const queryDigits = query.replace(/\D/g, '');
-          if (name.includes(query)) return true;
-          if (phone.includes(query)) return true;
-          if (queryDigits.length >= 2) {
-            const phoneDigits = phone.replace(/\D/g, '');
-            if (phoneDigits.includes(queryDigits)) return true;
-          }
-          return false;
-        });
-
-        const score = (c: CustomerOption): number => {
-          const name = (c.name || '').toLowerCase();
-          const phone = (c.phone || '').toLowerCase();
-          if (name.startsWith(query)) return 0;
-          if (name.includes(query)) return 1;
-          if (phone.startsWith(query)) return 2;
-          if (phone.includes(query)) return 3;
-          return 4;
-        };
-
-        filtered.sort((a, b) => {
-          const diff = score(a) - score(b);
-          return diff !== 0 ? diff : compareCustomersByName(a, b);
-        });
-      } else {
-        filtered.sort(compareCustomersByName);
-      }
-
-      const selectedCustomerId = getSelectedCustomerId(field);
-      if (
-        selectedCustomerId &&
-        !filtered.some((customer) => customer.id === selectedCustomerId)
-      ) {
-        const selectedCustomer = customers.find(
-          (customer) => customer.id === selectedCustomerId
-        );
-        if (selectedCustomer) {
-          filtered = [selectedCustomer, ...filtered];
-        }
-      }
-
-      return filtered.slice(0, 80);
+      return filterCustomerSuggestions(
+        customers,
+        customerSearchInputs[field] || '',
+        getSelectedCustomerId(field)
+      );
     },
     [customerSearchInputs, customers, getSelectedCustomerId]
   );
@@ -1579,13 +1520,7 @@ export default function BookingsPage() {
 
   const loadCustomerOptions = async (): Promise<CustomerOption[]> => {
     const customerRows = (await fetchAllCustomers()) as unknown as CustomerOption[];
-    const seen = new Set<string>();
-    const unique = customerRows.filter((c) => {
-      if (seen.has(c.id)) return false;
-      seen.add(c.id);
-      return true;
-    });
-    const sortedCustomers = unique.sort(compareCustomersByName);
+    const sortedCustomers = uniqueCustomersById(customerRows).sort(compareCustomersByName);
     setCustomers(sortedCustomers);
     return sortedCustomers;
   };
