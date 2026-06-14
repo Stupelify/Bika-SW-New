@@ -223,29 +223,22 @@ Access: http://localhost (https://localhost for TLS)
 
 The repository includes optional operational tooling:
 
-- **Metabase** for BI/reporting dashboards
+- **Metabase** for BI/reporting dashboards (currently **dormant** — service and nginx block are commented out in `docker-compose.yml` and `docker/nginx-proxy/default.conf`; uncomment to re-enable)
 - **Uptime Kuma** for uptime and API monitoring
 
-Start them only when needed:
+Start Uptime Kuma when needed:
 
 ```bash
-docker-compose --profile ops up -d metabase uptime-kuma
+docker-compose up -d uptime-kuma
 ```
 
 Default local access:
 
-- Metabase: `http://localhost:3001`
 - Uptime Kuma: `http://localhost:3002`
 
 Recommended setup after first launch:
 
-1. In **Metabase**, add the application PostgreSQL database as a data source using:
-   - Host: `db`
-   - Port: `5432`
-   - Database: value of `DB_NAME`
-   - Username: value of `DB_USER`
-   - Password: value of `DB_PASSWORD`
-2. In **Uptime Kuma**, create monitors for:
+1. In **Uptime Kuma**, create monitors for:
    - Frontend: `http://client:3000`
    - Backend health: `http://server:5000/api/health`
    - External site: your public domain over HTTPS
