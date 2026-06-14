@@ -56,7 +56,7 @@ export async function pingDatabase() {
   await prisma.$queryRaw`SELECT 1`;
 }
 
-/** Probe bookings table with columns added by raw SQL migrations. */
+/** Probe bookings + booking_halls columns used by GET /bookings. */
 export async function verifyBookingsReadable() {
   await prisma.booking.findFirst({
     where: { isLatest: true },
@@ -68,6 +68,14 @@ export async function verifyBookingsReadable() {
       dueAmountValue: true,
       isPencilBooking: true,
       settlementTotalAmount: true,
+      halls: {
+        select: {
+          id: true,
+          bookingStatus: true,
+          bookingIsLatest: true,
+        },
+        take: 1,
+      },
     },
   });
 }

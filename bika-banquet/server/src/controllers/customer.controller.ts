@@ -36,6 +36,16 @@ const emptyStringToUndefined = (value: unknown) => {
   return trimmed === '' ? undefined : trimmed;
 };
 
+/** On update: empty string or explicit null clears optional DB columns. */
+const emptyStringToNull = (value: unknown) => {
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
 const DEFAULT_COUNTRY_CODE = '+91';
 
 // Maps customers-page sortable column keys → Prisma orderBy. Composite UI
@@ -113,9 +123,54 @@ const optionalEmailSchema = z.preprocess(
   z.string().regex(EMAIL_PATTERN, 'Email must contain @ and .').optional()
 );
 
+const nullableOptionalEmailSchema = z.preprocess(
+  emptyStringToNull,
+  z
+    .union([z.string().regex(EMAIL_PATTERN, 'Email must contain @ and .'), z.null()])
+    .optional()
+);
+
+const nullableOptionalPhoneSchema = z.preprocess(
+  emptyStringToNull,
+  z
+    .union([
+      z.string().regex(PHONE_PATTERN, 'Phone number must contain only digits'),
+      z.null(),
+    ])
+    .optional()
+);
+
 const optionalTextSchema = z.preprocess(
   emptyStringToUndefined,
   z.string().optional()
+);
+
+const nullableOptionalTextSchema = z.preprocess(
+  emptyStringToNull,
+  z.string().nullable().optional()
+);
+
+const nullableOptionalPincodeSchema = z.preprocess(
+  emptyStringToNull,
+  z
+    .union([z.string().regex(/^\d{4,10}$/, 'PIN code must contain only digits'), z.null()])
+    .optional()
+);
+
+const nullableOptionalCountryCodeSchema = z.preprocess(
+  emptyStringToNull,
+  z
+    .union([
+      z
+        .string()
+        .regex(COUNTRY_CODE_PATTERN, 'Country code must be in +91 format')
+        .refine(
+          (value) => Boolean(PHONE_DIGITS_BY_COUNTRY_CODE[value]),
+          'Country code is not supported'
+        ),
+      z.null(),
+    ])
+    .optional()
 );
 
 const optionalCasteSchema = z.preprocess(
@@ -132,6 +187,11 @@ const optionalCasteSchema = z.preprocess(
 const optionalRatingSchema = z.preprocess(
   emptyStringToUndefined,
   z.enum(['0', '1', '2', '3', '4', '5']).optional()
+);
+
+const nullableOptionalReferredByIdSchema = z.preprocess(
+  emptyStringToNull,
+  z.union([idSchema('referred by customer ID'), z.null()]).optional()
 );
 
 const customerBaseSchema = z.object({
@@ -263,10 +323,9 @@ function buildNormalizedPhoneFields(
     existing?.alterPhoneCountryCode ??
     primaryCountryCode;
   const alternatePhoneSource =
-    data.alterPhone ??
-    data.alternatePhone ??
-    existing?.alterPhone ??
-    existing?.alternatePhone;
+    'alterPhone' in data || 'alternatePhone' in data
+      ? data.alterPhone ?? data.alternatePhone ?? null
+      : existing?.alterPhone ?? existing?.alternatePhone;
   const alternatePhoneE164 = toE164(alternateCountryCode, alternatePhoneSource);
 
   const whatsappCountryCode =
@@ -274,10 +333,9 @@ function buildNormalizedPhoneFields(
     existing?.whatsappCountryCode ??
     primaryCountryCode;
   const whatsappSource =
-    data.whatsapp ??
-    data.whatsappNumber ??
-    existing?.whatsapp ??
-    existing?.whatsappNumber;
+    'whatsapp' in data || 'whatsappNumber' in data
+      ? data.whatsapp ?? data.whatsappNumber ?? null
+      : existing?.whatsapp ?? existing?.whatsappNumber;
   const whatsappE164 = toE164(whatsappCountryCode, whatsappSource);
 
   const isWhatsappSameAsPhone =
@@ -308,6 +366,31 @@ export const updateCustomerSchema = z.object({
     customerBaseSchema.extend({
       name: nameSchema.optional(),
       phone: phoneSchema.optional(),
+      email: nullableOptionalEmailSchema,
+      alterPhone: nullableOptionalPhoneSchema,
+      alternatePhone: nullableOptionalPhoneSchema,
+      alterPhoneCountryCode: nullableOptionalCountryCodeSchema,
+      whatsapp: nullableOptionalPhoneSchema,
+      whatsappCountryCode: nullableOptionalCountryCodeSchema,
+      country: nullableOptionalTextSchema,
+      address: nullableOptionalTextSchema,
+      street1: nullableOptionalTextSchema,
+      street2: nullableOptionalTextSchema,
+      city: nullableOptionalTextSchema,
+      state: nullableOptionalTextSchema,
+      pincode: nullableOptionalPincodeSchema,
+      notes: nullableOptionalTextSchema,
+      occupation: nullableOptionalTextSchema,
+      companyName: nullableOptionalTextSchema,
+      gstNumber: nullableOptionalTextSchema,
+      panNumber: nullableOptionalTextSchema,
+      aadharNumber: nullableOptionalTextSchema,
+      whatsappNumber: nullableOptionalPhoneSchema,
+      instagramHandle: nullableOptionalTextSchema,
+      twitter: nullableOptionalTextSchema,
+      linkedin: nullableOptionalTextSchema,
+      facebookProfile: nullableOptionalTextSchema,
+      referredById: nullableOptionalReferredByIdSchema,
     })
   ),
 });

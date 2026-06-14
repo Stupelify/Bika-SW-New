@@ -25,6 +25,7 @@ import {
 import { lookupIndianPincode } from '@/lib/pincodeLookup';
 import { INDIA_STATES } from '@/lib/indiaData';
 import { useDebounce } from '@/lib/useDebounce';
+import { optionalDigits, optionalText } from '@/lib/customerPayload';
 
 interface CustomerFormData {
   name: string;
@@ -193,14 +194,14 @@ export default function EditCustomerPage() {
         name,
         phone,
         phoneCountryCode: getPhoneCodeByIso(formData.phoneCountryIso),
-        email: email || undefined,
+        email: optionalText(email, 'update'),
         priority: formData.priority ? Number(formData.priority) : 3,
-        country: formData.country.trim() || undefined,
-        pincode: pincode || undefined,
-        city: formData.city.trim() || undefined,
-        state: formData.state.trim() || undefined,
-        address: formData.address.trim() || undefined,
-        notes: formData.notes.trim() || undefined,
+        country: optionalText(formData.country, 'update'),
+        pincode: optionalDigits(formData.pincode, 'update'),
+        city: optionalText(formData.city, 'update'),
+        state: optionalText(formData.state, 'update'),
+        address: optionalText(formData.address, 'update'),
+        notes: optionalText(formData.notes, 'update'),
       });
 
       toast.success('Customer updated successfully');

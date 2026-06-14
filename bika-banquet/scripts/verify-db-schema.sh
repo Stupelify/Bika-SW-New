@@ -41,6 +41,8 @@ REQUIRED=(
   "bookings|settlementDiscountPercent"
   "bookings|settlementDiscountAmount"
   "bookings|settlementTotalAmount"
+  "booking_halls|booking_status"
+  "booking_halls|booking_is_latest"
 )
 
 MISSING_LIST=""
@@ -70,4 +72,4 @@ if [ "$MISSING_COUNT" != "0" ]; then
   exit 1
 fi
 
-echo "OK: user-mgmt, customer search, and booking columns present"
+echo "OK: user-mgmt, customer search, booking, and booking_halls columns present"

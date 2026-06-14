@@ -19,6 +19,7 @@ import {
   getPhoneCodeByIso,
   validatePhoneNumberForCountry,
 } from '@/lib/customerFormOptions';
+import { optionalDigits, optionalId, optionalText } from '@/lib/customerPayload';
 import type { CustomerFormData, CustomerRow, PhoneFieldErrors } from '../_lib/types';
 
 export const initialFormData: CustomerFormData = {
@@ -345,11 +346,10 @@ export function useCustomerForm({
     return null;
   };
 
-  const buildCustomerPayload = () => {
+  const buildCustomerPayload = (mode: 'create' | 'update' = 'create') => {
     const name = formData.name.trim().replace(/\s+/g, ' ');
     const phone = digitsOnly(formData.phone);
     const alterPhone = digitsOnly(formData.alterPhone);
-    const email = formData.email.trim();
     const whatsappNumber = isWhatsappDifferent
       ? digitsOnly(formData.whatsappNumber)
       : phone;
@@ -367,35 +367,38 @@ export function useCustomerForm({
     const addressParts = [street1, street2, city, state, pincode, country].filter(
       Boolean
     );
-    const address = addressParts.length > 0 ? addressParts.join(', ') : undefined;
+    const address = addressParts.length > 0 ? addressParts.join(', ') : optionalText('', mode);
 
     return {
       name,
       phone,
       phoneCountryCode,
-      email: email || undefined,
-      alterPhone: alterPhone || undefined,
+      email: optionalText(formData.email, mode),
+      alterPhone: optionalDigits(formData.alterPhone, mode),
       alterPhoneCountryCode: alterPhone
         ? alterPhoneCountryCode
-        : undefined,
-      whatsappNumber: whatsappNumber || undefined,
-      whatsappCountryCode: whatsappNumber ? whatsappCountryCode : undefined,
-      caste: formData.caste || undefined,
-      country: country || undefined,
-      pincode: pincode || undefined,
-      city: city || undefined,
-      state: state || undefined,
-      street1: street1 || undefined,
-      street2: street2 || undefined,
+        : optionalText('', mode),
+      whatsappNumber: optionalDigits(
+        isWhatsappDifferent ? formData.whatsappNumber : formData.phone,
+        mode
+      ),
+      whatsappCountryCode: whatsappNumber ? whatsappCountryCode : optionalText('', mode),
+      caste: optionalText(formData.caste, mode),
+      country: optionalText(country, mode),
+      pincode: optionalDigits(formData.pincode, mode),
+      city: optionalText(city, mode),
+      state: optionalText(state, mode),
+      street1: optionalText(street1, mode),
+      street2: optionalText(street2, mode),
       address,
-      facebookProfile: formData.facebookProfile.trim() || undefined,
-      instagramHandle: formData.instagramHandle.trim() || undefined,
-      twitter: formData.twitter.trim() || undefined,
-      linkedin: formData.linkedin.trim() || undefined,
-      referredById: formData.referredById || undefined,
+      facebookProfile: optionalText(formData.facebookProfile, mode),
+      instagramHandle: optionalText(formData.instagramHandle, mode),
+      twitter: optionalText(formData.twitter, mode),
+      linkedin: optionalText(formData.linkedin, mode),
+      referredById: optionalId(formData.referredById, mode),
       priority: formData.priority ? Number(formData.priority) : undefined,
-      rating: formData.rating || undefined,
-      notes: formData.notes.trim() || undefined,
+      rating: optionalText(formData.rating, mode),
+      notes: optionalText(formData.notes, mode),
     };
   };
 
@@ -411,7 +414,7 @@ export function useCustomerForm({
 
     try {
       setSaving(true);
-      const payload = buildCustomerPayload();
+      const payload = buildCustomerPayload(editingCustomerId ? 'update' : 'create');
       if (editingCustomerId) {
         await api.updateCustomer(editingCustomerId, payload);
       } else {
