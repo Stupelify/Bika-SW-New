@@ -22,7 +22,7 @@ export default function MenuSectionTabs({ active }: MenuSectionTabsProps) {
   const tabs: { key: ActiveTab; label: string; href: string; enabled: boolean }[] = [
     { key: 'itemType', label: 'Item Types', href: '/dashboard/menu?section=itemType', enabled: canViewItemType },
     { key: 'item', label: 'Items', href: '/dashboard/menu?section=item', enabled: canViewItem },
-    { key: 'template', label: 'Packs', href: '/dashboard/menu?section=template', enabled: canViewTemplate },
+    { key: 'template', label: 'Template', href: '/dashboard/menu?section=template', enabled: canViewTemplate },
     { key: 'ingredients', label: 'Ingredients', href: '/dashboard/menu/ingredients', enabled: canViewItem },
     { key: 'vendors', label: 'Vendors', href: '/dashboard/menu/vendors', enabled: canViewItem },
   ];

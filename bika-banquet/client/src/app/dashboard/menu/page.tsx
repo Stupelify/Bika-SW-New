@@ -1110,7 +1110,7 @@ function MenuPageContent() {
         stats={[
           { label: 'Item types', value: itemTypes.length },
           { label: 'Items', value: items.length },
-          { label: 'Packs', value: templateMenus.length },
+          { label: 'Template', value: templateMenus.length },
         ]}
       />
 
@@ -1883,7 +1883,7 @@ function MenuPageContent() {
               disabled={!canViewTemplate}
               className={`ops-section-tab ${activeMenuSection === 'template' && canViewTemplate && !isIngredientsPage && !isVendorsPage ? 'active' : ''}`}
             >
-              Packs
+              Template
             </button>
             <button
               type="button"
@@ -2335,7 +2335,7 @@ function MenuPageContent() {
           }`}
         >
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Packs</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Template</h2>
             {canAddTemplate && (
               <button
                 type="button"
@@ -2354,7 +2354,7 @@ function MenuPageContent() {
                 className="input pl-9"
                 value={templateGlobalSearch}
                 onChange={(e) => setTemplateGlobalSearch(e.target.value)}
-                placeholder="Overall search in packs..."
+                placeholder="Overall search in templates..."
               />
             </div>
             <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowTemplateFilters(true)}>
@@ -2389,7 +2389,7 @@ function MenuPageContent() {
               description={
                 templateGlobalSearch || Object.values(templateColumnSearch).some(Boolean)
                   ? `"${templateGlobalSearch || Object.values(templateColumnSearch).find(Boolean)}" returned no results.`
-                  : 'Create predefined plate packs for quick booking.'
+                  : 'Create predefined plate templates for quick booking.'
               }
               action={
                 templateGlobalSearch
@@ -2542,7 +2542,7 @@ function MenuPageContent() {
                 totalPages={templateTotalPages}
                 totalItems={filteredTemplateMenus.length}
                 pageSize={TEMPLATE_MENUS_PAGE_SIZE}
-                itemLabel="packs"
+                itemLabel="templates"
                 onPageChange={setTemplatePage}
               />
             </>
