@@ -1,12 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSSE } from '@/hooks/useSSE';
 import { useAuthStore } from '@/store/authStore';
+import { hasAnyPermission } from '@/lib/permissions';
 import { api } from '@/lib/api';
+import BookingFormModal from '../bookings/_components/BookingFormModal';
+import { useBookingForm } from '../bookings/_hooks/useBookingForm';
 import { customerSearchText, textMatchesSearch } from '@/lib/customerSearch';
 import { CalendarPageSkeleton, CalendarSkeleton } from '@/components/Skeletons';
 import Toolbar from '@/components/Toolbar';
@@ -63,7 +66,11 @@ const VenueTimelineBoard = dynamic(
 
 export default function CalendarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
+  const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
+  const canAddBooking = hasAnyPermission(permissionSet, ['add_booking', 'manage_bookings']);
+  const canEditBooking = hasAnyPermission(permissionSet, ['edit_booking', 'manage_bookings']);
   const isAuthenticated = Boolean(user);
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
   const [viewDate, setViewDate] = useState(() => startOfDay(new Date()));
@@ -113,21 +120,6 @@ export default function CalendarPage() {
     });
   }, []);
   // ── End filter state ──────────────────────────────────────────────────────
-
-  // Booking click → go straight to the edit form.
-  const openBookingEdit = useCallback((bookingId: string) => {
-    if (!bookingId) return;
-    router.push(`/dashboard/bookings?section=edit&id=${bookingId}`);
-  }, [router]);
-
-  // Empty-space click → New Booking, prefilled with date (+ hall/slot when known).
-  const openNewBooking = useCallback((args?: { date?: string; hallId?: string; slot?: string }) => {
-    const params = new URLSearchParams({ section: 'new' });
-    if (args?.date) params.set('date', args.date);
-    if (args?.hallId) params.set('hall', args.hallId);
-    if (args?.slot) params.set('slot', args.slot);
-    router.push(`/dashboard/bookings?${params.toString()}`);
-  }, [router]);
 
   useEffect(() => {
     const now = new Date();
@@ -215,6 +207,42 @@ export default function CalendarPage() {
       }
     }
   }, [viewDate, viewMode]);
+
+  const bookingForm = useBookingForm({
+    onDataChanged: loadCalendarData,
+  });
+  const { openCreateBooking, openEditBooking } = bookingForm;
+
+  const openBookingEdit = useCallback(
+    (bookingId: string) => {
+      if (!bookingId || !canEditBooking) return;
+      void openEditBooking(bookingId);
+    },
+    [canEditBooking, openEditBooking]
+  );
+
+  const openNewBooking = useCallback(
+    (args?: { date?: string; hallId?: string; slot?: string }) => {
+      if (!canAddBooking) return;
+      void openCreateBooking(args);
+    },
+    [canAddBooking, openCreateBooking]
+  );
+
+  useEffect(() => {
+    const section = searchParams.get('section');
+    const id = searchParams.get('id');
+    if (section === 'edit' && id && canEditBooking) {
+      void openEditBooking(id);
+    } else if (section === 'new' && canAddBooking) {
+      void openCreateBooking({
+        date: searchParams.get('date') || undefined,
+        hallId: searchParams.get('hall') || undefined,
+        slot: searchParams.get('slot') || undefined,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleJumpToDate = useCallback((dateKey: string) => {
     if (!dateKey) return;
@@ -652,6 +680,8 @@ export default function CalendarPage() {
         ]}
       />
 
+      <BookingFormModal {...bookingForm} />
+
       {/* ── Main calendar area (sidebar removed; filters live in header) ── */}
       <div className="ops-route ops-calendar-route min-w-0">
 
@@ -672,6 +702,7 @@ export default function CalendarPage() {
             onJumpToDate={handleJumpToDate}
             onReload={() => void loadCalendarData()}
             onNewBooking={() => openNewBooking()}
+            canAddBooking={canAddBooking}
             hallStatsByLocation={hallStatsByLocation}
             selectedHallIds={selectedHallIds}
             toggleHall={toggleHall}

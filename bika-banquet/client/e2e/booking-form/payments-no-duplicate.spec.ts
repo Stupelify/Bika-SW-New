@@ -1,52 +1,87 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 
-const hasAuth = fs.existsSync(path.join(__dirname, '..', '.auth', 'admin.json'));
+const SEED_PATH = path.join(__dirname, '..', '.auth', 'seed.json');
+const API_BASE = process.env.PW_API_URL || 'http://localhost:5050/api';
+
+function bookingDialog(page: Page) {
+  return page.getByRole('dialog').filter({
+    has: page.getByRole('heading', { name: /booking form|edit booking/i }),
+  });
+}
+
+async function clickSubmit(page: Page) {
+  const dialog = bookingDialog(page);
+  await dialog.getByRole('button', { name: /^Submit$/i }).first().click();
+}
+
+async function expectSaveToast(page: Page, kind: 'created' | 'updated') {
+  const pattern =
+    kind === 'created' ? /Booking created successfully/i : /Booking updated successfully/i;
+  await expect(
+    page.locator('[data-sonner-toast], [role="status"]').filter({ hasText: pattern })
+  ).toBeVisible({ timeout: 30_000 });
+}
 
 test.describe('Booking form payments integrity', () => {
-  test.skip(!hasAuth, 'Requires seeded test DB and admin auth (globalSetup)');
-
   test('double save does not duplicate payments', async ({ page, request }) => {
-    await page.goto('/dashboard/bookings', { waitUntil: 'domcontentloaded' });
+    const seed = JSON.parse(fs.readFileSync(SEED_PATH, 'utf8')) as {
+      email: string;
+      password: string;
+      customerId: string;
+    };
 
-    const addBtn = page.getByRole('button', { name: /add booking|new booking/i }).first();
-    await addBtn.click({ timeout: 15_000 });
+    const loginRes = await request.post(`${API_BASE}/auth/login`, {
+      data: { email: seed.email, password: seed.password },
+    });
+    expect(loginRes.ok(), `login failed: ${await loginRes.text()}`).toBeTruthy();
+    const loginBody = await loginRes.json();
+    const token = loginBody?.data?.token as string;
+    expect(token).toBeTruthy();
 
-    await page.locator('input[type="date"]').first().fill('2030-06-15');
+    const authHeaders = { Authorization: `Bearer ${token}` };
 
-    const functionType = page.getByPlaceholder(/function type|wedding|birthday/i).first();
-    if (await functionType.isVisible().catch(() => false)) {
-      await functionType.fill('Integrity Test Event');
-    }
+    const createRes = await request.post(`${API_BASE}/bookings`, {
+      headers: authHeaders,
+      data: {
+        customerId: seed.customerId,
+        functionName: 'QA Payment Dup Test',
+        functionType: 'Marriage',
+        functionDate: '2030-06-15',
+        functionTime: '12:00',
+        expectedGuests: 100,
+      },
+    });
+    expect(createRes.ok(), `create failed: ${await createRes.text()}`).toBeTruthy();
+    const createBody = await createRes.json();
+    const bookingId = createBody?.data?.booking?.id as string;
+    expect(bookingId).toBeTruthy();
 
-    const customerInput = page.getByPlaceholder(/search customer|customer/i).first();
-    await customerInput.click();
-    await customerInput.fill('a');
-    const suggestion = page.locator('[role="option"], li, button').filter({ hasText: /.+/ }).first();
-    if (await suggestion.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await suggestion.click();
-    }
+    await page.goto(`/dashboard/bookings?section=edit&id=${bookingId}`, {
+      waitUntil: 'domcontentloaded',
+    });
 
-    await page.getByRole('button', { name: /^payments$/i }).click();
+    const dialog = bookingDialog(page);
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    await dialog.getByRole('button', { name: /payments & party over/i }).click();
 
-    const addPayment = page.getByRole('button', { name: /add payment/i });
+    const addPayment = dialog.getByRole('button', { name: /add payment/i });
     await addPayment.click();
-    await page.locator('input[type="number"]').last().fill('1000');
-    await page.getByRole('button', { name: /add to ledger/i }).click();
+    await dialog.locator('input.text-right:visible').last().fill('1000');
+    await dialog.getByRole('button', { name: /add to ledger/i }).click();
 
     await addPayment.click();
-    await page.locator('input[type="number"]').last().fill('500');
-    await page.getByRole('button', { name: /add to ledger/i }).click();
+    await dialog.locator('input.text-right:visible').last().fill('500');
+    await dialog.getByRole('button', { name: /add to ledger/i }).click();
 
-    const submit = page.getByRole('button', { name: /^submit$/i }).first();
-    await submit.click();
-    await expect(page.getByText(/success/i)).toBeVisible({ timeout: 30_000 });
+    await clickSubmit(page);
+    await expectSaveToast(page, 'updated');
 
-    await submit.click();
-    await expect(page.getByText(/success/i)).toBeVisible({ timeout: 30_000 });
+    await clickSubmit(page);
+    await expectSaveToast(page, 'updated');
 
-    const paymentRows = page.locator('table tbody tr').filter({ has: page.locator('td') });
-    await expect(paymentRows).toHaveCount(2, { timeout: 10_000 });
+    const paymentsTable = bookingDialog(page).locator('table').filter({ hasText: 'Method' });
+    await expect(paymentsTable.locator('tbody tr')).toHaveCount(2, { timeout: 10_000 });
   });
 });

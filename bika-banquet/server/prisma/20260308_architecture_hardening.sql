@@ -282,9 +282,26 @@ SET "startDateTime" = COALESCE("startDateTime", "functionDate"),
     "discountAmount2ndValue" = COALESCE("discountAmount2ndValue", __safe_to_double("discountAmount2nd")),
     "discountPercentage2ndValue" = COALESCE("discountPercentage2ndValue", __safe_to_double("discountPercentage2nd")),
     "advanceRequiredValue" = COALESCE("advanceRequiredValue", __safe_to_double("advanceRequired")),
-    "paymentReceivedPercentValue" = COALESCE("paymentReceivedPercentValue", __safe_to_double("paymentReceivedPercent")),
     "paymentReceivedAmountValue" = COALESCE("paymentReceivedAmountValue", __safe_to_double("paymentReceivedAmount"), "advanceReceived"),
     "dueAmountValue" = COALESCE("dueAmountValue", __safe_to_double("dueAmount"), "balanceAmount");
+
+-- Legacy column removed from current schema; backfill only when upgrading old DBs.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'bookings'
+      AND column_name = 'paymentReceivedPercent'
+  ) THEN
+    UPDATE "bookings"
+    SET "paymentReceivedPercentValue" = COALESCE(
+      "paymentReceivedPercentValue",
+      __safe_to_double("paymentReceivedPercent")
+    );
+  END IF;
+END $$;
 
 -- Booking pack numeric mirrors + datetime canonical columns.
 ALTER TABLE "booking_packs" ADD COLUMN IF NOT EXISTS "startDateTime" TIMESTAMP(3);
