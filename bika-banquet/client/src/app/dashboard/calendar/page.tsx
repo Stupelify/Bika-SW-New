@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSSE } from '@/hooks/useSSE';
@@ -66,6 +66,7 @@ const VenueTimelineBoard = dynamic(
 
 export default function CalendarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
   const canAddBooking = hasAnyPermission(permissionSet, ['add_booking', 'manage_bookings']);
@@ -227,6 +228,21 @@ export default function CalendarPage() {
     },
     [canAddBooking, openCreateBooking]
   );
+
+  useEffect(() => {
+    const section = searchParams.get('section');
+    const id = searchParams.get('id');
+    if (section === 'edit' && id && canEditBooking) {
+      void openEditBooking(id);
+    } else if (section === 'new' && canAddBooking) {
+      void openCreateBooking({
+        date: searchParams.get('date') || undefined,
+        hallId: searchParams.get('hall') || undefined,
+        slot: searchParams.get('slot') || undefined,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleJumpToDate = useCallback((dateKey: string) => {
     if (!dateKey) return;

@@ -1,16 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
-/** Staging visual QA — key pages, desktop + mobile overflow checks. */
+/** Calendar in-place booking form — stays on /dashboard/calendar. */
 export default defineConfig({
-  testDir: './e2e',
-  testMatch: /visual-qa\/.*\.spec\.ts/,
+  testDir: './e2e/calendar-booking-form',
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
-  timeout: 90_000,
+  timeout: 120_000,
   expect: { timeout: 15_000 },
   globalSetup: require.resolve('./e2e/booking-form/_globalSetup.ts'),
   use: {
@@ -26,6 +25,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
+      testDir: './e2e/calendar-booking-form',
       use: {
         ...devices['Desktop Chrome'],
         storageState: path.join(__dirname, 'e2e/.auth/admin.json'),

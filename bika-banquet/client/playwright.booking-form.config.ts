@@ -21,7 +21,11 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'setup', testMatch: /booking-form\/auth\.setup\.ts/ },
+    {
+      name: 'setup',
+      testDir: './e2e/booking-form',
+      testMatch: /auth\.setup\.ts/,
+    },
     {
       name: 'chromium',
       use: {

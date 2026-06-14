@@ -4,9 +4,11 @@ on:
   pull_request:
     paths:
       - 'bika-banquet/client/src/app/dashboard/bookings/**'
+      - 'bika-banquet/client/src/app/dashboard/calendar/**'
       - 'bika-banquet/client/src/components/Booking*.tsx'
       - 'bika-banquet/client/src/lib/booking-form/**'
       - 'bika-banquet/client/e2e/booking-form/**'
+      - 'bika-banquet/client/e2e/calendar-booking-form/**'
       - 'bika-banquet/server/src/controllers/booking.*'
       - 'bika-banquet/server/src/routes/booking.routes.ts'
       - 'bika-banquet/shared/booking-core/**'
@@ -105,3 +107,9 @@ jobs:
           CI: '1'
           DATABASE_URL_TEST: postgresql://postgres:secure_password_change_me@localhost:5433/bika_banquet_test?schema=public
         run: npm run test:e2e:staging-qa
+      - name: Calendar in-place booking form E2E
+        working-directory: bika-banquet/client
+        env:
+          CI: '1'
+          DATABASE_URL_TEST: postgresql://postgres:secure_password_change_me@localhost:5433/bika_banquet_test?schema=public
+        run: npm run test:e2e:calendar-form

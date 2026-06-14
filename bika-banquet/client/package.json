@@ -14,6 +14,7 @@
     "test:e2e:capacitor": "playwright test -c playwright.capacitor.config.ts",
     "test:e2e:booking-form": "playwright test -c playwright.booking-form.config.ts",
     "test:e2e:staging-qa": "playwright test -c playwright.staging-qa.config.ts",
+    "test:e2e:calendar-form": "playwright test -c playwright.calendar-form.config.ts",
     "test:unit:booking-form": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
