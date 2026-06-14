@@ -8,7 +8,7 @@ import { RedisStore } from 'rate-limit-redis';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import os from 'os';
-import { connectDatabase, disconnectDatabase, pingDatabase } from './config/database';
+import { connectDatabase, disconnectDatabase, pingDatabase, verifyBookingsReadable } from './config/database';
 import prisma from './config/database';
 import { initSseSubscriber } from './sse';
 import { releasePencilBookings } from './controllers/booking.controller';
@@ -242,6 +242,7 @@ app.use('/api', routes);
 app.get('/health', async (req, res) => {
   try {
     await pingDatabase();
+    await verifyBookingsReadable();
     res.json({
       status: 'ok',
       uptime: process.uptime(),

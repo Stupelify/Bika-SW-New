@@ -97,8 +97,12 @@ bash scripts/apply-raw-migrations.sh \
     || fail "raw SQL patches failed — run ./scripts/fix-db-schema.sh"
 
 echo "       Verifying DB schema..."
-bash scripts/verify-db-schema.sh \
+if ! bash scripts/verify-db-schema.sh; then
+  echo "       Schema incomplete — force re-applying SQL..."
+  bash scripts/force-raw-migrations.sh
+  bash scripts/verify-db-schema.sh \
     || fail "DB schema incomplete — run ./scripts/fix-db-schema.sh"
+fi
 
 # 5c. Regenerate Prisma client (in case schema changed)
 echo "       Regenerating Prisma client..."

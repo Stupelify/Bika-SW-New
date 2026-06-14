@@ -5,6 +5,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { sendSuccess, sendError, sendNotFound } from '../utils/response';
+import logger from '../utils/logger';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
@@ -305,6 +306,7 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
       },
     });
   } catch (error) {
+    logger.error('Failed to fetch bookings', { error });
     sendError(res, 'Failed to fetch bookings');
   }
 }

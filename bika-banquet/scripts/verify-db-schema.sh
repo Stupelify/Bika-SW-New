@@ -23,39 +23,51 @@ psql_cmd() {
 
 echo "==> Verifying DB schema (db=$DB_NAME)"
 
-MISSING=$(psql_cmd -tAc "
-  SELECT COUNT(*) FROM (
-    SELECT 1 WHERE NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'users' AND column_name = 'isActive'
-    )
-    UNION ALL
-    SELECT 1 WHERE NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'users' AND column_name = 'hasAllVenueAccess'
-    )
-    UNION ALL
-    SELECT 1 WHERE NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'user_permissions' AND column_name = 'granted'
-    )
-    UNION ALL
-    SELECT 1 WHERE NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'bookings' AND column_name = 'startDateTime'
-    )
-    UNION ALL
-    SELECT 1 WHERE NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'bookings' AND column_name = 'paymentReceivedAmountValue'
-    )
-  ) t;
-")
+# Each row: table|column
+REQUIRED=(
+  "users|isActive"
+  "users|hasAllVenueAccess"
+  "user_permissions|granted"
+  "customers|phoneE164"
+  "bookings|startDateTime"
+  "bookings|endDateTime"
+  "bookings|paymentReceivedAmountValue"
+  "bookings|dueAmountValue"
+  "bookings|totalBillAmountValue"
+  "bookings|finalAmountValue"
+  "bookings|advanceRequiredValue"
+  "bookings|isPencilBooking"
+  "bookings|pencilExpiresAt"
+  "bookings|settlementDiscountPercent"
+  "bookings|settlementDiscountAmount"
+  "bookings|settlementTotalAmount"
+)
 
-if [ "$MISSING" != "0" ]; then
-  echo "ERROR: schema incomplete ($MISSING checks failed)."
+MISSING_LIST=""
+MISSING_COUNT=0
+
+for entry in "${REQUIRED[@]}"; do
+  table="${entry%%|*}"
+  column="${entry##*|}"
+  exists="$(psql_cmd -tAc "
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = '${table}'
+        AND column_name = '${column}'
+    );
+  ")"
+  if [ "$exists" != "t" ]; then
+    MISSING_COUNT=$((MISSING_COUNT + 1))
+    MISSING_LIST="${MISSING_LIST}  - ${table}.${column}"$'\n'
+  fi
+done
+
+if [ "$MISSING_COUNT" != "0" ]; then
+  echo "ERROR: schema incomplete ($MISSING_COUNT column(s) missing):"
+  printf '%s' "$MISSING_LIST"
   echo "Run: bash scripts/fix-db-schema.sh"
   exit 1
 fi
 
-echo "OK: user-mgmt and booking columns present"
+echo "OK: user-mgmt, customer search, and booking columns present"

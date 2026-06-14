@@ -16,7 +16,11 @@ echo "==> Applying tracked SQL patches"
 bash scripts/apply-raw-migrations.sh
 
 echo "==> Verify DB schema before rebuild"
-bash scripts/verify-db-schema.sh
+if ! bash scripts/verify-db-schema.sh; then
+  echo "==> Schema incomplete after tracked migrations — force re-applying SQL"
+  bash scripts/force-raw-migrations.sh
+  bash scripts/verify-db-schema.sh
+fi
 
 echo "==> Building images (BuildKit cache enabled)"
 DOCKER_BUILDKIT=1 docker compose build --parallel

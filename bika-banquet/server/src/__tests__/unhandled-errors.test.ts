@@ -12,6 +12,7 @@ describe('unhandled error handlers registered on module load', () => {
       connectDatabase: jest.fn().mockResolvedValue(undefined),
       disconnectDatabase: jest.fn().mockResolvedValue(undefined),
       pingDatabase: jest.fn().mockResolvedValue(undefined),
+      verifyBookingsReadable: jest.fn().mockResolvedValue(undefined),
     }));
     jest.mock('../config/redis', () => ({
       getRedisClient: jest.fn().mockReturnValue(null),

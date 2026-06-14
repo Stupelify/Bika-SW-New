@@ -56,6 +56,22 @@ export async function pingDatabase() {
   await prisma.$queryRaw`SELECT 1`;
 }
 
+/** Probe bookings table with columns added by raw SQL migrations. */
+export async function verifyBookingsReadable() {
+  await prisma.booking.findFirst({
+    where: { isLatest: true },
+    select: {
+      id: true,
+      startDateTime: true,
+      endDateTime: true,
+      paymentReceivedAmountValue: true,
+      dueAmountValue: true,
+      isPencilBooking: true,
+      settlementTotalAmount: true,
+    },
+  });
+}
+
 // Graceful shutdown
 export async function disconnectDatabase() {
   await prisma.$disconnect();
