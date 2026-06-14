@@ -13,50 +13,10 @@ git fetch origin
 git reset --hard origin/master
 
 echo "==> Applying tracked SQL patches"
-DB_CONTAINER=$(docker ps --format '{{.Names}}' | grep 'bika-banquet-db' | head -1)
-if [ -z "$DB_CONTAINER" ]; then
-  echo "ERROR: bika-banquet-db container not found"
-  exit 1
-fi
-echo "  Using DB container: $DB_CONTAINER"
+bash scripts/apply-raw-migrations.sh
 
-docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" <<'SQL'
-CREATE TABLE IF NOT EXISTS _raw_migrations (
-  name TEXT PRIMARY KEY,
-  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-SQL
-
-find server/prisma -maxdepth 2 -type f -name '*.sql' ! -name 'legacy_schema.sql' | sort | while read -r file; do
-  name="${file#server/prisma/}"
-  already_applied="$(docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -tAc "SELECT 1 FROM _raw_migrations WHERE name = '$name'")"
-  if [ "$already_applied" = "1" ]; then
-    echo "  skip  $name"
-    continue
-  fi
-  echo "  apply $name"
-  docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" < "$file"
-  docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -c "INSERT INTO _raw_migrations (name) VALUES ('$name')"
-done
-
-echo "==> Verify user-mgmt schema before rebuild"
-MISSING=$(docker exec -i "$DB_CONTAINER" psql -U postgres -d "$DB_NAME" -tAc "
-  SELECT COUNT(*) FROM (
-    SELECT 1 WHERE NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'users' AND column_name = 'isActive'
-    )
-    UNION ALL
-    SELECT 1 WHERE NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'user_permissions' AND column_name = 'granted'
-    )
-  ) t;
-")
-if [ "$MISSING" != "0" ]; then
-  echo "ERROR: user-mgmt schema incomplete ($MISSING checks failed). Run ./scripts/fix-login-schema.sh"
-  exit 1
-fi
+echo "==> Verify DB schema before rebuild"
+bash scripts/verify-db-schema.sh
 
 echo "==> Building images (BuildKit cache enabled)"
 DOCKER_BUILDKIT=1 docker compose build --parallel

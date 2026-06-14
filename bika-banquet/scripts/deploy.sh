@@ -90,11 +90,15 @@ $COMPOSE exec -T server npx prisma migrate deploy 2>&1 \
     && echo "       Prisma migrations applied" \
     || echo "       WARNING: prisma migrate deploy failed (may be OK if using raw SQL only)"
 
-# 5b. Raw SQL patches (tracked via _raw_migrations table, idempotent)
+# 5b. Raw SQL patches via db container (server image has no psql)
 echo "       Raw SQL patches..."
-$COMPOSE exec -T server npm run db:apply-raw 2>&1 \
+bash scripts/apply-raw-migrations.sh \
     && echo "       Raw SQL patches applied" \
-    || echo "       WARNING: raw SQL patches failed — check manually"
+    || fail "raw SQL patches failed — run ./scripts/fix-db-schema.sh"
+
+echo "       Verifying DB schema..."
+bash scripts/verify-db-schema.sh \
+    || fail "DB schema incomplete — run ./scripts/fix-db-schema.sh"
 
 # 5c. Regenerate Prisma client (in case schema changed)
 echo "       Regenerating Prisma client..."
@@ -105,7 +109,7 @@ echo "[6/7] Waiting for server to be healthy..."
 MAX_WAIT=120
 ELAPSED=0
 while [ $ELAPSED -lt $MAX_WAIT ]; do
-    SERVER_HEALTH=$($COMPOSE exec -T server curl -sf http://localhost:5000/api/health 2>/dev/null || echo "")
+    SERVER_HEALTH=$($COMPOSE exec -T server curl -sf http://localhost:5000/health 2>/dev/null || echo "")
     if echo "$SERVER_HEALTH" | grep -q '"status":"ok"'; then
         echo "       Server healthy after ${ELAPSED}s"
         break
