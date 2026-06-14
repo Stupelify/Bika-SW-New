@@ -20,6 +20,17 @@ psql_cmd() {
 
 bash scripts/apply-raw-migrations.sh
 
+if ! bash scripts/verify-db-schema.sh; then
+  echo ""
+  echo "==> Schema still incomplete — force re-applying all SQL files (idempotent)"
+  echo "    (_raw_migrations may list patches as applied from an older partial run)"
+  find server/prisma -maxdepth 2 -type f -name '*.sql' ! -name 'legacy_schema.sql' | sort | while read -r file; do
+    echo "  force ${file#server/prisma/}"
+    psql_cmd < "$file"
+  done
+  bash scripts/verify-db-schema.sh
+fi
+
 echo ""
 echo "==> Ensure all users remain active"
 psql_cmd -c 'UPDATE "users" SET "isActive" = true WHERE "isActive" IS DISTINCT FROM true;'
@@ -32,8 +43,6 @@ SET "hasAllVenueAccess" = true
 WHERE "id" NOT IN (SELECT DISTINCT "userId" FROM "user_banquets")
   AND "hasAllVenueAccess" IS DISTINCT FROM true;
 '
-
-bash scripts/verify-db-schema.sh
 
 echo ""
 echo "==> Restart server container"
