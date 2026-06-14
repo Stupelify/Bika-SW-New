@@ -33,6 +33,7 @@ interface CalendarToolbarProps {
   onJumpToDate: (dateKey: string) => void;
   onReload: () => void;
   onNewBooking: () => void;
+  canAddBooking?: boolean;
   // Hall filter (header pills, grouped by banquet/location).
   hallStatsByLocation: Array<[string, HallStat[]]>;
   selectedHallIds: Set<string> | null;
@@ -59,6 +60,7 @@ export default function CalendarToolbar({
   onJumpToDate,
   onReload,
   onNewBooking,
+  canAddBooking = true,
   hallStatsByLocation,
   selectedHallIds,
   toggleHall,
@@ -199,14 +201,16 @@ export default function CalendarToolbar({
           </button>
 
           {/* New Booking (teal) */}
-          <button
-            type="button"
-            onClick={onNewBooking}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--teal-600)] px-3.5 py-2 text-sm font-bold text-white shadow-sm transition hover:brightness-110"
-          >
-            <Plus className="w-4 h-4" />
-            New Booking
-          </button>
+          {canAddBooking ? (
+            <button
+              type="button"
+              onClick={onNewBooking}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--teal-600)] px-3.5 py-2 text-sm font-bold text-white shadow-sm transition hover:brightness-110"
+            >
+              <Plus className="w-4 h-4" />
+              New Booking
+            </button>
+          ) : null}
         </div>
       </div>
 
