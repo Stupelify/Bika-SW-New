@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   MIN_CATERING_RATE_PER_PLATE,
+  clearedCateringFieldsPatch,
+  clearedHallFieldsPatch,
   inferWithCateringFromPack,
   packRowHasCateringDataToClear,
+  packRowHasHallDataToClear,
   validatePackCateringForSave,
 } from '../pack-catering';
 
@@ -60,5 +63,62 @@ describe('packRowHasCateringDataToClear', () => {
         ratePerPlate: '',
       })
     ).toBe(true);
+  });
+});
+
+describe('clearedCateringFieldsPatch', () => {
+  it('clears catering fields and turns catering off', () => {
+    expect(clearedCateringFieldsPatch()).toEqual({
+      withCatering: false,
+      menuItemIds: [],
+      menuPoints: '',
+      templateMenuId: '',
+      pax: '',
+      ratePerPlate: '',
+    });
+  });
+});
+
+describe('packRowHasHallDataToClear', () => {
+  it('detects hall selections and rate', () => {
+    expect(
+      packRowHasHallDataToClear({
+        banquetId: 'b1',
+        hallIds: [],
+        hallRate: '',
+      })
+    ).toBe(true);
+    expect(
+      packRowHasHallDataToClear({
+        banquetId: '',
+        hallIds: ['h1'],
+        hallRate: '',
+      })
+    ).toBe(true);
+    expect(
+      packRowHasHallDataToClear({
+        banquetId: '',
+        hallIds: [],
+        hallRate: '50000',
+      })
+    ).toBe(true);
+    expect(
+      packRowHasHallDataToClear({
+        banquetId: '',
+        hallIds: [],
+        hallRate: '',
+      })
+    ).toBe(false);
+  });
+});
+
+describe('clearedHallFieldsPatch', () => {
+  it('clears hall fields and turns hall off', () => {
+    expect(clearedHallFieldsPatch()).toEqual({
+      withHall: false,
+      banquetId: '',
+      hallIds: [],
+      hallRate: '',
+    });
   });
 });

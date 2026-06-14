@@ -36,6 +36,8 @@ export interface BookingPackTableProps {
   hallPickerAnchorRect: DOMRect | null;
   setHallPickerAnchorRect: Dispatch<SetStateAction<DOMRect | null>>;
   updatePackRow: (packKey: PackKey, patch: Partial<BookingPackRow>) => void;
+  requestCateringToggle: (packKey: PackKey, nextWithCatering: boolean) => void;
+  requestHallToggle: (packKey: PackKey, nextWithHall: boolean) => void;
   setMenuEditorPack: Dispatch<SetStateAction<PackKey | null>>;
   setMenuItemSearch: (value: string) => void;
   formatComputedAmount: (amount: number) => string;
@@ -72,6 +74,8 @@ export default function BookingPackTable({
   hallPickerAnchorRect,
   setHallPickerAnchorRect,
   updatePackRow,
+  requestCateringToggle,
+  requestHallToggle,
   setMenuEditorPack,
   setMenuItemSearch,
   formatComputedAmount,
@@ -169,11 +173,7 @@ export default function BookingPackTable({
                                       className="h-3 w-3 rounded dark:bg-slate-700 dark:border-slate-600"
                                       checked={row.withHall}
                                       disabled={!row.enabled}
-                                      onChange={(e) => {
-                                        const withHall = e.target.checked;
-                                        if (!withHall && openHallPickerPack === packKey) setOpenHallPickerPack(null);
-                                        updatePackRow(packKey, { withHall });
-                                      }}
+                                      onChange={(e) => requestHallToggle(packKey, e.target.checked)}
                                     />
                                     Hall
                                   </label>
@@ -183,7 +183,9 @@ export default function BookingPackTable({
                                       className="h-3 w-3 rounded dark:bg-slate-700 dark:border-slate-600"
                                       checked={row.withCatering}
                                       disabled={!row.enabled}
-                                      onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })}
+                                      onChange={(e) =>
+                                        requestCateringToggle(packKey, e.target.checked)
+                                      }
                                     />
                                     Cat
                                   </label>

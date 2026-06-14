@@ -22,7 +22,15 @@ import {
   partitionPaymentsForSave,
 } from '@/lib/booking-form/payments';
 import { sumPaymentsTowardDue } from '@/lib/booking-form/payment-credit';
-import { validatePackCateringForSave } from '@/lib/booking-form/pack-catering';
+import {
+  CATERING_UNTICK_CONFIRM_MESSAGE,
+  HALL_UNTICK_CONFIRM_MESSAGE,
+  clearedCateringFieldsPatch,
+  clearedHallFieldsPatch,
+  packRowHasCateringDataToClear,
+  packRowHasHallDataToClear,
+  validatePackCateringForSave,
+} from '@/lib/booking-form/pack-catering';
 import {
   buildItemByIdMap,
   calculateMenuPointsFromMap,
@@ -829,6 +837,48 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
     }));
   };
 
+  const requestCateringToggle = (packKey: PackKey, nextWithCatering: boolean) => {
+    if (nextWithCatering) {
+      updatePackRow(packKey, { withCatering: true });
+      return;
+    }
+
+    const row = formData.packs[packKey];
+    if (!packRowHasCateringDataToClear(row)) {
+      updatePackRow(packKey, { withCatering: false });
+      return;
+    }
+
+    if (!window.confirm(CATERING_UNTICK_CONFIRM_MESSAGE)) {
+      return;
+    }
+
+    updatePackRow(packKey, clearedCateringFieldsPatch());
+  };
+
+  const requestHallToggle = (packKey: PackKey, nextWithHall: boolean) => {
+    if (nextWithHall) {
+      updatePackRow(packKey, { withHall: true });
+      return;
+    }
+
+    if (openHallPickerPack === packKey) {
+      setOpenHallPickerPack(null);
+    }
+
+    const row = formData.packs[packKey];
+    if (!packRowHasHallDataToClear(row)) {
+      updatePackRow(packKey, { withHall: false });
+      return;
+    }
+
+    if (!window.confirm(HALL_UNTICK_CONFIRM_MESSAGE)) {
+      return;
+    }
+
+    updatePackRow(packKey, clearedHallFieldsPatch());
+  };
+
   const togglePackMenuItem = (packKey: PackKey, itemId: string) => {
     setIsFormDirty(true);
     setFormData((prev) => {
@@ -1632,6 +1682,7 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
       const expectedGuests = Math.max(
         1,
         ...enabledPackEntries
+          .filter((entry) => entry.row.withCatering)
           .map((entry) => Number(entry.row.pax || 0))
           .filter((value) => value > 0)
       );
@@ -1688,8 +1739,8 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
           .map((hall) => hall.name);
         return {
           packName: PACK_LABELS[key],
-          packCount: Math.max(0, toNumber(row.pax)),
-          noOfPack: Math.max(0, toNumber(row.pax)),
+          packCount: row.withCatering ? Math.max(0, toNumber(row.pax)) : 0,
+          noOfPack: row.withCatering ? Math.max(0, toNumber(row.pax)) : 0,
           ratePerPlate: row.withCatering ? toNumber(row.ratePerPlate) : 0,
           setupCost: row.setupCost ? toNumber(row.setupCost) : 0,
           extraCharges: row.extraCharges || 0,
@@ -1702,16 +1753,21 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
           endTime: row.endTime || undefined,
           hallIds: validHallIds,
           hallRate: row.withHall ? (row.hallRate ?? undefined) || undefined : undefined,
-          menuPoint: row.menuPoints ? toNumber(row.menuPoints) : undefined,
+          menuPoint: row.withCatering && row.menuPoints ? toNumber(row.menuPoints) : undefined,
           hallName: row.withHall ? selectedHallNames.join(', ') || undefined : undefined,
-          menu: {
-            name: matchingTemplate?.name || `${PACK_LABELS[key]} Menu`,
-            templateMenuId: row.templateMenuId || undefined,
-            items: row.menuItemIds.map((itemId) => ({
-              itemId,
-              quantity: 1,
-            })),
-          },
+          menu: row.withCatering
+            ? {
+                name: matchingTemplate?.name || `${PACK_LABELS[key]} Menu`,
+                templateMenuId: row.templateMenuId || undefined,
+                items: row.menuItemIds.map((itemId) => ({
+                  itemId,
+                  quantity: 1,
+                })),
+              }
+            : {
+                name: `${PACK_LABELS[key]} Menu`,
+                items: [],
+              },
         };
       });
 
@@ -2100,6 +2156,8 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
     groupedMenuItems,
     selectedMenuItemsByGroup,
     updatePackRow,
+    requestCateringToggle,
+    requestHallToggle,
     togglePackMenuItem,
     submitQuickAddItem,
     importTemplateToPack,

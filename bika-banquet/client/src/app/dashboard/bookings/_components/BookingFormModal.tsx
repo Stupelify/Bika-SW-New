@@ -86,6 +86,8 @@ export default function BookingFormModal(props: BookingFormModalProps) {
     hallPickerAnchorRect,
     setHallPickerAnchorRect,
     updatePackRow,
+    requestCateringToggle,
+    requestHallToggle,
     setMenuEditorPack,
     setMenuItemSearch,
     formatComputedAmount,
@@ -676,6 +678,8 @@ export default function BookingFormModal(props: BookingFormModalProps) {
                 hallPickerAnchorRect={hallPickerAnchorRect}
                 setHallPickerAnchorRect={setHallPickerAnchorRect}
                 updatePackRow={updatePackRow}
+                requestCateringToggle={requestCateringToggle}
+                requestHallToggle={requestHallToggle}
                 setMenuEditorPack={setMenuEditorPack}
                 setMenuItemSearch={setMenuItemSearch}
                 formatComputedAmount={formatComputedAmount}
@@ -706,6 +710,8 @@ export default function BookingFormModal(props: BookingFormModalProps) {
                 setOpenHallPickerPack={setOpenHallPickerPack}
                 hallPickerContainerRef={hallPickerContainerRef}
                 updatePackRow={updatePackRow}
+                requestCateringToggle={requestCateringToggle}
+                requestHallToggle={requestHallToggle}
                 setMenuEditorPack={setMenuEditorPack}
                 setMenuItemSearch={setMenuItemSearch}
                 formatComputedAmount={formatComputedAmount}

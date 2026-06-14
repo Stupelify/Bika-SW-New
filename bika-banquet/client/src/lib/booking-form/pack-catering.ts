@@ -75,3 +75,32 @@ export function validatePackCateringForSave(row: PackCateringRowFields): string 
 
 export const CATERING_UNTICK_CONFIRM_MESSAGE =
   'Turning off catering will clear this pack\'s menu, guest count, and rate per plate. Continue?';
+
+export interface PackHallRowFields {
+  banquetId: string;
+  hallIds: string[];
+  hallRate: string;
+}
+
+export function packRowHasHallDataToClear(row: PackHallRowFields): boolean {
+  return (
+    String(row.banquetId ?? '').trim() !== '' ||
+    (row.hallIds?.length ?? 0) > 0 ||
+    String(row.hallRate ?? '').trim() !== ''
+  );
+}
+
+export function clearedHallFieldsPatch(): Pick<
+  PackHallRowFields,
+  'banquetId' | 'hallIds' | 'hallRate'
+> & { withHall: false } {
+  return {
+    withHall: false,
+    banquetId: '',
+    hallIds: [],
+    hallRate: '',
+  };
+}
+
+export const HALL_UNTICK_CONFIRM_MESSAGE =
+  'Turning off hall will clear the selected banquet, halls, and hall rate for this pack. Continue?';

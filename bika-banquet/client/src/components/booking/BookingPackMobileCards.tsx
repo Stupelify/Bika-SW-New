@@ -40,6 +40,8 @@ export interface BookingPackMobileCardsProps {
   setOpenHallPickerPack: Dispatch<SetStateAction<PackKey | null>>;
   hallPickerContainerRef: MutableRefObject<HTMLDivElement | null>;
   updatePackRow: (packKey: PackKey, patch: Partial<BookingPackRow>) => void;
+  requestCateringToggle: (packKey: PackKey, nextWithCatering: boolean) => void;
+  requestHallToggle: (packKey: PackKey, nextWithHall: boolean) => void;
   setMenuEditorPack: Dispatch<SetStateAction<PackKey | null>>;
   setMenuItemSearch: (value: string) => void;
   formatComputedAmount: (amount: number) => string;
@@ -69,6 +71,8 @@ export default function BookingPackMobileCards({
   setOpenHallPickerPack,
   hallPickerContainerRef,
   updatePackRow,
+  requestCateringToggle,
+  requestHallToggle,
   setMenuEditorPack,
   setMenuItemSearch,
   formatComputedAmount,
@@ -124,12 +128,12 @@ export default function BookingPackMobileCards({
                         <div className="flex gap-3">
                           <label className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
                             <input type="checkbox" className="h-4 w-4 rounded" checked={row.withHall} disabled={!row.enabled}
-                              onChange={(e) => { const withHall = e.target.checked; if (!withHall && openHallPickerPack === packKey) setOpenHallPickerPack(null); updatePackRow(packKey, { withHall }); }} />
+                              onChange={(e) => requestHallToggle(packKey, e.target.checked)} />
                             Hall
                           </label>
                           <label className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-1)]">
                             <input type="checkbox" className="h-4 w-4 rounded" checked={row.withCatering} disabled={!row.enabled}
-                              onChange={(e) => updatePackRow(packKey, { withCatering: e.target.checked })} />
+                              onChange={(e) => requestCateringToggle(packKey, e.target.checked)} />
                             Catering
                           </label>
                         </div>
