@@ -117,7 +117,7 @@ describe('standalone operations UI contract', () => {
     expect(menu).toContain('className="ops-section-tabs"');
     expect(menuTabs).toContain('className="ops-section-tabs"');
     expect(settings).toContain('className="ops-section-tabs"');
-    expect(menu).toContain(">Template</h2>");
+    expect(menu).toContain(">Menu templates</h2>");
     expect(menuTabs).not.toContain('rounded-xl');
   });
 

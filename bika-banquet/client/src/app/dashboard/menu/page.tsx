@@ -1110,7 +1110,7 @@ function MenuPageContent() {
         stats={[
           { label: 'Item types', value: itemTypes.length },
           { label: 'Items', value: items.length },
-          { label: 'Template', value: templateMenus.length },
+          { label: 'Menu templates', value: templateMenus.length },
         ]}
       />
 
@@ -1883,7 +1883,7 @@ function MenuPageContent() {
               disabled={!canViewTemplate}
               className={`ops-section-tab ${activeMenuSection === 'template' && canViewTemplate && !isIngredientsPage && !isVendorsPage ? 'active' : ''}`}
             >
-              Template
+              Menu templates
             </button>
             <button
               type="button"
@@ -2335,7 +2335,7 @@ function MenuPageContent() {
           }`}
         >
           <div className="page-head mb-4">
-            <h2 className="text-lg font-semibold text-[var(--text-1)]">Template</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-1)]">Menu templates</h2>
             {canAddTemplate && (
               <button
                 type="button"
@@ -2354,7 +2354,7 @@ function MenuPageContent() {
                 className="input pl-9"
                 value={templateGlobalSearch}
                 onChange={(e) => setTemplateGlobalSearch(e.target.value)}
-                placeholder="Overall search in templates..."
+                placeholder="Overall search in menu templates..."
               />
             </div>
             <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowTemplateFilters(true)}>
@@ -2381,15 +2381,15 @@ function MenuPageContent() {
               }
               title={
                 templateGlobalSearch
-                  ? 'No templates match your search'
+                  ? 'No menu templates match your search'
                   : Object.values(templateColumnSearch).some(Boolean)
                     ? 'No matches'
-                    : 'No templates found'
+                    : 'No menu templates found'
               }
               description={
                 templateGlobalSearch || Object.values(templateColumnSearch).some(Boolean)
                   ? `"${templateGlobalSearch || Object.values(templateColumnSearch).find(Boolean)}" returned no results.`
-                  : 'Create predefined plate templates for quick booking.'
+                  : 'Create predefined menu templates for quick booking.'
               }
               action={
                 templateGlobalSearch
@@ -2397,7 +2397,7 @@ function MenuPageContent() {
                   : Object.values(templateColumnSearch).some(Boolean)
                     ? { label: 'Clear filters', onClick: () => setTemplateColumnSearch(initialTemplateColumnSearch) }
                     : canAddTemplate
-                      ? { label: 'Add Template', onClick: openCreateTemplate }
+                      ? { label: 'Add menu template', onClick: openCreateTemplate }
                       : undefined
               }
             />
@@ -2542,7 +2542,7 @@ function MenuPageContent() {
                 totalPages={templateTotalPages}
                 totalItems={filteredTemplateMenus.length}
                 pageSize={TEMPLATE_MENUS_PAGE_SIZE}
-                itemLabel="templates"
+                itemLabel="menu templates"
                 onPageChange={setTemplatePage}
               />
             </>
