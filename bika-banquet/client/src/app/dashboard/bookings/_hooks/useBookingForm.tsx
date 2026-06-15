@@ -130,16 +130,12 @@ import {
 
 export type UseBookingFormOptions = {
   onDataChanged?: () => void | Promise<void>;
-  clearListSearchOnClose?: boolean;
-  clearSearch?: () => void;
   bookingsForMenuPdf?: Booking[];
 };
 
 export function useBookingForm(options: UseBookingFormOptions = {}) {
   const {
     onDataChanged,
-    clearListSearchOnClose = false,
-    clearSearch,
     bookingsForMenuPdf,
   } = options;
 
@@ -1173,10 +1169,6 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
     setExternalUpdateNotice(null);
     setSaveConflict(null);
     setDraftOffer(null);
-    // Clear list search when configured (bookings page only)
-    if (clearListSearchOnClose) {
-      clearSearch?.();
-    }
   };
 
   const SLOT_TO_PACK: Record<string, PackKey> = {

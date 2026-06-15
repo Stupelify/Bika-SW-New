@@ -128,8 +128,6 @@ export default function BookingsPage() {
 
   const bookingForm = useBookingForm({
     onDataChanged: loadBookings,
-    clearListSearchOnClose: true,
-    clearSearch,
     bookingsForMenuPdf: bookings,
   });
 
