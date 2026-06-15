@@ -91,7 +91,7 @@ export function snapshotToFormReadOnlyData(
       bookingPackId: pack.id,
       enabled: true,
       withHall: resolvedPackHallIds.length > 0 || packHasHallCharge(pack),
-      withCatering: true,
+      withCatering: Number(pack.ratePerPlate ?? 0) > 0 || rowMenuItemIds.length > 0,
       banquetId: firstPackHall?.banquet?.id || primaryHall?.banquet?.id || '',
       hallIds: resolvedPackHallIds,
       templateMenuId: matchingTemplate?.id || '',

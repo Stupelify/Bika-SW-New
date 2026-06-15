@@ -44,4 +44,30 @@ describe('snapshotToFormReadOnlyData', () => {
     expect(form.finalAmount).toBe('360000');
     expect(Number(form.finalDiscountAmount)).toBe(69000);
   });
+
+  it('loads a hall-only pack (ratePerPlate 0, no menu items) as non-catering', () => {
+    const form = snapshotToFormReadOnlyData(
+      {
+        functionDate: '2026-06-16',
+        functionType: 'Other',
+        packs: [
+          {
+            id: 'pack-1',
+            packName: 'lunch',
+            ratePerPlate: 0,
+            packCount: 1,
+            hallRate: '',
+            hallRateValue: 50000,
+            bookingMenu: { items: [] },
+          },
+        ],
+        additionalItems: [],
+      },
+      [],
+      []
+    );
+
+    expect(form.packs.lunch.withCatering).toBe(false);
+    expect(form.packs.lunch.withHall).toBe(true);
+  });
 });
