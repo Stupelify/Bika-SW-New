@@ -88,8 +88,8 @@ export const createBookingSchema = z.object({
     packs: z.array(z.object({
       mealSlotId: idSchema('meal slot ID').optional(),
       packName: z.string().min(1).max(120, 'Pack name must be at most 120 characters'),
-      noOfPack: z.number().min(1).optional(),
-      packCount: z.number().min(1).optional(),
+      noOfPack: z.number().min(0).optional(),
+      packCount: z.number().min(0).optional(),
       hallIds: z.array(idSchema('hall ID')).optional(),
       ratePerPlate: z.number().min(0),
       setupCost: z.number().min(0).optional(),
@@ -177,8 +177,8 @@ export const updateBookingSchema = z.object({
               .string()
               .min(1)
               .max(120, 'Pack name must be at most 120 characters'),
-            noOfPack: z.number().min(1).optional(),
-            packCount: z.number().min(1).optional(),
+            noOfPack: z.number().min(0).optional(),
+            packCount: z.number().min(0).optional(),
             hallIds: z.array(idSchema('hall ID')).optional(),
             ratePerPlate: z.number().min(0),
             setupCost: z.number().min(0).optional(),
