@@ -52,7 +52,10 @@ import {
   histToSnapshot,
   type DiffSnapshot,
 } from '@/lib/booking-form/version-history';
-import { recalcBillingWhenMealsSubtotalChanges } from '@/lib/booking-form/billing-recalc';
+import {
+  recalcBillingWhenMealsSubtotalChanges,
+  resolveLoadedBillingAmounts,
+} from '@/lib/booking-form/billing-recalc';
 import { BOOKING_EXTERNAL_UPDATE_EVENT } from '@/lib/booking-form/booking-form-sync';
 import {
   clearBookingDraft,
@@ -1355,6 +1358,11 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
 
       setEditingBookingId(bookingId);
       setEditingBookingStatus(booking.status || null);
+      const loadedBilling = resolveLoadedBillingAmounts(
+        booking.discountPercentage,
+        booking.discountAmount,
+        computeMealsSubtotal(nextPacks)
+      );
       const loadedFormData: BookingFormData = {
         ...initialFormData,
         customerId: booking.customerId || booking.customer?.id || '',
@@ -1376,27 +1384,9 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
         pencilExpiresAt: booking.pencilExpiresAt ? booking.pencilExpiresAt.slice(0, 10) : '',
         advanceRequired: booking.advanceRequired || '0',
         dueAmount: booking.dueAmount || '0',
-        finalDiscountAmount:
-          booking.discountAmount !== null && booking.discountAmount !== undefined
-            ? String(booking.discountAmount)
-            : '0',
-        finalDiscountPercent:
-          booking.discountPercentage !== null && booking.discountPercentage !== undefined
-            ? String(booking.discountPercentage)
-            : '0',
-        finalAmount: (() => {
-          const extras = (booking.additionalItems || []).reduce(
-            (sum: number, entry: { charges?: number }) =>
-              sum + Math.max(0, Number(entry?.charges ?? 0) || 0),
-            0
-          );
-          const payable =
-            booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
-              ? Number(booking.finalAmountValue)
-              : Number(booking.finalAmount ?? booking.grandTotal ?? 0);
-          const mealsNet = roundRupee(Math.max(0, payable - extras));
-          return String(mealsNet);
-        })(),
+        finalDiscountAmount: loadedBilling.finalDiscountAmount,
+        finalDiscountPercent: loadedBilling.finalDiscountPercent,
+        finalAmount: loadedBilling.finalAmount,
         notes: booking.notes || '',
         additionalRequirements: (booking.additionalItems || [])
           .map((entry: any) => ({
@@ -1451,34 +1441,17 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
   const applyBookingToForm = useCallback((booking: any) => {
     const loadedPayments = mapBookingPaymentsFromApi(booking.payments || []);
     setFormData((prev) => {
+      const loadedBilling = resolveLoadedBillingAmounts(
+        booking.discountPercentage ?? prev.finalDiscountPercent,
+        booking.discountAmount ?? prev.finalDiscountAmount,
+        computeMealsSubtotal(prev.packs)
+      );
       const next = {
         ...prev,
         payments: loadedPayments,
-        finalDiscountAmount:
-          booking.discountAmount !== null && booking.discountAmount !== undefined
-            ? String(booking.discountAmount)
-            : prev.finalDiscountAmount,
-        finalDiscountPercent:
-          booking.discountPercentage !== null && booking.discountPercentage !== undefined
-            ? String(booking.discountPercentage)
-            : prev.finalDiscountPercent,
-        finalAmount: (() => {
-          const extras = (booking.additionalItems || []).reduce(
-            (sum: number, entry: { charges?: number }) =>
-              sum + Math.max(0, Number(entry?.charges ?? 0) || 0),
-            0
-          );
-          const payable =
-            booking.finalAmountValue !== undefined && booking.finalAmountValue !== null
-              ? Number(booking.finalAmountValue)
-              : Number(
-                  booking.finalAmount ??
-                    booking.grandTotal ??
-                    prev.finalAmount ??
-                    0
-                );
-          return String(roundRupee(Math.max(0, payable - extras)));
-        })(),
+        finalDiscountAmount: loadedBilling.finalDiscountAmount,
+        finalDiscountPercent: loadedBilling.finalDiscountPercent,
+        finalAmount: loadedBilling.finalAmount,
         dueAmount:
           booking.dueAmountValue !== undefined && booking.dueAmountValue !== null
             ? String(booking.dueAmountValue)
