@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bika Banquet — shadcn, top nav (compact)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* shadcn/ui "new-york" — zinc base, COMPACT density. Top navigation. */
+:root{
+  --background:#ffffff; --foreground:#09090b;
+  --card:#ffffff; --card-foreground:#09090b;
+  --primary:#18181b; --primary-foreground:#fafafa;
+  --secondary:#f4f4f5; --muted:#f4f4f5; --muted-foreground:#71717a;
+  --accent:#f4f4f5; --destructive:#ef4444;
+  --border:#e4e4e7; --input:#e4e4e7; --ring:#a1a1aa;
+  --green:#16a34a; --amber:#d97706; --blue:#2563eb; --sky:#0284c7; --violet:#7c3aed;
+  --chart-1:#18181b; --chart-2:#71717a; --chart-3:#a1a1aa;
+  --font-sans:'Inter',ui-sans-serif,system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+html.dark{
+  --background:#09090b; --foreground:#fafafa;
+  --card:#161618; --card-foreground:#fafafa;
+  --primary:#fafafa; --primary-foreground:#18181b;
+  --secondary:#27272a; --muted:#27272a; --muted-foreground:#a1a1aa;
+  --accent:#27272a; --border:#27272a; --input:#2a2a2e; --ring:#52525b;
+  --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6; --sky:#0ea5e9; --violet:#a78bfa;
+  --chart-1:#fafafa; --chart-2:#a1a1aa; --chart-3:#52525b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);background:var(--background);color:var(--foreground);-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.4}
+.mono,.tnum{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+svg{display:block}
+
+/* ── Top nav ───────────────────────────────────────────────── */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;height:48px;padding:0 16px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(8px)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;letter-spacing:-.01em;margin-right:6px}
+.logo{width:26px;height:26px;border-radius:7px;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-weight:700;font-size:13px}
+.nav{display:flex;align-items:center;gap:1px}
+.nav a{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:7px;font-size:13px;font-weight:500;color:var(--muted-foreground);cursor:pointer;text-decoration:none;transition:all .12s}
+.nav a svg{width:15px;height:15px;opacity:.8}
+.nav a:hover{background:var(--accent);color:var(--foreground)}
+.nav a.active{background:var(--accent);color:var(--foreground);font-weight:600}
+.nav a.active svg{opacity:1}
+.topbar .spacer{flex:1}
+.tright{display:flex;align-items:center;gap:7px}
+.search{display:flex;align-items:center;gap:7px;height:32px;border:1px solid var(--input);border-radius:7px;padding:0 9px;background:var(--background);color:var(--muted-foreground);font-size:12.5px;min-width:180px}
+.search kbd{margin-left:auto;font-family:var(--font-mono);font-size:10px;background:var(--muted);border-radius:4px;padding:1px 4px}
+.icon-btn{width:32px;height:32px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--foreground);display:grid;place-items:center;cursor:pointer;transition:background .12s}
+.icon-btn:hover{background:var(--accent)}
+.av{border-radius:7px;display:grid;place-items:center;font-weight:700;color:#fff;flex-shrink:0}
+.av.lg{width:30px;height:30px;font-size:11px;background:linear-gradient(135deg,#52525b,#27272a)}
+
+/* mobile nav collapse */
+@media(max-width:880px){.nav a span{display:none}.search{min-width:0;width:32px;padding:0;justify-content:center}.search kbd{display:none}}
+
+/* ── Buttons / badges ──────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:7px;font-size:12.5px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all .12s;white-space:nowrap}
+.btn svg{width:14px;height:14px}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{opacity:.9}
+.btn-outline{background:var(--background);border-color:var(--input);color:var(--foreground)}
+.btn-outline:hover{background:var(--accent)}
+.btn-sm{height:28px;padding:0 9px;font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:500;color:var(--foreground)}
+.badge .dot{width:5px;height:5px;border-radius:50%}
+.trend{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border);border-radius:6px;padding:0 6px;font-size:11px;font-weight:500}
+.up{color:var(--green)} .down{color:var(--destructive)}
+
+/* ── Page frame ────────────────────────────────────────────── */
+.wrap{max-width:1320px;margin:0 auto;padding:14px 16px 28px}
+.page{display:none}
+.page.show{display:block;animation:fade .16s ease}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.phead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.phead h1{font-size:18px;font-weight:600;letter-spacing:-.02em}
+.phead p{font-size:12.5px;color:var(--muted-foreground);margin-top:1px}
+.pactions{display:flex;align-items:center;gap:7px}
+.card{background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:11px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+
+/* compact stat cards */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:12px}
+@media(max-width:1000px){.stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.stats{grid-template-columns:1fr}}
+.stat{padding:12px 13px}
+.stat-desc{font-size:12px;color:var(--muted-foreground);display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.stat-val{font-size:23px;font-weight:600;letter-spacing:-.03em;line-height:1.05}
+.stat-sub{font-size:11.5px;color:var(--muted-foreground);margin-top:4px}
+
+/* grid helpers */
+.grid-2{display:grid;grid-template-columns:1.9fr 1fr;gap:11px;margin-bottom:12px}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr}}
+.chead{padding:11px 13px 6px;display:flex;align-items:center;justify-content:space-between}
+.chead h3{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.chead p{font-size:11.5px;color:var(--muted-foreground);margin-top:1px}
+.legend2{display:flex;gap:12px;padding:0 13px 12px}
+.legend2 span{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted-foreground)}
+.legend2 i{width:8px;height:8px;border-radius:2px}
+.mix{padding:4px 13px 13px;display:flex;flex-direction:column;gap:9px}
+.mix-row{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.mix-row .ml{width:80px}
+.mbar{flex:1;height:7px;border-radius:4px;background:var(--muted);overflow:hidden}
+.mbar i{display:block;height:100%;border-radius:4px}
+.mix-row .mv{width:30px;text-align:right;font-family:var(--font-mono);font-size:11.5px;color:var(--muted-foreground)}
+
+/* tables — compact */
+.tbar{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:11px 13px;flex-wrap:wrap}
+.tbar .left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.finput{height:30px;border:1px solid var(--input);border-radius:7px;padding:0 9px;background:var(--background);color:var(--foreground);font-size:12.5px;width:190px}
+.finput::placeholder{color:var(--muted-foreground)}
+table{width:100%;border-collapse:collapse}
+thead th{font-size:11px;font-weight:500;color:var(--muted-foreground);text-align:left;height:32px;padding:0 13px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+tbody td{font-size:12.5px;padding:7px 13px;border-bottom:1px solid var(--border)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--muted)}
+.cust{display:flex;align-items:center;gap:8px}
+.av.sm{width:26px;height:26px;font-size:10px}
+.cust .nm{font-weight:500}
+.cust .ph{font-size:10.5px;color:var(--muted-foreground);font-family:var(--font-mono)}
+.ck{width:15px;height:15px;border:1px solid var(--input);border-radius:4px;display:inline-block;vertical-align:middle;cursor:pointer;background:var(--background)}
+.ck.on{background:var(--primary);border-color:var(--primary);position:relative}
+.ck.on::after{content:"✓";position:absolute;inset:0;color:var(--primary-foreground);font-size:10px;display:grid;place-items:center;font-weight:700}
+.rowmenu{color:var(--muted-foreground);cursor:pointer;width:26px;height:26px;border-radius:6px;display:grid;place-items:center}
+.rowmenu:hover{background:var(--accent);color:var(--foreground)}
+.tfoot{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;font-size:12px;color:var(--muted-foreground);flex-wrap:wrap;gap:8px}
+.pager{display:flex;align-items:center;gap:5px}
+
+/* halls grid */
+.halls{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+@media(max-width:900px){.halls{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.halls{grid-template-columns:1fr}}
+.hall-card{padding:13px}
+.hall-card .ht{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.hall-card h4{font-size:14px;font-weight:600}
+.hall-meta{display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.hall-meta div{font-size:11.5px;color:var(--muted-foreground)}
+.hall-meta b{display:block;font-size:15px;font-weight:600;color:var(--foreground);font-family:var(--font-mono)}
+
+/* calendar board — compact */
+.cal-tb{display:flex;align-items:center;gap:8px;margin-bottom:11px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--muted);border-radius:7px;padding:2px}
+.seg button{font-family:inherit;font-size:12px;font-weight:500;border:none;background:transparent;color:var(--muted-foreground);padding:4px 10px;border-radius:5px;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--foreground);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.clegend{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+.clegend span{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted-foreground)}
+.clegend i{width:8px;height:8px;border-radius:2px}
+.bgrid{display:grid;grid-template-columns:110px repeat(7,1fr)}
+.bh{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-foreground);padding:7px 4px;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--muted)}
+.bh.corner{border-left:none;text-align:left;padding-left:12px}
+.bh small{display:block;font-size:13px;font-weight:600;color:var(--foreground);margin-top:1px}
+.bh.today small{color:var(--blue)}
+.hcell{font-size:12px;font-weight:500;padding:0 12px;display:flex;align-items:center;border-bottom:1px solid var(--border);min-height:50px}
+.dcell{border-left:1px solid var(--border);border-bottom:1px solid var(--border);padding:4px;min-height:50px;display:flex;flex-direction:column;gap:3px}
+.dcell.we{background:var(--muted)}
+.ev{font-size:10px;font-weight:600;padding:3px 6px;border-radius:6px;border-left:2px solid;cursor:pointer;line-height:1.2}
+.ev .em{display:block;font-size:9px;opacity:.85;font-weight:500}
+.ev-confirmed{background:color-mix(in srgb,var(--green) 16%,var(--card));color:var(--green);border-color:var(--green)}
+.ev-pencil{background:color-mix(in srgb,var(--amber) 16%,var(--card));color:var(--amber);border-color:var(--amber)}
+.ev-quotation{background:color-mix(in srgb,var(--blue) 16%,var(--card));color:var(--blue);border-color:var(--blue)}
+.ev-enquiry{background:color-mix(in srgb,var(--sky) 16%,var(--card));color:var(--sky);border-color:var(--sky)}
+
+.note{max-width:1320px;margin:0 auto;padding:4px 16px 24px;font-size:12px;color:var(--muted-foreground)}
+.note b{color:var(--foreground)}
+</style>
+</head>
+<body>
+
+<!-- ══ TOP NAV ══ -->
+<div class="topbar">
+  <div class="brand"><span class="logo">B</span> Bika</div>
+  <nav class="nav" id="nav">
+    <a data-page="dashboard" class="active" onclick="go('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></a>
+    <a data-page="bookings" onclick="go('bookings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg><span>Bookings</span></a>
+    <a data-page="calendar" onclick="go('calendar')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Calendar</span></a>
+    <a data-page="customers" onclick="go('customers')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg><span>Customers</span></a>
+    <a data-page="halls" onclick="go('halls')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg><span>Halls</span></a>
+    <a data-page="payments" onclick="go('payments')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg><span>Payments</span></a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="tright">
+    <div class="search">🔍 <span style="flex:1">Search…</span><kbd>⌘K</kbd></div>
+    <button class="icon-btn" onclick="toggleTheme()" id="themeBtn" title="Theme">☾</button>
+    <div class="av lg">HG</div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ══ DASHBOARD ══ -->
+  <section class="page show" data-page="dashboard">
+    <div class="phead">
+      <div><h1>Dashboard</h1><p>Overview of bookings, revenue and venue activity.</p></div>
+      <div class="pactions"><button class="btn btn-outline btn-sm">Last 30 days</button><button class="btn btn-primary btn-sm">＋ New Booking</button></div>
+    </div>
+    <div class="stats">
+      <div class="card stat"><div class="stat-desc">Total Bookings <span class="trend up">▲ 12.5%</span></div><div class="stat-val tnum">128</div><div class="stat-sub">23 new in last 30 days</div></div>
+      <div class="card stat"><div class="stat-desc">Revenue <span class="trend up">▲ 8.1%</span></div><div class="stat-val tnum">₹24.6L</div><div class="stat-sub">Up from ₹22.7L last month</div></div>
+      <div class="card stat"><div class="stat-desc">Active Customers <span class="trend up">▲ 5.0%</span></div><div class="stat-val tnum">412</div><div class="stat-sub">38 repeat this quarter</div></div>
+      <div class="card stat"><div class="stat-desc">Cancellations <span class="trend down">▼ 2.0%</span></div><div class="stat-val tnum">6</div><div class="stat-sub">4.7% of total bookings</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="chead"><div><h3>Revenue &amp; Bookings</h3><p>Last 6 months</p></div><span class="trend up" style="border:none">▲ 8.1%</span></div>
+        <div style="padding:2px 10px 8px">
+          <svg viewBox="0 0 640 160" width="100%" height="150" preserveAspectRatio="none">
+            <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--chart-1)" stop-opacity=".25"/><stop offset="100%" stop-color="var(--chart-1)" stop-opacity="0"/></linearGradient></defs>
+            <g stroke="var(--border)"><line x1="0" y1="40" x2="640" y2="40"/><line x1="0" y1="80" x2="640" y2="80"/><line x1="0" y1="120" x2="640" y2="120"/></g>
+            <path d="M0,120 L128,96 L256,108 L384,64 L512,76 L640,36 L640,160 L0,160 Z" fill="url(#g1)"/>
+            <path d="M0,120 L128,96 L256,108 L384,64 L512,76 L640,36" fill="none" stroke="var(--chart-1)" stroke-width="2"/>
+            <path d="M0,136 L128,132 L256,112 L384,120 L512,94 L640,102" fill="none" stroke="var(--chart-2)" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="legend2"><span><i style="background:var(--chart-1)"></i>Revenue</span><span><i style="background:var(--chart-2)"></i>Bookings</span></div>
+      </div>
+      <div class="card">
+        <div class="chead"><div><h3>Function Mix</h3><p>By event type</p></div></div>
+        <div class="mix">
+          <div class="mix-row"><span class="ml">Wedding</span><div class="mbar"><i style="width:42%;background:var(--chart-1)"></i></div><span class="mv">42%</span></div>
+          <div class="mix-row"><span class="ml">Reception</span><div class="mbar"><i style="width:24%;background:var(--chart-2)"></i></div><span class="mv">24%</span></div>
+          <div class="mix-row"><span class="ml">Corporate</span><div class="mbar"><i style="width:16%;background:var(--chart-3)"></i></div><span class="mv">16%</span></div>
+          <div class="mix-row"><span class="ml">Sangeet</span><div class="mbar"><i style="width:10%;background:var(--chart-3);opacity:.7"></i></div><span class="mv">10%</span></div>
+          <div class="mix-row"><span class="ml">Other</span><div class="mbar"><i style="width:8%;background:var(--chart-3);opacity:.5"></i></div><span class="mv">8%</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="tbar"><div><h3 style="font-size:13.5px;font-weight:600">Recent Bookings</h3></div><button class="btn btn-outline btn-sm" onclick="go('bookings')">View all →</button></div>
+      <table><thead><tr><th>Customer</th><th>Function</th><th>Date</th><th>Status</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+        <tr><td><div class="cust"><span class="av sm" style="background:linear-gradient(135deg,#0d9488,#0f766e)">SF</span><div><div class="nm">Sharma Family</div></div></div></td><td>Wedding</td><td class="mono">18 Jun</td><td><span class="badge"><span class="dot" style="background:var(--green)"></span>Confirmed</span></td><td class="tnum" style="text-align:right;font-weight:500">₹4,80,000</td></tr>
+        <tr><td><div class="cust"><span class="av sm" style="background:linear-gradient(135deg,#a16207,#d97706)">VS</span><div><div class="nm">Verma &amp; Sons</div></div></div></td><td>Reception</td><td class="mono">22 Jun</td><td><span class="badge"><span class="dot" style="background:var(--amber)"></span>Pencil</span></td><td class="tnum" style="text-align:right;font-weight:500">₹2,15,000</td></tr>
+        <tr><td><div class="cust"><span class="av sm" style="background:linear-gradient(135deg,#1d4ed8,#2563eb)">IC</span><div><div class="nm">Iyer Corp</div></div></div></td><td>Conference</td><td class="mono">25 Jun</td><td><span class="badge"><span class="dot" style="background:var(--blue)"></span>Quotation</span></td><td class="tnum" style="text-align:right;font-weight:500">₹1,90,000</td></tr>
+      </tbody></table>
+    </div>
+  </section>
+
+  <!-- ══ BOOKINGS ══ -->
+  <section class="page" data-page="bookings">
+    <div class="phead">
+      <div><h1>Bookings</h1><p>128 total · 23 this month</p></div>
+      <div class="pactions"><button class="btn btn-primary btn-sm">＋ New Booking</button></div>
+    </div>
+    <div class="card">
+      <div class="tbar"><div class="left"><input class="finput" placeholder="Filter customers…"><button class="btn btn-outline btn-sm">Status ▾</button><button class="btn btn-outline btn-sm">Hall ▾</button></div><button class="btn btn-outline btn-sm">Columns ▾</button></div>
+      <table><thead><tr><th style="width:32px"><span class="ck" onclick="this.classList.toggle('on')"></span></th><th>Customer</th><th>Function</th><th>Hall</th><th>Date</th><th>Status</th><th style="text-align:right">Amount</th><th style="width:40px"></th></tr></thead><tbody id="bk-body"></tbody></table>
+      <div class="tfoot"><span id="bk-sel">0 of 8 selected.</span><div class="pager"><span style="margin-right:6px">Page 1 of 16</span><button class="btn btn-outline btn-sm">‹</button><button class="btn btn-outline btn-sm">›</button></div></div>
+    </div>
+  </section>
+
+  <!-- ══ CALENDAR ══ -->
+  <section class="page" data-page="calendar">
+    <div class="phead"><div><h1>Calendar</h1><p>Venue timeline · 4 halls</p></div><div class="pactions"><button class="btn btn-primary btn-sm">＋ New Booking</button></div></div>
+    <div class="cal-tb">
+      <div class="seg"><button onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">‹</button><button class="on" style="cursor:default">15–21 Jun</button><button onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">›</button></div>
+      <button class="btn btn-outline btn-sm">Today</button>
+      <div class="seg"><button>Day</button><button class="on">Week</button><button>Month</button></div>
+      <div class="clegend"><span><i style="background:var(--green)"></i>Confirmed</span><span><i style="background:var(--amber)"></i>Pencil</span><span><i style="background:var(--blue)"></i>Quotation</span><span><i style="background:var(--sky)"></i>Enquiry</span></div>
+    </div>
+    <div class="card" style="overflow:hidden"><div class="bgrid">
+      <div class="bh corner">Hall</div>
+      <div class="bh today">Mon<small>15</small></div><div class="bh">Tue<small>16</small></div><div class="bh">Wed<small>17</small></div><div class="bh">Thu<small>18</small></div><div class="bh">Fri<small>19</small></div><div class="bh">Sat<small>20</small></div><div class="bh">Sun<small>21</small></div>
+      <div class="hcell">Grand Hall</div>
+      <div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-quotation">Iyer Corp<span class="em">Conf · 250</span></div></div><div class="dcell"><div class="ev ev-confirmed">Sharma<span class="em">Wedding · 600</span></div></div><div class="dcell"></div><div class="dcell we"><div class="ev ev-confirmed">Mehta<span class="em">Sangeet · 400</span></div></div><div class="dcell we"></div>
+      <div class="hcell">Garden Lawn</div>
+      <div class="dcell"></div><div class="dcell"><div class="ev ev-pencil">Verma<span class="em">Recpt · 300</span></div></div><div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-enquiry">Khan<span class="em">Sangeet · 350</span></div></div><div class="dcell we"></div><div class="dcell we"><div class="ev ev-confirmed">Rao<span class="em">Recpt · 500</span></div></div>
+      <div class="hcell">Banquet 2</div>
+      <div class="dcell"><div class="ev ev-confirmed">Gupta<span class="em">Engmt · 180</span></div></div><div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-pencil">Bose<span class="em">Bday · 120</span></div></div><div class="dcell"></div><div class="dcell we"></div><div class="dcell we"></div>
+      <div class="hcell">Terrace</div>
+      <div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-enquiry">Das<span class="em">Mehndi · 90</span></div></div><div class="dcell"></div><div class="dcell"></div><div class="dcell we"><div class="ev ev-quotation">Nair<span class="em">Cocktail · 150</span></div></div><div class="dcell we"></div>
+    </div></div>
+  </section>
+
+  <!-- ══ CUSTOMERS ══ -->
+  <section class="page" data-page="customers">
+    <div class="phead"><div><h1>Customers</h1><p>412 total</p></div><div class="pactions"><button class="btn btn-primary btn-sm">＋ Add Customer</button></div></div>
+    <div class="card">
+      <div class="tbar"><div class="left"><input class="finput" placeholder="Search name or phone…"></div></div>
+      <table><thead><tr><th>Name</th><th>Phone</th><th style="text-align:right">Bookings</th><th style="text-align:right">Total Spend</th><th>Last Event</th><th style="width:40px"></th></tr></thead><tbody id="cu-body"></tbody></table>
+      <div class="tfoot"><span>Showing 6 of 412</span><div class="pager"><button class="btn btn-outline btn-sm">‹</button><button class="btn btn-outline btn-sm">›</button></div></div>
+    </div>
+  </section>
+
+  <!-- ══ HALLS ══ -->
+  <section class="page" data-page="halls">
+    <div class="phead"><div><h1>Halls</h1><p>4 venues</p></div><div class="pactions"><button class="btn btn-primary btn-sm">＋ Add Hall</button></div></div>
+    <div class="halls" id="hl-grid"></div>
+  </section>
+
+  <!-- ══ PAYMENTS ══ -->
+  <section class="page" data-page="payments">
+    <div class="phead"><div><h1>Payments</h1><p>₹18.2L collected this month</p></div><div class="pactions"><button class="btn btn-outline btn-sm">Export</button><button class="btn btn-primary btn-sm">＋ Record Payment</button></div></div>
+    <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card stat"><div class="stat-desc">Collected</div><div class="stat-val tnum">₹18.2L</div><div class="stat-sub">This month</div></div>
+      <div class="card stat"><div class="stat-desc">Outstanding</div><div class="stat-val tnum">₹6.4L</div><div class="stat-sub">Across 14 bookings</div></div>
+      <div class="card stat"><div class="stat-desc">Advance Held</div><div class="stat-val tnum">₹3.1L</div><div class="stat-sub">Refundable deposits</div></div>
+    </div>
+    <div class="card">
+      <div class="tbar"><div class="left"><input class="finput" placeholder="Filter payments…"><button class="btn btn-outline btn-sm">Mode ▾</button></div></div>
+      <table><thead><tr><th>Booking</th><th>Customer</th><th>Mode</th><th>Date</th><th>Status</th><th style="text-align:right">Amount</th></tr></thead><tbody id="pm-body"></tbody></table>
+      <div class="tfoot"><span>Showing 6 of 240</span><div class="pager"><button class="btn btn-outline btn-sm">‹</button><button class="btn btn-outline btn-sm">›</button></div></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="note"><b>Top nav · compact · functional</b> — click any nav item (or "View all") to switch pages. Theme toggle is in the top-right. shadcn "new-york" zinc palette; dense tables and cards. Static demo data, no backend.</div>
+
+<script>
+/* ── page routing ── */
+function go(p){
+  document.querySelectorAll('.page').forEach(s=>s.classList.toggle('show', s.dataset.page===p));
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active', a.dataset.page===p));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function toggleTheme(){
+  const d=document.documentElement.classList.toggle('dark');
+  document.getElementById('themeBtn').textContent=d?'☀':'☾';
+}
+
+/* ── seed data ── */
+const grad=['linear-gradient(135deg,#0d9488,#0f766e)','linear-gradient(135deg,#a16207,#d97706)','linear-gradient(135deg,#1d4ed8,#2563eb)','linear-gradient(135deg,#0369a1,#0284c7)','linear-gradient(135deg,#6d28d9,#7c3aed)','linear-gradient(135deg,#be123c,#e11d48)'];
+const st={Confirmed:'var(--green)',Pencil:'var(--amber)',Quotation:'var(--blue)',Enquiry:'var(--sky)'};
+const bookings=[
+  ['SF','Sharma Family','+91 98XXX 21000','Wedding','Grand Hall','18 Jun 2026','Confirmed','₹4,80,000'],
+  ['VS','Verma & Sons','+91 99XXX 44521','Reception','Garden Lawn','22 Jun 2026','Pencil','₹2,15,000'],
+  ['IC','Iyer Corp','+91 80XXX 10293','Conference','Banquet 2','25 Jun 2026','Quotation','₹1,90,000'],
+  ['KW','Khan Wedding','+91 70XXX 88210','Sangeet','Terrace','30 Jun 2026','Enquiry','₹3,40,000'],
+  ['MR','Mehta Reddy','+91 91XXX 55280','Engagement','Grand Hall','02 Jul 2026','Confirmed','₹2,90,000'],
+  ['NP','Nair Pillai','+91 73XXX 99014','Cocktail','Terrace','05 Jul 2026','Quotation','₹1,20,000'],
+  ['RB','Rao Banerjee','+91 88XXX 33027','Reception','Garden Lawn','09 Jul 2026','Confirmed','₹5,10,000'],
+  ['DG','Das Ghosh','+91 96XXX 70188','Mehndi','Banquet 2','12 Jul 2026','Pencil','₹95,000'],
+];
+document.getElementById('bk-body').innerHTML=bookings.map((b,i)=>`
+  <tr><td><span class="ck" onclick="this.classList.toggle('on');updSel()"></span></td>
+  <td><div class="cust"><span class="av sm" style="background:${grad[i%6]}">${b[0]}</span><div><div class="nm">${b[1]}</div><div class="ph">${b[2]}</div></div></div></td>
+  <td>${b[3]}</td><td>${b[4]}</td><td class="mono">${b[5]}</td>
+  <td><span class="badge"><span class="dot" style="background:${st[b[6]]}"></span>${b[6]}</span></td>
+  <td class="tnum" style="text-align:right;font-weight:500">${b[7]}</td><td><div class="rowmenu">⋯</div></td></tr>`).join('');
+function updSel(){const n=document.querySelectorAll('#bk-body .ck.on').length;document.getElementById('bk-sel').textContent=`${n} of 8 selected.`}
+
+const customers=[
+  ['SF','Sharma Family','+91 98XXX 21000','7','₹18,40,000','Wedding · 18 Jun'],
+  ['IC','Iyer Corp','+91 80XXX 10293','12','₹22,10,000','Conference · 25 Jun'],
+  ['RB','Rao Banerjee','+91 88XXX 33027','4','₹14,75,000','Reception · 09 Jul'],
+  ['VS','Verma & Sons','+91 99XXX 44521','3','₹6,30,000','Reception · 22 Jun'],
+  ['MR','Mehta Reddy','+91 91XXX 55280','2','₹5,80,000','Engagement · 02 Jul'],
+  ['NP','Nair Pillai','+91 73XXX 99014','1','₹1,20,000','Cocktail · 05 Jul'],
+];
+document.getElementById('cu-body').innerHTML=customers.map((c,i)=>`
+  <tr><td><div class="cust"><span class="av sm" style="background:${grad[i%6]}">${c[0]}</span><div class="nm">${c[1]}</div></div></td>
+  <td class="mono">${c[2]}</td><td class="tnum" style="text-align:right">${c[3]}</td>
+  <td class="tnum" style="text-align:right;font-weight:500">${c[4]}</td><td class="muted">${c[5]}</td><td><div class="rowmenu">⋯</div></td></tr>`).join('');
+
+const halls=[
+  ['Grand Hall','Available','600','12','₹1,20,000'],
+  ['Garden Lawn','Booked','400','9','₹95,000'],
+  ['Banquet 2','Available','250','6','₹70,000'],
+  ['Terrace','Maintenance','150','3','₹45,000'],
+];
+const hst={Available:'var(--green)',Booked:'var(--amber)',Maintenance:'var(--muted-foreground)'};
+document.getElementById('hl-grid').innerHTML=halls.map(h=>`
+  <div class="card hall-card"><div class="ht"><h4>${h[0]}</h4><span class="badge"><span class="dot" style="background:${hst[h[1]]}"></span>${h[1]}</span></div>
+  <div style="font-size:12px;color:var(--muted-foreground)">Air-conditioned · stage · parking</div>
+  <div class="hall-meta"><div>Capacity<b class="tnum">${h[2]}</b></div><div>Upcoming<b class="tnum">${h[3]}</b></div><div>Base rate<b class="tnum" style="font-size:13px">${h[4]}</b></div></div></div>`).join('');
+
+const pays=[
+  ['#BK-1042','Sharma Family','UPI','15 Jun 2026','Success','₹2,00,000'],
+  ['#BK-1039','Iyer Corp','Bank Transfer','14 Jun 2026','Success','₹1,90,000'],
+  ['#BK-1051','Rao Banerjee','Cheque','13 Jun 2026','Pending','₹1,50,000'],
+  ['#BK-1033','Verma & Sons','Cash','12 Jun 2026','Success','₹80,000'],
+  ['#BK-1047','Mehta Reddy','UPI','11 Jun 2026','Success','₹1,20,000'],
+  ['#BK-1052','Nair Pillai','Card','10 Jun 2026','Failed','₹40,000'],
+];
+const pst={Success:'var(--green)',Pending:'var(--amber)',Failed:'var(--destructive)'};
+document.getElementById('pm-body').innerHTML=pays.map(p=>`
+  <tr><td class="mono">${p[0]}</td><td>${p[1]}</td><td>${p[2]}</td><td class="mono">${p[3]}</td>
+  <td><span class="badge"><span class="dot" style="background:${pst[p[4]]}"></span>${p[4]}</span></td>
+  <td class="tnum" style="text-align:right;font-weight:500">${p[5]}</td></tr>`).join('');
+</script>
+</body>
+</html>
