@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bika Banquet — Vite + shadcn/ui</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────────────────────────────
+   Authentic shadcn/ui ("new-york") component language, themed with
+   Bika TEAL as --primary (shadcn carrying your brand, not the default
+   monochrome). Token names mirror shadcn so this maps 1:1 onto a real
+   Vite + shadcn install.
+   ─────────────────────────────────────────────────────────────── */
+:root{
+  --background:#ffffff; --foreground:#09090b;
+  --card:#ffffff; --card-foreground:#09090b;
+  --popover:#ffffff;
+  --primary:#0d9488; --primary-foreground:#ffffff;     /* teal */
+  --secondary:#f4f4f5; --secondary-foreground:#18181b;
+  --muted:#f4f4f5; --muted-foreground:#71717a;
+  --accent:#f1f5f4; --accent-foreground:#0f766e;
+  --destructive:#ef4444;
+  --border:#e4e4e7; --input:#e4e4e7; --ring:#0d9488;
+  --green:#16a34a; --amber:#d97706; --blue:#2563eb; --sky:#0284c7; --red:#e11d48;
+  --radius:10px;
+  --fs:'Inter',ui-sans-serif,system-ui,sans-serif;
+  --fm:'JetBrains Mono',ui-monospace,monospace;
+}
+html.dark{
+  --background:#09090b; --foreground:#fafafa;
+  --card:#161618; --card-foreground:#fafafa;
+  --popover:#161618;
+  --primary:#14b8a6; --primary-foreground:#04201d;
+  --secondary:#27272a; --secondary-foreground:#fafafa;
+  --muted:#27272a; --muted-foreground:#a1a1aa;
+  --accent:#15302c; --accent-foreground:#5eead4;
+  --border:#27272a; --input:#2a2a2e; --ring:#14b8a6;
+  --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6; --sky:#0ea5e9; --red:#fb7185;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--fs);background:var(--background);color:var(--foreground);-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.4;display:flex;flex-direction:column;overflow:hidden}
+.mono,.tnum{font-family:var(--fm);font-variant-numeric:tabular-nums}
+svg{display:block}.muted{color:var(--muted-foreground)}
+
+/* ── Top nav (shadcn header) ───────────────────────────────── */
+.top{display:flex;align-items:center;gap:8px;height:52px;padding:0 14px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(8px);flex-shrink:0}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;letter-spacing:-.01em}
+.logo{width:26px;height:26px;border-radius:7px;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;font-weight:700;font-size:13px}
+.stack{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--border);border-radius:999px;font-size:11px;color:var(--muted-foreground);font-weight:500}
+.stack b{color:var(--foreground)}
+.nav{display:flex;align-items:center;gap:1px;margin-left:6px}
+.nav a{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted-foreground);cursor:pointer;text-decoration:none;transition:all .12s}
+.nav a svg{width:15px;height:15px;opacity:.8}
+.nav a:hover{background:var(--accent);color:var(--accent-foreground)}
+.nav a.active{background:var(--accent);color:var(--accent-foreground);font-weight:600}
+.nav a.active svg{opacity:1}
+.top .sp{flex:1}
+.search{display:flex;align-items:center;gap:7px;height:34px;border:1px solid var(--input);border-radius:8px;padding:0 10px;background:var(--background);color:var(--muted-foreground);font-size:12.5px;min-width:200px}
+.kbd{margin-left:auto;font-family:var(--fm);font-size:10px;background:var(--muted);border-radius:4px;padding:1px 4px}
+.iconbtn{width:34px;height:34px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--foreground);display:grid;place-items:center;cursor:pointer}
+.iconbtn:hover{background:var(--accent);color:var(--accent-foreground)}
+.avt{border-radius:7px;display:grid;place-items:center;font-weight:700;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#0d9488,#0f766e)}
+.avt.lg{width:30px;height:30px;font-size:11px}.avt.sm{width:24px;height:24px;font-size:10px}
+@media(max-width:1040px){.nav a span,.stack{display:none}.search{min-width:34px;width:34px;padding:0;justify-content:center}.kbd{display:none}}
+
+/* ── Buttons / badges (shadcn) ─────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 13px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all .12s;white-space:nowrap}
+.btn svg{width:14px;height:14px}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{opacity:.9}
+.btn-outline{background:var(--background);border-color:var(--input);color:var(--foreground)}
+.btn-outline:hover{background:var(--accent);color:var(--accent-foreground);border-color:transparent}
+.btn-ghost{background:transparent;color:var(--foreground)}.btn-ghost:hover{background:var(--accent)}
+.btn-sm{height:30px;padding:0 10px;font-size:12.5px}.btn-xs{height:28px;padding:0 9px;font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:7px;padding:1px 8px;font-size:11.5px;font-weight:500;color:var(--foreground)}
+.badge .dot{width:6px;height:6px;border-radius:50%}
+.badge.sec{background:var(--secondary);border-color:transparent}
+.trend{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border);border-radius:7px;padding:0 6px;font-size:11px;font-weight:500}
+.up{color:var(--green)}.down{color:var(--destructive)}
+
+/* ── Page frame ────────────────────────────────────────────── */
+.body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.page{display:none;flex:1;min-height:0;flex-direction:column;overflow:hidden}
+.page.show{display:flex;animation:f .16s ease}
+@keyframes f{from{opacity:0}to{opacity:1}}
+.scroll{overflow:auto;flex:1;min-height:0;padding:14px}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px 0}
+.phead h1{font-size:17px;font-weight:600;letter-spacing:-.02em}
+.phead .desc{font-size:12.5px;color:var(--muted-foreground);margin-top:1px}
+.tabs{display:inline-flex;background:var(--muted);border-radius:9px;padding:3px;margin:12px 14px 0}
+.tabs button{font-family:inherit;font-size:12.5px;font-weight:500;border:none;background:transparent;color:var(--muted-foreground);padding:5px 12px;border-radius:6px;cursor:pointer}
+.tabs button.on{background:var(--card);color:var(--foreground);box-shadow:0 1px 2px rgba(0,0,0,.07)}
+
+.card{background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+
+/* shadcn section cards (compact) */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 14px 0}
+@media(max-width:1040px){.stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.stats{grid-template-columns:1fr}}
+.stat{padding:14px 15px}
+.stat .d{font-size:12.5px;color:var(--muted-foreground);display:flex;align-items:center;justify-content:space-between}
+.stat .v{font-size:25px;font-weight:600;letter-spacing:-.03em;line-height:1.1;margin-top:5px;font-family:var(--fm)}
+.stat .s{font-size:11.5px;color:var(--muted-foreground);margin-top:6px}
+
+.grid2{display:grid;grid-template-columns:1.9fr 1fr;gap:12px;padding:12px 14px 0}
+@media(max-width:920px){.grid2{grid-template-columns:1fr}}
+.chead{padding:14px 15px 6px;display:flex;align-items:center;justify-content:space-between}
+.chead h3{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.chead p{font-size:12px;color:var(--muted-foreground);margin-top:1px}
+.legend2{display:flex;gap:13px;padding:0 15px 14px}
+.legend2 span{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted-foreground)}
+.legend2 i{width:8px;height:8px;border-radius:2px}
+.mix{padding:4px 15px 15px;display:flex;flex-direction:column;gap:10px}
+.mix-row{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.mix-row .ml{width:82px}.mbar{flex:1;height:7px;border-radius:4px;background:var(--muted);overflow:hidden}.mbar i{display:block;height:100%;border-radius:4px}
+.mix-row .mv{width:32px;text-align:right;font-family:var(--fm);font-size:11.5px;color:var(--muted-foreground)}
+
+/* shadcn data table */
+.tbar{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:13px 15px;flex-wrap:wrap}
+.tbar .left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.finput{height:32px;border:1px solid var(--input);border-radius:8px;padding:0 10px;background:var(--background);color:var(--foreground);font-size:12.5px;width:200px}
+.finput::placeholder{color:var(--muted-foreground)}
+.dashed{border-style:dashed;height:30px;padding:0 9px;display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--border);border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;background:transparent;color:var(--foreground)}
+.dashed:hover{background:var(--accent)}
+.dashed .c{background:var(--secondary);border-radius:4px;padding:0 5px;font-family:var(--fm);font-size:10.5px}
+table{width:100%;border-collapse:collapse}
+thead th{font-size:11.5px;font-weight:500;color:var(--muted-foreground);text-align:left;height:36px;padding:0 15px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap}
+thead th.srt{cursor:pointer}thead th.srt:hover{color:var(--foreground)}
+tbody td{font-size:12.5px;padding:0 15px;height:36px;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--muted)}
+tbody tr.sel{background:var(--accent)}
+.cust{display:flex;align-items:center;gap:8px}.cust .nm{font-weight:500}.cust .ph{font-size:10.5px;color:var(--muted-foreground);font-family:var(--fm)}
+.ck{width:15px;height:15px;border:1px solid var(--input);border-radius:4px;display:inline-block;vertical-align:middle;cursor:pointer;background:var(--background)}
+.ck.on{background:var(--primary);border-color:var(--primary);position:relative}
+.ck.on::after{content:"✓";position:absolute;inset:0;color:var(--primary-foreground);font-size:10px;display:grid;place-items:center;font-weight:700}
+.paybar{display:flex;align-items:center;gap:6px}.paybar .t{width:50px;height:5px;border-radius:3px;background:var(--muted);overflow:hidden}.paybar .fl{height:100%;background:var(--primary)}.paybar .p{font-size:10.5px;color:var(--muted-foreground);font-family:var(--fm);width:30px}
+.rowmenu{color:var(--muted-foreground);cursor:pointer;width:24px;height:24px;border-radius:6px;display:grid;place-items:center}.rowmenu:hover{background:var(--accent);color:var(--accent-foreground)}
+.num{text-align:right;font-family:var(--fm);font-variant-numeric:tabular-nums}
+.tfoot{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;font-size:12px;color:var(--muted-foreground);flex-wrap:wrap;gap:8px}
+.pager{display:flex;align-items:center;gap:6px}
+
+/* shadcn Sheet (inspector) */
+.gridwrap{flex:1;min-height:0;display:grid;grid-template-columns:1fr;transition:grid-template-columns .2s ease;overflow:hidden}
+.gridwrap.inspect{grid-template-columns:1fr 380px}
+.gcol{min-width:0;overflow:auto}
+.sheet{border-left:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.sh-head{padding:14px 16px;border-bottom:1px solid var(--border)}
+.sh-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.sh-title{font-size:16px;font-weight:600;letter-spacing:-.01em}
+.sh-sub{font-size:12px;color:var(--muted-foreground);margin-top:2px}
+.sh-id{font-family:var(--fm);font-size:11px;color:var(--muted-foreground);margin-top:1px}
+.sh-x{cursor:pointer;color:var(--muted-foreground);width:26px;height:26px;border-radius:7px;display:grid;place-items:center}.sh-x:hover{background:var(--accent)}
+.sh-tabs{display:flex;gap:2px;padding:8px 12px 0;border-bottom:1px solid var(--border)}
+.sh-tabs button{font-family:inherit;font-size:12px;font-weight:500;border:none;background:transparent;color:var(--muted-foreground);padding:7px 10px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.sh-tabs button.on{color:var(--foreground);border-bottom-color:var(--primary);font-weight:600}
+.sh-body{overflow:auto;flex:1;min-height:0;padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+.sec-l{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-foreground);margin-bottom:7px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12px}.kv dt{color:var(--muted-foreground)}.kv dd{text-align:right;font-weight:500}
+.fin{background:var(--background);border:1px solid var(--border);border-radius:9px;padding:11px 12px}
+.fin-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;padding:2px 0}.fin-row b{font-family:var(--fm)}
+.fin-bar{height:6px;border-radius:4px;background:var(--muted);overflow:hidden;margin:8px 0 3px}.fin-bar i{display:block;height:100%;background:var(--primary)}
+.hl-li{display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid var(--border)}.hl-li:last-child{border:none}
+.tl{position:relative;padding-left:15px}.tl::before{content:"";position:absolute;left:3px;top:4px;bottom:4px;width:1px;background:var(--border)}
+.tl-i{position:relative;font-size:12px;padding:0 0 10px}.tl-i::before{content:"";position:absolute;left:-15px;top:3px;width:7px;height:7px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 2px var(--card)}.tl-i .tt{color:var(--muted-foreground);font-size:10.5px;font-family:var(--fm)}
+.sh-foot{padding:11px 16px;border-top:1px solid var(--border);display:flex;gap:7px}
+
+/* calendar */
+.cal-tb{display:flex;align-items:center;gap:8px;padding:12px 14px 0}
+.clegend{display:flex;gap:11px;margin-left:auto}.clegend span{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted-foreground)}.clegend i{width:8px;height:8px;border-radius:2px}
+.bgrid{display:grid;grid-template-columns:108px repeat(7,1fr);min-width:780px}
+.bh{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-foreground);padding:7px 4px;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--card)}
+.bh.corner{border-left:none;text-align:left;padding-left:13px}.bh small{display:block;font-size:13px;font-weight:600;color:var(--foreground)}.bh.today small{color:var(--primary)}
+.hcell{font-size:12px;font-weight:500;padding:0 13px;display:flex;align-items:center;border-bottom:1px solid var(--border);min-height:50px}
+.dcell{border-left:1px solid var(--border);border-bottom:1px solid var(--border);padding:4px;min-height:50px;display:flex;flex-direction:column;gap:3px}.dcell.we{background:var(--muted)}
+.ev{font-size:10px;font-weight:600;padding:3px 6px;border-radius:6px;border-left:2px solid;cursor:pointer;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-confirmed{background:color-mix(in srgb,var(--green) 15%,var(--card));color:var(--green);border-color:var(--green)}
+.ev-pencil{background:color-mix(in srgb,var(--amber) 15%,var(--card));color:var(--amber);border-color:var(--amber)}
+.ev-quotation{background:color-mix(in srgb,var(--blue) 15%,var(--card));color:var(--blue);border-color:var(--blue)}
+.ev-enquiry{background:color-mix(in srgb,var(--sky) 15%,var(--card));color:var(--sky);border-color:var(--sky)}
+
+/* halls */
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:11px}
+.hcard{padding:13px 14px}.hcard .ht{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}.hcard h4{font-size:14px;font-weight:600}
+.hmeta{display:flex;gap:14px;margin-top:9px;padding-top:9px;border-top:1px solid var(--border)}.hmeta div{font-size:10.5px;color:var(--muted-foreground)}.hmeta b{display:block;font-size:14px;font-weight:600;color:var(--foreground);font-family:var(--fm)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand"><span class="logo">B</span> Bika</div>
+  <span class="stack">⚡ <b>Vite</b> + <b>shadcn/ui</b></span>
+  <nav class="nav" id="nav">
+    <a data-page="dashboard" class="active" onclick="go('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></a>
+    <a data-page="bookings" onclick="go('bookings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg><span>Bookings</span></a>
+    <a data-page="calendar" onclick="go('calendar')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Calendar</span></a>
+    <a data-page="customers" onclick="go('customers')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg><span>Customers</span></a>
+    <a data-page="payments" onclick="go('payments')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg><span>Payments</span></a>
+    <a data-page="halls" onclick="go('halls')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg><span>Halls</span></a>
+  </nav>
+  <div class="sp"></div>
+  <div class="search">🔍 <span style="flex:1">Search…</span><span class="kbd">⌘K</span></div>
+  <button class="iconbtn" onclick="toggleTheme()" id="themeBtn" title="Theme">☾</button>
+  <div class="avt lg">HG</div>
+</div>
+
+<div class="body">
+
+  <!-- DASHBOARD -->
+  <section class="page show" data-page="dashboard">
+    <div class="phead"><div><h1>Dashboard</h1><div class="desc">Overview of bookings, revenue and venue activity.</div></div><div style="display:flex;gap:7px"><button class="btn btn-outline btn-sm">Last 30 days</button><button class="btn btn-primary btn-sm">＋ New Booking</button></div></div>
+    <div class="tabs"><button class="on">Overview</button><button>Analytics</button><button>Reports</button></div>
+    <div class="stats" id="dash-strip"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="chead"><div><h3>Revenue &amp; Bookings</h3><p>Last 6 months</p></div><span class="trend up" style="border:none">▲ 8.1%</span></div>
+        <div style="padding:2px 12px 8px"><svg viewBox="0 0 640 150" width="100%" height="140" preserveAspectRatio="none">
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--primary)" stop-opacity=".25"/><stop offset="100%" stop-color="var(--primary)" stop-opacity="0"/></linearGradient></defs>
+          <g stroke="var(--border)"><line x1="0" y1="38" x2="640" y2="38"/><line x1="0" y1="76" x2="640" y2="76"/><line x1="0" y1="114" x2="640" y2="114"/></g>
+          <path d="M0,114 L128,92 L256,102 L384,60 L512,72 L640,34 L640,150 L0,150 Z" fill="url(#g1)"/>
+          <path d="M0,114 L128,92 L256,102 L384,60 L512,72 L640,34" fill="none" stroke="var(--primary)" stroke-width="2"/>
+          <path d="M0,128 L128,124 L256,106 L384,114 L512,90 L640,98" fill="none" stroke="var(--muted-foreground)" stroke-width="1.6" stroke-dasharray="3 3"/>
+        </svg></div>
+        <div class="legend2"><span><i style="background:var(--primary)"></i>Revenue</span><span><i style="background:var(--muted-foreground)"></i>Bookings</span></div>
+      </div>
+      <div class="card"><div class="chead"><div><h3>Function Mix</h3><p>By event type</p></div></div>
+        <div class="mix">
+          <div class="mix-row"><span class="ml">Wedding</span><div class="mbar"><i style="width:42%;background:var(--primary)"></i></div><span class="mv">42%</span></div>
+          <div class="mix-row"><span class="ml">Reception</span><div class="mbar"><i style="width:24%;background:var(--primary);opacity:.75"></i></div><span class="mv">24%</span></div>
+          <div class="mix-row"><span class="ml">Corporate</span><div class="mbar"><i style="width:16%;background:var(--primary);opacity:.55"></i></div><span class="mv">16%</span></div>
+          <div class="mix-row"><span class="ml">Sangeet</span><div class="mbar"><i style="width:10%;background:var(--primary);opacity:.4"></i></div><span class="mv">10%</span></div>
+          <div class="mix-row"><span class="ml">Other</span><div class="mbar"><i style="width:8%;background:var(--primary);opacity:.28"></i></div><span class="mv">8%</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px 14px 16px"><div class="card">
+      <div class="tbar"><div><h3 style="font-size:14px;font-weight:600">Recent Bookings</h3></div><button class="btn btn-outline btn-sm" onclick="go('bookings')">View all →</button></div>
+      <table id="dash-table"></table>
+    </div></div>
+  </section>
+
+  <!-- BOOKINGS -->
+  <section class="page" data-page="bookings">
+    <div class="phead"><div><h1>Bookings</h1><div class="desc">Manage and track upcoming events.</div></div><button class="btn btn-primary btn-sm">＋ New Booking</button></div>
+    <div class="tbar" style="padding-bottom:0">
+      <div class="left"><input class="finput" placeholder="Filter customers…"><button class="dashed">＋ Status <span class="c">2</span></button><button class="dashed">＋ Hall</button><button class="dashed">＋ Date</button></div>
+      <div style="display:flex;gap:7px"><button class="btn btn-outline btn-xs">Columns ▾</button><button class="btn btn-outline btn-xs">Export</button></div>
+    </div>
+    <div class="gridwrap" id="bk-wrap">
+      <div class="gcol"><table id="bk-table"></table></div>
+      <aside class="sheet" id="bk-sheet" style="display:none"></aside>
+    </div>
+    <div class="tfoot"><span id="bk-sel">0 of 8 row(s) selected.</span><div style="display:flex;gap:18px" id="bk-agg"></div><div class="pager"><span class="mono" style="font-size:11px">1–8 of 128</span><button class="btn btn-outline btn-xs">‹</button><button class="btn btn-outline btn-xs">›</button></div></div>
+  </section>
+
+  <!-- CALENDAR -->
+  <section class="page" data-page="calendar">
+    <div class="phead"><div><h1>Calendar</h1><div class="desc">Venue timeline · 4 halls</div></div><button class="btn btn-primary btn-sm">＋ New Booking</button></div>
+    <div class="cal-tb"><button class="btn btn-outline btn-xs">‹</button><span style="font-weight:600;min-width:88px;text-align:center">15–21 Jun</span><button class="btn btn-outline btn-xs">›</button><button class="btn btn-outline btn-xs">Today</button>
+      <div class="tabs" style="margin:0"><button>Day</button><button class="on">Week</button><button>Month</button></div>
+      <div class="clegend"><span><i style="background:var(--green)"></i>Confirmed</span><span><i style="background:var(--amber)"></i>Pencil</span><span><i style="background:var(--blue)"></i>Quotation</span><span><i style="background:var(--sky)"></i>Enquiry</span></div>
+    </div>
+    <div class="scroll"><div class="card" style="overflow:auto"><div class="bgrid">
+      <div class="bh corner">Hall</div><div class="bh today">Mon<small>15</small></div><div class="bh">Tue<small>16</small></div><div class="bh">Wed<small>17</small></div><div class="bh">Thu<small>18</small></div><div class="bh">Fri<small>19</small></div><div class="bh">Sat<small>20</small></div><div class="bh">Sun<small>21</small></div>
+      <div class="hcell">Grand Hall</div><div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-quotation">Iyer · 250</div></div><div class="dcell"><div class="ev ev-confirmed">Sharma · 600</div></div><div class="dcell"></div><div class="dcell we"><div class="ev ev-confirmed">Mehta · 400</div></div><div class="dcell we"></div>
+      <div class="hcell">Garden Lawn</div><div class="dcell"></div><div class="dcell"><div class="ev ev-pencil">Verma · 300</div></div><div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-enquiry">Khan · 350</div></div><div class="dcell we"></div><div class="dcell we"><div class="ev ev-confirmed">Rao · 500</div></div>
+      <div class="hcell">Banquet 2</div><div class="dcell"><div class="ev ev-confirmed">Gupta · 180</div></div><div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-pencil">Bose · 120</div></div><div class="dcell"></div><div class="dcell we"></div><div class="dcell we"></div>
+      <div class="hcell">Terrace</div><div class="dcell"></div><div class="dcell"></div><div class="dcell"><div class="ev ev-enquiry">Das · 90</div></div><div class="dcell"></div><div class="dcell"></div><div class="dcell we"><div class="ev ev-quotation">Nair · 150</div></div><div class="dcell we"></div>
+    </div></div></div>
+  </section>
+
+  <!-- CUSTOMERS -->
+  <section class="page" data-page="customers">
+    <div class="phead"><div><h1>Customers</h1><div class="desc">412 total</div></div><button class="btn btn-primary btn-sm">＋ Add Customer</button></div>
+    <div class="tbar"><div class="left"><input class="finput" placeholder="Search name or phone…"></div></div>
+    <div class="gcol" style="flex:1"><table id="cu-table"></table></div>
+  </section>
+
+  <!-- PAYMENTS -->
+  <section class="page" data-page="payments">
+    <div class="phead"><div><h1>Payments</h1><div class="desc">₹18.2L collected this month</div></div><div style="display:flex;gap:7px"><button class="btn btn-outline btn-sm">Export</button><button class="btn btn-primary btn-sm">＋ Record</button></div></div>
+    <div class="stats" style="grid-template-columns:repeat(4,1fr)" id="pay-strip"></div>
+    <div class="tbar"><div class="left"><input class="finput" placeholder="Filter…"><button class="dashed">＋ Mode</button><button class="dashed">＋ Status</button></div></div>
+    <div class="gcol" style="flex:1"><table id="pm-table"></table></div>
+  </section>
+
+  <!-- HALLS -->
+  <section class="page" data-page="halls">
+    <div class="phead"><div><h1>Halls</h1><div class="desc">4 venues</div></div><button class="btn btn-primary btn-sm">＋ Add Hall</button></div>
+    <div class="scroll"><div class="hgrid" id="hl-grid"></div></div>
+  </section>
+
+</div>
+
+<script>
+function go(p){document.querySelectorAll('.page').forEach(s=>s.classList.toggle('show',s.dataset.page===p));document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.page===p));}
+function toggleTheme(){const d=document.documentElement.classList.toggle('dark');document.getElementById('themeBtn').textContent=d?'☀':'☾';}
+
+const grad=['linear-gradient(135deg,#0d9488,#0f766e)','linear-gradient(135deg,#a16207,#d97706)','linear-gradient(135deg,#1d4ed8,#2563eb)','linear-gradient(135deg,#0369a1,#0284c7)','linear-gradient(135deg,#6d28d9,#7c3aed)','linear-gradient(135deg,#be123c,#e11d48)','linear-gradient(135deg,#0f766e,#115e59)','linear-gradient(135deg,#9a3412,#c2410c)'];
+const SC={Confirmed:'var(--green)',Pencil:'var(--amber)',Quotation:'var(--blue)',Enquiry:'var(--sky)'};
+const BK=[
+ ['1042','SF','Sharma Family','+91 98XXX 21000','Wedding',600,'Grand Hall','18 Jun 2026','Confirmed',480000,280000,'Anil'],
+ ['1039','IC','Iyer Corp','+91 80XXX 10293','Conference',250,'Banquet 2','25 Jun 2026','Quotation',190000,0,'Priya'],
+ ['1051','RB','Rao Banerjee','+91 88XXX 33027','Reception',500,'Garden Lawn','09 Jul 2026','Confirmed',510000,510000,'Anil'],
+ ['1033','VS','Verma & Sons','+91 99XXX 44521','Reception',300,'Garden Lawn','22 Jun 2026','Pencil',215000,50000,'Priya'],
+ ['1047','MR','Mehta Reddy','+91 91XXX 55280','Engagement',180,'Grand Hall','02 Jul 2026','Confirmed',290000,145000,'Sneha'],
+ ['1052','NP','Nair Pillai','+91 73XXX 99014','Cocktail',150,'Terrace','05 Jul 2026','Quotation',120000,0,'Anil'],
+ ['1055','KW','Khan Wedding','+91 70XXX 88210','Sangeet',350,'Terrace','30 Jun 2026','Enquiry',340000,0,'Sneha'],
+ ['1058','DG','Das Ghosh','+91 96XXX 70188','Mehndi',90,'Banquet 2','12 Jul 2026','Pencil',95000,25000,'Priya'],
+];
+const INR=n=>'₹'+n.toLocaleString('en-IN');const INRk=n=>n>=100000?'₹'+(n/100000).toFixed(1).replace(/\.0$/,'')+'L':'₹'+(n/1000).toFixed(0)+'k';
+
+function stat(items){return items.map(m=>`<div class="card stat"><div class="d">${m.l}${m.t?` <span class="trend ${m.dir}">${m.t}</span>`:''}</div><div class="v">${m.v}</div><div class="s">${m.s||''}</div></div>`).join('');}
+document.getElementById('dash-strip').innerHTML=stat([
+ {l:'Total Bookings',v:'128',t:'▲ 12.5%',dir:'up',s:'23 new in last 30 days'},
+ {l:'Revenue',v:'₹24.6L',t:'▲ 8.1%',dir:'up',s:'Up from ₹22.7L'},
+ {l:'Active Customers',v:'412',t:'▲ 5.0%',dir:'up',s:'38 repeat this quarter'},
+ {l:'Cancellations',v:'6',t:'▼ 2.0%',dir:'down',s:'4.7% of total'},
+]);
+document.getElementById('pay-strip').innerHTML=stat([
+ {l:'Collected',v:'₹18.2L',t:'▲ 9%',dir:'up',s:'This month'},
+ {l:'Outstanding',v:'₹6.4L',s:'14 bookings'},
+ {l:'Advance held',v:'₹3.1L',s:'Refundable'},
+ {l:'Success rate',v:'96%',t:'▲ 1%',dir:'up',s:'240 txns'},
+]);
+
+function bkRow(b,i,full){const pct=Math.round(b[10]/b[9]*100);return `<tr data-i="${i}" onclick="openSheet(${i},this)">
+ ${full?`<td style="width:30px" onclick="event.stopPropagation()"><span class="ck" onclick="this.classList.toggle('on');updSel()"></span></td>`:''}
+ <td class="mono muted" style="width:46px">#${b[0]}</td>
+ <td><div class="cust"><span class="avt sm" style="background:${grad[i%8]}">${b[1]}</span><div class="nm">${b[2]}</div></div></td>
+ <td>${b[4]} <span class="muted mono" style="font-size:10px">·${b[5]}</span></td>
+ <td class="muted">${b[6]}</td><td class="mono" style="font-size:11px">${b[7]}</td>
+ <td><span class="badge"><span class="dot" style="background:${SC[b[8]]}"></span>${b[8]}</span></td>
+ <td><div class="paybar"><div class="t"><div class="fl" style="width:${pct}%"></div></div><span class="p">${pct}%</span></div></td>
+ <td class="num" style="font-weight:600">${INR(b[9])}</td>
+ ${full?`<td style="width:34px" onclick="event.stopPropagation()"><div class="rowmenu">⋯</div></td>`:''}</tr>`;}
+function head(cols){return `<thead><tr>${cols.map(c=>`<th class="${c.s?'srt':''}" ${c.st?`style="${c.st}"`:''}>${c.t}</th>`).join('')}</tr></thead>`;}
+
+document.getElementById('dash-table').innerHTML=head([{t:'#'},{t:'Customer',s:1},{t:'Function'},{t:'Hall'},{t:'Date',s:1},{t:'Status'},{t:'Paid'},{t:'Total',s:1,st:'text-align:right'}])+'<tbody>'+BK.slice(0,5).map((b,i)=>bkRow(b,i,false)).join('')+'</tbody>';
+document.getElementById('bk-table').innerHTML=head([{t:'<span class="ck" onclick="event.stopPropagation();toggleAll(this)"></span>',st:'width:30px'},{t:'#'},{t:'Customer',s:1},{t:'Function'},{t:'Hall',s:1},{t:'Date',s:1},{t:'Status',s:1},{t:'Paid'},{t:'Total',s:1,st:'text-align:right'},{t:'',st:'width:34px'}])+'<tbody>'+BK.map((b,i)=>bkRow(b,i,true)).join('')+'</tbody>';
+const tot=BK.reduce((s,b)=>s+b[9],0),rec=BK.reduce((s,b)=>s+b[10],0);
+document.getElementById('bk-agg').innerHTML=`<span class="muted">Total <b style="color:var(--foreground);font-family:var(--fm)">${INR(tot)}</b></span><span class="muted">Due <b style="color:var(--foreground);font-family:var(--fm)">${INR(tot-rec)}</b></span>`;
+function updSel(){const n=document.querySelectorAll('#bk-table tbody .ck.on').length;document.getElementById('bk-sel').textContent=`${n} of 8 row(s) selected.`}
+function toggleAll(box){const on=!box.classList.contains('on');box.classList.toggle('on',on);document.querySelectorAll('#bk-table tbody .ck').forEach(c=>c.classList.toggle('on',on));updSel();}
+
+function openSheet(i,row){const b=BK[i],pct=Math.round(b[10]/b[9]*100),due=b[9]-b[10];
+ document.querySelectorAll('#bk-table tbody tr').forEach(r=>r.classList.remove('sel'));if(row)row.classList.add('sel');
+ const wrap=document.getElementById('bk-wrap');wrap.classList.add('inspect');const sh=document.getElementById('bk-sheet');sh.style.display='flex';
+ sh.innerHTML=`<div class="sh-head"><div class="sh-top"><div><div class="sh-title">${b[2]}</div><div class="sh-sub">${b[4]} · ${b[5]} guests</div><div class="sh-id">#BK-${b[0]} · owner ${b[11]}</div></div><div class="sh-x" onclick="closeSheet()">✕</div></div>
+   <div style="margin-top:8px;display:flex;gap:6px"><span class="badge"><span class="dot" style="background:${SC[b[8]]}"></span>${b[8]}</span><span class="badge sec">${pct}% paid</span></div></div>
+  <div class="sh-tabs"><button class="on" onclick="shTab(this,'ov')">Overview</button><button onclick="shTab(this,'pm')">Payments</button><button onclick="shTab(this,'ac')">Activity</button></div>
+  <div class="sh-body">
+   <div data-t="ov" style="display:flex;flex-direction:column;gap:14px">
+    <div><div class="sec-l">Event</div><dl class="kv"><dt>Date</dt><dd class="mono">${b[7]}</dd><dt>Function</dt><dd>${b[4]}</dd><dt>Hall</dt><dd>${b[6]}</dd><dt>Guests</dt><dd class="mono">${b[5]}</dd><dt>Phone</dt><dd class="mono">${b[3]}</dd></dl></div>
+    <div><div class="sec-l">Financials</div><div class="fin"><div class="fin-row"><span>Grand total</span><b>${INR(b[9])}</b></div><div class="fin-row"><span class="muted">Received</span><b style="color:var(--green)">${INR(b[10])}</b></div><div class="fin-bar"><i style="width:${pct}%"></i></div><div class="fin-row"><span>Due</span><b style="color:${due?'var(--red)':'var(--green)'}">${INR(due)}</b></div></div></div>
+    <div><div class="sec-l">Halls &amp; packs</div><div class="hl-li"><span>${b[6]}</span><span class="mono muted">${INR(Math.round(b[9]*0.7))}</span></div><div class="hl-li"><span>Catering · ${b[5]}pax</span><span class="mono muted">${INR(Math.round(b[9]*0.25))}</span></div><div class="hl-li"><span>Decor add-on</span><span class="mono muted">${INR(Math.round(b[9]*0.05))}</span></div></div>
+   </div>
+   <div data-t="pm" style="display:none"><div class="sec-l">Payment history</div><div class="hl-li"><span>UPI · 15 Jun</span><span class="mono" style="color:var(--green)">${INR(Math.round(b[10]*0.6))}</span></div><div class="hl-li"><span>Bank · 02 Jun</span><span class="mono" style="color:var(--green)">${INR(Math.round(b[10]*0.4))}</span></div><div class="hl-li"><span class="muted">Balance due</span><span class="mono" style="color:var(--red)">${INR(due)}</span></div></div>
+   <div data-t="ac" style="display:none"><div class="sec-l">Activity</div><div class="tl"><div class="tl-i">Payment received ${INRk(Math.round(b[10]*0.6))}<div class="tt">15 Jun · ${b[11]}</div></div><div class="tl-i">Status → ${b[8]}<div class="tt">10 Jun · Priya</div></div><div class="tl-i">Quotation sent<div class="tt">06 Jun · Anil</div></div><div class="tl-i">Booking created<div class="tt">04 Jun · ${b[11]}</div></div></div></div>
+  </div>
+  <div class="sh-foot"><button class="btn btn-outline btn-xs" style="flex:1">Edit</button><button class="btn btn-outline btn-xs" style="flex:1">Record payment</button><button class="btn btn-primary btn-xs" style="flex:1">Open</button></div>`;}
+function closeSheet(){document.getElementById('bk-wrap').classList.remove('inspect');document.getElementById('bk-sheet').style.display='none';document.querySelectorAll('#bk-table tbody tr').forEach(r=>r.classList.remove('sel'));}
+function shTab(btn,t){btn.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');document.querySelectorAll('.sh-body [data-t]').forEach(d=>d.style.display=d.dataset.t===t?(t==='ov'?'flex':'block'):'none');}
+
+const CU=[['SF','Sharma Family','+91 98XXX 21000',7,1840000,'Wedding · 18 Jun'],['IC','Iyer Corp','+91 80XXX 10293',12,2210000,'Conference · 25 Jun'],['RB','Rao Banerjee','+91 88XXX 33027',4,1475000,'Reception · 09 Jul'],['VS','Verma & Sons','+91 99XXX 44521',3,630000,'Reception · 22 Jun'],['MR','Mehta Reddy','+91 91XXX 55280',2,580000,'Engagement · 02 Jul'],['NP','Nair Pillai','+91 73XXX 99014',1,120000,'Cocktail · 05 Jul']];
+document.getElementById('cu-table').innerHTML=head([{t:'Customer',s:1},{t:'Phone'},{t:'Bookings',s:1,st:'text-align:right'},{t:'Total spend',s:1,st:'text-align:right'},{t:'Last event'},{t:'',st:'width:34px'}])+'<tbody>'+CU.map((c,i)=>`<tr><td><div class="cust"><span class="avt sm" style="background:${grad[i%8]}">${c[0]}</span><div class="nm">${c[1]}</div></div></td><td class="mono muted" style="font-size:11px">${c[2]}</td><td class="num">${c[3]}</td><td class="num" style="font-weight:600">${INR(c[4])}</td><td class="muted">${c[5]}</td><td><div class="rowmenu">⋯</div></td></tr>`).join('')+'</tbody>';
+
+const PM=[['BK-1042','SF','Sharma Family','UPI','15 Jun 2026','Success',200000],['BK-1039','IC','Iyer Corp','Bank','14 Jun 2026','Success',190000],['BK-1051','RB','Rao Banerjee','Cheque','13 Jun 2026','Pending',150000],['BK-1033','VS','Verma & Sons','Cash','12 Jun 2026','Success',80000],['BK-1047','MR','Mehta Reddy','UPI','11 Jun 2026','Success',120000],['BK-1052','NP','Nair Pillai','Card','10 Jun 2026','Failed',40000]];
+const PS={Success:'var(--green)',Pending:'var(--amber)',Failed:'var(--red)'};
+document.getElementById('pm-table').innerHTML=head([{t:'Booking'},{t:'Customer',s:1},{t:'Mode'},{t:'Date',s:1},{t:'Status',s:1},{t:'Amount',s:1,st:'text-align:right'}])+'<tbody>'+PM.map((p,i)=>`<tr><td class="mono muted" style="font-size:11px">#${p[0]}</td><td><div class="cust"><span class="avt sm" style="background:${grad[i%8]}">${p[1]}</span><div class="nm">${p[2]}</div></div></td><td>${p[3]}</td><td class="mono" style="font-size:11px">${p[4]}</td><td><span class="badge"><span class="dot" style="background:${PS[p[5]]}"></span>${p[5]}</span></td><td class="num" style="font-weight:600">${INR(p[6])}</td></tr>`).join('')+'</tbody>';
+
+const HL=[['Grand Hall','Available',600,12,120000],['Garden Lawn','Booked',400,9,95000],['Banquet 2','Available',250,6,70000],['Terrace','Maintenance',150,3,45000]];
+const HS={Available:'var(--green)',Booked:'var(--amber)',Maintenance:'var(--muted-foreground)'};
+document.getElementById('hl-grid').innerHTML=HL.map(h=>`<div class="card hcard"><div class="ht"><h4>${h[0]}</h4><span class="badge"><span class="dot" style="background:${HS[h[1]]}"></span>${h[1]}</span></div><div class="muted" style="font-size:11px">AC · stage · parking · green room</div><div class="hmeta"><div>Cap<b>${h[2]}</b></div><div>Upcoming<b>${h[3]}</b></div><div>Rate<b style="font-size:13px">${INRk(h[4])}</b></div></div></div>`).join('');
+</script>
+</body>
+</html>
