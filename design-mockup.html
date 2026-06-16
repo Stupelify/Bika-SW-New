@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bika Banquet — UI Comparison (Current vs Refined)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────────────────────────────
+   Tokens lifted verbatim from the real app (src/app/styles/tokens.css).
+   The "Refined" column adds NO new tokens of a different system — it
+   only uses these plus a few semantic extras layered on top, to prove
+   the visual refresh needs no new UI library.
+   ─────────────────────────────────────────────────────────────── */
+:root{
+  --bg:#f8fafc; --surface:#fff; --surface-2:#f1f5f9; --surface-3:#e2e8f0;
+  --text-1:#0f172a; --text-2:#334155; --text-3:#64748b; --text-4:#6b7280;
+  --border:#e2e8f0; --border-2:#cbd5e1;
+  --teal-50:#f0fdfa; --teal-100:#ccfbf1; --teal-200:#99f6e4; --teal-500:#14b8a6;
+  --teal-600:#0d9488; --teal-700:#0f766e; --teal-800:#115e59;
+  --shadow-xs:0 1px 2px rgba(15,23,42,.04);
+  --shadow-sm:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+  --shadow-md:0 4px 6px rgba(15,23,42,.05),0 2px 4px rgba(15,23,42,.04);
+  --shadow-lg:0 10px 15px rgba(15,23,42,.06),0 4px 6px rgba(15,23,42,.04);
+  --ring:rgba(13,148,136,.18);
+  --motion-fast:120ms; --motion-base:180ms; --motion-ease:cubic-bezier(.25,.46,.45,.94);
+  --font-sans:'Inter',ui-sans-serif,system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','SF Mono',monospace;
+}
+[data-theme="dark"]{
+  --bg:#0f1011; --surface:#141516; --surface-2:#1e1f21; --surface-3:#2a2c2e;
+  --text-1:#f8fafc; --text-2:#f1f5f9; --text-3:#cbd5e1; --text-4:#94a3b8;
+  --border:#262626; --border-2:#333;
+  --teal-50:#021c1b; --teal-100:#08302e;
+  --shadow-xs:0 1px 2px rgba(0,0,0,.45);
+  --shadow-sm:0 2px 6px rgba(0,0,0,.5);
+  --shadow-md:0 8px 18px rgba(0,0,0,.55);
+  --shadow-lg:0 14px 30px rgba(0,0,0,.6);
+  --ring:rgba(20,184,166,.28);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font-sans); background:var(--bg); color:var(--text-1);
+  -webkit-font-smoothing:antialiased; padding:24px; line-height:1.4;
+}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── Page header / controls ─────────────────────────────────── */
+.page-head{max-width:1320px;margin:0 auto 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.page-head h1{font-size:20px;font-weight:800;letter-spacing:-.02em}
+.page-head p{font-size:13px;color:var(--text-3);margin-top:3px}
+.controls{display:flex;gap:8px}
+.ctrl-btn{
+  font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+  padding:7px 13px;border-radius:10px;border:1px solid var(--border-2);
+  background:var(--surface);color:var(--text-2);transition:all var(--motion-fast) var(--motion-ease);
+}
+.ctrl-btn:hover{border-color:var(--teal-500);color:var(--teal-700)}
+.ctrl-btn.active{background:var(--teal-600);color:#fff;border-color:var(--teal-600)}
+
+/* ── Comparison grid ────────────────────────────────────────── */
+.compare{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start}
+@media(max-width:1280px){.compare{grid-template-columns:1fr}}
+.col.shadcn .col-head{background:#18181b;color:#fafafa;border-bottom:1px solid #18181b}
+.col.shadcn .tag{background:rgba(255,255,255,.16);color:#fff}
+.col{border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--bg)}
+.col-head{padding:11px 18px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.col-head .tag{font-size:10px;padding:2px 8px;border-radius:100px;font-weight:600;letter-spacing:.03em}
+.col.before .col-head{background:var(--surface-2);color:var(--text-3);border-bottom:1px solid var(--border)}
+.col.before .tag{background:var(--surface-3);color:var(--text-3)}
+.col.after .col-head{background:linear-gradient(90deg,var(--teal-600),var(--teal-700));color:#fff;border-bottom:1px solid var(--teal-700)}
+.col.after .tag{background:rgba(255,255,255,.22);color:#fff}
+.canvas{padding:18px}
+
+/* ════════════════════════════════════════════════════════════
+   CURRENT (faithful reproduction of the live app)
+   ════════════════════════════════════════════════════════════ */
+.b-shell{display:grid;grid-template-columns:150px 1fr;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+.b-side{background:var(--surface);border-right:1px solid var(--border);padding:12px 8px}
+.b-brand{font-size:13px;font-weight:700;padding:6px 8px 12px;color:var(--text-1)}
+.b-nav a{display:flex;align-items:center;gap:8px;padding:7px 8px;font-size:12.5px;color:var(--text-3);border-radius:7px;text-decoration:none;margin-bottom:1px}
+.b-nav a.on{background:var(--surface-2);color:var(--text-1);font-weight:600}
+.b-main{padding:14px}
+.b-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.b-topbar h2{font-size:15px;font-weight:700}
+.b-search{font-size:12px;color:var(--text-4);border:1px solid var(--border-2);border-radius:8px;padding:5px 10px;background:var(--surface)}
+
+.b-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow-xs)}
+.kpi-label{font-size:11px;font-weight:600;color:var(--text-4);letter-spacing:.02em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.kpi-value{font-size:22px;font-weight:700;color:var(--text-1);letter-spacing:-.03em;line-height:1;margin-bottom:7px}
+.kpi-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px}
+.delta-up{background:#dcfce7;color:#15803d}
+.delta-down{background:#fef2f2;color:#dc2626}
+
+.b-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.b-panel-head{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+table{width:100%;border-collapse:collapse}
+thead th{font-size:10px;font-weight:400;font-family:var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);text-align:left;padding:8px 14px;border-bottom:1px solid var(--border)}
+tbody td{font-size:12.5px;padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text-2)}
+tbody tr:last-child td{border-bottom:none}
+.status-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.status-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.status-confirmed{background:#dcfce7;color:#15803d}
+.status-pending{background:#fffbeb;color:#92400e}
+.status-quotation{background:#eff6ff;color:#1d4ed8}
+.status-enquiry{background:#f0f9ff;color:#0369a1}
+.status-cancelled{background:#fef2f2;color:#991b1b}
+.b-btn{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:8px;background:var(--teal-600);color:#fff;border:none;cursor:pointer}
+
+/* ════════════════════════════════════════════════════════════
+   SHADCN  (default "zinc" theme, verbatim token values + component
+   conventions: near-black primary, muted-foreground, rounded-lg,
+   hairline borders, outline badges. This is what you get out of the
+   box before any theming — deliberately neutral.)
+   ════════════════════════════════════════════════════════════ */
+.sc-shell{
+  --sc-bg:#fff; --sc-fg:#09090b; --sc-card:#fff; --sc-primary:#18181b;
+  --sc-primary-fg:#fafafa; --sc-muted:#f4f4f5; --sc-muted-fg:#71717a;
+  --sc-accent:#f4f4f5; --sc-border:#e4e4e7; --sc-ring:#18181b;
+  display:grid;grid-template-columns:172px 1fr;border:1px solid var(--sc-border);
+  border-radius:12px;overflow:hidden;background:var(--sc-card);color:var(--sc-fg);
+  font-family:var(--font-sans);box-shadow:var(--shadow-sm)
+}
+[data-theme="dark"] .sc-shell{
+  --sc-bg:#09090b; --sc-fg:#fafafa; --sc-card:#09090b; --sc-primary:#fafafa;
+  --sc-primary-fg:#18181b; --sc-muted:#27272a; --sc-muted-fg:#a1a1aa;
+  --sc-accent:#27272a; --sc-border:#27272a; --sc-ring:#d4d4d8
+}
+.sc-side{border-right:1px solid var(--sc-border);padding:14px 10px;background:var(--sc-card)}
+.sc-brand{display:flex;align-items:center;gap:9px;padding:4px 8px 14px;font-size:14px;font-weight:600}
+.sc-logo{width:26px;height:26px;border-radius:7px;background:var(--sc-primary);color:var(--sc-primary-fg);display:grid;place-items:center;font-size:13px;font-weight:700}
+.sc-nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;color:var(--sc-fg);border-radius:8px;text-decoration:none;font-weight:500;transition:background var(--motion-fast) var(--motion-ease)}
+.sc-nav a .ic{width:16px;height:16px;color:var(--sc-muted-fg)}
+.sc-nav a:hover{background:var(--sc-accent)}
+.sc-nav a.on{background:var(--sc-accent);font-weight:500}
+.sc-navlabel{font-size:11px;font-weight:500;color:var(--sc-muted-fg);padding:10px 10px 5px}
+.sc-main{padding:18px 20px;background:var(--sc-bg)}
+.sc-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.sc-topbar h2{font-size:18px;font-weight:600;letter-spacing:-.01em}
+.sc-topbar .sub{font-size:13px;color:var(--sc-muted-fg);margin-top:2px}
+.sc-actions{display:flex;align-items:center;gap:9px}
+.sc-search{font-size:13px;color:var(--sc-muted-fg);border:1px solid var(--sc-border);border-radius:8px;padding:7px 12px;background:var(--sc-bg)}
+.sc-btn{font-size:13px;font-weight:500;padding:8px 14px;border-radius:8px;background:var(--sc-primary);color:var(--sc-primary-fg);border:none;cursor:pointer;transition:opacity var(--motion-fast)}
+.sc-btn:hover{opacity:.9}
+.sc-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:18px}
+.sc-card{background:var(--sc-card);border:1px solid var(--sc-border);border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.sc-kpi{padding:18px 18px 16px}
+.sc-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sc-kpi-title{font-size:13px;font-weight:500;color:var(--sc-fg)}
+.sc-kpi-ic{color:var(--sc-muted-fg)}
+.sc-kpi-value{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1;margin-bottom:6px}
+.sc-kpi-sub{font-size:12px;color:var(--sc-muted-fg)}
+.sc-badge{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:7px;font-size:11px;font-weight:600;border:1px solid var(--sc-border);color:var(--sc-fg);background:transparent}
+.sc-badge .d{width:6px;height:6px;border-radius:50%}
+.sc-panel-head{padding:16px 18px 12px}
+.sc-panel-head h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.sc-panel-head p{font-size:13px;color:var(--sc-muted-fg);margin-top:2px}
+.sc-table{width:100%;border-collapse:collapse}
+.sc-table thead th{font-size:13px;font-weight:500;color:var(--sc-muted-fg);text-align:left;padding:8px 18px;height:40px}
+.sc-table tbody td{font-size:13px;padding:12px 18px;border-top:1px solid var(--sc-border);color:var(--sc-fg)}
+.sc-table tbody tr{transition:background var(--motion-fast)}
+.sc-table tbody tr:hover{background:var(--sc-muted)}
+.sc-muted{color:var(--sc-muted-fg)}
+
+/* ════════════════════════════════════════════════════════════
+   REFINED  (same tokens, better visual design)
+   ════════════════════════════════════════════════════════════ */
+.a-shell{display:grid;grid-template-columns:172px 1fr;border-radius:16px;overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-lg);background:var(--surface)}
+.a-side{background:linear-gradient(180deg,var(--surface),var(--surface-2));border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.a-brand{display:flex;align-items:center;gap:9px;padding:4px 8px 14px;font-size:14px;font-weight:800;letter-spacing:-.01em}
+.a-logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--teal-500),var(--teal-700));display:grid;place-items:center;color:#fff;font-size:13px;font-weight:800;box-shadow:0 2px 6px rgba(13,148,136,.4)}
+.a-navlabel{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-4);padding:10px 9px 5px}
+.a-nav a{position:relative;display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;color:var(--text-3);border-radius:9px;text-decoration:none;font-weight:500;transition:all var(--motion-fast) var(--motion-ease)}
+.a-nav a .ic{width:17px;height:17px;opacity:.7}
+.a-nav a:hover{background:var(--surface-2);color:var(--text-1)}
+.a-nav a.on{background:var(--teal-50);color:var(--teal-700);font-weight:600}
+.a-nav a.on .ic{opacity:1}
+.a-nav a.on::before{content:"";position:absolute;left:-10px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--teal-600)}
+
+.a-main{padding:18px 20px;background:var(--bg)}
+.a-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.a-topbar h2{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.a-topbar .sub{font-size:12px;color:var(--text-3);margin-top:2px}
+.a-actions{display:flex;align-items:center;gap:9px}
+.a-search{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-4);border:1px solid var(--border-2);border-radius:10px;padding:7px 12px;background:var(--surface);box-shadow:var(--shadow-xs)}
+.a-search kbd{font-family:var(--font-mono);font-size:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;color:var(--text-4)}
+.a-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:10px;background:var(--teal-600);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 6px rgba(13,148,136,.3);transition:all var(--motion-fast) var(--motion-ease)}
+.a-btn:hover{background:var(--teal-700);box-shadow:0 4px 12px rgba(13,148,136,.4);transform:translateY(-1px)}
+
+.a-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:18px}
+.a-kpi{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm);overflow:hidden;transition:all var(--motion-base) var(--motion-ease)}
+.a-kpi:hover{box-shadow:var(--shadow-md);transform:translateY(-2px);border-color:var(--border-2)}
+.a-kpi.feature{background:linear-gradient(150deg,var(--teal-600),var(--teal-800));border-color:var(--teal-700)}
+.a-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.a-kpi-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--teal-50);color:var(--teal-700)}
+.a-kpi.feature .a-kpi-ic{background:rgba(255,255,255,.18);color:#fff}
+.a-kpi-label{font-size:11px;font-weight:600;color:var(--text-4);letter-spacing:.03em;text-transform:uppercase}
+.a-kpi.feature .a-kpi-label{color:rgba(255,255,255,.85)}
+.a-kpi-value{font-size:27px;font-weight:800;letter-spacing:-.035em;line-height:1;margin-bottom:9px}
+.a-kpi.feature .a-kpi-value{color:#fff}
+.a-kpi-foot{display:flex;align-items:center;justify-content:space-between}
+.a-delta{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:100px}
+.a-delta.up{background:#dcfce7;color:#15803d}
+.a-delta.down{background:#fef2f2;color:#dc2626}
+.a-kpi.feature .a-delta.up{background:rgba(255,255,255,.2);color:#fff}
+.a-spark{opacity:.9}
+
+.a-grid2{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}
+@media(max-width:560px){.a-grid2{grid-template-columns:1fr}}
+.a-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden}
+.a-panel-head{padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
+.a-panel-head h3{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.a-panel-head .link{font-size:12px;font-weight:600;color:var(--teal-700);display:inline-flex;align-items:center;gap:3px;cursor:pointer}
+.a-table{width:100%;border-collapse:separate;border-spacing:0}
+.a-table thead th{font-size:10px;font-weight:600;font-family:var(--font-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--text-4);text-align:left;padding:7px 16px;background:var(--surface-2)}
+.a-table tbody td{font-size:13px;padding:11px 16px;border-top:1px solid var(--border);color:var(--text-2);vertical-align:middle}
+.a-table tbody tr{transition:background var(--motion-fast) var(--motion-ease)}
+.a-table tbody tr:hover{background:var(--surface-2)}
+.a-cust{display:flex;align-items:center;gap:9px}
+.a-avatar{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.a-cust .nm{font-weight:600;color:var(--text-1);font-size:12.5px}
+.a-cust .ph{font-size:10.5px;color:var(--text-4);font-family:var(--font-mono)}
+.a-row-rail{position:relative}
+.a-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.a-pill .d{width:5px;height:5px;border-radius:50%;background:currentColor}
+.a-confirmed{background:#dcfce7;color:#15803d}
+.a-pending{background:#fef3c7;color:#92400e}
+.a-quotation{background:#dbeafe;color:#1d4ed8}
+.a-enquiry{background:#e0f2fe;color:#0369a1}
+
+.a-side-panel{padding:16px}
+.a-donut-wrap{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+.a-donut{width:96px;height:96px;border-radius:50%;flex-shrink:0;
+  background:conic-gradient(var(--teal-500) 0 42%,var(--teal-700) 42% 66%,#f59e0b 66% 82%,#6366f1 82% 92%,#ec4899 92% 100%);
+  display:grid;place-items:center;mask:radial-gradient(circle 30px at center,transparent 98%,#000 100%);-webkit-mask:radial-gradient(circle 30px at center,transparent 98%,#000 100%)}
+.a-legend{display:flex;flex-direction:column;gap:7px;flex:1}
+.a-leg-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
+.a-leg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.a-leg-item .v{margin-left:auto;font-weight:700;font-family:var(--font-mono);color:var(--text-1);font-size:11.5px}
+
+.notes{max-width:1320px;margin:24px auto 0;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 24px;box-shadow:var(--shadow-xs)}
+.notes h3{font-size:14px;font-weight:800;margin-bottom:4px}
+.notes .lead{font-size:12.5px;color:var(--text-3);margin-bottom:16px}
+.notes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+@media(max-width:760px){.notes-grid{grid-template-columns:1fr}}
+.note{display:flex;gap:11px}
+.note .n{flex-shrink:0;width:24px;height:24px;border-radius:7px;background:var(--teal-50);color:var(--teal-700);display:grid;place-items:center;font-size:12px;font-weight:800}
+.note h4{font-size:12.5px;font-weight:700;margin-bottom:2px}
+.note p{font-size:12px;color:var(--text-3);line-height:1.5}
+.foot{max-width:1320px;margin:16px auto 0;font-size:11.5px;color:var(--text-4);text-align:center}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div>
+    <h1>Bika Banquet — Dashboard, two ways</h1>
+    <p>Three ways, same dashboard: <strong>Current</strong> (live UI) · <strong>shadcn</strong> (out-of-the-box default theme) · <strong>Refined</strong> (your existing tokens, no new library).</p>
+  </div>
+  <div class="controls">
+    <button class="ctrl-btn active" id="lightBtn" onclick="setTheme('light')">☀ Light</button>
+    <button class="ctrl-btn" id="darkBtn" onclick="setTheme('dark')">☾ Dark</button>
+  </div>
+</div>
+
+<div class="compare">
+  <!-- ════════ CURRENT ════════ -->
+  <div class="col before">
+    <div class="col-head">Current <span class="tag">As built today</span></div>
+    <div class="canvas">
+      <div class="b-shell">
+        <aside class="b-side">
+          <div class="b-brand">Bika Banquet</div>
+          <nav class="b-nav">
+            <a class="on">▦ Dashboard</a>
+            <a>▤ Bookings</a>
+            <a>☷ Calendar</a>
+            <a>◴ Customers</a>
+            <a>⌗ Halls</a>
+            <a>₹ Payments</a>
+          </nav>
+        </aside>
+        <main class="b-main">
+          <div class="b-topbar">
+            <h2>Dashboard</h2>
+            <span class="b-search">Search…</span>
+          </div>
+          <div class="b-kpis">
+            <div class="kpi-card"><div class="kpi-label">Bookings</div><div class="kpi-value num">128</div><span class="kpi-delta delta-up">▲ 12% MoM</span></div>
+            <div class="kpi-card"><div class="kpi-label">Revenue</div><div class="kpi-value num">₹24.6L</div><span class="kpi-delta delta-up">▲ 8% MoM</span></div>
+            <div class="kpi-card"><div class="kpi-label">Customers</div><div class="kpi-value num">412</div><span class="kpi-delta delta-up">▲ 5% MoM</span></div>
+            <div class="kpi-card"><div class="kpi-label">Cancelled</div><div class="kpi-value num">6</div><span class="kpi-delta delta-down">▼ 2% MoM</span></div>
+          </div>
+          <div class="b-panel">
+            <div class="b-panel-head"><span>Recent Bookings</span><button class="b-btn">New</button></div>
+            <table>
+              <thead><tr><th>Customer</th><th>Function</th><th>Date</th><th>Status</th><th>Total</th></tr></thead>
+              <tbody>
+                <tr><td>Sharma Family</td><td>Wedding</td><td>18/06/2026</td><td><span class="status-pill status-confirmed"><span class="status-dot"></span>Confirmed</span></td><td class="num">₹4,80,000</td></tr>
+                <tr><td>Verma &amp; Sons</td><td>Reception</td><td>22/06/2026</td><td><span class="status-pill status-pending"><span class="status-dot"></span>Pending</span></td><td class="num">₹2,15,000</td></tr>
+                <tr><td>Iyer Corp</td><td>Conference</td><td>25/06/2026</td><td><span class="status-pill status-quotation"><span class="status-dot"></span>Quotation</span></td><td class="num">₹1,90,000</td></tr>
+                <tr><td>Khan Wedding</td><td>Sangeet</td><td>30/06/2026</td><td><span class="status-pill status-enquiry"><span class="status-dot"></span>Enquiry</span></td><td class="num">₹3,40,000</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ SHADCN (default) ════════ -->
+  <div class="col shadcn">
+    <div class="col-head">shadcn/ui <span class="tag">Default theme · unstyled</span></div>
+    <div class="canvas">
+      <div class="sc-shell">
+        <aside class="sc-side">
+          <div class="sc-brand"><span class="sc-logo">B</span> Bika</div>
+          <div class="sc-navlabel">Overview</div>
+          <nav class="sc-nav">
+            <a class="on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg> Dashboard</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg> Bookings</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Calendar</a>
+          </nav>
+          <div class="sc-navlabel">Manage</div>
+          <nav class="sc-nav">
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg> Customers</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18"/></svg> Halls</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg> Payments</a>
+          </nav>
+        </aside>
+        <main class="sc-main">
+          <div class="sc-topbar">
+            <div><h2>Dashboard</h2><div class="sub">Mon, 15 Jun 2026</div></div>
+            <div class="sc-actions">
+              <span class="sc-search">Search…</span>
+              <button class="sc-btn">+ New Booking</button>
+            </div>
+          </div>
+          <div class="sc-kpis">
+            <div class="sc-card sc-kpi">
+              <div class="sc-kpi-top"><span class="sc-kpi-title">Bookings</span><svg class="sc-kpi-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg></div>
+              <div class="sc-kpi-value num">128</div><div class="sc-kpi-sub">+12% from last month</div>
+            </div>
+            <div class="sc-card sc-kpi">
+              <div class="sc-kpi-top"><span class="sc-kpi-title">Revenue</span><svg class="sc-kpi-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12M6 8h12M9 13c6 0 6-5 0-5M6 13h3l6 8"/></svg></div>
+              <div class="sc-kpi-value num">₹24.6L</div><div class="sc-kpi-sub">+8% from last month</div>
+            </div>
+            <div class="sc-card sc-kpi">
+              <div class="sc-kpi-top"><span class="sc-kpi-title">Customers</span><svg class="sc-kpi-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></div>
+              <div class="sc-kpi-value num">412</div><div class="sc-kpi-sub">+5% from last month</div>
+            </div>
+            <div class="sc-card sc-kpi">
+              <div class="sc-kpi-top"><span class="sc-kpi-title">Cancelled</span><svg class="sc-kpi-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div>
+              <div class="sc-kpi-value num">6</div><div class="sc-kpi-sub">−2% from last month</div>
+            </div>
+          </div>
+          <div class="sc-card">
+            <div class="sc-panel-head"><h3>Recent Bookings</h3><p>You have 4 bookings this week.</p></div>
+            <table class="sc-table">
+              <thead><tr><th>Customer</th><th>Function</th><th>Date</th><th>Status</th><th style="text-align:right">Total</th></tr></thead>
+              <tbody>
+                <tr><td>Sharma Family<div class="sc-muted" style="font-size:11.5px">+91 98XXX 21000</div></td><td>Wedding</td><td>18 Jun</td><td><span class="sc-badge"><span class="d" style="background:#16a34a"></span>Confirmed</span></td><td class="num" style="text-align:right">₹4,80,000</td></tr>
+                <tr><td>Verma &amp; Sons<div class="sc-muted" style="font-size:11.5px">+91 99XXX 44521</div></td><td>Reception</td><td>22 Jun</td><td><span class="sc-badge"><span class="d" style="background:#d97706"></span>Pending</span></td><td class="num" style="text-align:right">₹2,15,000</td></tr>
+                <tr><td>Iyer Corp<div class="sc-muted" style="font-size:11.5px">+91 80XXX 10293</div></td><td>Conference</td><td>25 Jun</td><td><span class="sc-badge"><span class="d" style="background:#2563eb"></span>Quotation</span></td><td class="num" style="text-align:right">₹1,90,000</td></tr>
+                <tr><td>Khan Wedding<div class="sc-muted" style="font-size:11.5px">+91 70XXX 88210</div></td><td>Sangeet</td><td>30 Jun</td><td><span class="sc-badge"><span class="d" style="background:#0284c7"></span>Enquiry</span></td><td class="num" style="text-align:right">₹3,40,000</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ REFINED ════════ -->
+  <div class="col after">
+    <div class="col-head">Refined <span class="tag">Same tokens · no new library</span></div>
+    <div class="canvas">
+      <div class="a-shell">
+        <aside class="a-side">
+          <div class="a-brand"><span class="a-logo">B</span> Bika</div>
+          <div class="a-navlabel">Overview</div>
+          <nav class="a-nav">
+            <a class="on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg> Dashboard</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg> Bookings</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Calendar</a>
+          </nav>
+          <div class="a-navlabel">Manage</div>
+          <nav class="a-nav">
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2M16 3.13a4 4 0 010 7.75"/></svg> Customers</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg> Halls</a>
+            <a><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg> Payments</a>
+          </nav>
+        </aside>
+        <main class="a-main">
+          <div class="a-topbar">
+            <div>
+              <h2>Dashboard</h2>
+              <div class="sub">Mon, 15 Jun 2026 · 4 events this week</div>
+            </div>
+            <div class="a-actions">
+              <span class="a-search">🔍 Search… <kbd>⌘K</kbd></span>
+              <button class="a-btn">＋ New Booking</button>
+            </div>
+          </div>
+          <div class="a-kpis">
+            <div class="a-kpi feature">
+              <div class="a-kpi-top"><div class="a-kpi-label">Bookings</div><div class="a-kpi-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg></div></div>
+              <div class="a-kpi-value num">128</div>
+              <div class="a-kpi-foot"><span class="a-delta up">▲ 12% MoM</span>
+                <svg class="a-spark" width="60" height="22" viewBox="0 0 60 22"><polyline points="0,18 12,14 24,15 36,8 48,10 60,3" fill="none" stroke="#fff" stroke-width="1.8"/></svg></div>
+            </div>
+            <div class="a-kpi">
+              <div class="a-kpi-top"><div class="a-kpi-label">Revenue</div><div class="a-kpi-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12M6 8h12M9 13c6 0 6-5 0-5M6 13h3l6 8"/></svg></div></div>
+              <div class="a-kpi-value num">₹24.6L</div>
+              <div class="a-kpi-foot"><span class="a-delta up">▲ 8% MoM</span>
+                <svg class="a-spark" width="60" height="22" viewBox="0 0 60 22"><polyline points="0,16 12,17 24,11 36,12 48,6 60,7" fill="none" stroke="var(--teal-500)" stroke-width="1.8"/></svg></div>
+            </div>
+            <div class="a-kpi">
+              <div class="a-kpi-top"><div class="a-kpi-label">Customers</div><div class="a-kpi-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></div></div>
+              <div class="a-kpi-value num">412</div>
+              <div class="a-kpi-foot"><span class="a-delta up">▲ 5% MoM</span>
+                <svg class="a-spark" width="60" height="22" viewBox="0 0 60 22"><polyline points="0,15 12,13 24,14 36,10 48,9 60,5" fill="none" stroke="var(--teal-500)" stroke-width="1.8"/></svg></div>
+            </div>
+            <div class="a-kpi">
+              <div class="a-kpi-top"><div class="a-kpi-label">Cancelled</div><div class="a-kpi-ic" style="background:#fef2f2;color:#dc2626"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div></div>
+              <div class="a-kpi-value num">6</div>
+              <div class="a-kpi-foot"><span class="a-delta down">▼ 2% MoM</span>
+                <svg class="a-spark" width="60" height="22" viewBox="0 0 60 22"><polyline points="0,6 12,8 24,7 36,11 48,10 60,14" fill="none" stroke="#dc2626" stroke-width="1.8"/></svg></div>
+            </div>
+          </div>
+
+          <div class="a-grid2">
+            <div class="a-panel">
+              <div class="a-panel-head"><h3>Recent Bookings</h3><span class="link">View all →</span></div>
+              <table class="a-table">
+                <thead><tr><th>Customer</th><th>Function</th><th>Date</th><th>Status</th><th style="text-align:right">Total</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="a-cust"><span class="a-avatar" style="background:linear-gradient(135deg,#0d9488,#0f766e)">SF</span><div><div class="nm">Sharma Family</div><div class="ph">+91 98XXX 21000</div></div></div></td>
+                    <td>Wedding</td><td class="num">18 Jun</td>
+                    <td><span class="a-pill a-confirmed"><span class="d"></span>Confirmed</span></td>
+                    <td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹4,80,000</td>
+                  </tr>
+                  <tr>
+                    <td><div class="a-cust"><span class="a-avatar" style="background:linear-gradient(135deg,#f59e0b,#d97706)">VS</span><div><div class="nm">Verma &amp; Sons</div><div class="ph">+91 99XXX 44521</div></div></div></td>
+                    <td>Reception</td><td class="num">22 Jun</td>
+                    <td><span class="a-pill a-pending"><span class="d"></span>Pending</span></td>
+                    <td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹2,15,000</td>
+                  </tr>
+                  <tr>
+                    <td><div class="a-cust"><span class="a-avatar" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">IC</span><div><div class="nm">Iyer Corp</div><div class="ph">+91 80XXX 10293</div></div></div></td>
+                    <td>Conference</td><td class="num">25 Jun</td>
+                    <td><span class="a-pill a-quotation"><span class="d"></span>Quotation</span></td>
+                    <td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹1,90,000</td>
+                  </tr>
+                  <tr>
+                    <td><div class="a-cust"><span class="a-avatar" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">KW</span><div><div class="nm">Khan Wedding</div><div class="ph">+91 70XXX 88210</div></div></div></td>
+                    <td>Sangeet</td><td class="num">30 Jun</td>
+                    <td><span class="a-pill a-enquiry"><span class="d"></span>Enquiry</span></td>
+                    <td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹3,40,000</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="a-panel a-side-panel">
+              <div class="a-panel-head" style="padding:0 0 14px"><h3>Function Mix</h3></div>
+              <div class="a-donut-wrap">
+                <div class="a-donut"></div>
+                <div class="a-legend">
+                  <div class="a-leg-item"><span class="a-leg-dot" style="background:#14b8a6"></span>Wedding <span class="v">42%</span></div>
+                  <div class="a-leg-item"><span class="a-leg-dot" style="background:#0d9488"></span>Reception <span class="v">24%</span></div>
+                  <div class="a-leg-item"><span class="a-leg-dot" style="background:#f59e0b"></span>Corporate <span class="v">16%</span></div>
+                  <div class="a-leg-item"><span class="a-leg-dot" style="background:#6366f1"></span>Sangeet <span class="v">10%</span></div>
+                  <div class="a-leg-item"><span class="a-leg-dot" style="background:#ec4899"></span>Other <span class="v">8%</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>What changed — and why it isn't a library swap</h3>
+  <p class="lead">Every pixel on the right uses your existing CSS variables (teal accent, surfaces, text levels, radii, shadows, Inter + JetBrains Mono). These are visual-design moves, applied in the CSS you already own.</p>
+  <div class="notes-grid">
+    <div class="note"><span class="n">1</span><div><h4>Type hierarchy</h4><p>Bigger, tighter KPI numbers (800 weight, −.035em) and a clear label/value/footer rhythm so the eye lands on the metric first.</p></div></div>
+    <div class="note"><span class="n">2</span><div><h4>Intentional accent</h4><p>One "feature" KPI in teal, tinted icon chips, an active-nav rail. The brand colour leads instead of sitting only on buttons.</p></div></div>
+    <div class="note"><span class="n">3</span><div><h4>Depth &amp; motion</h4><p>Layered shadows, hover lift on cards and rows, a real app-shell elevation — using your `--shadow-*` and `--motion-*` tokens.</p></div></div>
+    <div class="note"><span class="n">4</span><div><h4>Richer rows</h4><p>Customer avatars + phone, zebra-free hover, right-aligned mono money, softer header band. Same data, more scannable.</p></div></div>
+    <div class="note"><span class="n">5</span><div><h4>Density &amp; spacing</h4><p>Consistent 13–16px gaps and 16px radii give breathing room without losing the compact, ops-grade feel.</p></div></div>
+    <div class="note"><span class="n">6</span><div><h4>So where's shadcn?</h4><p>The middle column. Notice it's clean but <strong>monochrome and brand-less by default</strong> — near-black buttons, neutral badges. It would need the same visual work to feel like "Bika", so the library isn't what removes "generic".</p></div></div>
+  </div>
+</div>
+
+<p class="foot">Static mockup · toggle Light/Dark above · no application code modified — this is a standalone <code>design-mockup.html</code> for comparison only.</p>
+
+<script>
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  document.getElementById('lightBtn').classList.toggle('active',t==='light');
+  document.getElementById('darkBtn').classList.toggle('active',t==='dark');
+}
+</script>
+</body>
+</html>
