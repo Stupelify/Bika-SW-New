@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bika Banquet — Top Nav + Workspace Tabs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8fafc; --surface:#fff; --surface-2:#f1f5f9; --surface-3:#e2e8f0;
+  --text-1:#0f172a; --text-2:#334155; --text-3:#64748b; --text-4:#6b7280;
+  --border:#e2e8f0; --border-2:#cbd5e1;
+  --teal-50:#f0fdfa; --teal-100:#ccfbf1; --teal-200:#99f6e4; --teal-500:#14b8a6;
+  --teal-600:#0d9488; --teal-700:#0f766e; --teal-800:#115e59;
+  --shadow-xs:0 1px 2px rgba(15,23,42,.04);
+  --shadow-sm:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+  --shadow-md:0 4px 6px rgba(15,23,42,.05),0 2px 4px rgba(15,23,42,.04);
+  --shadow-lg:0 10px 20px rgba(15,23,42,.08),0 4px 6px rgba(15,23,42,.04);
+  --ring:rgba(13,148,136,.18);
+  --motion-fast:120ms; --motion-base:180ms; --motion-ease:cubic-bezier(.25,.46,.45,.94);
+  --font-sans:'Inter',ui-sans-serif,system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','SF Mono',monospace;
+  /* status tokens (from app) */
+  --st-confirmed-bg:#dcfce7; --st-confirmed-fg:#15803d; --st-confirmed-ac:#22c55e;
+  --st-pencil-bg:#fef3c7;    --st-pencil-fg:#92400e;    --st-pencil-ac:#f59e0b;
+  --st-quotation-bg:#dbeafe; --st-quotation-fg:#1d4ed8; --st-quotation-ac:#3b82f6;
+  --st-enquiry-bg:#e0f2fe;   --st-enquiry-fg:#0369a1;   --st-enquiry-ac:#0ea5e9;
+}
+[data-theme="dark"]{
+  --bg:#0f1011; --surface:#141516; --surface-2:#1e1f21; --surface-3:#2a2c2e;
+  --text-1:#f8fafc; --text-2:#f1f5f9; --text-3:#cbd5e1; --text-4:#94a3b8;
+  --border:#262626; --border-2:#333;
+  --teal-50:#021c1b; --teal-100:#08302e;
+  --shadow-xs:0 1px 2px rgba(0,0,0,.45);
+  --shadow-sm:0 2px 6px rgba(0,0,0,.5);
+  --shadow-md:0 8px 18px rgba(0,0,0,.55);
+  --shadow-lg:0 14px 30px rgba(0,0,0,.6);
+  --ring:rgba(20,184,166,.28);
+  --st-confirmed-bg:#052e16; --st-confirmed-fg:#86efac;
+  --st-pencil-bg:#2d1a00;    --st-pencil-fg:#fcd34d;
+  --st-quotation-bg:#0d1f4a; --st-quotation-fg:#93c5fd;
+  --st-enquiry-bg:#0a1f2d;   --st-enquiry-fg:#7dd3fc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--text-1);-webkit-font-smoothing:antialiased;padding:22px;line-height:1.4}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+.page-head{max-width:1280px;margin:0 auto 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.page-head h1{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.page-head p{font-size:12.5px;color:var(--text-3);margin-top:3px;max-width:720px}
+.ctrl-btn{font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:7px 13px;border-radius:10px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);transition:all var(--motion-fast)}
+.ctrl-btn:hover{border-color:var(--teal-500);color:var(--teal-700)}
+
+/* ════════ APP FRAME ════════ */
+.app{max-width:1280px;margin:0 auto;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-lg);background:var(--surface)}
+
+/* ── 1. Top nav ───────────────────────────────────────────── */
+.topnav{display:flex;align-items:center;gap:6px;height:54px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;letter-spacing:-.01em;padding-right:10px;margin-right:4px}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--teal-500),var(--teal-700));display:grid;place-items:center;color:#fff;font-size:14px;font-weight:800;box-shadow:0 2px 6px rgba(13,148,136,.4)}
+.nav{display:flex;align-items:center;gap:2px}
+.nav button{display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-size:13px;font-weight:500;color:var(--text-3);background:transparent;border:none;cursor:pointer;padding:8px 12px;border-radius:9px;transition:all var(--motion-fast)}
+.nav button .ic{width:16px;height:16px;opacity:.75}
+.nav button:hover{background:var(--surface-2);color:var(--text-1)}
+.nav button.active{color:var(--teal-700);background:var(--teal-50)}
+.nav button.active .ic{opacity:1}
+.topnav .spacer{flex:1}
+.top-right{display:flex;align-items:center;gap:8px}
+.searchbox{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-4);border:1px solid var(--border-2);border-radius:10px;padding:7px 11px;background:var(--surface);min-width:180px}
+.searchbox kbd{margin-left:auto;font-family:var(--font-mono);font-size:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;color:var(--text-4)}
+.icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--text-3);display:grid;place-items:center;cursor:pointer;transition:all var(--motion-fast)}
+.icon-btn:hover{background:var(--surface-2);color:var(--text-1)}
+.avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;cursor:pointer}
+
+/* ── 2. Tab strip ─────────────────────────────────────────── */
+.tabstrip{display:flex;align-items:flex-end;gap:3px;height:42px;padding:0 10px;background:var(--surface-2);border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{position:relative;display:inline-flex;align-items:center;gap:8px;height:33px;padding:0 10px 0 12px;border-radius:9px 9px 0 0;background:transparent;color:var(--text-3);font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid transparent;border-bottom:none;max-width:230px;transition:background var(--motion-fast)}
+.tab .ic{width:14px;height:14px;flex-shrink:0;opacity:.7}
+.tab .ttl{overflow:hidden;text-overflow:ellipsis}
+.tab:hover{background:rgba(148,163,184,.16);color:var(--text-1)}
+.tab.active{background:var(--surface);color:var(--text-1);font-weight:600;border-color:var(--border);box-shadow:0 -2px 4px rgba(15,23,42,.03)}
+.tab.active::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--teal-600);border-radius:2px 2px 0 0}
+.tab.active .ic{opacity:1}
+.tab .x{width:17px;height:17px;border-radius:5px;display:grid;place-items:center;font-size:14px;line-height:1;color:var(--text-4);flex-shrink:0;transition:all var(--motion-fast)}
+.tab .x:hover{background:var(--surface-3);color:var(--text-1)}
+.tab.pinned .x{display:none}
+.newtab{width:30px;height:30px;border-radius:8px;border:none;background:transparent;color:var(--text-3);font-size:18px;cursor:pointer;display:grid;place-items:center;margin-bottom:2px;flex-shrink:0}
+.newtab:hover{background:rgba(148,163,184,.2);color:var(--text-1)}
+
+/* ── 3. Workspace body ────────────────────────────────────── */
+.workspace{background:var(--bg);min-height:520px;padding:18px 20px}
+.view{display:none}
+.view.show{display:block;animation:fade var(--motion-base) var(--motion-ease)}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.view-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.view-head h2{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.view-head .sub{font-size:12.5px;color:var(--text-3);margin-top:2px}
+.btn-primary{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:10px;background:var(--teal-600);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 6px rgba(13,148,136,.3);transition:all var(--motion-fast)}
+.btn-primary:hover{background:var(--teal-700);transform:translateY(-1px)}
+.btn-ghost{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:10px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);cursor:pointer}
+
+/* KPIs (dashboard view) */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px;box-shadow:var(--shadow-sm)}
+.kpi.feat{background:linear-gradient(150deg,var(--teal-600),var(--teal-800));border-color:var(--teal-700);color:#fff}
+.kpi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}
+.kpi-ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--teal-50);color:var(--teal-700)}
+.kpi.feat .kpi-ic{background:rgba(255,255,255,.18);color:#fff}
+.kpi-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--text-4)}
+.kpi.feat .kpi-lbl{color:rgba(255,255,255,.85)}
+.kpi-val{font-size:25px;font-weight:800;letter-spacing:-.035em;line-height:1;margin-bottom:7px}
+.delta{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:#dcfce7;color:#15803d}
+.kpi.feat .delta{background:rgba(255,255,255,.2);color:#fff}
+
+/* Generic panel + table */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden}
+.panel-head{padding:13px 16px;display:flex;align-items:center;justify-content:space-between}
+.panel-head h3{font-size:14px;font-weight:700}
+.tbl{width:100%;border-collapse:separate;border-spacing:0}
+.tbl thead th{font-size:10px;font-weight:600;font-family:var(--font-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--text-4);text-align:left;padding:7px 16px;background:var(--surface-2)}
+.tbl tbody td{font-size:13px;padding:11px 16px;border-top:1px solid var(--border);color:var(--text-2)}
+.tbl tbody tr:hover{background:var(--surface-2)}
+.cust{display:flex;align-items:center;gap:9px}
+.av{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.cust .nm{font-weight:600;color:var(--text-1);font-size:12.5px}
+.cust .ph{font-size:10.5px;color:var(--text-4);font-family:var(--font-mono)}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.pill .d{width:5px;height:5px;border-radius:50%;background:currentColor}
+.p-confirmed{background:var(--st-confirmed-bg);color:var(--st-confirmed-fg)}
+.p-pencil{background:var(--st-pencil-bg);color:var(--st-pencil-fg)}
+.p-quotation{background:var(--st-quotation-bg);color:var(--st-quotation-fg)}
+.p-enquiry{background:var(--st-enquiry-bg);color:var(--st-enquiry-fg)}
+
+/* Calendar / timeline board */
+.cal-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.cal-nav{display:flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:3px}
+.cal-nav button{width:28px;height:26px;border:none;background:transparent;color:var(--text-3);cursor:pointer;border-radius:7px;font-size:14px}
+.cal-nav button:hover{background:var(--surface-2);color:var(--text-1)}
+.cal-month{font-size:14px;font-weight:700;min-width:130px;text-align:center}
+.seg{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:2px}
+.seg button{font-family:inherit;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--text-3);padding:5px 12px;border-radius:7px;cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--teal-700);box-shadow:var(--shadow-xs)}
+.legend{display:flex;gap:12px;margin-left:auto;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);font-weight:500}
+.legend i{width:9px;height:9px;border-radius:3px}
+.board{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm)}
+.board-grid{display:grid;grid-template-columns:130px repeat(7,1fr)}
+.bh{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-4);padding:10px 8px;text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface-2)}
+.bh.corner{border-left:none;text-align:left;padding-left:14px}
+.bh small{display:block;font-size:14px;font-weight:700;color:var(--text-1);letter-spacing:-.02em;text-transform:none;margin-top:1px}
+.bh.today small{color:var(--teal-600)}
+.hall{font-size:12.5px;font-weight:600;color:var(--text-1);padding:0 14px;display:flex;align-items:center;border-bottom:1px solid var(--border);min-height:62px}
+.cell{border-left:1px solid var(--border);border-bottom:1px solid var(--border);padding:5px;min-height:62px;display:flex;flex-direction:column;gap:4px}
+.cell.weekend{background:var(--surface-2)}
+.ev{font-size:10.5px;font-weight:600;padding:4px 7px;border-radius:7px;border-left:3px solid;cursor:pointer;line-height:1.25;transition:transform var(--motion-fast)}
+.ev:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.ev .nm{display:block;font-weight:700}
+.ev .mt{display:block;font-size:9.5px;opacity:.8;font-weight:500}
+.ev-confirmed{background:var(--st-confirmed-bg);color:var(--st-confirmed-fg);border-color:var(--st-confirmed-ac)}
+.ev-pencil{background:var(--st-pencil-bg);color:var(--st-pencil-fg);border-color:var(--st-pencil-ac)}
+.ev-quotation{background:var(--st-quotation-bg);color:var(--st-quotation-fg);border-color:var(--st-quotation-ac)}
+.ev-enquiry{background:var(--st-enquiry-bg);color:var(--st-enquiry-fg);border-color:var(--st-enquiry-ac)}
+
+.placeholder{display:grid;place-items:center;min-height:340px;text-align:center;color:var(--text-3)}
+.placeholder .pic{width:54px;height:54px;border-radius:14px;background:var(--teal-50);color:var(--teal-700);display:grid;place-items:center;margin:0 auto 12px}
+.placeholder h3{font-size:15px;font-weight:700;color:var(--text-1);margin-bottom:3px}
+.placeholder p{font-size:12.5px}
+
+.notes{max-width:1280px;margin:18px auto 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;box-shadow:var(--shadow-xs);font-size:12.5px;color:var(--text-3)}
+.notes b{color:var(--text-1)}
+.notes ul{margin:8px 0 0 18px;display:flex;flex-direction:column;gap:5px}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div>
+    <h1>Top nav + workspace tabs</h1>
+    <p>Primary navigation lives on top. Opening a section (try <b>Calendar</b>) launches it as a new tab below — your current work stays open, like a browser or an IDE. Tabs are clickable; the × closes them.</p>
+  </div>
+  <button class="ctrl-btn" id="themeBtn" onclick="toggleTheme()">☾ Dark</button>
+</div>
+
+<div class="app">
+  <!-- 1. TOP NAV -->
+  <div class="topnav">
+    <div class="brand"><span class="logo">B</span> Bika Banquet</div>
+    <nav class="nav" id="nav">
+      <button data-view="dashboard" class="active" onclick="openTab('dashboard')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</button>
+      <button data-view="bookings" onclick="openTab('bookings')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg>Bookings</button>
+      <button data-view="calendar" onclick="openTab('calendar')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Calendar</button>
+      <button data-view="customers" onclick="openTab('customers')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>Customers</button>
+      <button data-view="halls" onclick="openTab('halls')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>Halls</button>
+      <button data-view="payments" onclick="openTab('payments')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payments</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="top-right">
+      <div class="searchbox">🔍 Search <kbd>⌘K</kbd></div>
+      <button class="icon-btn" title="Notifications"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg></button>
+      <div class="avatar">HG</div>
+    </div>
+  </div>
+
+  <!-- 2. TAB STRIP -->
+  <div class="tabstrip" id="tabstrip">
+    <!-- tabs injected by JS -->
+    <button class="newtab" title="New tab" onclick="openTab('dashboard')">+</button>
+  </div>
+
+  <!-- 3. WORKSPACE -->
+  <div class="workspace" id="workspace">
+
+    <!-- DASHBOARD -->
+    <section class="view show" data-view="dashboard">
+      <div class="view-head"><div><h2>Dashboard</h2><div class="sub">Mon, 15 Jun 2026 · 4 events this week</div></div><button class="btn-primary">＋ New Booking</button></div>
+      <div class="kpis">
+        <div class="kpi feat"><div class="kpi-top"><span class="kpi-lbl">Bookings</span><span class="kpi-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg></span></div><div class="kpi-val num">128</div><span class="delta">▲ 12% MoM</span></div>
+        <div class="kpi"><div class="kpi-top"><span class="kpi-lbl">Revenue</span><span class="kpi-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12M6 8h12M9 13c6 0 6-5 0-5M6 13h3l6 8"/></svg></span></div><div class="kpi-val num">₹24.6L</div><span class="delta">▲ 8% MoM</span></div>
+        <div class="kpi"><div class="kpi-top"><span class="kpi-lbl">Customers</span><span class="kpi-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></span></div><div class="kpi-val num">412</div><span class="delta">▲ 5% MoM</span></div>
+        <div class="kpi"><div class="kpi-top"><span class="kpi-lbl">Cancelled</span><span class="kpi-ic" style="background:#fef2f2;color:#dc2626"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></span></div><div class="kpi-val num">6</div><span class="delta" style="background:#fef2f2;color:#dc2626">▼ 2% MoM</span></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Recent Bookings</h3><span style="font-size:12px;font-weight:600;color:var(--teal-700);cursor:pointer">Open Bookings →</span></div>
+        <table class="tbl"><thead><tr><th>Customer</th><th>Function</th><th>Date</th><th>Status</th><th style="text-align:right">Total</th></tr></thead><tbody>
+          <tr><td><div class="cust"><span class="av" style="background:linear-gradient(135deg,#0d9488,#0f766e)">SF</span><div><div class="nm">Sharma Family</div><div class="ph">+91 98XXX 21000</div></div></div></td><td>Wedding</td><td class="num">18 Jun</td><td><span class="pill p-confirmed"><span class="d"></span>Confirmed</span></td><td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹4,80,000</td></tr>
+          <tr><td><div class="cust"><span class="av" style="background:linear-gradient(135deg,#f59e0b,#d97706)">VS</span><div><div class="nm">Verma &amp; Sons</div><div class="ph">+91 99XXX 44521</div></div></div></td><td>Reception</td><td class="num">22 Jun</td><td><span class="pill p-pencil"><span class="d"></span>Pencil</span></td><td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹2,15,000</td></tr>
+        </tbody></table>
+      </div>
+    </section>
+
+    <!-- BOOKINGS -->
+    <section class="view" data-view="bookings">
+      <div class="view-head"><div><h2>Bookings</h2><div class="sub">128 total · 23 this month</div></div><button class="btn-primary">＋ New Booking</button></div>
+      <div class="panel">
+        <table class="tbl"><thead><tr><th>Customer</th><th>Function</th><th>Date</th><th>Status</th><th style="text-align:right">Total</th></tr></thead><tbody>
+          <tr><td><div class="cust"><span class="av" style="background:linear-gradient(135deg,#0d9488,#0f766e)">SF</span><div><div class="nm">Sharma Family</div><div class="ph">+91 98XXX 21000</div></div></div></td><td>Wedding</td><td class="num">18 Jun</td><td><span class="pill p-confirmed"><span class="d"></span>Confirmed</span></td><td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹4,80,000</td></tr>
+          <tr><td><div class="cust"><span class="av" style="background:linear-gradient(135deg,#f59e0b,#d97706)">VS</span><div><div class="nm">Verma &amp; Sons</div><div class="ph">+91 99XXX 44521</div></div></div></td><td>Reception</td><td class="num">22 Jun</td><td><span class="pill p-pencil"><span class="d"></span>Pencil</span></td><td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹2,15,000</td></tr>
+          <tr><td><div class="cust"><span class="av" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">IC</span><div><div class="nm">Iyer Corp</div><div class="ph">+91 80XXX 10293</div></div></div></td><td>Conference</td><td class="num">25 Jun</td><td><span class="pill p-quotation"><span class="d"></span>Quotation</span></td><td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹1,90,000</td></tr>
+          <tr><td><div class="cust"><span class="av" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">KW</span><div><div class="nm">Khan Wedding</div><div class="ph">+91 70XXX 88210</div></div></div></td><td>Sangeet</td><td class="num">30 Jun</td><td><span class="pill p-enquiry"><span class="d"></span>Enquiry</span></td><td class="num" style="text-align:right;font-weight:600;color:var(--text-1)">₹3,40,000</td></tr>
+        </tbody></table>
+      </div>
+    </section>
+
+    <!-- CALENDAR -->
+    <section class="view" data-view="calendar">
+      <div class="view-head"><div><h2>Calendar</h2><div class="sub">Venue timeline · 4 halls</div></div><button class="btn-primary">＋ New Booking</button></div>
+      <div class="cal-toolbar">
+        <div class="cal-nav"><button>‹</button><button>›</button></div>
+        <div class="cal-month">15 – 21 Jun 2026</div>
+        <button class="btn-ghost">Today</button>
+        <div class="seg"><button>Day</button><button class="on">Week</button><button>Month</button></div>
+        <div class="legend">
+          <span><i style="background:var(--st-confirmed-ac)"></i>Confirmed</span>
+          <span><i style="background:var(--st-pencil-ac)"></i>Pencil</span>
+          <span><i style="background:var(--st-quotation-ac)"></i>Quotation</span>
+          <span><i style="background:var(--st-enquiry-ac)"></i>Enquiry</span>
+        </div>
+      </div>
+      <div class="board"><div class="board-grid">
+        <!-- header row -->
+        <div class="bh corner">Hall</div>
+        <div class="bh today">Mon<small>15</small></div>
+        <div class="bh">Tue<small>16</small></div>
+        <div class="bh">Wed<small>17</small></div>
+        <div class="bh">Thu<small>18</small></div>
+        <div class="bh">Fri<small>19</small></div>
+        <div class="bh">Sat<small>20</small></div>
+        <div class="bh">Sun<small>21</small></div>
+        <!-- Grand Hall -->
+        <div class="hall">Grand Hall</div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"><div class="ev ev-quotation"><span class="nm">Iyer Corp</span><span class="mt">Conference · 250</span></div></div>
+        <div class="cell"><div class="ev ev-confirmed"><span class="nm">Sharma Family</span><span class="mt">Wedding · 600</span></div></div>
+        <div class="cell"></div>
+        <div class="cell weekend"><div class="ev ev-confirmed"><span class="nm">Mehta Sangeet</span><span class="mt">Sangeet · 400</span></div></div>
+        <div class="cell weekend"></div>
+        <!-- Garden Lawn -->
+        <div class="hall">Garden Lawn</div>
+        <div class="cell"></div>
+        <div class="cell"><div class="ev ev-pencil"><span class="nm">Verma &amp; Sons</span><span class="mt">Reception · 300</span></div></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"><div class="ev ev-enquiry"><span class="nm">Khan Wedding</span><span class="mt">Sangeet · 350</span></div></div>
+        <div class="cell weekend"></div>
+        <div class="cell weekend"><div class="ev ev-confirmed"><span class="nm">Rao Reception</span><span class="mt">Reception · 500</span></div></div>
+        <!-- Banquet 2 -->
+        <div class="hall">Banquet 2</div>
+        <div class="cell"><div class="ev ev-confirmed"><span class="nm">Gupta Engmt</span><span class="mt">Engagement · 180</span></div></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"><div class="ev ev-pencil"><span class="nm">Bose Birthday</span><span class="mt">Birthday · 120</span></div></div>
+        <div class="cell"></div>
+        <div class="cell weekend"></div>
+        <div class="cell weekend"></div>
+        <!-- Terrace -->
+        <div class="hall">Terrace</div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"><div class="ev ev-enquiry"><span class="nm">Das Mehndi</span><span class="mt">Mehndi · 90</span></div></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell weekend"><div class="ev ev-quotation"><span class="nm">Nair Cocktail</span><span class="mt">Cocktail · 150</span></div></div>
+        <div class="cell weekend"></div>
+      </div></div>
+    </section>
+
+    <!-- placeholders -->
+    <section class="view" data-view="customers"><div class="placeholder"><div><div class="pic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></div><h3>Customers</h3><p>This section opens in its own tab too.</p></div></div></section>
+    <section class="view" data-view="halls"><div class="placeholder"><div><div class="pic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg></div><h3>Halls</h3><p>This section opens in its own tab too.</p></div></div></section>
+    <section class="view" data-view="payments"><div class="placeholder"><div><div class="pic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div><h3>Payments</h3><p>This section opens in its own tab too.</p></div></div></section>
+
+  </div>
+</div>
+
+<div class="notes">
+  <b>How the tab model works</b>
+  <ul>
+    <li>Click any top-nav item → it <b>opens (or focuses) a tab</b> below. Your other tabs stay exactly where you left them — no losing a half-filled booking form because you peeked at the Calendar.</li>
+    <li>Tabs are <b>closable</b> (×) and the first one is pinned. A "+" spawns a fresh tab.</li>
+    <li>Real version would carry context — e.g. a tab titled "Booking #1042 · Sharma" rather than just "Bookings" — and could persist across reloads.</li>
+    <li>Built entirely on your existing tokens; no new UI library required for this layout.</li>
+  </ul>
+</div>
+
+<script>
+const META = {
+  dashboard:{title:'Dashboard', icon:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>', pinned:true},
+  bookings:{title:'Bookings', icon:'<path d="M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8"/>'},
+  calendar:{title:'Calendar', icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'},
+  customers:{title:'Customers', icon:'<circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/>'},
+  halls:{title:'Halls', icon:'<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/>'},
+  payments:{title:'Payments', icon:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>'},
+};
+let openTabs = ['dashboard'];
+let activeTab = 'dashboard';
+const strip = document.getElementById('tabstrip');
+const newBtn = strip.querySelector('.newtab');
+
+function render(){
+  // remove existing tab buttons (keep the + button)
+  strip.querySelectorAll('.tab').forEach(t=>t.remove());
+  openTabs.forEach(v=>{
+    const m = META[v];
+    const el = document.createElement('button');
+    el.className = 'tab' + (v===activeTab?' active':'') + (m.pinned?' pinned':'');
+    el.innerHTML = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${m.icon}</svg><span class="ttl">${m.title}</span><span class="x" title="Close">×</span>`;
+    el.onclick = (e)=>{ if(e.target.classList.contains('x')){ closeTab(v); e.stopPropagation(); } else { activeTab=v; sync(); } };
+    strip.insertBefore(el, newBtn);
+  });
+  sync();
+}
+function sync(){
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('show', s.dataset.view===activeTab));
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===activeTab));
+  strip.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', openTabs[i]===activeTab));
+}
+function openTab(v){
+  if(!openTabs.includes(v)) openTabs.push(v);
+  activeTab = v;
+  render();
+}
+function closeTab(v){
+  const i = openTabs.indexOf(v);
+  openTabs = openTabs.filter(t=>t!==v);
+  if(activeTab===v) activeTab = openTabs[Math.max(0,i-1)] || openTabs[0] || 'dashboard';
+  if(openTabs.length===0){ openTabs=['dashboard']; activeTab='dashboard'; }
+  render();
+}
+function toggleTheme(){
+  const d = document.documentElement.getAttribute('data-theme')==='dark';
+  document.documentElement.setAttribute('data-theme', d?'light':'dark');
+  document.getElementById('themeBtn').textContent = d?'☾ Dark':'☀ Light';
+}
+render();
+</script>
+</body>
+</html>
