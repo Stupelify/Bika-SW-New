@@ -183,9 +183,24 @@ export default function BookingPackMobileCards({
                           </div>
                           <div>
                             <label className="label text-xs">Menu</label>
-                            <button type="button" className={`btn w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
-                              onClick={() => { setMenuEditorPack(packKey); setMenuItemSearch(''); }}>
-                              {Number(row.menuPoints) > 0 ? `${row.menuPoints} pts` : 'Set menu…'}
+                            <button
+                              type="button"
+                              className={`btn w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
+                              disabled={!row.withCatering}
+                              title={
+                                row.withCatering ? undefined : 'Turn on catering to set a menu'
+                              }
+                              onClick={() => {
+                                if (!row.withCatering) return;
+                                setMenuEditorPack(packKey);
+                                setMenuItemSearch('');
+                              }}
+                            >
+                              {!row.withCatering
+                                ? '—'
+                                : Number(row.menuPoints) > 0
+                                  ? `${row.menuPoints} pts`
+                                  : 'Set menu…'}
                               {hasMenuDiff && <span className="ml-1 text-xs">{menuAdded > 0 && <span className="text-green-700 dark:text-green-200">+{menuAdded}</span>}{menuAdded > 0 && menuRemoved > 0 && '/'}{menuRemoved > 0 && <span className="text-red-700 dark:text-red-200">−{menuRemoved}</span>}</span>}
                             </button>
                           </div>

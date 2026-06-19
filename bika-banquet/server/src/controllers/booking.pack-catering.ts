@@ -42,3 +42,22 @@ export function assertPackCateringRates(packs: PackCateringPayload[] | undefined
     throw new Error(message);
   }
 }
+
+function toNonNegativeCount(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, parsed);
+}
+
+/** Floor pax to >=1 only when catering is on (rate > 0); hall-only packs always persist 0. */
+export function normalizePackCountForPersist(
+  ratePerPlate: unknown,
+  packCount?: unknown,
+  noOfPack?: unknown
+): number {
+  const rate = Number(ratePerPlate ?? 0);
+  const cateringOn = Number.isFinite(rate) && rate > 0;
+  if (!cateringOn) return 0;
+  const rawCount = toNonNegativeCount(packCount ?? noOfPack ?? 0);
+  return Math.max(1, rawCount);
+}

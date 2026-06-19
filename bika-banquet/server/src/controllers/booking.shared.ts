@@ -626,10 +626,33 @@ export async function cloneBookingVersion(
     });
   }
 
-  // Payments intentionally NOT copied to the new version.
-  // Each booking version owns only the payments recorded during its own lifetime.
-  // The financial summary (paymentReceivedAmountValue) is already carried forward
-  // in the cloned booking row above, which preserves the "balance from prior version".
+  // Payments follow the booking event, not a single draft version. They may only
+  // be recorded on the isLatest row (booking.payments.ts), so the ledger moves
+  // to the new version and received/due are recomputed from real rows. Prior
+  // version payments are frozen in FinalizedBooking.data before this clone runs.
+  await tx.bookingPayments.updateMany({
+    where: { bookingId: source.id },
+    data: { bookingId: clonedBooking.id },
+  });
+
+  const movedPayments = await tx.bookingPayments.findMany({
+    where: { bookingId: clonedBooking.id },
+    select: { method: true, amount: true, clearingDate: true },
+  });
+  const { grossReceived, dueAmount } = resolvePaymentTotals(
+    replicaPayable,
+    movedPayments
+  );
+
+  await tx.booking.update({
+    where: { id: clonedBooking.id },
+    data: {
+      paymentReceivedAmount: toStoredNumberString(grossReceived),
+      paymentReceivedAmountValue: grossReceived,
+      dueAmount: toStoredNumberString(dueAmount),
+      dueAmountValue: dueAmount,
+    },
+  });
 
   const hydratedClone = await tx.booking.findUnique({
     where: { id: clonedBooking.id },
