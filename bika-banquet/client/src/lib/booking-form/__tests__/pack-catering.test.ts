@@ -6,6 +6,7 @@ import {
   inferWithCateringFromPack,
   packRowHasCateringDataToClear,
   packRowHasHallDataToClear,
+  resolveExpectedGuestsForSave,
   validatePackCateringForSave,
 } from '../pack-catering';
 
@@ -120,5 +121,19 @@ describe('clearedHallFieldsPatch', () => {
       hallIds: [],
       hallRate: '',
     });
+  });
+});
+
+describe('resolveExpectedGuestsForSave', () => {
+  it('preserves loaded guests when catering is cleared and no pack pax remains', () => {
+    expect(
+      resolveExpectedGuestsForSave(
+        [
+          { pax: '' },
+          { pax: '0' },
+        ],
+        500
+      )
+    ).toBe(500);
   });
 });

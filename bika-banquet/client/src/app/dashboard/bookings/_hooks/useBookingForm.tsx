@@ -29,6 +29,7 @@ import {
   clearedHallFieldsPatch,
   packRowHasCateringDataToClear,
   packRowHasHallDataToClear,
+  resolveExpectedGuestsForSave,
   validatePackCateringForSave,
 } from '@/lib/booking-form/pack-catering';
 import {
@@ -1644,12 +1645,9 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
         }
       }
 
-      const expectedGuests = Math.max(
-        1,
-        ...enabledPackEntries
-          .filter((entry) => entry.row.withCatering)
-          .map((entry) => Number(entry.row.pax || 0))
-          .filter((value) => value > 0)
+      const expectedGuests = resolveExpectedGuestsForSave(
+        enabledPackEntries.map((entry) => entry.row),
+        activeBookingObj?.expectedGuests
       );
       const saveSyncMode: AmountSyncMode =
         flushedNetSnapshot ? 'finalAmount' : amountSyncMode;
