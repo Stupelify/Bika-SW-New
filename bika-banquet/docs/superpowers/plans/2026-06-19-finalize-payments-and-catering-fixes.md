@@ -232,7 +232,11 @@ Because payments could only ever be added to `isLatest`, each pre-fix finalize s
 
 ## Test matrix (new/extended)
 
-- `clone-moves-payments.test.ts` (new): rows moved + ids preserved; source emptied; received/due recomputed; cheque-clearing split.
-- `booking-pack-catering.test.ts` (extend): catering-off persists 0; catering-on floors ≥1.
-- Backfill: dry-run counts; apply consolidates whole chain; second run is a no-op.
-- Regression: `booking-history.test.ts`, `booking-financials.test.ts`, `booking-schema.test.ts` stay green.
+- `clone-moves-payments.test.ts` — payment totals unit tests (always run)
+- `clone-moves-payments.integration.test.ts` — row move + recompute (requires Postgres; CI via `RUN_INTEGRATION_TESTS=1`)
+- `pack-count-persist.integration.test.ts` — hall-only pax=0 DB roundtrip (integration)
+- `backfill-finalize-payments.test.ts` — audit/consolidate/idempotency with mocked prisma (always run)
+- `booking-pack-catering.test.ts` (extend): catering-off persists 0; catering-on floors ≥1
+- Regression: `booking-history.test.ts`, `booking-financials.test.ts`, `booking-schema.test.ts` stay green
+
+Run integration locally: `cd server && npm run test:integration -- --testPathPatterns=clone-moves-payments|pack-count-persist`

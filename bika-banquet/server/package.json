@@ -21,6 +21,7 @@
     "data:import-option-list:dev": "tsx src/scripts/importOptionList.ts",
     "db:apply-raw": "tsx src/scripts/applyRawMigrations.ts",
     "test": "jest",
+    "test:integration": "RUN_INTEGRATION_TESTS=1 REQUIRE_INTEGRATION_DB=1 jest",
     "test:watch": "jest --watch"
   },
   "dependencies": {
