@@ -322,21 +322,27 @@ function buildNormalizedPhoneFields(
     data.alterPhoneCountryCode ??
     existing?.alterPhoneCountryCode ??
     primaryCountryCode;
+  const alternatePhoneProvided = 'alterPhone' in data || 'alternatePhone' in data;
   const alternatePhoneSource =
-    'alterPhone' in data || 'alternatePhone' in data
+    alternatePhoneProvided
       ? data.alterPhone ?? data.alternatePhone ?? null
       : existing?.alterPhone ?? existing?.alternatePhone;
-  const alternatePhoneE164 = toE164(alternateCountryCode, alternatePhoneSource);
+  const alternatePhoneE164 =
+    toE164(alternateCountryCode, alternatePhoneSource) ??
+    (alternatePhoneProvided ? null : undefined);
 
   const whatsappCountryCode =
     data.whatsappCountryCode ??
     existing?.whatsappCountryCode ??
     primaryCountryCode;
+  const whatsappProvided = 'whatsapp' in data || 'whatsappNumber' in data;
   const whatsappSource =
-    'whatsapp' in data || 'whatsappNumber' in data
+    whatsappProvided
       ? data.whatsapp ?? data.whatsappNumber ?? null
       : existing?.whatsapp ?? existing?.whatsappNumber;
-  const whatsappE164 = toE164(whatsappCountryCode, whatsappSource);
+  const whatsappE164 =
+    toE164(whatsappCountryCode, whatsappSource) ??
+    (whatsappProvided ? null : undefined);
 
   const isWhatsappSameAsPhone =
     data.isWhatsappSameAsPhone !== undefined
