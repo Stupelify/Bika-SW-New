@@ -307,6 +307,12 @@ function withPhoneLengthValidation<T extends z.AnyZodObject>(schema: T) {
   });
 }
 
+function normalizeOptionalPhoneAlias(value: unknown): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed : null;
+}
+
 function buildNormalizedPhoneFields(
   data: Record<string, any>,
   existing?: Record<string, any>
@@ -327,8 +333,14 @@ function buildNormalizedPhoneFields(
     alternatePhoneProvided
       ? data.alterPhone ?? data.alternatePhone ?? null
       : existing?.alterPhone ?? existing?.alternatePhone;
+  const normalizedAlternatePhone = alternatePhoneProvided
+    ? normalizeOptionalPhoneAlias(alternatePhoneSource)
+    : undefined;
   const alternatePhoneE164 =
-    toE164(alternateCountryCode, alternatePhoneSource) ??
+    toE164(
+      alternateCountryCode,
+      alternatePhoneProvided ? normalizedAlternatePhone : alternatePhoneSource
+    ) ??
     (alternatePhoneProvided ? null : undefined);
 
   const whatsappCountryCode =
@@ -340,8 +352,14 @@ function buildNormalizedPhoneFields(
     whatsappProvided
       ? data.whatsapp ?? data.whatsappNumber ?? null
       : existing?.whatsapp ?? existing?.whatsappNumber;
+  const normalizedWhatsapp = whatsappProvided
+    ? normalizeOptionalPhoneAlias(whatsappSource)
+    : undefined;
   const whatsappE164 =
-    toE164(whatsappCountryCode, whatsappSource) ??
+    toE164(
+      whatsappCountryCode,
+      whatsappProvided ? normalizedWhatsapp : whatsappSource
+    ) ??
     (whatsappProvided ? null : undefined);
 
   const isWhatsappSameAsPhone =
@@ -351,7 +369,21 @@ function buildNormalizedPhoneFields(
 
   return {
     phoneE164,
+    ...(alternatePhoneProvided
+      ? {
+          alterPhone: normalizedAlternatePhone,
+          alternatePhone: normalizedAlternatePhone,
+          ...(normalizedAlternatePhone === null ? { alterPhoneCountryCode: null } : {}),
+        }
+      : {}),
     alternatePhoneE164,
+    ...(whatsappProvided
+      ? {
+          whatsapp: normalizedWhatsapp,
+          whatsappNumber: normalizedWhatsapp,
+          ...(normalizedWhatsapp === null ? { whatsappCountryCode: null } : {}),
+        }
+      : {}),
     whatsappE164,
     isWhatsappSameAsPhone,
   };
