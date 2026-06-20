@@ -44,8 +44,10 @@ describe('updateCustomer optional contact fields', () => {
       phoneCountryCode: '+91',
       phoneE164: '+919876543210',
       alterPhone: '9123456789',
+      alternatePhone: '9123456789',
       alterPhoneCountryCode: '+91',
       alternatePhoneE164: '+919123456789',
+      whatsapp: '9988776655',
       whatsappNumber: '9988776655',
       whatsappCountryCode: '+91',
       whatsappE164: '+919988776655',
@@ -75,7 +77,61 @@ describe('updateCustomer optional contact fields', () => {
         data: expect.objectContaining({
           email: null,
           alterPhone: null,
+          alternatePhone: null,
           alterPhoneCountryCode: null,
+          whatsapp: null,
+          whatsappNumber: null,
+          whatsappCountryCode: null,
+          alternatePhoneE164: null,
+          whatsappE164: null,
+          isWhatsappSameAsPhone: true,
+        }),
+      })
+    );
+  });
+
+  it('treats empty optional phone strings as clears at update time', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Existing Customer',
+      phone: '9876543210',
+      phoneCountryCode: '+91',
+      phoneE164: '+919876543210',
+      alterPhone: '9123456789',
+      alternatePhone: '9123456789',
+      alterPhoneCountryCode: '+91',
+      alternatePhoneE164: '+919123456789',
+      whatsapp: '9988776655',
+      whatsappNumber: '9988776655',
+      whatsappCountryCode: '+91',
+      whatsappE164: '+919988776655',
+      isWhatsappSameAsPhone: false,
+    });
+    mockUpdate.mockResolvedValue({ id: 'cust-1', name: 'Existing Customer' });
+
+    const req = {
+      params: { id: 'cust-1' },
+      body: {
+        alterPhone: '  ',
+        alterPhoneCountryCode: '',
+        whatsappNumber: '',
+        whatsappCountryCode: '  ',
+      },
+      headers: {},
+      socket: {},
+    } as any;
+    const res = responseMock();
+
+    await updateCustomer(req, res);
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cust-1' },
+        data: expect.objectContaining({
+          alterPhone: null,
+          alternatePhone: null,
+          alterPhoneCountryCode: null,
+          whatsapp: null,
           whatsappNumber: null,
           whatsappCountryCode: null,
           alternatePhoneE164: null,
