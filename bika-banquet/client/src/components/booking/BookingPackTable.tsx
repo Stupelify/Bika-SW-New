@@ -301,11 +301,23 @@ export default function BookingPackTable({
                               <button
                                 type="button"
                                 className={`btn py-1 text-xs w-full ${hasMenuDiff ? 'btn-warning' : 'btn-secondary'}`}
-                                onClick={() => { setMenuEditorPack(packKey); setMenuItemSearch(''); }}
+                                disabled={!row.enabled || !row.withCatering}
+                                title={
+                                  row.withCatering
+                                    ? undefined
+                                    : 'Turn on catering to set a menu'
+                                }
+                                onClick={() => {
+                                  if (!row.withCatering) return;
+                                  setMenuEditorPack(packKey);
+                                  setMenuItemSearch('');
+                                }}
                               >
-                                {row.menuItemIds.length > 0
-                                  ? `${row.menuPoints} pts`
-                                  : 'Set menu…'}
+                                {!row.withCatering
+                                  ? '—'
+                                  : row.menuItemIds.length > 0
+                                    ? `${row.menuPoints} pts`
+                                    : 'Set menu…'}
                                 {hasMenuDiff && (
                                   <span className="ml-1">
                                     {menuAdded > 0 && <span className="text-green-700 dark:text-green-200">+{menuAdded}</span>}

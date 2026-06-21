@@ -16,9 +16,12 @@
     "stress-test": "tsx src/scripts/stressTest.ts",
     "data:normalize-case": "node dist/scripts/normalizeEntryCase.js",
     "data:normalize-case:dev": "tsx src/scripts/normalizeEntryCase.ts",
+    "data:backfill-finalize-payments:dev": "tsx src/scripts/backfillFinalizePayments.ts",
+    "data:backfill-finalize-payments:apply": "tsx src/scripts/backfillFinalizePayments.ts --apply",
     "data:import-option-list:dev": "tsx src/scripts/importOptionList.ts",
     "db:apply-raw": "tsx src/scripts/applyRawMigrations.ts",
     "test": "jest",
+    "test:integration": "RUN_INTEGRATION_TESTS=1 REQUIRE_INTEGRATION_DB=1 jest",
     "test:watch": "jest --watch"
   },
   "dependencies": {

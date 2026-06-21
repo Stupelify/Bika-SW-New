@@ -52,6 +52,7 @@ import {
   resolveMealSlotId,
 } from './booking.shared';
 import logger from '../utils/logger';
+import { normalizePackCountForPersist } from './booking.pack-catering';
 
 // ---------------------------------------------------------------------------
 // Validation schemas (exported for use in routes)
@@ -367,9 +368,10 @@ export async function createBooking(
       if (data.packs && data.packs.length > 0) {
         for (const pack of data.packs) {
           const mealSlotId = await resolveMealSlotId(tx, pack);
-          const normalizedPackCount = Math.max(
-            1,
-            toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)
+          const normalizedPackCount = normalizePackCountForPersist(
+            pack.ratePerPlate,
+            pack.packCount,
+            pack.noOfPack
           );
 
           // Create menu
@@ -407,7 +409,7 @@ export async function createBooking(
               mealSlotId,
               bookingMenuId: menu.id,
               packName: pack.packName,
-              noOfPack: Math.max(1, toSafeNumber(pack.noOfPack ?? normalizedPackCount)),
+              noOfPack: normalizedPackCount,
               packCount: normalizedPackCount,
               hallIds: pack.hallIds || [],
               ratePerPlate: toSafeMoney(pack.ratePerPlate),
@@ -1210,9 +1212,10 @@ export async function updateBooking(
 
         for (const pack of data.packs) {
           const mealSlotId = await resolveMealSlotId(tx, pack);
-          const normalizedPackCount = Math.max(
-            1,
-            toSafeNumber(pack.packCount ?? pack.noOfPack ?? 1)
+          const normalizedPackCount = normalizePackCountForPersist(
+            pack.ratePerPlate,
+            pack.packCount,
+            pack.noOfPack
           );
           const packDateTimes = resolveEventDateTimes(
             effectiveFunctionDate,
@@ -1248,7 +1251,7 @@ export async function updateBooking(
               mealSlotId,
               bookingMenuId: menu.id,
               packName: pack.packName,
-              noOfPack: Math.max(1, toSafeNumber(pack.noOfPack ?? normalizedPackCount)),
+              noOfPack: normalizedPackCount,
               packCount: normalizedPackCount,
               hallIds: pack.hallIds || [],
               ratePerPlate: toSafeMoney(pack.ratePerPlate),
