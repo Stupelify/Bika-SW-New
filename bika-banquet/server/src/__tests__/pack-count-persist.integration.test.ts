@@ -39,7 +39,12 @@ describe('hall-only packCount persistence (integration)', () => {
     if (!customer) return;
 
     const mealSlot = await prisma.mealSlot.create({
-      data: { name: `test-lunch-${Date.now()}`, order: 99 },
+      data: {
+        name: `test-lunch-${Date.now()}`,
+        startTime: '12:00',
+        endTime: '15:00',
+        displayOrder: 99,
+      },
     });
     createdMealSlotIds.push(mealSlot.id);
 
