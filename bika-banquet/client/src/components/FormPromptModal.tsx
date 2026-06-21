@@ -11,6 +11,8 @@ interface FormPromptModalProps {
   children: ReactNode;
   widthClass?: string;
   isDirty?: boolean;
+  /** When set, replaces the default title heading (e.g. tab navigation in the header row). */
+  headerContent?: ReactNode;
 }
 
 // Modals nest (booking form → menu editor → quick-add item), so Escape must
@@ -28,6 +30,7 @@ export default function FormPromptModal({
   children,
   widthClass = 'max-w-4xl',
   isDirty = false,
+  headerContent,
 }: FormPromptModalProps) {
   const [mounted, setMounted] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -174,12 +177,20 @@ export default function FormPromptModal({
         aria-label={title}
         className={`capacitor-modal-panel relative z-10 w-full ${widthClass} max-h-[calc(100dvh-var(--safe-top)-var(--keyboard-offset,0px))] sm:max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-surface shadow-xl outline-none`}
       >
-        <div className="sticky top-0 z-10 bg-surface/95 border-b border-[var(--border)] px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-display font-semibold text-[var(--text-1)]">{title}</h2>
+        <div
+          className={`sticky top-0 z-10 bg-surface/95 border-b border-[var(--border)] px-4 sm:px-5 flex justify-between gap-3 ${
+            headerContent ? 'items-end pt-2 pb-0' : 'items-center py-3.5 sm:py-4'
+          }`}
+        >
+          {headerContent ?? (
+            <h2 className="text-lg font-display font-semibold text-[var(--text-1)]">{title}</h2>
+          )}
           <button
             type="button"
             onClick={handleCloseRequest}
-            className="min-h-11 min-w-11 p-2 rounded-lg text-[var(--text-4)] hover:bg-surface-2 hover:text-[var(--text-2)] border border-transparent hover:border-[var(--border)]"
+            className={`min-h-11 min-w-11 p-2 rounded-lg text-[var(--text-4)] hover:bg-surface-2 hover:text-[var(--text-2)] border border-transparent hover:border-[var(--border)] ${
+              headerContent ? 'mb-1.5 shrink-0' : ''
+            }`}
             aria-label="Close form prompt"
           >
             <X className="w-4 h-4" />
