@@ -1,67 +1,29 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { IonButton } from '@ionic/react';
+import React from 'react';
 
 interface AdaptiveButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'danger';
+  /** Retained for call-site compatibility; ignored by the web build. */
   expand?: 'block' | 'full';
   fill?: 'clear' | 'outline' | 'solid';
 }
 
+/**
+ * Standard web button. (Previously switched to IonButton on native; the native
+ * apps are WebViews of this same site, so the web button is used everywhere.)
+ */
 export function AdaptiveButton({
   children,
   className = '',
   variant = 'primary',
-  expand,
-  fill,
+  expand: _expand,
+  fill: _fill,
   ...props
 }: AdaptiveButtonProps) {
-  const [isNative, setIsNative] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsNative(Capacitor.isNativePlatform());
-    }
-  }, []);
-
-  if (isNative) {
-    let color: string;
-    switch (variant) {
-      case 'primary':
-        color = 'primary';
-        break;
-      case 'danger':
-        color = 'danger';
-        break;
-      case 'secondary':
-      default:
-        color = 'medium';
-    }
-
-    return (
-      <IonButton
-        className={className}
-        color={color}
-        expand={expand}
-        fill={fill}
-        disabled={props.disabled}
-        onClick={props.onClick as any}
-        type={props.type as any}
-      >
-        {children}
-      </IonButton>
-    );
-  }
-
-  // Web fallback
   return (
-    <button
-      {...props}
-      className={`btn btn-${variant} ${className}`}
-    >
+    <button {...props} className={`btn btn-${variant} ${className}`}>
       {children}
     </button>
   );

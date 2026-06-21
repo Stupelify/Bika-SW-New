@@ -942,15 +942,22 @@
   }
 }
 
-/* Compact density for the bookings table. Unlayered so it overrides the
+/* App-wide compact density for data tables. Unlayered so it overrides the
    per-cell `py-4` Tailwind utilities (which live in a later @layer and would
-   otherwise win regardless of specificity). Toggled via the density control. */
-.data-table.is-compact thead th {
+   otherwise win regardless of specificity). Compact is the default everywhere;
+   a table can opt into roomier rows with `.is-comfortable` (bookings exposes a
+   density toggle for this). */
+.data-table thead th {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.data-table tbody td {
   padding-top: 7px;
   padding-bottom: 7px;
 }
-.data-table.is-compact tbody td {
-  padding-top: 6px;
-  padding-bottom: 6px;
+.data-table.is-comfortable thead th,
+.data-table.is-comfortable tbody td {
+  padding-top: 16px;
+  padding-bottom: 16px;
 }
 

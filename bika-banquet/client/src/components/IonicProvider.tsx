@@ -1,9 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { setupIonicReact } from '@ionic/react';
 import { Capacitor } from '@capacitor/core';
 
+/**
+ * Native WebView scroll fixes for the Capacitor shell. (Ionic was removed — the
+ * native apps render this same responsive web UI, so no Ionic runtime/CSS is
+ * loaded. The component name is kept to avoid churn in app/layout.tsx.)
+ */
 export default function IonicProvider({
   children,
 }: {
@@ -14,24 +18,6 @@ export default function IonicProvider({
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       setIsNative(true);
-      setupIonicReact({
-        mode: Capacitor.getPlatform() === 'ios' ? 'ios' : 'md',
-      });
-
-      const loadCSS = async () => {
-        await import('@ionic/react/css/core.css');
-        await import('@ionic/react/css/normalize.css');
-        await import('@ionic/react/css/structure.css');
-        await import('@ionic/react/css/typography.css');
-        await import('@ionic/react/css/padding.css');
-        await import('@ionic/react/css/float-elements.css');
-        await import('@ionic/react/css/text-alignment.css');
-        await import('@ionic/react/css/text-transformation.css');
-        await import('@ionic/react/css/flex-utils.css');
-        await import('@ionic/react/css/display.css');
-      };
-
-      loadCSS();
     }
   }, []);
 
@@ -56,9 +42,6 @@ export default function IonicProvider({
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch !important;
             overscroll-behavior-y: contain;
-          }
-          ion-app {
-            pointer-events: none !important;
           }
         `}} />
       )}

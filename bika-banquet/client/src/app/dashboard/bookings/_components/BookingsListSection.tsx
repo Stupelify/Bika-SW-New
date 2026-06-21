@@ -377,7 +377,7 @@ export default function BookingsListSection({
 
             {/* Desktop table view */}
             <div className={viewMode === 'table' ? 'hidden md:block table-shell' : 'hidden'}>
-              <table className={cn('data-table', density === 'compact' && 'is-compact')}>
+              <table className={cn('data-table', density === 'comfortable' && 'is-comfortable')}>
                 <thead>
                   <tr className="border-b border-[var(--border)]">
                     <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Booking</th>

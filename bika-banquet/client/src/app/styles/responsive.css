@@ -287,3 +287,16 @@
   background: var(--border-2);
 }
 
+
+/* ── Responsive forms ─────────────────────────────────────────────
+   Modal/form surfaces are marked with data-ops-form-surface. On phones,
+   collapse their multi-column field grids to a single column so dense
+   desktop forms stop rendering oversized/cramped. Unlayered, so it wins
+   over the Tailwind grid-cols utilities. */
+@media (max-width: 640px) {
+  [data-ops-form-surface] .grid-cols-2,
+  [data-ops-form-surface] .grid-cols-3,
+  [data-ops-form-surface] .grid-cols-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

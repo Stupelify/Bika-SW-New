@@ -1,8 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { IonCard, IonCardContent, IonCardHeader, IonCardTitle, IonCardSubtitle } from '@ionic/react';
+import React from 'react';
 
 interface AdaptiveCardProps {
   children: React.ReactNode;
@@ -13,6 +11,10 @@ interface AdaptiveCardProps {
   noPadding?: boolean;
 }
 
+/**
+ * Standard web card. (Previously switched to Ionic on native; the native apps
+ * are WebViews of this same site, so the web rendering is used everywhere.)
+ */
 export function AdaptiveCard({
   children,
   className = '',
@@ -21,32 +23,6 @@ export function AdaptiveCard({
   subtitle,
   noPadding = false,
 }: AdaptiveCardProps) {
-  const [isNative, setIsNative] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsNative(Capacitor.isNativePlatform());
-    }
-  }, []);
-
-  if (isNative) {
-    return (
-      <IonCard className={className}>
-        {(header || title || subtitle) && (
-          <IonCardHeader>
-            {header}
-            {title && <IonCardTitle>{title}</IonCardTitle>}
-            {subtitle && <IonCardSubtitle>{subtitle}</IonCardSubtitle>}
-          </IonCardHeader>
-        )}
-        <IonCardContent className={noPadding ? 'ion-no-padding' : ''}>
-          {children}
-        </IonCardContent>
-      </IonCard>
-    );
-  }
-
-  // Fallback to exactly the previous standard web div rendering 
   return (
     <div className={`card ${className}`}>
       {(header || title || subtitle) && (
@@ -58,9 +34,7 @@ export function AdaptiveCard({
           </div>
         </div>
       )}
-      <div className={noPadding ? '' : 'panel-body'}>
-        {children}
-      </div>
+      <div className={noPadding ? '' : 'panel-body'}>{children}</div>
     </div>
   );
 }
