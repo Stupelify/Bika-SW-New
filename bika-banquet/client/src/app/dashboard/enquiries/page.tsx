@@ -16,6 +16,7 @@ import FloatingActionButton from '@/components/FloatingActionButton';
 import FormPromptModal from '@/components/FormPromptModal';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
+import { ColumnFilter, DateRangeFilter } from '@/components/data-table/filter-controls';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
 import {
@@ -195,6 +196,8 @@ export default function EnquiriesPage() {
   const [globalSearch, setGlobalSearch] = useState('');
   const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [sort, setSort] = useState<SortState>({
     key: 'functionName',
@@ -222,6 +225,8 @@ export default function EnquiriesPage() {
     sort: sort.key,
     order: sort.direction,
     status: status || undefined,
+    fromDate: dateFrom || undefined,
+    toDate: dateTo || undefined,
   });
 
   const serverPrevRef = useRef<Enquiry[] | undefined>(undefined);
@@ -277,10 +282,16 @@ export default function EnquiriesPage() {
     []
   );
 
-  const clientFiltered = useMemo(
-    () => filterAndSortRows(enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort),
-    [enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort]
-  );
+  const clientFiltered = useMemo(() => {
+    const rows = filterAndSortRows(enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort);
+    if (!dateFrom && !dateTo) return rows;
+    return rows.filter((e) => {
+      const day = (e.functionDate || '').slice(0, 10);
+      if (dateFrom && day < dateFrom) return false;
+      if (dateTo && day > dateTo) return false;
+      return true;
+    });
+  }, [enquiries, tableColumns, debouncedGlobalSearch, columnSearch, sort, dateFrom, dateTo]);
 
   const serverTotal = serverData?.pagination?.total ?? 0;
   const totalCount = useServer ? serverTotal : clientFiltered.length;
@@ -309,7 +320,7 @@ export default function EnquiriesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedGlobalSearch, columnSearch, sort, status]);
+  }, [debouncedGlobalSearch, columnSearch, sort, status, dateFrom, dateTo]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
@@ -1053,6 +1064,18 @@ export default function EnquiriesPage() {
                       sortKey="functionDate"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      filter={
+                        <ColumnFilter active={Boolean(dateFrom || dateTo)} title="Date">
+                          <DateRangeFilter
+                            from={dateFrom}
+                            to={dateTo}
+                            onChange={({ from, to }) => {
+                              setDateFrom(from);
+                              setDateTo(to);
+                            }}
+                          />
+                        </ColumnFilter>
+                      }
                     />
                     <SortableHeader
                       label="Guests"

@@ -223,9 +223,9 @@ export async function getEnquiries(req: Request, res: Response): Promise<void> {
     const status = req.query.status as string | undefined;
 
     const where: Record<string, unknown> = {};
-    if (status) {
-      where.status = status;
-    }
+    const statuses = (status || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (statuses.length === 1) where.status = statuses[0];
+    else if (statuses.length > 1) where.status = { in: statuses };
     if (search) {
       where.OR = [
         { functionName: { contains: search, mode: 'insensitive' } },
@@ -236,6 +236,20 @@ export async function getEnquiries(req: Request, res: Response): Promise<void> {
         { customer: { name: { contains: search, mode: 'insensitive' } } },
         { customer: { phone: { contains: search } } },
       ];
+    }
+    // Function-date range filter.
+    const parseDateParam = (value?: string) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+    const fromParsed = parseDateParam(req.query.fromDate as string);
+    const toParsed = parseDateParam(req.query.toDate as string);
+    if (fromParsed || toParsed) {
+      const range: Record<string, Date> = {};
+      if (fromParsed) range.gte = fromParsed;
+      if (toParsed) range.lte = toParsed;
+      where.functionDate = range;
     }
     const scopeFilter = enquiryScopeFilter(getVenueScope(req as AuthRequest));
     if (scopeFilter) {
