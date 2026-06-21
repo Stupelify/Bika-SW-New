@@ -48,6 +48,9 @@ const emptyStringToNull = (value: unknown) => {
 
 const DEFAULT_COUNTRY_CODE = '+91';
 
+/** Only the live head of a version chain counts as one booking for customer stats. */
+const COUNTABLE_BOOKING_WHERE = { isLatest: true } as const;
+
 // Maps customers-page sortable column keys → Prisma orderBy. Composite UI
 // columns (contact/location/stats) map to their best DB column. An `id`
 // tie-breaker is appended centrally by buildOrderBy.
@@ -56,7 +59,7 @@ const CUSTOMER_SORT_WHITELIST: SortWhitelist = {
   createdAt: (order) => [{ createdAt: order }],
   contact: (order) => [{ phone: order }],
   location: (order) => [{ city: order }, { state: order }],
-  stats: (order) => [{ bookings: { _count: order } }],
+  stats: (order) => [{ bookings: { _count: order } }], // order uses all rows; display count filters isLatest
 };
 
 const formatDigitsText = (digits: number[]): string => {
@@ -517,7 +520,7 @@ export async function getCustomers(req: Request, res: Response): Promise<void> {
           _count: {
             select: {
               enquiries: true,
-              bookings: true,
+              bookings: { where: COUNTABLE_BOOKING_WHERE },
               referrals: true,
             },
           },
@@ -680,21 +683,27 @@ export async function deleteCustomer(
     });
 
     if (linkedBookings > 0) {
+      const logicalBookings = await prisma.booking.count({
+        where: { customerId: id, ...COUNTABLE_BOOKING_WHERE },
+      });
       res.status(409).json({
         success: false,
-        message: `This customer cannot be deleted because they have ${linkedBookings} booking(s) on record. Booking history must be preserved for financial integrity.`,
+        message: `This customer cannot be deleted because they have ${logicalBookings} booking(s) on record. Booking history must be preserved for financial integrity.`,
       });
       return;
     }
 
-    const linkedAsSecondary = await prisma.booking.count({
+    const linkedAsSecondaryAny = await prisma.booking.count({
       where: { secondCustomerId: id },
     });
 
-    if (linkedAsSecondary > 0) {
+    if (linkedAsSecondaryAny > 0) {
+      const logicalSecondaryBookings = await prisma.booking.count({
+        where: { secondCustomerId: id, ...COUNTABLE_BOOKING_WHERE },
+      });
       res.status(409).json({
         success: false,
-        message: `This customer cannot be deleted because they are linked as a secondary customer on ${linkedAsSecondary} booking(s).`,
+        message: `This customer cannot be deleted because they are linked as a secondary customer on ${logicalSecondaryBookings} booking(s).`,
       });
       return;
     }
