@@ -25,7 +25,9 @@ export async function getAuditLogs(req: Request, res: Response): Promise<void> {
     }
 
     if (action) {
-      whereClause.action = action as string;
+      const actions = String(action).split(',').map((s) => s.trim()).filter(Boolean);
+      if (actions.length === 1) whereClause.action = actions[0];
+      else if (actions.length > 1) whereClause.action = { in: actions };
     }
 
     if (fromDate || toDate) {

@@ -10,6 +10,21 @@ import { useDebounce } from '@/lib/useDebounce';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import SortableHeader from '@/components/SortableHeader';
 import {
+  ColumnFilter,
+  DateRangeFilter,
+  MultiSelectFilter,
+  type FilterOption,
+} from '@/components/data-table/filter-controls';
+
+const LOG_ACTION_OPTIONS: FilterOption[] = [
+  { value: 'CREATE', label: 'Create' },
+  { value: 'UPDATE', label: 'Update' },
+  { value: 'DELETE', label: 'Delete' },
+  { value: 'CANCEL', label: 'Cancel' },
+  { value: 'FINALIZE', label: 'Finalize' },
+  { value: 'PARTY_OVER', label: 'Party over' },
+];
+import {
   SortState,
   TableColumnConfig,
   filterAndSortRows,
@@ -37,6 +52,9 @@ export default function AuditLogsPage() {
   const debouncedSearch = useDebounce(globalSearch, 500);
 
   const [sort, setSort] = useState<SortState>({ key: 'createdAt', direction: 'desc' });
+  const [actionFilter, setActionFilter] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -44,7 +62,13 @@ export default function AuditLogsPage() {
     if (canViewLogs) {
       void fetchLogs(currentPage, debouncedSearch);
     }
-  }, [canViewLogs, currentPage, debouncedSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canViewLogs, currentPage, debouncedSearch, actionFilter, dateFrom, dateTo]);
+
+  // Reset to the first page whenever the filters change.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [actionFilter, dateFrom, dateTo]);
 
   const fetchLogs = async (page: number, search: string, manual = false) => {
     try {
@@ -52,6 +76,9 @@ export default function AuditLogsPage() {
       else setLoading(true);
       const params: Record<string, string | number> = { page, limit: PAGE_SIZE };
       if (search) params.search = search;
+      if (actionFilter.length) params.action = actionFilter.join(',');
+      if (dateFrom) params.fromDate = dateFrom;
+      if (dateTo) params.toDate = dateTo;
       const res = await api.getAuditLogs(params);
       setLogs(res.data.data.logs || []);
       setTotal(res.data.data.pagination?.total || 0);
@@ -213,6 +240,18 @@ export default function AuditLogsPage() {
                   sortKey="createdAt"
                   sort={sort}
                   onSort={handleSort}
+                  filter={
+                    <ColumnFilter active={Boolean(dateFrom || dateTo)} title="Date">
+                      <DateRangeFilter
+                        from={dateFrom}
+                        to={dateTo}
+                        onChange={({ from, to }) => {
+                          setDateFrom(from);
+                          setDateTo(to);
+                        }}
+                      />
+                    </ColumnFilter>
+                  }
                 />
                 <SortableHeader
                   label="User"
@@ -225,6 +264,15 @@ export default function AuditLogsPage() {
                   sortKey="action"
                   sort={sort}
                   onSort={handleSort}
+                  filter={
+                    <ColumnFilter active={actionFilter.length > 0} title="Action">
+                      <MultiSelectFilter
+                        options={LOG_ACTION_OPTIONS}
+                        selected={actionFilter}
+                        onChange={setActionFilter}
+                      />
+                    </ColumnFilter>
+                  }
                 />
                 <SortableHeader
                   label="Resource"
