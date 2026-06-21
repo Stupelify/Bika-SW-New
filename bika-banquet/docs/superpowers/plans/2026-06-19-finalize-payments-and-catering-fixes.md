@@ -240,3 +240,15 @@ Because payments could only ever be added to `isLatest`, each pre-fix finalize s
 - Regression: `booking-history.test.ts`, `booking-financials.test.ts`, `booking-schema.test.ts` stay green
 
 Run integration locally: `cd server && npm run test:integration -- --testPathPatterns=clone-moves-payments|pack-count-persist`
+
+### Backfill on production (after deploy)
+
+Run **inside the server container** (uses compiled JS — avoids host `tsx` / corrupted `tr46`):
+
+```bash
+cd /root/bika-banquet-v2/bika-banquet
+docker compose exec server npm run data:backfill-finalize-payments
+docker compose exec server npm run data:backfill-finalize-payments:apply
+```
+
+Or directly: `docker compose exec server node dist/scripts/backfillFinalizePayments.js [--apply]`

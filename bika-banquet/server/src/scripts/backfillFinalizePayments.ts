@@ -1,9 +1,13 @@
 /**
  * One-time repair for finalize payment scatter + catering-off spurious pax.
  *
- * Usage:
- *   npx tsx src/scripts/backfillFinalizePayments.ts           # dry-run (default)
- *   npx tsx src/scripts/backfillFinalizePayments.ts --apply
+ * Usage (production — inside server container or after npm run build):
+ *   npm run data:backfill-finalize-payments              # dry-run
+ *   npm run data:backfill-finalize-payments:apply        # apply
+ *
+ * Dev (tsx):
+ *   npm run data:backfill-finalize-payments:dev
+ *   npm run data:backfill-finalize-payments:apply:dev
  */
 import prisma from '../config/database';
 import {
