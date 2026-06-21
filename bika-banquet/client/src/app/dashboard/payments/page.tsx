@@ -8,6 +8,8 @@ import FormPromptModal from '@/components/FormPromptModal';
 import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
+import { ChoiceFilter, ColumnFilter, DateRangeFilter } from '@/components/data-table/filter-controls';
+import { DUE_FILTER_OPTIONS } from '@/components/bookings/BookingFilters';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
 import TablePagination from '@/components/TablePagination';
@@ -99,6 +101,9 @@ export default function PaymentsPage() {
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [due, setDue] = useState<'' | 'outstanding' | 'paid'>('');
   const [sort, setSort] = useState<SortState>({ key: 'booking', direction: 'asc' });
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -127,6 +132,9 @@ export default function PaymentsPage() {
     search: serverSearch,
     sort: sort.key,
     order: sort.direction,
+    fromDate: dateFrom || undefined,
+    toDate: dateTo || undefined,
+    due: due || undefined,
   });
 
   const serverPrevRef = useRef<BookingRow[] | undefined>(undefined);
@@ -224,10 +232,24 @@ export default function PaymentsPage() {
     []
   );
 
-  const clientFiltered = useMemo(
-    () => filterAndSortRows(bookings, tableColumns, globalSearch, columnSearch, sort),
-    [bookings, tableColumns, globalSearch, columnSearch, sort]
-  );
+  const clientFiltered = useMemo(() => {
+    let rows = filterAndSortRows(bookings, tableColumns, globalSearch, columnSearch, sort);
+    if (dateFrom || dateTo) {
+      rows = rows.filter((b) => {
+        const day = (b.functionDate || '').slice(0, 10);
+        if (dateFrom && day < dateFrom) return false;
+        if (dateTo && day > dateTo) return false;
+        return true;
+      });
+    }
+    if (due) {
+      rows = rows.filter((b) => {
+        const balance = resolveDueAmount(b);
+        return due === 'outstanding' ? balance > 0 : balance <= 0;
+      });
+    }
+    return rows;
+  }, [bookings, tableColumns, globalSearch, columnSearch, sort, dateFrom, dateTo, due]);
 
   const serverTotal = serverData?.pagination?.total ?? 0;
   const totalCount = useServer ? serverTotal : clientFiltered.length;
@@ -251,7 +273,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [globalSearch, columnSearch, sort]);
+  }, [globalSearch, columnSearch, sort, dateFrom, dateTo, due]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
@@ -586,6 +608,18 @@ export default function PaymentsPage() {
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                       className="text-left py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
+                      filter={
+                        <ColumnFilter active={Boolean(dateFrom || dateTo)} title="Event date">
+                          <DateRangeFilter
+                            from={dateFrom}
+                            to={dateTo}
+                            onChange={({ from, to }) => {
+                              setDateFrom(from);
+                              setDateTo(to);
+                            }}
+                          />
+                        </ColumnFilter>
+                      }
                     />
                     <SortableHeader
                       label="Total"
@@ -607,6 +641,16 @@ export default function PaymentsPage() {
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                       className="text-right py-3 px-3 text-sm font-semibold text-[var(--text-2)]"
+                      filter={
+                        <ColumnFilter active={Boolean(due)} title="Balance" align="end">
+                          <ChoiceFilter
+                            name="payments-due"
+                            value={due}
+                            options={DUE_FILTER_OPTIONS}
+                            onChange={(v) => setDue(v as '' | 'outstanding' | 'paid')}
+                          />
+                        </ColumnFilter>
+                      }
                     />
                     <SortableHeader
                       label="Entries"
