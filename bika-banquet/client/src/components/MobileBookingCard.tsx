@@ -4,24 +4,8 @@ import { memo } from 'react';
 import { Building2, CalendarDays, Download, Edit, FileText, Trash2, Users } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import StatusBadge from '@/components/StatusBadge';
-
-interface Booking {
-    id: string;
-    functionName: string;
-    functionType: string;
-    functionDate: string;
-    expectedGuests: number;
-    status: string;
-    isQuotation: boolean;
-    grandTotal: number;
-    customer: {
-        name: string;
-        phone: string;
-    };
-    halls?: Array<{
-        hall?: { id: string; name: string; banquet?: { id: string; name: string } | null } | null;
-    }>;
-}
+// Shared booking shape — avoids a second, drifting local definition.
+import type { Booking } from '@/app/dashboard/bookings/_lib/types';
 
 interface MobileBookingCardProps {
     booking: Booking;
