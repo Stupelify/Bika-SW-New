@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarCheck, Plus, Search, Filter, Edit, Trash2, Download, FileText, PencilLine } from 'lucide-react';
+import { CalendarCheck, Plus, Search, Filter, Edit, Trash2, Download, FileText, PencilLine, Rows3, Rows4 } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
@@ -11,11 +11,21 @@ import StatusBadge, { getRowStatusClass } from '@/components/StatusBadge';
 import { formatDateCompact } from '@/lib/date';
 import { getNextSort, type SortState } from '@/lib/tableUtils';
 import { resolveDueAmount } from '@bika/booking-core';
+import { cn } from '@/lib/cn';
+import {
+  ChoiceFilter,
+  ColumnFilter,
+  DateRangeFilter,
+  MultiSelectFilter,
+  NumberRangeFilter,
+  type FilterOption,
+} from '@/components/data-table/filter-controls';
+import { DUE_FILTER_OPTIONS, STATUS_FILTER_OPTIONS } from '@/components/bookings/BookingFilters';
+import type { BookingFilters } from '@/lib/booking-list/booking-filters';
 import {
   BOOKING_SAVED_VIEWS,
   BOOKINGS_PAGE_SIZE,
   formatInrCompact,
-  initialColumnSearch,
   pencilExpiryDays,
   type Booking,
 } from '../_lib/types';
@@ -34,9 +44,13 @@ interface BookingsListSectionProps {
   setViewMode: (mode: 'table' | 'cards') => void;
   globalSearch: string;
   setGlobalSearch: (value: string) => void;
-  columnSearch: typeof initialColumnSearch;
-  setColumnSearch: React.Dispatch<React.SetStateAction<typeof initialColumnSearch>>;
-  handleColumnSearch: (key: keyof typeof initialColumnSearch, value: string) => void;
+  filters: BookingFilters;
+  onFilterChange: (patch: Partial<BookingFilters>) => void;
+  activeFilterCount: number;
+  venueOptions: FilterOption[];
+  hallOptions: FilterOption[];
+  density: 'compact' | 'comfortable';
+  setDensity: React.Dispatch<React.SetStateAction<'compact' | 'comfortable'>>;
   clearSearch: () => void;
   sort: SortState;
   setSort: React.Dispatch<React.SetStateAction<SortState>>;
@@ -73,9 +87,13 @@ export default function BookingsListSection({
   setViewMode,
   globalSearch,
   setGlobalSearch,
-  columnSearch,
-  setColumnSearch,
-  handleColumnSearch,
+  filters,
+  onFilterChange,
+  activeFilterCount,
+  venueOptions,
+  hallOptions,
+  density,
+  setDensity,
   clearSearch,
   sort,
   setSort,
@@ -157,12 +175,24 @@ export default function BookingsListSection({
           <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
             <Filter className="w-5 h-5 md:mr-2" />
             <span className="hidden md:inline">Filters</span>
-            {Object.values(columnSearch).filter(Boolean).length > 0 && (
+            {activeFilterCount > 0 && (
                <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
-                 {Object.values(columnSearch).filter(Boolean).length}
+                 {activeFilterCount}
                </span>
             )}
           </button>
+          {/* Density toggle — desktop table only */}
+          {viewMode === 'table' && (
+            <button
+              type="button"
+              onClick={() => setDensity((d) => (d === 'compact' ? 'comfortable' : 'compact'))}
+              aria-pressed={density === 'compact'}
+              title={density === 'compact' ? 'Compact rows' : 'Comfortable rows'}
+              className="hidden md:inline-flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[10px] border border-[var(--border)] text-[var(--text-3)] hover:text-[var(--text-1)]"
+            >
+              {density === 'compact' ? <Rows3 className="w-4 h-4" /> : <Rows4 className="w-4 h-4" />}
+            </button>
+          )}
           {/* View toggle — hidden on mobile where we always use cards */}
           <div
             aria-label="Toggle view"
@@ -198,13 +228,22 @@ export default function BookingsListSection({
             ))}
           </div>
         </div>
-        <div className="mt-3 md:hidden">
-          <label className="label">Search by date</label>
+        {/* Mobile date-range quick filter (the full set lives in the Filters panel) */}
+        <div className="mt-3 grid grid-cols-2 gap-2 md:hidden">
+          <label className="label col-span-2 mb-0">Function date</label>
           <input
             type="date"
+            aria-label="From date"
             className="input"
-            value={columnSearch.functionDate}
-            onChange={(e) => handleColumnSearch('functionDate', e.target.value)}
+            value={filters.dateFrom}
+            onChange={(e) => onFilterChange({ dateFrom: e.target.value })}
+          />
+          <input
+            type="date"
+            aria-label="To date"
+            className="input"
+            value={filters.dateTo}
+            onChange={(e) => onFilterChange({ dateTo: e.target.value })}
           />
         </div>
       </div>
@@ -231,27 +270,29 @@ export default function BookingsListSection({
             variant={
               globalSearch
                 ? 'search'
-                : Object.values(columnSearch).some(Boolean)
+                : activeFilterCount > 0
                   ? 'filter'
                   : 'page'
             }
             title={
               globalSearch
                 ? 'No bookings match your search'
-                : Object.values(columnSearch).some(Boolean)
+                : activeFilterCount > 0
                   ? 'No matches'
                   : 'No bookings found'
             }
             description={
-              globalSearch || Object.values(columnSearch).some(Boolean)
-                ? `"${globalSearch || Object.values(columnSearch).find(Boolean)}" returned no results.`
-                : 'Create a booking to start tracking events.'
+              globalSearch
+                ? `"${globalSearch}" returned no results.`
+                : activeFilterCount > 0
+                  ? 'No bookings match the active filters.'
+                  : 'Create a booking to start tracking events.'
             }
             action={
               globalSearch
                 ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
-                : Object.values(columnSearch).some(Boolean)
-                  ? { label: 'Clear filters', onClick: () => setColumnSearch(initialColumnSearch) }
+                : activeFilterCount > 0
+                  ? { label: 'Clear filters', onClick: clearSearch }
                   : canAddBooking
                     ? { label: 'New Booking', onClick: () => setShowCreateForm(true) }
                     : undefined
@@ -336,7 +377,7 @@ export default function BookingsListSection({
 
             {/* Desktop table view */}
             <div className={viewMode === 'table' ? 'hidden md:block table-shell' : 'hidden'}>
-              <table className="data-table">
+              <table className={cn('data-table', density === 'compact' && 'is-compact')}>
                 <thead>
                   <tr className="border-b border-[var(--border)]">
                     <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Booking</th>
@@ -351,14 +392,71 @@ export default function BookingsListSection({
                       sortKey="functionDate"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      filter={
+                        <ColumnFilter active={Boolean(filters.dateFrom || filters.dateTo)} title="Date">
+                          <DateRangeFilter
+                            from={filters.dateFrom}
+                            to={filters.dateTo}
+                            onChange={({ from, to }) => onFilterChange({ dateFrom: from, dateTo: to })}
+                          />
+                        </ColumnFilter>
+                      }
                     />
-                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Hall</th>
+                    <th className="py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
+                      <span className="inline-flex items-center gap-1">
+                        Hall
+                        <ColumnFilter
+                          active={filters.banquetIds.length > 0 || filters.hallIds.length > 0}
+                          title="Venue & hall"
+                        >
+                          <div className="flex flex-col gap-3">
+                            <div>
+                              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-4)]">
+                                Venue
+                              </div>
+                              <MultiSelectFilter
+                                options={venueOptions}
+                                selected={filters.banquetIds}
+                                onChange={(banquetIds) => onFilterChange({ banquetIds })}
+                                searchable
+                                emptyLabel="No venues"
+                              />
+                            </div>
+                            <div>
+                              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-4)]">
+                                Hall
+                              </div>
+                              <MultiSelectFilter
+                                options={hallOptions}
+                                selected={filters.hallIds}
+                                onChange={(hallIds) => onFilterChange({ hallIds })}
+                                searchable
+                                emptyLabel="No halls"
+                              />
+                            </div>
+                          </div>
+                        </ColumnFilter>
+                      </span>
+                    </th>
                     <SortableHeader
                       label="Guests"
                       sortKey="expectedGuests"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                       className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
+                      filter={
+                        <ColumnFilter
+                          active={Boolean(filters.guestsMin || filters.guestsMax)}
+                          title="Guests"
+                          align="end"
+                        >
+                          <NumberRangeFilter
+                            min={filters.guestsMin}
+                            max={filters.guestsMax}
+                            onChange={({ min, max }) => onFilterChange({ guestsMin: min, guestsMax: max })}
+                          />
+                        </ColumnFilter>
+                      }
                     />
                     <SortableHeader
                       label="Grand total"
@@ -366,13 +464,47 @@ export default function BookingsListSection({
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
                       className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]"
+                      filter={
+                        <ColumnFilter
+                          active={Boolean(filters.amountMin || filters.amountMax)}
+                          title="Amount (₹)"
+                          align="end"
+                        >
+                          <NumberRangeFilter
+                            min={filters.amountMin}
+                            max={filters.amountMax}
+                            onChange={({ min, max }) => onFilterChange({ amountMin: min, amountMax: max })}
+                          />
+                        </ColumnFilter>
+                      }
                     />
-                    <th aria-label="Due" className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">Due</th>
+                    <th aria-label="Due" className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">
+                      <span className="inline-flex items-center gap-1">
+                        Due
+                        <ColumnFilter active={Boolean(filters.due)} title="Balance" align="end">
+                          <ChoiceFilter
+                            name="due-header"
+                            value={filters.due}
+                            options={DUE_FILTER_OPTIONS}
+                            onChange={(due) => onFilterChange({ due: due as BookingFilters['due'] })}
+                          />
+                        </ColumnFilter>
+                      </span>
+                    </th>
                     <SortableHeader
                       label="Status"
                       sortKey="status"
                       sort={sort}
                       onSort={(key) => setSort((prev) => getNextSort(prev, key))}
+                      filter={
+                        <ColumnFilter active={filters.status.length > 0} title="Status">
+                          <MultiSelectFilter
+                            options={STATUS_FILTER_OPTIONS}
+                            selected={filters.status}
+                            onChange={(status) => onFilterChange({ status })}
+                          />
+                        </ColumnFilter>
+                      }
                     />
                     {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                       <th className="ops-secondary-actions text-right py-3 px-4 text-sm font-semibold text-[var(--text-2)]">

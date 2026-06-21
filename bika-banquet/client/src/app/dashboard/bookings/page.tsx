@@ -19,6 +19,15 @@ import {
   TableColumnConfig,
   filterAndSortRows,
 } from '@/lib/tableUtils';
+import {
+  EMPTY_BOOKING_FILTERS,
+  applyBookingFiltersClient,
+  countActiveFilters,
+  toListParamsInput,
+  type BookingFilters,
+} from '@/lib/booking-list/booking-filters';
+import { BookingFilterPanelBody } from '@/components/bookings/BookingFilters';
+import type { FilterOption } from '@/components/data-table/filter-controls';
 import { useDebounce } from '@/lib/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
@@ -32,12 +41,15 @@ import {
   BOOKINGS_PAGE_SIZE,
   formatCustomerLabel,
   formatInrCompact,
-  initialColumnSearch,
   type Booking,
 } from './_lib/types';
 import BookingsListSection from './_components/BookingsListSection';
 import BookingFormModal from './_components/BookingFormModal';
 import { useBookingForm } from './_hooks/useBookingForm';
+
+// Structured filters are applied via applyBookingFiltersClient on the legacy
+// client path; filterAndSortRows only handles global search + sort here.
+const EMPTY_CLIENT_COLUMN_SEARCH: Record<string, string> = {};
 
 export default function BookingsPage() {
   const searchParams = useSearchParams();
@@ -60,8 +72,10 @@ export default function BookingsPage() {
   const [bookingPdfLoading, setBookingPdfLoading] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
-  const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
+  const [filters, setFilters] = useState<BookingFilters>(EMPTY_BOOKING_FILTERS);
+  const debouncedFilters = useDebounce(filters, useServer ? 300 : 150);
   const [showFilters, setShowFilters] = useState(false);
+  const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
   const [sort, setSort] = useState<SortState>({
     key: 'functionDate',
     direction: 'desc',
@@ -69,18 +83,70 @@ export default function BookingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
-  const serverSearch = useMemo(() => {
-    const parts = [
-      debouncedGlobalSearch,
-      columnSearch.functionName,
-      columnSearch.customer,
-      columnSearch.status,
-      columnSearch.functionDate,
-    ]
-      .map((v) => (v ?? '').trim())
-      .filter(Boolean);
-    return normalizeSearchForServer(parts.join(' '));
-  }, [debouncedGlobalSearch, columnSearch]);
+  // Venue + hall options for the multiselect filters. Best-effort: if the
+  // fetch fails the rest of the filters still work.
+  const [venueOptions, setVenueOptions] = useState<FilterOption[]>([]);
+  const [hallOptions, setHallOptions] = useState<FilterOption[]>([]);
+
+  const updateFilters = useCallback((patch: Partial<BookingFilters>) => {
+    setFilters((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('bika_bookings_density');
+      if (saved === 'comfortable' || saved === 'compact') setDensity(saved);
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('bika_bookings_density', density);
+    } catch {
+      // ignore storage access errors
+    }
+  }, [density]);
+
+  useEffect(() => {
+    if (!canViewBooking) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [banquetsRes, hallsRes] = await Promise.all([
+          api.getBanquets({ page: 1, limit: 200 }),
+          api.getHalls({ page: 1, limit: 500 }),
+        ]);
+        if (cancelled) return;
+        const banquets = banquetsRes.data?.data?.banquets || [];
+        setVenueOptions(banquets.map((b) => ({ value: b.id, label: b.name })));
+        const halls = hallsRes.data?.data?.halls || [];
+        setHallOptions(
+          halls.map((h) => ({
+            value: h.id,
+            label: h.banquet?.name ? `${h.banquet.name} / ${h.name}` : h.name,
+          }))
+        );
+      } catch {
+        // Options unavailable — filters that don't need them still work.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canViewBooking]);
+
+  const serverSearch = useMemo(
+    () => normalizeSearchForServer(debouncedGlobalSearch),
+    [debouncedGlobalSearch]
+  );
+  const serverFilterParams = useMemo(
+    () => toListParamsInput(debouncedFilters),
+    [debouncedFilters]
+  );
 
   const {
     data: serverBookingsData,
@@ -90,9 +156,10 @@ export default function BookingsPage() {
   } = useBookingsServerListQuery<Booking>(canViewBooking && useServer, {
     page: currentPage,
     limit: BOOKINGS_PAGE_SIZE,
-    search: serverSearch,
     sort: sort.key,
     order: sort.direction,
+    ...serverFilterParams,
+    search: serverSearch,
   });
 
   const serverBookingsPrevRef = useRef<Booking[] | undefined>(undefined);
@@ -122,7 +189,7 @@ export default function BookingsPage() {
 
   const clearSearch = () => {
     setGlobalSearch('');
-    setColumnSearch(initialColumnSearch);
+    setFilters(EMPTY_BOOKING_FILTERS);
     setCurrentPage(1);
   };
 
@@ -212,7 +279,7 @@ export default function BookingsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedGlobalSearch, columnSearch, sort]);
+  }, [debouncedGlobalSearch, debouncedFilters, sort]);
 
   const tableColumns = useMemo<TableColumnConfig<Booking>[]>(
     () => [
@@ -253,8 +320,12 @@ export default function BookingsPage() {
   );
 
   const clientFilteredBookings = useMemo(
-    () => filterAndSortRows(bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort),
-    [bookings, tableColumns, debouncedGlobalSearch, columnSearch, sort]
+    () =>
+      applyBookingFiltersClient(
+        filterAndSortRows(bookings, tableColumns, debouncedGlobalSearch, EMPTY_CLIENT_COLUMN_SEARCH, sort),
+        debouncedFilters
+      ),
+    [bookings, tableColumns, debouncedGlobalSearch, debouncedFilters, sort]
   );
 
   const serverBookingsTotal = serverBookingsData?.pagination?.total ?? 0;
@@ -293,10 +364,6 @@ export default function BookingsPage() {
     () => (activeSavedView.fn ? paginatedBookings.filter(activeSavedView.fn) : paginatedBookings),
     [paginatedBookings, activeSavedView]
   );
-
-  const handleColumnSearch = (key: keyof typeof initialColumnSearch, value: string) => {
-    setColumnSearch((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleDeleteBooking = async (bookingId: string) => {
     if (!confirm('Delete this booking?')) return;
@@ -397,10 +464,8 @@ export default function BookingsPage() {
             >
               <Filter className="w-4 h-4" />
               Filters
-              {Object.values(columnSearch).filter(Boolean).length > 0 && (
-                <span className="ops-filter-count">
-                  {Object.values(columnSearch).filter(Boolean).length}
-                </span>
+              {activeFilterCount > 0 && (
+                <span className="ops-filter-count">{activeFilterCount}</span>
               )}
             </button>
             {canAddBooking ? (
@@ -438,9 +503,13 @@ export default function BookingsPage() {
         setViewMode={setViewMode}
         globalSearch={globalSearch}
         setGlobalSearch={setGlobalSearch}
-        columnSearch={columnSearch}
-        setColumnSearch={setColumnSearch}
-        handleColumnSearch={handleColumnSearch}
+        filters={filters}
+        onFilterChange={updateFilters}
+        activeFilterCount={activeFilterCount}
+        venueOptions={venueOptions}
+        hallOptions={hallOptions}
+        density={density}
+        setDensity={setDensity}
         clearSearch={clearSearch}
         sort={sort}
         setSort={setSort}
@@ -469,35 +538,15 @@ export default function BookingsPage() {
       <FilterPanel
         open={showFilters}
         onClose={() => setShowFilters(false)}
-        activeCount={Object.values(columnSearch).filter(Boolean).length}
-        onClearAll={() => setColumnSearch(initialColumnSearch)}
+        activeCount={activeFilterCount}
+        onClearAll={() => setFilters(EMPTY_BOOKING_FILTERS)}
       >
-        <div className="space-y-4">
-          <div>
-            <label className="label">Function</label>
-            <input className="input" placeholder="Search function" value={columnSearch.functionName} onChange={(e) => handleColumnSearch('functionName', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Customer</label>
-            <input className="input" placeholder="Search name or phone" value={columnSearch.customer} onChange={(e) => handleColumnSearch('customer', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Date</label>
-            <input type="date" className="input" value={columnSearch.functionDate} onChange={(e) => handleColumnSearch('functionDate', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Guests</label>
-            <input className="input" placeholder="Search guests" value={columnSearch.expectedGuests} onChange={(e) => handleColumnSearch('expectedGuests', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Status</label>
-            <input className="input" placeholder="Search status" value={columnSearch.status} onChange={(e) => handleColumnSearch('status', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Amount</label>
-            <input className="input" placeholder="Search amount" value={columnSearch.grandTotal} onChange={(e) => handleColumnSearch('grandTotal', e.target.value)} />
-          </div>
-        </div>
+        <BookingFilterPanelBody
+          filters={filters}
+          onChange={updateFilters}
+          venueOptions={venueOptions}
+          hallOptions={hallOptions}
+        />
       </FilterPanel>
     </div>
   );

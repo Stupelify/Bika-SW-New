@@ -942,3 +942,15 @@
   }
 }
 
+/* Compact density for the bookings table. Unlayered so it overrides the
+   per-cell `py-4` Tailwind utilities (which live in a later @layer and would
+   otherwise win regardless of specificity). Toggled via the density control. */
+.data-table.is-compact thead th {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.data-table.is-compact tbody td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
