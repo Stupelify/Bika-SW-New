@@ -100,9 +100,7 @@ import BookingFinancialSummary from '@/components/BookingFinancialSummary';
 import FinalizedVersionHistory from '@/components/booking/FinalizedVersionHistory';
 import BookingPartyOverForm from '@/components/BookingPartyOverForm';
 import { AutoResizeTextarea } from '@/components/AutoResizeTextarea';
-import BookingTermsSection from '@/components/booking/BookingTermsSection';
 import BookingMenuEditorModal from '@/components/booking/BookingMenuEditorModal';
-import BookingPackTable from '@/components/booking/BookingPackTable';
 import BookingPackMobileCards from '@/components/booking/BookingPackMobileCards';
 import { IndianAmountInput } from '@/components/IndianAmountInput';
 import {
@@ -187,13 +185,11 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
     useState<CustomerSearchField | null>(null);
   const hallPickerContainerRef = useRef<HTMLDivElement | null>(null);
   const hallPickerPortalRef = useRef<HTMLDivElement | null>(null);
-  const actionSentinelRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   // Snapshot of formData as last loaded from the server. Reset to this on server rejection.
   const savedFormDataRef = useRef<BookingFormData | null>(null);
   const savingInFlightRef = useRef(false);
   const [importedTemplateExtras, setImportedTemplateExtras] = useState<MenuItemLike[]>([]);
-  const [showStickyActions, setShowStickyActions] = useState(false);
   const [formData, setFormData] = useState<BookingFormData>(initialFormData);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const isFormDirtyRef = useRef(false);
@@ -514,18 +510,6 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
     void loadLookups();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAddBooking, canEditBooking]);
-
-  useEffect(() => {
-    if (!actionSentinelRef.current) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setShowStickyActions(!entry.isIntersecting);
-      },
-      { root: null, rootMargin: '-200px 0px 0px 0px', threshold: 0 }
-    );
-    observer.observe(actionSentinelRef.current);
-    return () => observer.disconnect();
-  }, [showCreateForm]);
 
   useEffect(() => {
     if (!showCreateForm) return;
@@ -2056,11 +2040,9 @@ export function useBookingForm(options: UseBookingFormOptions = {}) {
     setActiveCustomerSearchField,
     hallPickerContainerRef,
     hallPickerPortalRef,
-    actionSentinelRef,
     formRef,
     savingInFlightRef,
     importedTemplateExtras,
-    showStickyActions,
     formData,
     setFormData,
     isFormDirty,

@@ -2,7 +2,7 @@
 
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle, Plus, Save } from 'lucide-react';
+import { CheckCircle, Plus } from 'lucide-react';
 import { IndianAmountInput } from '@/components/IndianAmountInput';
 import { PACK_LABELS, type PackKey } from '@/lib/booking-form/constants';
 import {
@@ -56,7 +56,6 @@ export interface BookingPackTableProps {
   setNetAmountDraft: Dispatch<SetStateAction<string | null>>;
   isReadOnlyBooking: boolean;
   setIsFormDirty: Dispatch<SetStateAction<boolean>>;
-  closeBookingForm: () => void;
   saving: boolean;
   handleFinalizeBooking: (e: React.MouseEvent) => void;
 }
@@ -90,7 +89,6 @@ export default function BookingPackTable({
   setNetAmountDraft,
   isReadOnlyBooking,
   setIsFormDirty,
-  closeBookingForm,
   saving,
   handleFinalizeBooking,
 }: BookingPackTableProps) {
@@ -594,26 +592,7 @@ export default function BookingPackTable({
 
                       {/* Actions row */}
                       <tr className="border-t border-[var(--border)] bg-[var(--surface)]">
-                        <td colSpan={6} className="px-3 py-2">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={closeBookingForm}
-                            >
-                              Cancel
-                            </button>
-                            {!isReadOnlyBooking && (
-                              <button type="submit" className="btn btn-primary" disabled={saving}>
-                                <span className="inline-flex items-center gap-2">
-                                  <Save className="w-4 h-4" />
-                                  {saving ? 'Saving...' : 'Submit'}
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                        <td colSpan={2} />
+                        <td colSpan={8} />
                         <td className="px-3 py-2 text-right">
                           {!isReadOnlyBooking && (
                             <button

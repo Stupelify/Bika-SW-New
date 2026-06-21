@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle,
@@ -66,7 +67,6 @@ export default function BookingFormModal(props: BookingFormModalProps) {
     handleSubmitBooking,
     saving,
     setSaving,
-    actionSentinelRef,
     setMenuPdfBooking,
     bookingsForMenuPdf,
     activeBookingObj,
@@ -136,8 +136,9 @@ export default function BookingFormModal(props: BookingFormModalProps) {
     savingQuickItem,
     historicalVersions,
     items,
-    showStickyActions,
   } = props as BookingFormModalProps & { bookingsForMenuPdf?: Booking[]; notifyDataChanged?: () => Promise<void> };
+
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   return (
     <>
@@ -298,50 +299,9 @@ export default function BookingFormModal(props: BookingFormModalProps) {
           }}
           className="space-y-5"
         >
-          <div ref={actionSentinelRef} />
-            <div className="flex items-center gap-3 flex-wrap">
-              {!isReadOnlyBooking && (
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  <span className="inline-flex items-center gap-2">
-                    <Save className="w-4 h-4" />
-                    {saving ? 'Saving...' : 'Submit'}
-                  </span>
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => window.print()}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Printer className="w-4 h-4" />
-                  Print
-                </span>
-              </button>
-              {editingBookingId && canExportMenuPdf && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    // Prefer the row from the loaded list, but fall back to the
-                    // fully-loaded active booking so this works under server
-                    // pagination when the booking is not on the current page.
-                    const b =
-                      (bookingsForMenuPdf ?? []).find((bk) => bk.id === editingBookingId) ||
-                      (activeBookingObj as Booking | null);
-                    if (b) setMenuPdfBooking(b);
-                  }}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Menu PDF
-                  </span>
-                </button>
-              )}
-              {!isReadOnlyBooking && availabilityChip && (
-                <span className="ml-auto">{availabilityChip}</span>
-              )}
-            </div>
+            {!isReadOnlyBooking && availabilityChip && (
+              <div className="flex justify-end">{availabilityChip}</div>
+            )}
 
             {isReadOnlyBooking && (
               <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
@@ -694,7 +654,6 @@ export default function BookingFormModal(props: BookingFormModalProps) {
                 setNetAmountDraft={setNetAmountDraft}
                 isReadOnlyBooking={isReadOnlyBooking}
                 setIsFormDirty={setIsFormDirty}
-                closeBookingForm={closeBookingForm}
                 saving={saving}
                 handleFinalizeBooking={handleFinalizeBooking}
               />
@@ -737,7 +696,6 @@ export default function BookingFormModal(props: BookingFormModalProps) {
               />
             </div>
 
-            <BookingTermsSection />
             </>)}
 
             {activeBookingTab === 'payments' && (
@@ -812,38 +770,57 @@ export default function BookingFormModal(props: BookingFormModalProps) {
               </div>
             )}
 
-            <div className="form-actions">
+            <div
+              className="form-actions"
+              style={{
+                position: 'sticky',
+                bottom: 0,
+                background: 'var(--surface)',
+                borderTop: '1px solid var(--border)',
+                padding: '12px 16px',
+                marginTop: 12,
+                zIndex: 20,
+                flexWrap: 'wrap',
+                justifyContent: 'flex-start',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={closeBookingForm}
+                onClick={() => setShowTermsModal(true)}
               >
-                Cancel
+                Terms &amp; Conditions
               </button>
-              {!isReadOnlyBooking && (
-                <button type="submit" className="btn btn-primary" disabled={saving}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => window.print()}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Printer className="w-4 h-4" />
+                  Print Form
+                </span>
+              </button>
+              {editingBookingId && canExportMenuPdf && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    const b =
+                      (bookingsForMenuPdf ?? []).find((bk) => bk.id === editingBookingId) ||
+                      (activeBookingObj as Booking | null);
+                    if (b) setMenuPdfBooking(b);
+                  }}
+                >
                   <span className="inline-flex items-center gap-2">
-                    <Save className="w-4 h-4" />
-                    {saving ? 'Saving...' : 'Submit'}
+                    <FileText className="w-4 h-4" />
+                    Menu PDF
                   </span>
                 </button>
               )}
-            </div>
-
-            {!isReadOnlyBooking && (
-              <div
-                className="form-actions"
-                style={{
-                  position: 'sticky',
-                  bottom: 0,
-                  background: 'var(--surface)',
-                  borderTop: '1px solid var(--border)',
-                  padding: '12px 16px',
-                  marginTop: 12,
-                  zIndex: 20,
-                  display: showStickyActions ? 'flex' : 'none',
-                }}
-              >
+              <span className="ml-auto flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -851,14 +828,16 @@ export default function BookingFormModal(props: BookingFormModalProps) {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  <span className="inline-flex items-center gap-2">
-                    <Save className="w-4 h-4" />
-                    {saving ? 'Saving...' : 'Submit'}
-                  </span>
-                </button>
-              </div>
-            )}
+                {!isReadOnlyBooking && (
+                  <button type="submit" className="btn btn-primary" disabled={saving}>
+                    <span className="inline-flex items-center gap-2">
+                      <Save className="w-4 h-4" />
+                      {saving ? 'Saving...' : 'Submit'}
+                    </span>
+                  </button>
+                )}
+              </span>
+            </div>
           </form>
         </fieldset>
 
@@ -869,6 +848,16 @@ export default function BookingFormModal(props: BookingFormModalProps) {
           templateMenus={templateMenus}
         />
       </FormPromptModal>
+
+      <FormPromptModal
+        open={showTermsModal}
+        title="Terms & Conditions"
+        onClose={() => setShowTermsModal(false)}
+        widthClass="max-w-lg"
+      >
+        <BookingTermsSection compact hideTitle />
+      </FormPromptModal>
+
       <QuickCustomerModal
         open={showAddCustomerForm}
         onClose={() => setShowAddCustomerForm(false)}
