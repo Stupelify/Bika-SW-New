@@ -44,6 +44,7 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
   // 150ms preserved for the legacy in-memory path.
   const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
   const [columnSearch, setColumnSearch] = useState<ColumnSearch>(initialColumnSearch);
+  const [priority, setPriority] = useState<string[]>([]);
   const [sort, setSort] = useState<SortState>({ key: 'name', direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
     search: serverSearch,
     sort: sort.key,
     order: sort.direction,
+    priority: priority.length ? priority.join(',') : undefined,
   });
 
   const serverPrevRef = useRef<CustomerRow[] | undefined>(undefined);
@@ -137,10 +139,12 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
   );
 
   // Legacy (flag OFF) path: filter + sort + slice in memory.
-  const clientFiltered = useMemo(
-    () => filterAndSortRows(customers, tableColumns, debouncedGlobalSearch, columnSearch, sort),
-    [customers, tableColumns, debouncedGlobalSearch, columnSearch, sort]
-  );
+  const clientFiltered = useMemo(() => {
+    const rows = filterAndSortRows(customers, tableColumns, debouncedGlobalSearch, columnSearch, sort);
+    if (!priority.length) return rows;
+    const wanted = new Set(priority);
+    return rows.filter((c) => wanted.has(String((c as { priority?: number | null }).priority ?? '')));
+  }, [customers, tableColumns, debouncedGlobalSearch, columnSearch, sort, priority]);
 
   // Server path: `customers` is already the current page, server-filtered and
   // server-sorted. Totals come from the server pagination meta.
@@ -179,7 +183,7 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedGlobalSearch, columnSearch, sort]);
+  }, [debouncedGlobalSearch, columnSearch, sort, priority]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
@@ -236,6 +240,7 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
   const clearSearch = () => {
     setGlobalSearch('');
     setColumnSearch(initialColumnSearch);
+    setPriority([]);
     setCurrentPage(1);
   };
 
@@ -250,6 +255,8 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
     columnSearch,
     setColumnSearch,
     handleColumnSearch,
+    priority,
+    setPriority,
     clearSearch,
     sort,
     setSort,

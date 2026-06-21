@@ -37,6 +37,8 @@ export type ListParamsInput = {
   amountMin?: number;
   amountMax?: number;
   due?: string;
+  /** Customer priority filter (comma-separated 1–5). */
+  priority?: string;
 }
 
 export type ListParams = {
@@ -55,6 +57,7 @@ export type ListParams = {
   amountMin?: number;
   amountMax?: number;
   due?: string;
+  priority?: string;
 }
 
 /** Server caps bookings/enquiries at 200; never request more than that. */
@@ -118,6 +121,9 @@ export function buildListParams(
 
   const due = (input.due ?? '').trim();
   if (due) params.due = due;
+
+  const priority = (input.priority ?? '').trim();
+  if (priority) params.priority = priority;
 
   return params;
 }

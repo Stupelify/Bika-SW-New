@@ -10,6 +10,7 @@ import Toolbar from '@/components/Toolbar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import EmptyState from '@/components/EmptyState';
 import FilterPanel from '@/components/FilterPanel';
+import { MultiSelectFilter, type FilterOption } from '@/components/data-table/filter-controls';
 import { TableSkeleton } from '@/components/Skeletons';
 import { useCustomersList } from './_hooks/useCustomersList';
 import { useCustomerForm } from './_hooks/useCustomerForm';
@@ -41,7 +42,16 @@ export default function CustomersPage() {
     }
   };
 
-  const activeFilterCount = Object.values(list.columnSearch).filter(Boolean).length;
+  const activeFilterCount =
+    Object.values(list.columnSearch).filter(Boolean).length + (list.priority.length ? 1 : 0);
+
+  const PRIORITY_FILTER_OPTIONS: FilterOption[] = [
+    { value: '1', label: 'Priority 1' },
+    { value: '2', label: 'Priority 2' },
+    { value: '3', label: 'Priority 3' },
+    { value: '4', label: 'Priority 4' },
+    { value: '5', label: 'Priority 5' },
+  ];
 
   const listProps = {
     customers: list.paginatedCustomers,
@@ -209,9 +219,20 @@ export default function CustomersPage() {
         open={showFilters}
         onClose={() => setShowFilters(false)}
         activeCount={activeFilterCount}
-        onClearAll={() => list.setColumnSearch({ name: '', contact: '', location: '', stats: '', createdAt: '' })}
+        onClearAll={() => {
+          list.setColumnSearch({ name: '', contact: '', location: '', stats: '', createdAt: '' });
+          list.setPriority([]);
+        }}
       >
         <div className="space-y-4">
+          <div>
+            <label className="label">Priority</label>
+            <MultiSelectFilter
+              options={PRIORITY_FILTER_OPTIONS}
+              selected={list.priority}
+              onChange={list.setPriority}
+            />
+          </div>
           <div>
             <label className="label">Name</label>
             <input className="input" placeholder="Search name or phone" value={list.columnSearch.name} onChange={(e) => list.handleColumnSearch('name', e.target.value)} />

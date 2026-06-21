@@ -491,6 +491,15 @@ export async function getCustomers(req: Request, res: Response): Promise<void> {
       ];
     }
 
+    // Priority filter (comma-separated 1–5).
+    const priorities = String(req.query.priority ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= 5);
+    if (priorities.length) {
+      where.priority = { in: priorities };
+    }
+
     // Stable, whitelisted server sort with an `id` tie-breaker so paginated
     // rows never shuffle. Default (no sort param) preserves prior behaviour.
     const orderBy = buildOrderBy(
