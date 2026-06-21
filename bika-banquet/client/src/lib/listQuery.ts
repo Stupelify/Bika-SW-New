@@ -28,6 +28,15 @@ export type ListParamsInput = {
   status?: string;
   fromDate?: string;
   toDate?: string;
+  // Structured booking filters (comma-separated ids / numeric bounds). Omitted
+  // when empty so the cache key stays stable and the server treats as no-filter.
+  banquetIds?: string;
+  hallIds?: string;
+  guestsMin?: number;
+  guestsMax?: number;
+  amountMin?: number;
+  amountMax?: number;
+  due?: string;
 }
 
 export type ListParams = {
@@ -39,6 +48,13 @@ export type ListParams = {
   status?: string;
   fromDate?: string;
   toDate?: string;
+  banquetIds?: string;
+  hallIds?: string;
+  guestsMin?: number;
+  guestsMax?: number;
+  amountMin?: number;
+  amountMax?: number;
+  due?: string;
 }
 
 /** Server caps bookings/enquiries at 200; never request more than that. */
@@ -81,6 +97,27 @@ export function buildListParams(
 
   if (input.fromDate) params.fromDate = input.fromDate;
   if (input.toDate) params.toDate = input.toDate;
+
+  const banquetIds = (input.banquetIds ?? '').trim();
+  if (banquetIds) params.banquetIds = banquetIds;
+  const hallIds = (input.hallIds ?? '').trim();
+  if (hallIds) params.hallIds = hallIds;
+
+  if (input.guestsMin != null && Number.isFinite(input.guestsMin)) {
+    params.guestsMin = input.guestsMin;
+  }
+  if (input.guestsMax != null && Number.isFinite(input.guestsMax)) {
+    params.guestsMax = input.guestsMax;
+  }
+  if (input.amountMin != null && Number.isFinite(input.amountMin)) {
+    params.amountMin = input.amountMin;
+  }
+  if (input.amountMax != null && Number.isFinite(input.amountMax)) {
+    params.amountMax = input.amountMax;
+  }
+
+  const due = (input.due ?? '').trim();
+  if (due) params.due = due;
 
   return params;
 }

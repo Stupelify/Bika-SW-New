@@ -185,16 +185,31 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
     // Build where clause
     const where: any = { isLatest: true };
 
-    // Banquet access restriction: if user has specific banquets, only show bookings for those halls
+    // Banquet access restriction + venue/hall filters. The user's venue scope
+    // and any banquet/hall filter are AND-combined on the SAME hall row, so a
+    // filter can never widen access beyond the scope (intersection semantics).
     const authReq = req as AuthRequest;
     const scope = getVenueScope(authReq);
-    if (!scope.allVenues) {
-      where.halls = { some: { hall: { banquetId: { in: scope.banquetIds } } } };
-    }
+    const VALID_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
+    const parseIdCsv = (raw: unknown): string[] =>
+      (Array.isArray(raw)
+        ? raw.flatMap((v) => String(v).split(','))
+        : String(raw ?? '').split(','))
+        .map((s) => s.trim())
+        .filter((s) => VALID_ID_RE.test(s));
+    const banquetIds = parseIdCsv(req.query.banquetIds);
+    const hallIds = parseIdCsv(req.query.hallIds);
 
-    if (status) {
-      where.status = status;
-    }
+    const hallAnd: any[] = [];
+    if (!scope.allVenues) hallAnd.push({ hall: { banquetId: { in: scope.banquetIds } } });
+    if (banquetIds.length) hallAnd.push({ hall: { banquetId: { in: banquetIds } } });
+    if (hallIds.length) hallAnd.push({ hallId: { in: hallIds } });
+    if (hallAnd.length) where.halls = { some: { AND: hallAnd } };
+
+    // Status: single value or comma-separated multiselect.
+    const statuses = (status || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (statuses.length === 1) where.status = statuses[0];
+    else if (statuses.length > 1) where.status = { in: statuses };
 
     if (isQuotationRaw !== undefined) {
       where.isQuotation = isQuotationRaw === 'true';
@@ -246,6 +261,30 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
         where.functionDate.lte = toParsed;
       }
     }
+
+    // Numeric range filters (guests, grand total) + due-balance preset.
+    const parseNumParam = (raw: unknown): number | null => {
+      if (raw == null || raw === '') return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    const guestsMin = parseNumParam(req.query.guestsMin);
+    const guestsMax = parseNumParam(req.query.guestsMax);
+    if (guestsMin != null || guestsMax != null) {
+      where.expectedGuests = {};
+      if (guestsMin != null) where.expectedGuests.gte = guestsMin;
+      if (guestsMax != null) where.expectedGuests.lte = guestsMax;
+    }
+    const amountMin = parseNumParam(req.query.amountMin);
+    const amountMax = parseNumParam(req.query.amountMax);
+    if (amountMin != null || amountMax != null) {
+      where.grandTotal = {};
+      if (amountMin != null) where.grandTotal.gte = amountMin;
+      if (amountMax != null) where.grandTotal.lte = amountMax;
+    }
+    const due = String(req.query.due ?? '').trim();
+    if (due === 'outstanding') where.dueAmountValue = { gt: 0 };
+    else if (due === 'paid') where.dueAmountValue = { lte: 0 };
 
     // Stable, whitelisted server sort with `id` tie-breaker. Default order
     // (functionDate desc) is preserved when no sort param is supplied — both
