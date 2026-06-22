@@ -111,6 +111,36 @@ export default function BookingsListSection({
   setShowCreateForm,
   setShowFilters,
 }: BookingsListSectionProps) {
+  // A filter/search-induced empty result must NOT replace the table — the
+  // per-column filter controls live in the header, so the user needs them to
+  // stay on screen to adjust or clear an individual filter. Only a genuinely
+  // empty dataset (no search, no filters, default view) shows the full-page
+  // onboarding EmptyState; every other empty renders inside the current view.
+  const isFilterEmpty = Boolean(globalSearch) || activeFilterCount > 0;
+  const emptyTitle = globalSearch
+    ? 'No bookings match your search'
+    : activeFilterCount > 0
+      ? 'No bookings match the active filters'
+      : savedView !== 'all'
+        ? 'No bookings in this view'
+        : 'No bookings found';
+  const emptyAction =
+    globalSearch || activeFilterCount > 0
+      ? { label: 'Clear filters', onClick: clearSearch }
+      : savedView !== 'all'
+        ? { label: 'Clear view', onClick: () => setSavedView('all') }
+        : null;
+  const emptyBody = (
+    <div className="empty-state" style={{ padding: '28px 16px' }}>
+      <p className="empty-state-title">{emptyTitle}</p>
+      <p className="empty-state-desc">Adjust or clear a filter above to see more bookings.</p>
+      {emptyAction && (
+        <button type="button" className="btn btn-secondary mt-2" onClick={emptyAction.onClick}>
+          {emptyAction.label}
+        </button>
+      )}
+    </div>
+  );
   return (
     <>
       {canViewBooking && (
@@ -264,56 +294,24 @@ export default function BookingsListSection({
               showActions={canExportMenuPdf || canEditBooking || canDeleteBooking}
             />
           </div>
-        ) : totalBookingsCount === 0 ? (
+        ) : totalBookingsCount === 0 && !isFilterEmpty && savedView === 'all' ? (
           <EmptyState
-            icon={globalSearch ? Search : CalendarCheck}
-            variant={
-              globalSearch
-                ? 'search'
-                : activeFilterCount > 0
-                  ? 'filter'
-                  : 'page'
-            }
-            title={
-              globalSearch
-                ? 'No bookings match your search'
-                : activeFilterCount > 0
-                  ? 'No matches'
-                  : 'No bookings found'
-            }
-            description={
-              globalSearch
-                ? `"${globalSearch}" returned no results.`
-                : activeFilterCount > 0
-                  ? 'No bookings match the active filters.'
-                  : 'Create a booking to start tracking events.'
-            }
+            icon={CalendarCheck}
+            variant="page"
+            title="No bookings found"
+            description="Create a booking to start tracking events."
             action={
-              globalSearch
-                ? { label: 'Clear search', onClick: () => setGlobalSearch('') }
-                : activeFilterCount > 0
-                  ? { label: 'Clear filters', onClick: clearSearch }
-                  : canAddBooking
-                    ? { label: 'New Booking', onClick: () => setShowCreateForm(true) }
-                    : undefined
+              canAddBooking
+                ? { label: 'New Booking', onClick: () => setShowCreateForm(true) }
+                : undefined
             }
           />
-        ) : viewBookings.length === 0 ? (
-          <div className="empty-state" style={{ padding: '32px 16px' }}>
-            <p className="empty-state-title">No bookings match this view</p>
-            <p className="empty-state-desc">Try a different saved view or clear it to see all bookings.</p>
-            {savedView !== 'all' && (
-              <button type="button" className="btn btn-secondary mt-2" onClick={() => setSavedView('all')}>
-                Clear view
-              </button>
-            )}
-          </div>
         ) : (
           <>
             {/* Mobile card view — always shown on small screens */}
             <div className="md:hidden">
               <div className="mobile-card-list">
-                    {viewBookings.map((booking) => (
+                    {viewBookings.length === 0 ? emptyBody : viewBookings.map((booking) => (
                       <MobileBookingCard
                         key={booking.id}
                         booking={booking}
@@ -349,7 +347,7 @@ export default function BookingsListSection({
                         padding: '4px 0',
                       }}
                     >
-                      {viewBookings.map((booking) => (
+                      {viewBookings.length === 0 ? emptyBody : viewBookings.map((booking) => (
                         <BookingCard
                           key={booking.id}
                           booking={booking}
@@ -514,7 +512,11 @@ export default function BookingsListSection({
                   </tr>
                 </thead>
                 <tbody>
-                  {viewBookings.map((booking) => {
+                  {viewBookings.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-4">{emptyBody}</td>
+                    </tr>
+                  ) : viewBookings.map((booking) => {
                     const rowStatus = booking.isQuotation ? 'quotation' : booking.status;
                     const expDays = booking.status === 'pencil' ? pencilExpiryDays(booking.pencilExpiresAt) : null;
                     const balanceDue = resolveDueAmount(booking);
