@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { downloadBlob } from '@/lib/download';
 import FilterPanel from '@/components/FilterPanel';
 import { useBookingsListQuery, useBookingsServerListQuery } from '@/lib/query/hooks';
 import { usesServerPagination } from '@/lib/featureFlags';
@@ -176,6 +177,26 @@ export default function BookingsPage() {
     ...serverFilterParams,
     search: serverSearch,
   });
+
+  // Export the *current filtered* view to CSV (full set, server-side). Reuses
+  // the same params the list query sends, so the file matches what is on screen.
+  const [exporting, setExporting] = useState(false);
+  const handleExportCsv = useCallback(async () => {
+    try {
+      setExporting(true);
+      const res = await api.exportBookingsCsv({
+        ...serverFilterParams,
+        search: serverSearch,
+        sort: sort.key,
+        order: sort.direction,
+      });
+      downloadBlob(res.data as Blob, `bookings-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch {
+      toast.error('Export failed. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }, [serverFilterParams, serverSearch, sort.key, sort.direction]);
 
   const serverBookingsPrevRef = useRef<Booking[] | undefined>(undefined);
   if (serverBookingsData?.rows) serverBookingsPrevRef.current = serverBookingsData.rows;
@@ -565,6 +586,8 @@ export default function BookingsPage() {
         setMenuPdfBooking={setMenuPdfBooking}
         setShowCreateForm={setShowCreateForm}
         setShowFilters={setShowFilters}
+        onExportCsv={handleExportCsv}
+        exporting={exporting}
       />
 
       {canAddBooking && (

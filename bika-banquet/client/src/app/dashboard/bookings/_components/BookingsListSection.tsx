@@ -67,6 +67,8 @@ interface BookingsListSectionProps {
   setMenuPdfBooking: (booking: Booking | null) => void;
   setShowCreateForm: (open: boolean) => void;
   setShowFilters: (open: boolean) => void;
+  onExportCsv?: () => void;
+  exporting?: boolean;
 }
 
 /**
@@ -110,6 +112,8 @@ export default function BookingsListSection({
   setMenuPdfBooking,
   setShowCreateForm,
   setShowFilters,
+  onExportCsv,
+  exporting = false,
 }: BookingsListSectionProps) {
   // A filter/search-induced empty result must NOT replace the table — the
   // per-column filter controls live in the header, so the user needs them to
@@ -211,6 +215,18 @@ export default function BookingsListSection({
                </span>
             )}
           </button>
+          {onExportCsv && (
+            <button
+              type="button"
+              className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4"
+              onClick={onExportCsv}
+              disabled={exporting}
+              title="Export the current filtered view to CSV"
+            >
+              <Download className="w-5 h-5 md:mr-2" />
+              <span className="hidden md:inline">{exporting ? 'Exporting…' : 'Export'}</span>
+            </button>
+          )}
           {/* Density toggle — desktop table only */}
           {viewMode === 'table' && (
             <button

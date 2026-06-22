@@ -10,6 +10,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { sanitizeSearchTerm } from '../utils/search';
 import { parsePagination } from '../utils/pagination';
 import { buildOrderBy, SortWhitelist } from '../utils/listQuery';
+import { csvDocument } from '../utils/csv';
 import { resolveVersionChain } from './booking.helpers';
 import {
   BOOKING_RELATION_INCLUDE,
@@ -295,6 +296,50 @@ export async function getBookings(req: Request, res: Response): Promise<void> {
       BOOKING_SORT_WHITELIST,
       [{ functionDate: 'desc' }]
     );
+
+    // CSV export of the *full* filtered set (not just the current page). Reuses
+    // the exact `where`/`orderBy` above so the export always matches the list.
+    // Capped to keep memory bounded; a light select avoids loading packs/payments.
+    if (req.query.format === 'csv') {
+      const EXPORT_MAX = 5000;
+      const exportRows = await prisma.booking.findMany({
+        where,
+        orderBy: orderBy as any,
+        take: EXPORT_MAX,
+        include: {
+          customer: { select: { name: true, phone: true } },
+          halls: {
+            include: { hall: { select: { name: true, banquet: { select: { name: true } } } } },
+          },
+        },
+      });
+      const csv = csvDocument(
+        ['Function', 'Type', 'Customer', 'Phone', 'Date', 'Venue', 'Hall', 'Guests', 'Grand total', 'Balance due', 'Status'],
+        exportRows.map((b) => {
+          const hall = b.halls[0]?.hall;
+          return [
+            b.functionName ?? '',
+            b.functionType ?? '',
+            b.customer?.name ?? '',
+            b.customer?.phone ?? '',
+            b.functionDate ? new Date(b.functionDate).toISOString().slice(0, 10) : '',
+            hall?.banquet?.name ?? '',
+            hall?.name ?? '',
+            b.expectedGuests ?? '',
+            b.grandTotal ?? 0,
+            b.dueAmountValue ?? 0,
+            b.status ?? '',
+          ];
+        })
+      );
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="bookings-${new Date().toISOString().slice(0, 10)}.csv"`
+      );
+      res.send(csv);
+      return;
+    }
 
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({

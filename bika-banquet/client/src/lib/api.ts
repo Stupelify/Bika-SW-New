@@ -137,6 +137,8 @@ export const api = {
   // Bookings
   getBookings: (params?: QueryParams) =>
     apiClient.get<ApiEnvelope<BookingsListData>>('/bookings', { params }),
+  exportBookingsCsv: (params?: QueryParams) =>
+    apiClient.get('/bookings', { params: { ...params, format: 'csv' }, responseType: 'blob' }),
   getBooking: (id: string) =>
     apiClient.get<ApiEnvelope<{ booking: Booking }>>(`/bookings/${id}`),
   createBooking: (data: BookingInput) => apiClient.post('/bookings', data),
