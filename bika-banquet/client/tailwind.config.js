@@ -26,6 +26,9 @@ module.exports = {
           2: 'var(--border-2)',
         },
         primary: {
+          // shadcn tokens (DEFAULT/foreground) coexist with the existing teal scale.
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
           50: '#f0fdfa',
           100: '#ccfbf1',
           200: '#99f6e4',
@@ -38,6 +41,9 @@ module.exports = {
           900: '#134e4a',
         },
         accent: {
+          // shadcn accent is namespaced (--sd-accent) to avoid the existing --accent var.
+          DEFAULT: 'hsl(var(--sd-accent))',
+          foreground: 'hsl(var(--sd-accent-foreground))',
           50: '#fff7ed',
           100: '#ffedd5',
           200: '#fed7aa',
@@ -49,6 +55,31 @@ module.exports = {
           800: '#9a3412',
           900: '#7c2d12',
         },
+        // shadcn/ui semantic colours.
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -71,5 +102,5 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 };

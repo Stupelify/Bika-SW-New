@@ -1,6 +1,14 @@
 'use client';
 
-import { CalendarCheck, Plus, Search, Filter, Edit, Trash2, Download, FileText, PencilLine, Rows3, Rows4 } from 'lucide-react';
+import { CalendarCheck, Plus, Search, Filter, Edit, Trash2, Download, FileText, PencilLine, Rows3, Rows4, MoreHorizontal } from 'lucide-react';
+import { Button } from '@/components/shadcn/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/shadcn/dropdown-menu';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import TablePagination from '@/components/TablePagination';
@@ -591,51 +599,49 @@ export default function BookingsListSection({
                       </td>
                       {(canExportMenuPdf || canEditBooking || canDeleteBooking) && (
                         <td className="ops-secondary-actions py-4 px-4 text-right" onClick={(event) => event.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
-                            {canExportMenuPdf && (
-                              <button
-                                type="button"
-                                className="p-2 text-[var(--text-4)] hover:text-teal-700 dark:text-teal-200 hover:bg-teal-50 dark:bg-teal-500/10 rounded-lg disabled:opacity-50"
-                                onClick={() => handleDownloadBookingPdf(booking)}
-                                title="Download booking details PDF"
-                                disabled={bookingPdfLoading === booking.id}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-[var(--text-4)]"
+                                aria-label="Row actions"
                               >
-                                {bookingPdfLoading === booking.id
-                                  ? <span className="w-4 h-4 block border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-                                  : <Download className="w-4 h-4" />}
-                              </button>
-                            )}
-                            {canExportMenuPdf && (booking._count?.packs ?? 1) > 0 && (
-                              <button
-                                type="button"
-                                className="p-2 text-[var(--text-4)] hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
-                                onClick={() => setMenuPdfBooking(booking)}
-                                title="Preview menu PDF"
-                              >
-                                <FileText className="w-4 h-4" />
-                              </button>
-                            )}
-                            {canEditBooking && (
-                              <button
-                                type="button"
-                                className="p-2 text-[var(--text-4)] hover:text-blue-700 dark:text-blue-200 hover:bg-blue-50 dark:bg-blue-500/10 rounded-lg"
-                                onClick={() => openEditBooking(booking.id)}
-                                title="Edit booking"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                            )}
-                            {canDeleteBooking && (
-                              <button
-                                type="button"
-                                className="p-2 text-[var(--text-4)] hover:text-red-700 dark:text-red-200 hover:bg-red-50 dark:bg-red-500/10 rounded-lg"
-                                onClick={() => handleDeleteBooking(booking.id)}
-                                title="Delete booking"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canExportMenuPdf && (
+                                <DropdownMenuItem
+                                  onClick={() => handleDownloadBookingPdf(booking)}
+                                  disabled={bookingPdfLoading === booking.id}
+                                >
+                                  <Download /> Download booking PDF
+                                </DropdownMenuItem>
+                              )}
+                              {canExportMenuPdf && (booking._count?.packs ?? 1) > 0 && (
+                                <DropdownMenuItem onClick={() => setMenuPdfBooking(booking)}>
+                                  <FileText /> Preview menu PDF
+                                </DropdownMenuItem>
+                              )}
+                              {canEditBooking && (
+                                <DropdownMenuItem onClick={() => openEditBooking(booking.id)}>
+                                  <Edit /> Edit booking
+                                </DropdownMenuItem>
+                              )}
+                              {canDeleteBooking && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteBooking(booking.id)}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 /> Delete booking
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       )}
                       </tr>
