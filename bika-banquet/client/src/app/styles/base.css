@@ -7,6 +7,12 @@
     box-sizing: border-box;
   }
 
+  /* shadcn: native checkboxes/radios use the primary (near-black) accent. */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: hsl(var(--primary));
+  }
+
   html {
     /* Hard-stop any element from making the page wider than the screen */
     overflow-x: hidden;
