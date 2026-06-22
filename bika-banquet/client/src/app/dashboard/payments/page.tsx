@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { buildListUrl } from '@/lib/urlListState';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
-import { CreditCard, Plus, Save, Search, Filter } from 'lucide-react';
+import { CreditCard, Plus, Save, Search, Filter, Download } from 'lucide-react';
 import FormPromptModal from '@/components/FormPromptModal';
 import FilterPanel from '@/components/FilterPanel';
 import EmptyState from '@/components/EmptyState';
@@ -27,6 +27,7 @@ import { usesServerPagination } from '@/lib/featureFlags';
 import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
 import { useDebounce } from '@/lib/useDebounce';
 import { api } from '@/lib/api';
+import { downloadBlob } from '@/lib/download';
 import {
   SortState,
   TableColumnConfig,
@@ -135,6 +136,28 @@ export default function PaymentsPage() {
       .filter(Boolean);
     return normalizeSearchForServer(parts.join(' '));
   }, [debouncedGlobalSearch, columnSearch.booking, columnSearch.eventDate]);
+
+  // Export the current filtered view to CSV (payments drives the bookings
+  // endpoint, so it reuses the same server-side export).
+  const [exporting, setExporting] = useState(false);
+  const handleExportCsv = useCallback(async () => {
+    try {
+      setExporting(true);
+      const res = await api.exportBookingsCsv({
+        search: serverSearch,
+        sort: sort.key,
+        order: sort.direction,
+        fromDate: dateFrom || undefined,
+        toDate: dateTo || undefined,
+        due: due || undefined,
+      });
+      downloadBlob(res.data as Blob, `payments-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch {
+      toast.error('Export failed. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }, [serverSearch, sort.key, sort.direction, dateFrom, dateTo, due]);
 
   const {
     data: serverData,
@@ -530,6 +553,16 @@ export default function PaymentsPage() {
                  {Object.values(columnSearch).filter(Boolean).length}
                </span>
             )}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4"
+            onClick={handleExportCsv}
+            disabled={exporting}
+            title="Export the current filtered view to CSV"
+          >
+            <Download className="w-5 h-5 md:mr-2" />
+            <span className="hidden md:inline">{exporting ? 'Exporting…' : 'Export'}</span>
           </button>
         </div>
 

@@ -8,6 +8,7 @@ import { useCustomersListQuery, useCustomersServerListQuery } from '@/lib/query/
 import { usesServerPagination } from '@/lib/featureFlags';
 import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
 import { buildListUrl } from '@/lib/urlListState';
+import { downloadBlob } from '@/lib/download';
 import { useSSE } from '@/hooks/useSSE';
 import { useDebounce } from '@/lib/useDebounce';
 import {
@@ -90,6 +91,25 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
     order: sort.direction,
     priority: priority.length ? priority.join(',') : undefined,
   });
+
+  // Export the current filtered view to CSV (full set, server-side).
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = useCallback(async () => {
+    try {
+      setExporting(true);
+      const res = await api.exportCustomersCsv({
+        search: serverSearch,
+        priority: priority.length ? priority.join(',') : undefined,
+        sort: sort.key,
+        order: sort.direction,
+      });
+      downloadBlob(res.data as Blob, `customers-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch {
+      toast.error('Export failed. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }, [serverSearch, priority, sort.key, sort.direction]);
 
   const serverPrevRef = useRef<CustomerRow[] | undefined>(undefined);
   if (serverData?.rows) serverPrevRef.current = serverData.rows;
@@ -288,6 +308,8 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
     handleColumnSearch,
     priority,
     setPriority,
+    exportCsv,
+    exporting,
     clearSearch,
     sort,
     setSort,

@@ -9,7 +9,7 @@ import {
   formatCustomerOptionLabel,
 } from '@/lib/customerSearch';
 import { toast } from 'sonner';
-import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users, Filter } from 'lucide-react';
+import { CalendarDays, Edit, PhoneCall, Plus, Save, Search, Trash2, Users, Filter, Download } from 'lucide-react';
 import Combobox from '@/components/Combobox';
 import Toolbar from '@/components/Toolbar';
 import FloatingActionButton from '@/components/FloatingActionButton';
@@ -18,6 +18,7 @@ import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import { ColumnFilter, DateRangeFilter } from '@/components/data-table/filter-controls';
 import { buildListUrl } from '@/lib/urlListState';
+import { downloadBlob } from '@/lib/download';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
 import {
@@ -219,6 +220,27 @@ export default function EnquiriesPage() {
       .filter(Boolean);
     return normalizeSearchForServer(parts.join(' '));
   }, [debouncedGlobalSearch, columnSearch]);
+
+  // Export the current filtered view to CSV (full set, server-side).
+  const [exporting, setExporting] = useState(false);
+  const handleExportCsv = useCallback(async () => {
+    try {
+      setExporting(true);
+      const res = await api.exportEnquiriesCsv({
+        search: serverSearch,
+        status: status || undefined,
+        fromDate: dateFrom || undefined,
+        toDate: dateTo || undefined,
+        sort: sort.key,
+        order: sort.direction,
+      });
+      downloadBlob(res.data as Blob, `enquiries-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch {
+      toast.error('Export failed. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }, [serverSearch, status, dateFrom, dateTo, sort.key, sort.direction]);
 
   const {
     data: serverData,
@@ -941,6 +963,16 @@ export default function EnquiriesPage() {
                  {Object.values(columnSearch).filter(Boolean).length}
                </span>
             )}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4"
+            onClick={handleExportCsv}
+            disabled={exporting}
+            title="Export the current filtered view to CSV"
+          >
+            <Download className="w-5 h-5 md:mr-2" />
+            <span className="hidden md:inline">{exporting ? 'Exporting…' : 'Export'}</span>
           </button>
         </div>
       </div>

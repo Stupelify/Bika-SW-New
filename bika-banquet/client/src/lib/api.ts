@@ -117,6 +117,8 @@ export const api = {
   // Customers
   getCustomers: (params?: QueryParams) =>
     apiClient.get<ApiEnvelope<CustomersListData>>('/customers', { params }),
+  exportCustomersCsv: (params?: QueryParams) =>
+    apiClient.get('/customers', { params: { ...params, format: 'csv' }, responseType: 'blob' }),
   getCustomer: (id: string) =>
     apiClient.get<ApiEnvelope<{ customer: Customer }>>(`/customers/${id}`),
   createCustomer: (data: CustomerInput) => apiClient.post('/customers', data),
@@ -127,6 +129,8 @@ export const api = {
   // Enquiries
   getEnquiries: (params?: QueryParams) =>
     apiClient.get<ApiEnvelope<EnquiriesListData>>('/enquiries', { params }),
+  exportEnquiriesCsv: (params?: QueryParams) =>
+    apiClient.get('/enquiries', { params: { ...params, format: 'csv' }, responseType: 'blob' }),
   getEnquiry: (id: string) =>
     apiClient.get<ApiEnvelope<{ enquiry: Enquiry }>>(`/enquiries/${id}`),
   createEnquiry: (data: EnquiryInput) => apiClient.post('/enquiries', data),

@@ -7,6 +7,7 @@ import phoneDigitsByCode from '../config/phoneDigitsByCode.json';
 import { idSchema } from '../utils/validation';
 import { toE164 } from '../utils/phone';
 import { sanitizeSearchTerm } from '../utils/search';
+import { csvDocument } from '../utils/csv';
 import { parsePagination } from '../utils/pagination';
 import { buildOrderBy, SortWhitelist } from '../utils/listQuery';
 import { createAuditLog } from '../utils/auditLog';
@@ -508,6 +509,37 @@ export async function getCustomers(req: Request, res: Response): Promise<void> {
       CUSTOMER_SORT_WHITELIST,
       [{ createdAt: 'desc' }]
     );
+
+    // CSV export of the full filtered set (reuses the same where/orderBy).
+    if (req.query.format === 'csv') {
+      const exportRows = await prisma.customer.findMany({
+        where,
+        orderBy: orderBy as any,
+        take: 5000,
+        include: { _count: { select: { enquiries: true, bookings: true } } },
+      });
+      const csv = csvDocument(
+        ['Name', 'Phone', 'Email', 'City', 'State', 'Priority', 'Rating', 'Enquiries', 'Bookings'],
+        exportRows.map((c) => [
+          c.name ?? '',
+          c.phone ?? '',
+          c.email ?? '',
+          c.city ?? '',
+          c.state ?? '',
+          c.priority ?? '',
+          c.rating ?? '',
+          c._count?.enquiries ?? 0,
+          c._count?.bookings ?? 0,
+        ])
+      );
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="customers-${new Date().toISOString().slice(0, 10)}.csv"`
+      );
+      res.send(csv);
+      return;
+    }
 
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({

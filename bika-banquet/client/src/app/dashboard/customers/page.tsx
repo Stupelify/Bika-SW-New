@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Filter, Plus, Search, Users } from 'lucide-react';
+import { Download, Filter, Plus, Search, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { hasAnyPermission } from '@/lib/permissions';
@@ -145,6 +145,16 @@ export default function CustomersPage() {
                 {activeFilterCount}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4"
+            onClick={list.exportCsv}
+            disabled={list.exporting}
+            title="Export the current filtered view to CSV"
+          >
+            <Download className="w-5 h-5 md:mr-2" />
+            <span className="hidden md:inline">{list.exporting ? 'Exporting…' : 'Export'}</span>
           </button>
         </div>
       </div>

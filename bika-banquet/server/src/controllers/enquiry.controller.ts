@@ -6,6 +6,7 @@ import { normalizeCaseFields } from '../utils/textCase';
 import { idSchema } from '../utils/validation';
 import { resolveEventDateTimes } from '../utils/dateTime';
 import { sanitizeSearchTerm } from '../utils/search';
+import { csvDocument } from '../utils/csv';
 import { parsePagination } from '../utils/pagination';
 import { buildOrderBy, SortWhitelist } from '../utils/listQuery';
 import {
@@ -262,6 +263,35 @@ export async function getEnquiries(req: Request, res: Response): Promise<void> {
       ENQUIRY_SORT_WHITELIST,
       [{ functionDate: 'desc' }]
     );
+
+    // CSV export of the full filtered set (reuses the same where/orderBy).
+    if (req.query.format === 'csv') {
+      const exportRows = await prisma.enquiry.findMany({
+        where,
+        orderBy: orderBy as any,
+        take: 5000,
+        include: { customer: { select: { name: true, phone: true } } },
+      });
+      const csv = csvDocument(
+        ['Function', 'Type', 'Customer', 'Phone', 'Date', 'Guests', 'Status'],
+        exportRows.map((e) => [
+          e.functionName ?? '',
+          e.functionType ?? '',
+          e.customer?.name ?? '',
+          e.customer?.phone ?? '',
+          e.functionDate ? new Date(e.functionDate).toISOString().slice(0, 10) : '',
+          e.expectedGuests ?? '',
+          e.status ?? '',
+        ])
+      );
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="enquiries-${new Date().toISOString().slice(0, 10)}.csv"`
+      );
+      res.send(csv);
+      return;
+    }
 
     const [enquiries, total] = await Promise.all([
       prisma.enquiry.findMany({
