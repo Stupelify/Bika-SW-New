@@ -28,6 +28,7 @@ import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
 import { useDebounce } from '@/lib/useDebounce';
 import { api } from '@/lib/api';
 import { downloadBlob } from '@/lib/download';
+import { Button } from '@/components/shadcn/button';
 import {
   SortState,
   TableColumnConfig,
@@ -418,15 +419,15 @@ export default function PaymentsPage() {
         ]}
         actions={
           canAddPayment ? (
-            <button
+            <Button
               type="button"
-              className="btn btn-primary inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+              className="h-[42px] w-full sm:w-auto"
               onClick={() => setShowPaymentPrompt(true)}
               disabled={useServer ? totalCount === 0 : bookings.length === 0}
             >
-              <Plus className="w-4 h-4" />
+              <Plus />
               Add Payment
-            </button>
+            </Button>
           ) : null
         }
       />
@@ -563,25 +564,26 @@ export default function PaymentsPage() {
               placeholder="Overall search across all payment columns..."
             />
           </div>
-          <button type="button" className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
-            <Filter className="w-5 h-5 md:mr-2" />
+          <Button type="button" variant="outline" className="h-[42px] px-3 md:px-4" onClick={() => setShowFilters(true)}>
+            <Filter className="md:mr-2" />
             <span className="hidden md:inline">Filters</span>
             {Object.values(columnSearch).filter(Boolean).length > 0 && (
                <span className="ml-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-700">
                  {Object.values(columnSearch).filter(Boolean).length}
                </span>
             )}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn btn-secondary flex items-center justify-center h-[42px] px-3 md:px-4"
+            variant="outline"
+            className="h-[42px] px-3 md:px-4"
             onClick={handleExportCsv}
             disabled={exporting}
             title="Export the current filtered view to CSV"
           >
-            <Download className="w-5 h-5 md:mr-2" />
+            <Download className="md:mr-2" />
             <span className="hidden md:inline">{exporting ? 'Exporting…' : 'Export'}</span>
-          </button>
+          </Button>
         </div>
 
         {!canViewPayments ? (
