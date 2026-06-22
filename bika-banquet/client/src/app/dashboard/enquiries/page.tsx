@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { api, fetchAllCustomers } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
 import {
@@ -17,6 +17,7 @@ import FormPromptModal from '@/components/FormPromptModal';
 import EmptyState from '@/components/EmptyState';
 import SortableHeader from '@/components/SortableHeader';
 import { ColumnFilter, DateRangeFilter } from '@/components/data-table/filter-controls';
+import { buildListUrl } from '@/lib/urlListState';
 import TablePagination from '@/components/TablePagination';
 import { TableSkeleton } from '@/components/Skeletons';
 import {
@@ -171,13 +172,17 @@ const ENQUIRIES_PAGE_SIZE = 75;
 
 export default function EnquiriesPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
   const canViewEnquiry = hasAnyPermission(permissionSet, ['view_enquiry', 'manage_enquiries']);
   const canAddEnquiry = hasAnyPermission(permissionSet, ['add_enquiry', 'manage_enquiries']);
   const canEditEnquiry = hasAnyPermission(permissionSet, ['edit_enquiry', 'manage_enquiries']);
   const canDeleteEnquiry = hasAnyPermission(permissionSet, ['delete_enquiry', 'manage_enquiries']);
-  const [status, setStatus] = useState('');
+  // Filter/search/sort state is hydrated from the URL on mount and synced back
+  // by the effect below, so reloads restore the view and links are shareable.
+  const [status, setStatus] = useState(() => searchParams.get('status') ?? '');
 
   const [useServer] = useState(() => usesServerPagination('enquiries'));
   const {
@@ -193,15 +198,17 @@ export default function EnquiriesPage() {
   const [saving, setSaving] = useState(false);
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
   const [editingEnquiryId, setEditingEnquiryId] = useState<string | null>(null);
-  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSearch, setGlobalSearch] = useState(() => searchParams.get('q') ?? '');
   const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') ?? '');
+  const [dateTo, setDateTo] = useState(() => searchParams.get('to') ?? '');
   const [showFilters, setShowFilters] = useState(false);
-  const [sort, setSort] = useState<SortState>({
-    key: 'functionName',
-    direction: 'asc',
+  const [sort, setSort] = useState<SortState>(() => {
+    const key = searchParams.get('sort');
+    return key
+      ? { key, direction: searchParams.get('dir') === 'desc' ? 'desc' : 'asc' }
+      : { key: 'functionName', direction: 'asc' };
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<EnquiryFormData>(initialFormData);
@@ -321,6 +328,23 @@ export default function EnquiriesPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedGlobalSearch, columnSearch, sort, status, dateFrom, dateTo]);
+
+  // Sync filter/search/sort state -> URL (preserves foreign params like ?new=1).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isDefaultSort = sort.key === 'functionName' && sort.direction === 'asc';
+    router.replace(
+      buildListUrl(pathname, window.location.search, ['q', 'status', 'from', 'to', 'sort', 'dir'], {
+        q: debouncedGlobalSearch,
+        status,
+        from: dateFrom,
+        to: dateTo,
+        sort: isDefaultSort ? undefined : sort.key,
+        dir: isDefaultSort ? undefined : sort.direction,
+      }),
+      { scroll: false }
+    );
+  }, [debouncedGlobalSearch, status, dateFrom, dateTo, sort, pathname, router]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;

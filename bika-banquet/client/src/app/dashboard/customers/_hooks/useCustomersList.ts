@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useCustomersListQuery, useCustomersServerListQuery } from '@/lib/query/hooks';
 import { usesServerPagination } from '@/lib/featureFlags';
 import { normalizeSearchForServer, selectListData } from '@/lib/listQuery';
+import { buildListUrl } from '@/lib/urlListState';
 import { useSSE } from '@/hooks/useSSE';
 import { useDebounce } from '@/lib/useDebounce';
 import {
@@ -32,6 +34,12 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
   // the two query hooks keep stable `enabled` values across renders.
   const [useServer] = useState(() => usesServerPagination('customers'));
 
+  // Filter/search/sort state is hydrated from the URL on mount and synced back
+  // by the effect below, so reloads restore the view and links are shareable.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const {
     data: legacyCustomers = [],
     isLoading: legacyLoading,
@@ -39,13 +47,21 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
     isError: legacyLoadError,
   } = useCustomersListQuery<CustomerRow[]>(canViewCustomer && !useServer);
 
-  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSearch, setGlobalSearch] = useState(() => searchParams.get('q') ?? '');
   // 300ms when server-paginating (fewer requests on slow phone networks);
   // 150ms preserved for the legacy in-memory path.
   const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
   const [columnSearch, setColumnSearch] = useState<ColumnSearch>(initialColumnSearch);
-  const [priority, setPriority] = useState<string[]>([]);
-  const [sort, setSort] = useState<SortState>({ key: 'name', direction: 'asc' });
+  const [priority, setPriority] = useState<string[]>(() => {
+    const raw = searchParams.get('priority');
+    return raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  });
+  const [sort, setSort] = useState<SortState>(() => {
+    const key = searchParams.get('sort');
+    return key
+      ? { key, direction: searchParams.get('dir') === 'desc' ? 'desc' : 'asc' }
+      : { key: 'name', direction: 'asc' };
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedCustomerDetail, setSelectedCustomerDetail] =
@@ -184,6 +200,21 @@ export function useCustomersList({ canViewCustomer }: { canViewCustomer: boolean
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedGlobalSearch, columnSearch, sort, priority]);
+
+  // Sync filter/search/sort state -> URL (preserves foreign params like ?new=1).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isDefaultSort = sort.key === 'name' && sort.direction === 'asc';
+    router.replace(
+      buildListUrl(pathname, window.location.search, ['q', 'priority', 'sort', 'dir'], {
+        q: debouncedGlobalSearch,
+        priority: priority.length ? priority.join(',') : undefined,
+        sort: isDefaultSort ? undefined : sort.key,
+        dir: isDefaultSort ? undefined : sort.direction,
+      }),
+      { scroll: false }
+    );
+  }, [debouncedGlobalSearch, priority, sort, pathname, router]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;

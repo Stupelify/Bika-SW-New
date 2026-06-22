@@ -1,6 +1,8 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { buildListUrl } from '@/lib/urlListState';
 import { useSSE } from '@/hooks/useSSE';
 import { toast } from 'sonner';
 import { CreditCard, Plus, Save, Search, Filter } from 'lucide-react';
@@ -78,6 +80,9 @@ const initialColumnSearch = {
 const PAYMENTS_PAGE_SIZE = 100;
 
 export default function PaymentsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions ?? [], [user?.permissions]);
   const canViewPayments = useMemo(
@@ -99,12 +104,22 @@ export default function PaymentsPage() {
   const addPaymentMutation = useAddPaymentMutation();
   const saving = addPaymentMutation.isPending;
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState('');
+  // Filter/search/sort state is hydrated from the URL on mount and synced back
+  // by the effect below, so reloads restore the view and links are shareable.
+  const [globalSearch, setGlobalSearch] = useState(() => searchParams.get('q') ?? '');
   const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [due, setDue] = useState<'' | 'outstanding' | 'paid'>('');
-  const [sort, setSort] = useState<SortState>({ key: 'booking', direction: 'asc' });
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') ?? '');
+  const [dateTo, setDateTo] = useState(() => searchParams.get('to') ?? '');
+  const [due, setDue] = useState<'' | 'outstanding' | 'paid'>(() => {
+    const d = searchParams.get('due');
+    return d === 'outstanding' || d === 'paid' ? d : '';
+  });
+  const [sort, setSort] = useState<SortState>(() => {
+    const key = searchParams.get('sort');
+    return key
+      ? { key, direction: searchParams.get('dir') === 'desc' ? 'desc' : 'asc' }
+      : { key: 'booking', direction: 'asc' };
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [paymentForm, setPaymentForm] = useState(initialPaymentForm);
@@ -274,6 +289,23 @@ export default function PaymentsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [globalSearch, columnSearch, sort, dateFrom, dateTo, due]);
+
+  // Sync filter/search/sort state -> URL (preserves any foreign params).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isDefaultSort = sort.key === 'booking' && sort.direction === 'asc';
+    router.replace(
+      buildListUrl(pathname, window.location.search, ['q', 'from', 'to', 'due', 'sort', 'dir'], {
+        q: debouncedGlobalSearch,
+        from: dateFrom,
+        to: dateTo,
+        due,
+        sort: isDefaultSort ? undefined : sort.key,
+        dir: isDefaultSort ? undefined : sort.direction,
+      }),
+      { scroll: false }
+    );
+  }, [debouncedGlobalSearch, dateFrom, dateTo, due, sort, pathname, router]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
