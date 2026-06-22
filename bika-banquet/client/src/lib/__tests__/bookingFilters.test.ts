@@ -5,6 +5,8 @@ import {
   hasAnyActiveFilter,
   toListParamsInput,
   applyBookingFiltersClient,
+  bookingFiltersToParams,
+  bookingFiltersFromParams,
   type BookingFilters,
 } from '../booking-list/booking-filters';
 import { buildListParams } from '../listQuery';
@@ -12,6 +14,45 @@ import { buildListParams } from '../listQuery';
 function makeFilters(overrides: Partial<BookingFilters>): BookingFilters {
   return { ...EMPTY_BOOKING_FILTERS, ...overrides };
 }
+
+describe('booking filters URL codec', () => {
+  it('emits no params for the empty filter set', () => {
+    expect(bookingFiltersToParams(EMPTY_BOOKING_FILTERS)).toEqual({});
+  });
+
+  it('round-trips a populated filter set through query params', () => {
+    const filters = makeFilters({
+      status: ['confirmed', 'pencil'],
+      banquetIds: ['b1'],
+      hallIds: ['h1', 'h2'],
+      dateFrom: '2026-01-01',
+      dateTo: '2026-02-01',
+      guestsMin: '50',
+      guestsMax: '300',
+      amountMin: '10000',
+      amountMax: '90000',
+      due: 'outstanding',
+    });
+    const params = new URLSearchParams(bookingFiltersToParams(filters));
+    // `search` is owned separately (the `q` param), so the round-trip clears it.
+    expect(bookingFiltersFromParams((k) => params.get(k))).toEqual({
+      ...filters,
+      search: '',
+    });
+  });
+
+  it('ignores an invalid due value', () => {
+    const params = new URLSearchParams({ due: 'bogus' });
+    expect(bookingFiltersFromParams((k) => params.get(k)).due).toBe('');
+  });
+
+  it('uses plural venues/halls keys to avoid the singular hall deep-link', () => {
+    const params = bookingFiltersToParams(makeFilters({ banquetIds: ['b1'], hallIds: ['h1'] }));
+    expect(params).toHaveProperty('venues', 'b1');
+    expect(params).toHaveProperty('halls', 'h1');
+    expect(params).not.toHaveProperty('hall');
+  });
+});
 
 describe('toListParamsInput', () => {
   it('omits empty selections', () => {

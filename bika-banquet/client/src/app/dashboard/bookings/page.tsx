@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Download,
   Filter,
@@ -20,8 +20,11 @@ import {
   filterAndSortRows,
 } from '@/lib/tableUtils';
 import {
+  BOOKING_FILTER_URL_KEYS,
   EMPTY_BOOKING_FILTERS,
   applyBookingFiltersClient,
+  bookingFiltersFromParams,
+  bookingFiltersToParams,
   countActiveFilters,
   toListParamsInput,
   type BookingFilters,
@@ -53,6 +56,8 @@ const EMPTY_CLIENT_COLUMN_SEARCH: Record<string, string> = {};
 
 export default function BookingsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuthStore();
   const permissionSet = useMemo(() => user?.permissions || [], [user?.permissions]);
   const canViewBooking = hasAnyPermission(permissionSet, ['view_booking', 'manage_bookings']);
@@ -62,7 +67,7 @@ export default function BookingsPage() {
   const canExportMenuPdf = canViewBooking;
 
   const [useServer] = useState(() => usesServerPagination('bookings'));
-  const [savedView, setSavedView] = useState<string>('all');
+  const [savedView, setSavedView] = useState<string>(() => searchParams.get('view') ?? 'all');
   const {
     data: legacyBookings = [],
     isLoading: legacyLoading,
@@ -70,18 +75,28 @@ export default function BookingsPage() {
     isError: legacyBookingsLoadError,
   } = useBookingsListQuery<Booking[]>(canViewBooking && !useServer);
   const [bookingPdfLoading, setBookingPdfLoading] = useState<string | null>(null);
-  const [globalSearch, setGlobalSearch] = useState('');
+  // State is lazily hydrated from the URL query string so a reload restores the
+  // view and filtered links are shareable. Reading once on mount (App Router's
+  // useSearchParams is consistent across SSR/CSR) avoids a hydration flash; a
+  // single write effect below keeps the URL in sync without a feedback loop.
+  const [globalSearch, setGlobalSearch] = useState(() => searchParams.get('q') ?? '');
   const debouncedGlobalSearch = useDebounce(globalSearch, useServer ? 300 : 150);
-  const [filters, setFilters] = useState<BookingFilters>(EMPTY_BOOKING_FILTERS);
+  const [filters, setFilters] = useState<BookingFilters>(() =>
+    bookingFiltersFromParams((key) => searchParams.get(key))
+  );
   const debouncedFilters = useDebounce(filters, useServer ? 300 : 150);
   const [showFilters, setShowFilters] = useState(false);
   const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
-  const [sort, setSort] = useState<SortState>({
-    key: 'functionDate',
-    direction: 'desc',
+  const [sort, setSort] = useState<SortState>(() => {
+    const key = searchParams.get('sort');
+    return key
+      ? { key, direction: searchParams.get('dir') === 'asc' ? 'asc' : 'desc' }
+      : { key: 'functionDate', direction: 'desc' };
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>(() =>
+    searchParams.get('vm') === 'cards' ? 'cards' : 'table'
+  );
 
   // Venue + hall options for the multiselect filters. Best-effort: if the
   // fetch fails the rest of the filters still work.
@@ -280,6 +295,30 @@ export default function BookingsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedGlobalSearch, debouncedFilters, sort]);
+
+  // Sync list state -> URL (debounced via debouncedFilters/Search). Foreign
+  // params (the section/id/date/hall/slot deep-links) are preserved; only the
+  // codec-owned keys are rewritten, so there is no read-back loop.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    for (const key of [...BOOKING_FILTER_URL_KEYS, 'q', 'sort', 'dir', 'view', 'vm']) {
+      params.delete(key);
+    }
+    for (const [key, value] of Object.entries(bookingFiltersToParams(debouncedFilters))) {
+      params.set(key, value);
+    }
+    const trimmedSearch = debouncedGlobalSearch.trim();
+    if (trimmedSearch) params.set('q', trimmedSearch);
+    if (!(sort.key === 'functionDate' && sort.direction === 'desc')) {
+      params.set('sort', sort.key);
+      params.set('dir', sort.direction);
+    }
+    if (savedView && savedView !== 'all') params.set('view', savedView);
+    if (viewMode === 'cards') params.set('vm', 'cards');
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [debouncedFilters, debouncedGlobalSearch, sort, savedView, viewMode, pathname, router]);
 
   const tableColumns = useMemo<TableColumnConfig<Booking>[]>(
     () => [

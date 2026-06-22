@@ -67,7 +67,10 @@ describe('standalone operations UI contract', () => {
       read('src/app/dashboard/bookings/page.tsx') +
       read('src/app/dashboard/bookings/_components/BookingsListSection.tsx');
 
-    expect(bookings).toContain("useState<'table' | 'cards'>('table')");
+    // View mode is a 'table' | 'cards' union that defaults to 'table'; it is
+    // now lazily hydrated from the `vm` URL param (filtered views are shareable).
+    expect(bookings).toContain("useState<'table' | 'cards'>(() =>");
+    expect(bookings).toContain("searchParams.get('vm') === 'cards' ? 'cards' : 'table'");
     expect(bookings).toContain('className="ops-route ops-list-route"');
     expect(bookings).toContain('className="ops-view-bar"');
     expect(bookings).toContain('className="ops-table-card"');

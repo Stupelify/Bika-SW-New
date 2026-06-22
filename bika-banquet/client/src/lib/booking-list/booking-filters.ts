@@ -113,6 +113,67 @@ export function toListParamsInput(f: BookingFilters): {
   };
 }
 
+/**
+ * Query-string keys this codec owns. The page deletes these before writing the
+ * current state so it can preserve unrelated params (e.g. the `section`/`id`/
+ * `date`/`hall`/`slot` deep-links). Note `venues`/`halls` are plural to avoid
+ * colliding with the singular `hall` deep-link param.
+ */
+export const BOOKING_FILTER_URL_KEYS = [
+  'status',
+  'venues',
+  'halls',
+  'from',
+  'to',
+  'gmin',
+  'gmax',
+  'amin',
+  'amax',
+  'due',
+] as const;
+
+/** Filter model → query params. Only non-empty fields are emitted so the
+ *  default view keeps a clean URL and shared links stay short. */
+export function bookingFiltersToParams(f: BookingFilters): Record<string, string> {
+  const p: Record<string, string> = {};
+  if (f.status.length) p.status = f.status.join(',');
+  if (f.banquetIds.length) p.venues = f.banquetIds.join(',');
+  if (f.hallIds.length) p.halls = f.hallIds.join(',');
+  if (f.dateFrom) p.from = f.dateFrom;
+  if (f.dateTo) p.to = f.dateTo;
+  if (f.guestsMin) p.gmin = f.guestsMin;
+  if (f.guestsMax) p.gmax = f.guestsMax;
+  if (f.amountMin) p.amin = f.amountMin;
+  if (f.amountMax) p.amax = f.amountMax;
+  if (f.due) p.due = f.due;
+  return p;
+}
+
+/** Query params → filter model. `get` is `URLSearchParams.get`-shaped so this
+ *  stays free of any framework type. `search` is owned separately by the page
+ *  (`q`), so it is always returned empty here. */
+export function bookingFiltersFromParams(get: (key: string) => string | null): BookingFilters {
+  const csv = (key: string): string[] => {
+    const raw = get(key);
+    return raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  };
+  const str = (key: string): string => get(key) ?? '';
+  const due = str('due');
+  return {
+    search: '',
+    status: csv('status'),
+    banquetIds: csv('venues'),
+    hallIds: csv('halls'),
+    dateFrom: str('from'),
+    dateTo: str('to'),
+    guestsMin: str('gmin'),
+    guestsMax: str('gmax'),
+    amountMin: str('amin'),
+    amountMax: str('amax'),
+    due: due === 'outstanding' || due === 'paid' ? due : '',
+  };
+}
+
 /** Minimal row shape the client-side fallback filter needs. */
 interface FilterableBooking {
   status: string;
