@@ -79,7 +79,7 @@ module.exports = {
           foreground: 'hsl(var(--destructive-foreground))',
         },
         input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
+        ring: 'hsl(var(--sd-ring))',
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
