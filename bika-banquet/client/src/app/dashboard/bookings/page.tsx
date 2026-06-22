@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { downloadBlob } from '@/lib/download';
+import { Button } from '@/components/shadcn/button';
 import FilterPanel from '@/components/FilterPanel';
 import { useBookingsListQuery, useBookingsServerListQuery } from '@/lib/query/hooks';
 import { usesServerPagination } from '@/lib/featureFlags';
@@ -539,25 +540,23 @@ export default function BookingsPage() {
                 aria-label="Search bookings"
               />
             </div>
-            <button
+            <Button
               type="button"
-              className="btn btn-secondary ops-filter-button"
+              variant="outline"
+              className="h-[42px]"
               onClick={() => setShowFilters(true)}
             >
-              <Filter className="w-4 h-4" />
+              <Filter />
               Filters
               {activeFilterCount > 0 && (
                 <span className="ops-filter-count">{activeFilterCount}</span>
               )}
-            </button>
+            </Button>
             {canAddBooking ? (
-              <button
-                onClick={() => void openCreateBooking()}
-                className="btn btn-primary inline-flex items-center gap-2 justify-center"
-              >
-                <Plus className="w-4 h-4" />
+              <Button className="h-[42px]" onClick={() => void openCreateBooking()}>
+                <Plus />
                 New booking
-              </button>
+              </Button>
             ) : null}
           </>
         }
