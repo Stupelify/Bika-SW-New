@@ -95,6 +95,7 @@ export default function BookingsPage() {
       : { key: 'functionDate', direction: 'desc' };
   });
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(BOOKINGS_PAGE_SIZE);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>(() =>
     searchParams.get('vm') === 'cards' ? 'cards' : 'table'
   );
@@ -126,6 +127,27 @@ export default function BookingsPage() {
       // ignore storage access errors
     }
   }, [density]);
+
+  // Persisted, user-selectable page size. Read after mount (avoids hydration
+  // mismatch); changing it resets to the first page.
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('bika_bookings_page_size'));
+      if (Number.isInteger(saved) && saved > 0) setPageSize(saved);
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    try {
+      window.localStorage.setItem('bika_bookings_page_size', String(size));
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
 
   useEffect(() => {
     if (!canViewBooking) return;
@@ -171,7 +193,7 @@ export default function BookingsPage() {
     refetch: refetchServerBookings,
   } = useBookingsServerListQuery<Booking>(canViewBooking && useServer, {
     page: currentPage,
-    limit: BOOKINGS_PAGE_SIZE,
+    limit: pageSize,
     sort: sort.key,
     order: sort.direction,
     ...serverFilterParams,
@@ -397,8 +419,8 @@ export default function BookingsPage() {
     () =>
       useServer
         ? Math.max(1, serverBookingsData?.pagination?.totalPages ?? 1)
-        : Math.max(1, Math.ceil(clientFilteredBookings.length / BOOKINGS_PAGE_SIZE)),
-    [useServer, serverBookingsData?.pagination?.totalPages, clientFilteredBookings.length]
+        : Math.max(1, Math.ceil(clientFilteredBookings.length / pageSize)),
+    [useServer, serverBookingsData?.pagination?.totalPages, clientFilteredBookings.length, pageSize]
   );
 
   const filteredBookings = useServer ? bookings : clientFilteredBookings;
@@ -406,9 +428,9 @@ export default function BookingsPage() {
   const paginatedBookings = useMemo(() => {
     if (useServer) return bookings;
     const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-    const startIndex = (safePage - 1) * BOOKINGS_PAGE_SIZE;
-    return clientFilteredBookings.slice(startIndex, startIndex + BOOKINGS_PAGE_SIZE);
-  }, [useServer, bookings, currentPage, clientFilteredBookings, totalPages]);
+    const startIndex = (safePage - 1) * pageSize;
+    return clientFilteredBookings.slice(startIndex, startIndex + pageSize);
+  }, [useServer, bookings, currentPage, clientFilteredBookings, totalPages, pageSize]);
 
   useEffect(() => {
     if (currentPage <= totalPages) return;
@@ -588,6 +610,8 @@ export default function BookingsPage() {
         setShowFilters={setShowFilters}
         onExportCsv={handleExportCsv}
         exporting={exporting}
+        pageSize={pageSize}
+        onPageSizeChange={handlePageSizeChange}
       />
 
       {canAddBooking && (

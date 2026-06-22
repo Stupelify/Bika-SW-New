@@ -24,7 +24,6 @@ import { DUE_FILTER_OPTIONS, STATUS_FILTER_OPTIONS } from '@/components/bookings
 import type { BookingFilters } from '@/lib/booking-list/booking-filters';
 import {
   BOOKING_SAVED_VIEWS,
-  BOOKINGS_PAGE_SIZE,
   formatInrCompact,
   pencilExpiryDays,
   type Booking,
@@ -69,6 +68,8 @@ interface BookingsListSectionProps {
   setShowFilters: (open: boolean) => void;
   onExportCsv?: () => void;
   exporting?: boolean;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
 }
 
 /**
@@ -114,6 +115,8 @@ export default function BookingsListSection({
   setShowFilters,
   onExportCsv,
   exporting = false,
+  pageSize,
+  onPageSizeChange,
 }: BookingsListSectionProps) {
   // A filter/search-induced empty result must NOT replace the table — the
   // per-column filter controls live in the header, so the user needs them to
@@ -346,7 +349,8 @@ export default function BookingsListSection({
                     currentPage={currentPage}
                     totalPages={totalPages}
                     totalItems={totalBookingsCount}
-                    pageSize={BOOKINGS_PAGE_SIZE}
+                    pageSize={pageSize}
+                    onPageSizeChange={onPageSizeChange}
                     itemLabel="bookings"
                     onPageChange={setCurrentPage}
                   />
@@ -382,7 +386,8 @@ export default function BookingsListSection({
                       currentPage={currentPage}
                       totalPages={totalPages}
                       totalItems={totalBookingsCount}
-                      pageSize={BOOKINGS_PAGE_SIZE}
+                      pageSize={pageSize}
+                      onPageSizeChange={onPageSizeChange}
                       itemLabel="bookings"
                       onPageChange={setCurrentPage}
                     />
@@ -642,7 +647,8 @@ export default function BookingsListSection({
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalBookingsCount}
-                pageSize={BOOKINGS_PAGE_SIZE}
+                pageSize={pageSize}
+                onPageSizeChange={onPageSizeChange}
                 itemLabel="bookings"
                 onPageChange={setCurrentPage}
               />

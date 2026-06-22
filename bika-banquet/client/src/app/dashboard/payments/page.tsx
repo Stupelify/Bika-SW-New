@@ -123,6 +123,24 @@ export default function PaymentsPage() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PAYMENTS_PAGE_SIZE);
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('bika_payments_page_size'));
+      if (Number.isInteger(saved) && saved > 0) setPageSize(saved);
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    try {
+      window.localStorage.setItem('bika_payments_page_size', String(size));
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
   const [paymentForm, setPaymentForm] = useState(initialPaymentForm);
   // Pinned booking option for the Add-Payment picker (server mode): keeps the
   // chosen booking visible even when not in the searched batch.
@@ -166,7 +184,7 @@ export default function PaymentsPage() {
     refetch: refetchServerBookings,
   } = useBookingsServerListQuery<BookingRow>(canViewPayments && useServer, {
     page: currentPage,
-    limit: PAYMENTS_PAGE_SIZE,
+    limit: pageSize,
     search: serverSearch,
     sort: sort.key,
     order: sort.direction,
@@ -296,8 +314,8 @@ export default function PaymentsPage() {
     () =>
       useServer
         ? Math.max(1, serverData?.pagination?.totalPages ?? 1)
-        : Math.max(1, Math.ceil(clientFiltered.length / PAYMENTS_PAGE_SIZE)),
-    [useServer, serverData?.pagination?.totalPages, clientFiltered.length]
+        : Math.max(1, Math.ceil(clientFiltered.length / pageSize)),
+    [useServer, serverData?.pagination?.totalPages, clientFiltered.length, pageSize]
   );
 
   const filteredBookings = useServer ? bookings : clientFiltered;
@@ -305,9 +323,9 @@ export default function PaymentsPage() {
   const paginatedBookings = useMemo(() => {
     if (useServer) return bookings; // already the current page
     const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-    const startIndex = (safePage - 1) * PAYMENTS_PAGE_SIZE;
-    return clientFiltered.slice(startIndex, startIndex + PAYMENTS_PAGE_SIZE);
-  }, [useServer, bookings, currentPage, clientFiltered, totalPages]);
+    const startIndex = (safePage - 1) * pageSize;
+    return clientFiltered.slice(startIndex, startIndex + pageSize);
+  }, [useServer, bookings, currentPage, clientFiltered, totalPages, pageSize]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -649,7 +667,8 @@ export default function PaymentsPage() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalCount}
-                pageSize={PAYMENTS_PAGE_SIZE}
+                pageSize={pageSize}
+                onPageSizeChange={handlePageSizeChange}
                 itemLabel="bookings"
                 onPageChange={setCurrentPage}
               />
@@ -764,7 +783,8 @@ export default function PaymentsPage() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalCount}
-                pageSize={PAYMENTS_PAGE_SIZE}
+                pageSize={pageSize}
+                onPageSizeChange={handlePageSizeChange}
                 itemLabel="bookings"
                 onPageChange={setCurrentPage}
               />

@@ -212,6 +212,24 @@ export default function EnquiriesPage() {
       : { key: 'functionName', direction: 'asc' };
   });
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(ENQUIRIES_PAGE_SIZE);
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('bika_enquiries_page_size'));
+      if (Number.isInteger(saved) && saved > 0) setPageSize(saved);
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    try {
+      window.localStorage.setItem('bika_enquiries_page_size', String(size));
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
   const [formData, setFormData] = useState<EnquiryFormData>(initialFormData);
 
   const serverSearch = useMemo(() => {
@@ -249,7 +267,7 @@ export default function EnquiriesPage() {
     refetch: refetchServerEnquiries,
   } = useEnquiriesServerListQuery<Enquiry>(canViewEnquiry && useServer, {
     page: currentPage,
-    limit: ENQUIRIES_PAGE_SIZE,
+    limit: pageSize,
     search: serverSearch,
     sort: sort.key,
     order: sort.direction,
@@ -329,8 +347,8 @@ export default function EnquiriesPage() {
     () =>
       useServer
         ? Math.max(1, serverData?.pagination?.totalPages ?? 1)
-        : Math.max(1, Math.ceil(clientFiltered.length / ENQUIRIES_PAGE_SIZE)),
-    [useServer, serverData?.pagination?.totalPages, clientFiltered.length]
+        : Math.max(1, Math.ceil(clientFiltered.length / pageSize)),
+    [useServer, serverData?.pagination?.totalPages, clientFiltered.length, pageSize]
   );
 
   const filteredEnquiries = useServer ? enquiries : clientFiltered;
@@ -338,9 +356,9 @@ export default function EnquiriesPage() {
   const paginatedEnquiries = useMemo(() => {
     if (useServer) return enquiries; // already the current page
     const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-    const startIndex = (safePage - 1) * ENQUIRIES_PAGE_SIZE;
-    return clientFiltered.slice(startIndex, startIndex + ENQUIRIES_PAGE_SIZE);
-  }, [useServer, enquiries, currentPage, clientFiltered, totalPages]);
+    const startIndex = (safePage - 1) * pageSize;
+    return clientFiltered.slice(startIndex, startIndex + pageSize);
+  }, [useServer, enquiries, currentPage, clientFiltered, totalPages, pageSize]);
 
   useEffect(() => {
     void loadLookups();
@@ -1092,7 +1110,8 @@ export default function EnquiriesPage() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalCount}
-                pageSize={ENQUIRIES_PAGE_SIZE}
+                pageSize={pageSize}
+                onPageSizeChange={handlePageSizeChange}
                 itemLabel="enquiries"
                 onPageChange={setCurrentPage}
               />
@@ -1216,7 +1235,8 @@ export default function EnquiriesPage() {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalCount}
-                pageSize={ENQUIRIES_PAGE_SIZE}
+                pageSize={pageSize}
+                onPageSizeChange={handlePageSizeChange}
                 itemLabel="enquiries"
                 onPageChange={setCurrentPage}
               />
