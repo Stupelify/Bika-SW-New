@@ -1,6 +1,9 @@
 import prisma from '../config/database';
 import { invalidateSessionCacheByToken } from '../middleware/auth.middleware';
 
+type SessionTokenRow = { token: string };
+type UserRoleUserRow = { userId: string };
+
 /**
  * Revoke a user's sessions ("log out") and clear their cached session entries
  * so the revocation takes effect immediately rather than after the cache TTL.
@@ -15,7 +18,7 @@ export async function revokeUserSessions(
   userId: string,
   exceptToken?: string
 ): Promise<void> {
-  const sessions = await prisma.session.findMany({
+  const sessions: SessionTokenRow[] = await prisma.session.findMany({
     where: { userId },
     select: { token: true },
   });
@@ -42,7 +45,7 @@ export async function revokeUserSessions(
  * access and the change should take effect immediately.
  */
 export async function refreshUserSessions(userId: string): Promise<void> {
-  const sessions = await prisma.session.findMany({
+  const sessions: SessionTokenRow[] = await prisma.session.findMany({
     where: { userId },
     select: { token: true },
   });
@@ -59,7 +62,7 @@ export async function refreshUserSessions(userId: string): Promise<void> {
  * set changes), so all affected users pick up the change on their next request.
  */
 export async function refreshUsersByRole(roleId: string): Promise<void> {
-  const userRoles = await prisma.userRole.findMany({
+  const userRoles: UserRoleUserRow[] = await prisma.userRole.findMany({
     where: { roleId },
     select: { userId: true },
   });

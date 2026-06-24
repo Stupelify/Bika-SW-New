@@ -1,8 +1,10 @@
 import prisma from '../config/database';
 
+type UserRoleNameRow = { role: { name: string } };
+
 /** True if the user holds the Admin role. */
 export async function userHasAdminRole(userId: string): Promise<boolean> {
-  const roles = await prisma.userRole.findMany({
+  const roles: UserRoleNameRow[] = await prisma.userRole.findMany({
     where: { userId },
     select: { role: { select: { name: true } } },
   });
