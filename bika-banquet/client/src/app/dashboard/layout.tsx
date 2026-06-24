@@ -16,6 +16,10 @@ import { useIdleTimeout } from '@/hooks/useIdleTimeout';
 import { useSSE } from '@/hooks/useSSE';
 import SseStatusChip from '@/components/SseStatusChip';
 import {
+  shouldRedirectToLogin,
+  shouldShowSessionVerificationFailure,
+} from '@/lib/authRedirect';
+import {
   getDefaultDashboardRoute,
   hasAccessForRequiredPermissions,
   isPathAllowedForUser,
@@ -321,7 +325,7 @@ function DashboardLayoutContent({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, logout, isAuthenticated, isAuthReady } = useAuthStore();
+  const { user, logout, loadUser, isAuthenticated, isAuthReady } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -543,7 +547,7 @@ function DashboardLayoutContent({
 
   useEffect(() => {
     if (!isAuthReady || typeof window === 'undefined') return;
-    if (!isAuthenticated) {
+    if (shouldRedirectToLogin(isAuthenticated, isAuthReady, Boolean(getStoredAuthToken()))) {
       router.push('/login');
     }
   }, [isAuthenticated, isAuthReady, router]);
@@ -757,12 +761,32 @@ function DashboardLayoutContent({
     );
   }
 
+  const hasStoredToken = Boolean(getStoredAuthToken());
+  const showSessionVerificationFailure = shouldShowSessionVerificationFailure(
+    isAuthenticated,
+    isAuthReady,
+    hasStoredToken
+  );
+
   if (!isAuthenticated) {
     return (
       <div className="loading-screen">
         <div className="loading-stack">
           <div className="skeleton loading-avatar" />
-          <p className="loading-text">Redirecting to sign in…</p>
+          {showSessionVerificationFailure ? (
+            <>
+              <p className="loading-text">Could not verify your session.</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void loadUser({ silent: true })}
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            <p className="loading-text">Redirecting to sign in…</p>
+          )}
         </div>
       </div>
     );

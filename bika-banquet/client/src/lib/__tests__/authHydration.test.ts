@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest';
-
-/** Mirrors dashboard layout redirect guard */
-export function shouldRedirectToLogin(
-  isAuthenticated: boolean,
-  isAuthReady: boolean,
-  hasStoredToken: boolean
-): boolean {
-  return isAuthReady && !isAuthenticated && !hasStoredToken;
-}
+import {
+  shouldRedirectToLogin,
+  shouldShowSessionVerificationFailure,
+} from '@/lib/authRedirect';
 
 describe('auth session hydration redirect guard', () => {
   it('does not redirect before loadUser completes', () => {
@@ -24,5 +19,15 @@ describe('auth session hydration redirect guard', () => {
 
   it('does not redirect authenticated users', () => {
     expect(shouldRedirectToLogin(true, true, true)).toBe(false);
+  });
+});
+
+describe('auth session verification failure state', () => {
+  it('does not show token recovery UI before hydration completes', () => {
+    expect(shouldShowSessionVerificationFailure(false, false, true)).toBe(false);
+  });
+
+  it('shows token recovery UI after hydration fails with a stored token', () => {
+    expect(shouldShowSessionVerificationFailure(false, true, true)).toBe(true);
   });
 });

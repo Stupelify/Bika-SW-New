@@ -2,19 +2,29 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
+import { getStoredAuthToken, useAuthStore } from '@/store/authStore';
+import {
+  shouldRedirectToLogin,
+  shouldShowSessionVerificationFailure,
+} from '@/lib/authRedirect';
 import { getDefaultDashboardRoute } from '@/lib/routeAccess';
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAuthenticated, isAuthReady, user } = useAuthStore();
+  const { isAuthenticated, isAuthReady, loadUser, user } = useAuthStore();
+  const hasStoredToken = Boolean(getStoredAuthToken());
+  const showSessionVerificationFailure = shouldShowSessionVerificationFailure(
+    isAuthenticated,
+    isAuthReady,
+    hasStoredToken
+  );
 
   useEffect(() => {
     if (!isAuthReady) return;
     if (isAuthenticated) {
       const nextRoute = getDefaultDashboardRoute(user?.permissions);
       router.push(nextRoute || '/login');
-    } else {
+    } else if (shouldRedirectToLogin(isAuthenticated, isAuthReady, Boolean(getStoredAuthToken()))) {
       router.push('/login');
     }
   }, [isAuthenticated, isAuthReady, router, user?.permissions]);
@@ -46,12 +56,38 @@ export default function HomePage() {
           Bika Banquet
         </p>
         <h1 style={{ margin: '10px 0 0', fontSize: 30, lineHeight: 1.2 }}>
-          {!isAuthReady ? 'Loading your workspace...' : 'Taking you to the right page...'}
+          {!isAuthReady
+            ? 'Loading your workspace...'
+            : showSessionVerificationFailure
+              ? 'Could not verify your session.'
+              : 'Taking you to the right page...'}
         </h1>
         <p style={{ margin: '12px 0 0', fontSize: 15, lineHeight: 1.6, color: '#334155' }}>
-          If this page does not move in a moment, open the login screen directly.
+          {showSessionVerificationFailure
+            ? 'Check your connection and retry session restore.'
+            : 'If this page does not move in a moment, open the login screen directly.'}
         </p>
         <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {showSessionVerificationFailure && (
+            <button
+              type="button"
+              onClick={() => void loadUser({ silent: true })}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 12,
+                padding: '10px 16px',
+                border: 0,
+                background: '#0d9488',
+                color: 'white',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
+          )}
           <a
             href="/login"
             style={{
@@ -60,8 +96,9 @@ export default function HomePage() {
               justifyContent: 'center',
               borderRadius: 12,
               padding: '10px 16px',
-              background: '#0d9488',
-              color: 'white',
+              background: showSessionVerificationFailure ? '#fff' : '#0d9488',
+              color: showSessionVerificationFailure ? '#334155' : 'white',
+              border: showSessionVerificationFailure ? '1px solid #cbd5e1' : undefined,
               textDecoration: 'none',
               fontWeight: 600,
             }}
