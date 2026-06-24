@@ -307,6 +307,12 @@ function withPhoneLengthValidation<T extends z.AnyZodObject>(schema: T) {
   });
 }
 
+function normalizeOptionalPhoneAlias(value: unknown): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed : null;
+}
+
 function buildNormalizedPhoneFields(
   data: Record<string, any>,
   existing?: Record<string, any>
@@ -322,21 +328,39 @@ function buildNormalizedPhoneFields(
     data.alterPhoneCountryCode ??
     existing?.alterPhoneCountryCode ??
     primaryCountryCode;
+  const alternatePhoneProvided = 'alterPhone' in data || 'alternatePhone' in data;
   const alternatePhoneSource =
-    'alterPhone' in data || 'alternatePhone' in data
+    alternatePhoneProvided
       ? data.alterPhone ?? data.alternatePhone ?? null
       : existing?.alterPhone ?? existing?.alternatePhone;
-  const alternatePhoneE164 = toE164(alternateCountryCode, alternatePhoneSource);
+  const normalizedAlternatePhone = alternatePhoneProvided
+    ? normalizeOptionalPhoneAlias(alternatePhoneSource)
+    : undefined;
+  const alternatePhoneE164 =
+    toE164(
+      alternateCountryCode,
+      alternatePhoneProvided ? normalizedAlternatePhone : alternatePhoneSource
+    ) ??
+    (alternatePhoneProvided ? null : undefined);
 
   const whatsappCountryCode =
     data.whatsappCountryCode ??
     existing?.whatsappCountryCode ??
     primaryCountryCode;
+  const whatsappProvided = 'whatsapp' in data || 'whatsappNumber' in data;
   const whatsappSource =
-    'whatsapp' in data || 'whatsappNumber' in data
+    whatsappProvided
       ? data.whatsapp ?? data.whatsappNumber ?? null
       : existing?.whatsapp ?? existing?.whatsappNumber;
-  const whatsappE164 = toE164(whatsappCountryCode, whatsappSource);
+  const normalizedWhatsapp = whatsappProvided
+    ? normalizeOptionalPhoneAlias(whatsappSource)
+    : undefined;
+  const whatsappE164 =
+    toE164(
+      whatsappCountryCode,
+      whatsappProvided ? normalizedWhatsapp : whatsappSource
+    ) ??
+    (whatsappProvided ? null : undefined);
 
   const isWhatsappSameAsPhone =
     data.isWhatsappSameAsPhone !== undefined
@@ -345,7 +369,21 @@ function buildNormalizedPhoneFields(
 
   return {
     phoneE164,
+    ...(alternatePhoneProvided
+      ? {
+          alterPhone: normalizedAlternatePhone,
+          alternatePhone: normalizedAlternatePhone,
+          ...(normalizedAlternatePhone === null ? { alterPhoneCountryCode: null } : {}),
+        }
+      : {}),
     alternatePhoneE164,
+    ...(whatsappProvided
+      ? {
+          whatsapp: normalizedWhatsapp,
+          whatsappNumber: normalizedWhatsapp,
+          ...(normalizedWhatsapp === null ? { whatsappCountryCode: null } : {}),
+        }
+      : {}),
     whatsappE164,
     isWhatsappSameAsPhone,
   };
