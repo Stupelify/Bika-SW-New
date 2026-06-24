@@ -73,6 +73,29 @@ export function validatePackCateringForSave(row: PackCateringRowFields): string 
   return null;
 }
 
+export interface PackExpectedGuestsRow {
+  pax?: number | string | null;
+}
+
+export function resolveExpectedGuestsForSave(
+  rows: PackExpectedGuestsRow[],
+  fallbackExpectedGuests?: number | string | null
+): number {
+  const packGuestCounts = rows
+    .map((row) => Number(row.pax || 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (packGuestCounts.length > 0) {
+    return Math.max(1, ...packGuestCounts);
+  }
+
+  const fallback = Number(fallbackExpectedGuests || 0);
+  if (Number.isFinite(fallback) && fallback > 0) {
+    return fallback;
+  }
+
+  return 1;
+}
+
 export const CATERING_UNTICK_CONFIRM_MESSAGE =
   'Turning off catering will clear this pack\'s menu, guest count, and rate per plate. Continue?';
 
