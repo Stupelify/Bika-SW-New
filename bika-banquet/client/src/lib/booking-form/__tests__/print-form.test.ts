@@ -5,12 +5,19 @@ describe('prepareBookingFormPrint', () => {
   it('switches to the booking form tab before printing from payments', () => {
     const setActiveTab = vi.fn();
     const print = vi.fn();
-    const defer = vi.fn((callback: () => void) => callback());
+    let deferredPrint: (() => void) | undefined;
+    const defer = vi.fn((callback: () => void) => {
+      deferredPrint = callback;
+    });
 
     prepareBookingFormPrint('payments', setActiveTab, print, defer);
 
     expect(setActiveTab).toHaveBeenCalledWith('details');
     expect(defer).toHaveBeenCalledOnce();
+    expect(print).not.toHaveBeenCalled();
+
+    deferredPrint?.();
+
     expect(print).toHaveBeenCalledOnce();
   });
 
