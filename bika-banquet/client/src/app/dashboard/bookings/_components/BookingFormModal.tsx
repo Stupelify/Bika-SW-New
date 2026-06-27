@@ -29,6 +29,7 @@ import BookingTermsSection from '@/components/booking/BookingTermsSection';
 import BookingMenuEditorModal from '@/components/booking/BookingMenuEditorModal';
 import BookingPackTable from '@/components/booking/BookingPackTable';
 import BookingPackMobileCards from '@/components/booking/BookingPackMobileCards';
+import { prepareBookingFormPrint } from '@/lib/booking-form/print-form';
 import QuickCustomerModal from './QuickCustomerModal';
 import MenuPdfModal from './MenuPdfModal';
 import {
@@ -804,7 +805,13 @@ export default function BookingFormModal(props: BookingFormModalProps) {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => window.print()}
+                onClick={() =>
+                  prepareBookingFormPrint(
+                    activeBookingTab,
+                    setActiveBookingTab,
+                    () => window.print()
+                  )
+                }
               >
                 <span className="inline-flex items-center gap-2">
                   <Printer className="w-4 h-4" />
