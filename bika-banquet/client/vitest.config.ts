@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: [
+      'src/components/__tests__/**/*.test.tsx',
       'src/lib/booking-form/__tests__/**/*.test.ts',
       'src/lib/__tests__/**/*.test.ts',
     ],
